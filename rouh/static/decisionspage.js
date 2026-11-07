@@ -168,6 +168,12 @@
           return;
         }
         var line = d.line || {};
+        // An action, a hands-on step only he can do, has its own page on Your part
+        // (`rouh/actions.py`): "Decision 430" in an old report still lands on it.
+        if (d.kind === 'action' && d.number && host().forward) {
+          host().forward('/actions/' + d.number);
+          return;
+        }
         // Its source's own page answers it: that is where it opens, in place of this
         // address, so Back goes to where he was before.
         // One Rouh cleared is drawn here, with Open again, whatever its source.

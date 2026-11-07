@@ -71,6 +71,7 @@ When a question passes the test, the task goes to `waiting` (the next move is �
    - `risk`: `money`, `sending`, `publishing` or `irreversible`, when the answer spends money, sends something to a person, publishes, or cannot be undone. Add `risk_note`, which says the risk in plain words.
    - `urgency`: `now`, `today`, `soon` or `whenever`. Write it only when it is not `soon`.
    - `prepared`: a list of `{label, href}` for what you made for ‹him› to look at.
+   - `kind`: `action` when what you need is something ‹he› has to do with ‹his› own hands, not a choice: install or authorise an app, sign in, run a command on ‹his› own computer, change a setting only ‹he› can reach, check something on ‹his› phone. Then write `ask` as what to do, starting with a verb, and add `steps` (a list of `{text, href}`, each `href` the exact page to open, such as the install page), `minutes` (about how long it takes) and `check` (how you or a job will check that it worked). Rouh shows it under Your part as an action, with Done, Not doing this and Another way, and not as a decision.
    The page of the task shows the options as buttons. ‹He› answers with one press or in ‹his› own words, and the answer goes to a job. Rouh only shows a recommendation. It never chooses for ‹him›.
 3. When ‹he› answers, do all of these in the same turn: write the decision in the `AGENTS.md` of the task, remove the question with `rouh-task meta <the task> merge '{"question": null}'`, and take the task off `waiting` with `rouh-task status`. Nothing else does this.
 - A task that is `done` asks nothing. Put what is left to do in its `AGENTS.md` as your recommendation."""
@@ -267,10 +268,36 @@ def _seed_text(title: str) -> str:
     return next(text for _, _, rows in SEED for t, text in rows if t == title)
 
 
+#: The words "Waiting tasks and their questions" had until 7 November 2026, when a hands-on step
+#: only the owner can do became an action of its own (`rouh/actions.py`).
+_WAITING_BEFORE_ACTIONS = """\
+Ask ‹owner› a question only when both of these are true:
+1. The work that ‹he› asked for has stopped, and it cannot continue without ‹him›.
+2. The answer is ‹his› to give: it spends money, sends or publishes something or commits ‹him› to something in ‹his› name, it cannot be undone, it needs a fact that only ‹he› has, or it is a choice that changes what happens next and that you cannot make from what you know.
+If one of them is false, do not ask. Choose yourself. Write your recommendation and the reason for it on the page of the step and in the `AGENTS.md` of the task, and continue or finish. Research ends with your recommendation, never with a question such as "Buy now or later?", "Which direction?" or "Which next step should a job take?". Do not put the task in `waiting` and do not write a `question` block. Rouh has a gate in front of the decisions of ‹owner›: it removes a question that fails this test, and ‹owner› never sees it.
+
+When a question passes the test, the task goes to `waiting` (the next move is ‹owner›'s). Do these steps:
+1. In the `AGENTS.md` of the task, under Where this stands, write one paragraph that starts `**Waiting on ‹owner›:**`. Then ask the question so that ‹he› can answer it in one sentence. Example: `**Waiting on ‹owner›:** whether to pay the deposit of 400 euros for the venue.` For two or more things, write `**Waiting on ‹owner›, two things.**` with a numbered list under it. Start each item with its question in bold. Rouh shows this paragraph in the task browser and at the top of the page of the task.
+2. Put a `question` block in the meta of the task, with `rouh-task meta <the task> merge '{"question": {...}}'`. It has these fields:
+   - `ask`: the question, in one sentence.
+   - `options`: two to six answers that ‹owner› will most probably give. Each has a short `label` and a one-line `detail` that says what that choice means or needs. Leave out `options` only when you cannot guess an answer.
+   - `several`: `true` when ‹he› can choose more than one together.
+   - `then`: one sentence that says what the answer will do, for example "A job pays the deposit and sends the booking to the venue."
+   - `why`: one line that says why the work cannot continue without ‹him›.
+   - `recommended`: the label of the option that you recommend, with `recommended_why`, one line that says why.
+   - `risk`: `money`, `sending`, `publishing` or `irreversible`, when the answer spends money, sends something to a person, publishes, or cannot be undone. Add `risk_note`, which says the risk in plain words.
+   - `urgency`: `now`, `today`, `soon` or `whenever`. Write it only when it is not `soon`.
+   - `prepared`: a list of `{label, href}` for what you made for ‹him› to look at.
+   The page of the task shows the options as buttons. ‹He› answers with one press or in ‹his› own words, and the answer goes to a job. Rouh only shows a recommendation. It never chooses for ‹him›.
+3. When ‹he› answers, do all of these in the same turn: write the decision in the `AGENTS.md` of the task, remove the question with `rouh-task meta <the task> merge '{"question": null}'`, and take the task off `waiting` with `rouh-task status`. Nothing else does this.
+- A task that is `done` asks nothing. Put what is left to do in its `AGENTS.md` as your recommendation."""
+
 REVISED: tuple[tuple[str, ...], ...] = (
     # Every revision written here so far has been given to every organisation there is, and was
     # taken out once it had been: a new one is (who, title, the old words, the new words), and
     # a fifth value when its title changes too.
+    ("rouh-actions-2026-11-07", "Waiting tasks and their questions", _WAITING_BEFORE_ACTIONS,
+     _WAITING),
 )
 
 

@@ -81,8 +81,8 @@ export interface ServerMessages {
   browser_frame: { data: any; width: any; height: any; };
   browser_forgot: { had: any; };
   clock: { reminders: any; goals: any; telegram: any; };
-  /** How many decisions wait on the person, how many of them are urgent, and how many are snoozed (`rouh/decision_desk.py`). */
-  decisions: { open: number; now: number; snoozed: number; };
+  /** How many decisions wait on the person, how many of them are urgent, and how many are snoozed (`rouh/decision_desk.py`); and how many actions only they can do wait on Your part, and how many of those hold work up (`rouh/actions.py`). */
+  decisions: { open: number; now: number; snoozed: number; actions?: number; actions_blocking?: number; };
   /** Every notice under the bell, newest first, and how many are still to read (`rouh/notices.py`). */
   notices: { items: Notice[]; unread: number; grace: number; };
   clock_shown: { view: any; id?: any; said?: any; chat: any; /** What changed, in a sentence for the bar. */ what?: string; /** A goal's own page. */ address?: string; };

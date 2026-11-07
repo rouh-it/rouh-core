@@ -529,6 +529,16 @@ USES: tuple[Use, ...] = (
     Use("decision_gate", "Goals and the brief", "Whether a question needs you",
         "Reads a task's or a goal step's question before it reaches Decisions, and keeps it from "
         "you unless the work truly stopped on it and the answer is yours to give.", purposes=("decision_gate",)),
+    # Petar, 7 November 2026: "this is not a decision. This is a blocker action I need to do."
+    # What waits on him is read once to tell a hands-on action from a choice, and an action's
+    # page is written for someone who forgot everything (`rouh/actions.py`).
+    Use("action_reader", "Goals and the brief", "Whether it is something only you can do",
+        "Reads what waits on you once, tells a hands-on step only you can do from a choice, and "
+        "writes the action's page: the steps with their links, how Rouh checks it, and the story "
+        "so far.", purposes=("action_reader",)),
+    Use("action_ask", "Goals and the brief", "Questions about something you have to do",
+        "Answers a question you ask on an action's page, in place, from what Rouh knows of the "
+        "action and the work it holds up.", purposes=("action_ask",)),
     # Petar, 9 October 2026: the Control Room's clusters are named, and their headlines
     # written, by a model of their own (`rouh/clusters.py`). Never at the moment the room opens: a pass
     # after it, and each night, so the room always opens on what was written last.

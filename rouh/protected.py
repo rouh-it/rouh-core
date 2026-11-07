@@ -131,7 +131,8 @@ HIS_WORDS = {"type": "string", "description": (
 #: Tools that take `his_words` in scheduled work: `OWN_WORDS`, and those that need it
 #: only for some arguments (`check`).
 TAKES_HIS_WORDS = OWN_WORDS | {"one_start", "assistant_job", "remember",
-                               "update_contact_profile", "synapse_edit", "decisions", "link_person",
+                               "update_contact_profile", "synapse_edit", "decisions", "actions",
+                               "link_person",
                                # Answering a run's permission question (`tools._held_for_permission`).
                                "reply_to_task", "one_say"}
 
@@ -262,6 +263,9 @@ def _needs_his_words(name: str, args: dict) -> str:
     if name == "decisions" and str(args.get("action") or "list").strip().lower() not in (
             "list", "read"):
         return "Answering a decision"
+    if name == "actions" and str(args.get("action") or "list").strip().lower() not in (
+            "list", "read"):
+        return "Answering an action"
     # Who decides for him is his alone, and goes on his own words: in something scheduled,
     # the ones stored with it, checked where `delegate` runs (`tools.ToolRegistry._delegate`).
     if name in ("one_start", "assistant_job"):

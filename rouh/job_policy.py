@@ -185,7 +185,7 @@ NEVERS = frozenset({
     # Boxes and thoughts, which are the owner's to capture.
     "open_box", "new_box", "capture_thought",
     # What answers for the owner.
-    "decisions", "one_answer", "answer_conflict", "delegate", "delegate_act",
+    "decisions", "actions", "one_answer", "answer_conflict", "delegate", "delegate_act",
     # Taking over and handing back a run's terminal, and the live browser the owner watches:
     # a job's own browser is headless, and hands a step to the live one by its report.
     "one_take", "one_give", "browser",

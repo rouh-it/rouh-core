@@ -1,0 +1,217 @@
+/* Your part (`actionspage.js`): the hands-on things only the person can do (task 62,
+   step 62-28). The list grouped by the work each action unblocks, and one action in
+   full beside it on a desk, alone on a phone. Rouh's own tokens (app.css): one
+   accent for Done, --warn for what holds work up, --bad only for a risk, always
+   with its words. */
+
+.ac-view:focus { outline: none; }
+.ac-wrap { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
+.ac-body {
+  flex: 1 1 auto; min-width: 0; overflow: auto; scrollbar-width: thin; padding: 2px 2px 112px;
+  container-type: inline-size; container-name: acbody;
+}
+.ac-page { display: grid; gap: 16px; max-width: 1180px; align-content: start; }
+.ac-desk { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+@container acbody (min-width: 760px) {
+  .ac-desk { grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); }
+  .ac-card { position: sticky; top: 0; max-height: calc(100dvh - 150px); overflow: auto; scrollbar-width: thin; }
+}
+
+.ac-wait { margin: 0; color: var(--dim); font-size: 14px; }
+.ac-error { margin: 0; color: var(--bad); font-size: 14px; }
+
+/* Buttons and links the page draws. */
+.ac-quiet, .ac-main, .ac-row, .ac-back, .ac-undo, .ac-steplink, .ac-foldt {
+  font: inherit; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.ac-quiet {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 14px;
+  border-radius: 10px; border: 1px solid var(--line); background: transparent; font-size: 14px; font-weight: 600;
+  color: var(--dim); transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+}
+.ac-quiet:hover { color: var(--text); border-color: var(--dim); }
+.ac-quiet:active { background: var(--panel-2); }
+.ac-quiet[aria-expanded="true"] { color: var(--text); border-color: var(--dim); background: var(--panel-2); }
+.ac-quiet.ac-small { min-height: 36px; padding: 5px 11px; font-size: 13px; }
+.ac-quiet:disabled, .ac-main:disabled { opacity: .55; cursor: default; }
+.ac-main {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 52px; min-width: 132px;
+  padding: 10px 22px; border-radius: 12px; border: 1px solid var(--accent); background: var(--accent);
+  color: var(--accent-ink); font-size: 16.5px; font-weight: 700; transition: filter .15s ease, transform .1s ease;
+}
+.ac-main:hover:not(:disabled) { filter: brightness(1.07); }
+.ac-main:active:not(:disabled) { transform: translateY(1px); }
+.ac-link, .ac-glabel { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+.ac-link:hover, .ac-glabel:hover { text-decoration: underline; }
+:is(.ac-quiet, .ac-main, .ac-row, .ac-back, .ac-undo, .ac-steplink, .ac-link, .ac-glabel, .ac-foldt, .ac-input):focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) { .ac-quiet, .ac-main { transition: none; } }
+
+.ac-num { font-size: 12.5px; font-weight: 700; color: var(--dim); font-variant-numeric: tabular-nums; }
+.ac-num-big { font-size: 13px; color: var(--text); }
+.ac-age { font-size: 12.5px; color: var(--dim); }
+.ac-flag {
+  font-size: 12px; font-weight: 650; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim);
+}
+.ac-flag-warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.ac-flag-bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.ac-gk { font-size: 12.5px; font-weight: 650; color: var(--dim); margin-right: 6px; }
+
+/* ---- the list ---- */
+.ac-list { display: grid; gap: 18px; min-width: 0; align-content: start; }
+.ac-group { display: grid; gap: 6px; }
+.ac-ghead { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 2px; padding: 0 4px; font-size: 13.5px; font-weight: 650; }
+.ac-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ac-row {
+  display: grid; gap: 4px; width: 100%; text-align: left; padding: 11px 13px; border-radius: 12px;
+  border: 1px solid transparent; background: transparent; transition: background-color .15s ease, border-color .15s ease;
+}
+.ac-row:hover { background: var(--panel); }
+.ac-row.on { background: var(--panel); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.ac-rowtop { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.ac-rowtop .ac-age { margin-left: auto; }
+.ac-rowdo { font-size: 15px; font-weight: 640; line-height: 1.35; overflow-wrap: anywhere; }
+.ac-rowmeta { font-size: 13px; color: var(--dim); }
+
+.ac-empty { display: grid; gap: 6px; padding: 22px 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
+.ac-empty-big { margin: 0; font-size: 19px; font-weight: 680; }
+.ac-empty-small { margin: 0; font-size: 14px; color: var(--dim); line-height: 1.45; }
+
+.ac-fold { border-top: 1px solid var(--line-soft); padding-top: 8px; }
+.ac-foldt {
+  display: flex; align-items: center; min-height: 44px; padding: 0 4px; font-size: 13.5px; font-weight: 650;
+  color: var(--dim); list-style-position: inside;
+}
+.ac-foldt:hover { color: var(--text); }
+.ac-foldb { display: grid; gap: 4px; padding: 4px 0 2px; }
+.ac-hrow { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-radius: 10px; }
+.ac-hwords { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.ac-hdo { font-size: 14px; overflow-wrap: anywhere; }
+.ac-hmeta { font-size: 12.5px; color: var(--dim); overflow-wrap: anywhere; }
+
+/* ---- one action ---- */
+.ac-card {
+  display: grid; gap: 18px; min-width: 0; padding: 20px 22px 22px; border-radius: 16px;
+  border: 1px solid var(--line); background: var(--panel); align-content: start;
+}
+.ac-back {
+  justify-self: start; display: inline-flex; align-items: center; min-height: 44px; padding: 0 2px;
+  border: 0; background: none; color: var(--accent); font-size: 14px; font-weight: 600; margin: -8px 0 -6px;
+}
+.ac-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ac-top .ac-age { margin-left: auto; }
+.ac-do { margin: -4px 0 0; font-size: 23px; line-height: 1.28; font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; text-wrap: pretty; }
+.ac-sub { margin: -8px 0 0; font-size: 14.5px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
+.ac-time { color: var(--text); font-weight: 600; margin-right: 12px; }
+
+.ac-steps { display: grid; }
+.ac-steplist { list-style: none; margin: 0; padding: 0; display: grid; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.ac-step { display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 6px; min-height: 52px; }
+.ac-step + .ac-step { border-top: 1px solid var(--line-soft); }
+.ac-check { display: flex; align-items: flex-start; gap: 10px; flex: 1 1 0; min-width: 0; padding: 8px 6px; cursor: pointer; }
+.ac-check input { width: 22px; height: 22px; margin: 0; flex: none; accent-color: var(--accent); cursor: pointer; }
+.ac-steptext { font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
+.ac-stepn { color: var(--dim); font-variant-numeric: tabular-nums; }
+.ac-step.ticked .ac-steptext { color: var(--dim); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--dim) 60%, transparent); }
+.ac-steplink {
+  flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 6px 12px; border-radius: 10px;
+  border: 1px solid var(--line); color: var(--accent); text-decoration: none;
+  font-size: 13.5px; font-weight: 650; max-width: 46%; overflow-wrap: anywhere; text-align: center;
+}
+.ac-cmd {
+  flex: 1 1 100%; display: flex; align-items: center; gap: 8px; margin: 0 0 6px 38px; padding: 6px 6px 6px 12px;
+  border-radius: 10px; background: var(--bg-2); border: 1px solid var(--line-soft); min-width: 0;
+}
+.ac-cmdtext { flex: 1 1 auto; min-width: 0; font: 13.5px/1.45 var(--mono); overflow-wrap: anywhere; color: var(--text); user-select: all; }
+.ac-copy { flex: none; }
+.ac-step { flex-wrap: wrap; }
+.ac-steplink:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+
+.ac-answers { display: grid; gap: 12px; }
+.ac-doneform { display: grid; gap: 6px; }
+.ac-doneline { display: flex; gap: 10px; align-items: stretch; }
+.ac-doneline .ac-input { flex: 1 1 auto; min-width: 0; }
+.ac-label { font-size: 13px; font-weight: 600; color: var(--dim); }
+.ac-input {
+  min-height: 52px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg-2, var(--bg));
+  color: var(--text); font: inherit; font-size: 15px;
+}
+.ac-input::placeholder { color: var(--dimmer); }
+.ac-area { min-height: 88px; resize: vertical; line-height: 1.45; }
+.ac-quietrow, .ac-latermenu, .ac-formrow { display: flex; flex-wrap: wrap; gap: 8px; }
+.ac-form { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2, var(--bg)); }
+.ac-then { margin: 0; font-size: 13px; color: var(--dim); line-height: 1.45; }
+.ac-send { color: var(--text); border-color: var(--dim); }
+.ac-confirm { display: grid; gap: 10px; padding: 14px; border: 1px solid color-mix(in srgb, var(--bad) 45%, var(--line)); border-radius: 12px; }
+.ac-confirm p { margin: 0; font-size: 14.5px; }
+
+.ac-facts { margin: 0; display: grid; gap: 10px; padding-top: 4px; border-top: 1px solid var(--line-soft); padding-top: 14px; }
+.ac-fact { display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.ac-fact dt { font-size: 13px; font-weight: 650; color: var(--dim); }
+.ac-fact dd { margin: 0; font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
+
+.ac-h { margin: 0 0 6px; font-size: 13.5px; font-weight: 700; color: var(--dim); }
+.ac-story { display: grid; gap: 8px; padding: 14px 16px; border-radius: 12px; background: var(--bg-2, var(--bg)); }
+.ac-story p { margin: 0; font-size: 15px; line-height: 1.55; overflow-wrap: anywhere; max-width: 72ch; }
+.ac-story .ac-asked { font-size: 13px; color: var(--dim); }
+
+.ac-qa { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.ac-qa li { display: grid; gap: 4px; }
+.ac-q { margin: 0; font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.ac-a { margin: 0; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; max-width: 72ch; }
+.ac-a.ac-wait { color: var(--dim); }
+
+.ac-state { display: grid; gap: 6px; padding: 14px 16px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.ac-state p { margin: 0; overflow-wrap: anywhere; }
+.ac-state-big { font-size: 15.5px; font-weight: 650; }
+.ac-state-came { font-size: 14px; color: var(--dim); line-height: 1.45; }
+.ac-progress { list-style: none; margin: 4px 0 2px; padding: 0; display: grid; gap: 6px; }
+.ac-progress li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: var(--dim); line-height: 1.45; overflow-wrap: anywhere; }
+.ac-progress li.on { color: var(--text); }
+.ac-dot {
+  flex: none; width: 20px; height: 20px; margin-top: 1px; border-radius: 50%; border: 1.5px solid var(--dim);
+  display: grid; place-items: center; font-size: 12px; font-weight: 700; line-height: 1;
+}
+.ac-progress li.on .ac-dot { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.ac-more { margin-top: 6px; }
+.ac-jump { justify-self: start; }
+.ac-older { border-top: 0; padding-top: 0; margin-bottom: 8px; }
+
+.ac-events { list-style: none; margin: 0; padding: 4px 4px 0; display: grid; gap: 6px; font-size: 13.5px; }
+.ac-events li { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 10px; overflow-wrap: anywhere; }
+
+.ac-toast {
+  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 5; display: flex; align-items: center;
+  gap: 12px; max-width: min(560px, calc(100% - 24px)); padding: 8px 8px 8px 16px; border-radius: 12px;
+  background: var(--text); color: var(--bg); box-shadow: var(--shadow); font-size: 14px;
+}
+.ac-toast-words { overflow-wrap: anywhere; }
+.ac-undo {
+  flex: none; min-height: 40px; padding: 6px 12px; border-radius: 9px; border: 0; background: var(--bg); color: var(--text);
+  font-weight: 700; font-size: 13.5px;
+}
+
+@container acbody (max-width: 520px) {
+  /* No frame round the action on a phone: the layer is its frame, and the width is the text's. */
+  .ac-card { padding: 4px 2px 18px; gap: 16px; border: 0; background: transparent; }
+  .ac-do { font-size: 20px; }
+  .ac-doneline { flex-direction: column; }
+  .ac-main { width: 100%; }
+  .ac-fact { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .ac-step { flex-wrap: wrap; padding-right: 6px; }
+  /* The tick box at the right edge on a phone, clear of Rouh's round menu button, which sits
+     at the bottom left of every page (the same rule as the Decisions desk, 62-27). */
+  .ac-check { flex: 1 1 100%; flex-direction: row-reverse; justify-content: space-between; padding-left: 10px; }
+  /* A clear lane on the left for everything pressed: Rouh's round menu button sits at the bottom
+     left of a phone's screen at every scroll, so no button, tick box or field is ever under it. */
+  .ac-steps, .ac-answers, .ac-doneform, .ac-rows, .ac-foldb, .ac-back, .ac-jump { margin-left: 64px; }
+  .ac-steps .ac-check { padding-left: 4px; }
+  /* On the right, clear of Rouh's round menu button at the bottom left of a phone. */
+  .ac-steplink { max-width: none; margin-left: auto; margin-bottom: 6px; }
+  .ac-events li { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .ac-quietrow .ac-quiet { flex: 1 1 calc(50% - 8px); }
+}
+
+/* The row under Now: its count amber while one holds work up. */
+#actionsRow.holds #actionsHint { color: var(--warn); }

@@ -926,7 +926,18 @@
     "tasks",
     "telegram",
     "trusted-contacts",
-    "turn-loop"
+    "turn-loop",
+    "your-part"
+   ]
+  },
+  "your-part": {
+   "name": "Your part",
+   "what": "The hands-on things only the person can do, which hold up work Rouh is doing: told apart from decisions, each with its own page (what to do, the steps with their links, how Rouh checks it, the story so far), answered with Done, Not doing this or Another way, asked about in place, and withdrawn by itself when the work no longer needs it.",
+   "files": [
+    "rouh/actions.py",
+    "rouh/web/actions.py",
+    "rouh/static/actionspage.*",
+    "rouh/genes/manifests/your-part.json"
    ]
   },
   "clockwork": {

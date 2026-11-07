@@ -32,15 +32,18 @@ _TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fourty": 40, "fifty": 50, "si
 
 #: Words said around a reference that are not part of it: "decision 42", "number forty-two".
 _AROUND = {"decision", "decisions", "number", "no", "nr", "num", "the", "id",
-           "question", "approval"}
+           "question", "approval", "action", "actions"}
 
 #: The largest number read: a reference is never a year or a phone number.
 MOST = 10_000_000
 
 
-def called(number) -> str:
-    """How a decision is named in a sentence and on its page: "Decision 42"."""
-    return f"Decision {number}" if number else "Decision"
+def called(number, kind: str = "") -> str:
+    """How a decision is named in a sentence and on its page: "Decision 42". An action, a
+    hands-on step only the person can do (`rouh/actions.py`), shares the numbers and is called
+    "Action 430" (Petar, 7 November 2026: "this is not a decision ... mostly an action")."""
+    word = "Action" if kind == "action" else "Decision"
+    return f"{word} {number}" if number else word
 
 
 def short(number) -> str:

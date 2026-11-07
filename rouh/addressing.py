@@ -256,6 +256,10 @@ QUESTS = "/quests"
 #: Telegram about one links to. Since 5 October 2026; since 18 October `<id>` is its number,
 #: Decision 42 (`decision_numbers.py`), and a handle it had (a482) is sent on to it.
 DECISIONS = "/decisions"
+#: Your part (`rouh/actions.py`): the hands-on things only the person can do, which hold up
+#: work Rouh is doing, at `/actions`, and one at `/actions/<number>` ("Action 430", from the
+#: decisions' numbers). Since 7 November 2026; `/decisions/<number>` of an action lands here.
+ACTIONS = "/actions"
 #: Receipts (`rouh/receipts.py`): every receipt and invoice in the person's mail, by month,
 #: with one download for the accountant. Since 7 October 2026, behind the switch `receipts`.
 RECEIPTS = "/receipts"

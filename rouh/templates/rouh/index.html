@@ -154,6 +154,7 @@ with {% asset %}, which gives it its hashed address.
 <link rel="stylesheet" href="{% asset "statspage.css" %}">
 <link rel="stylesheet" href="{% asset "decision.css" %}">
 <link rel="stylesheet" href="{% asset "decisionspage.css" %}">
+<link rel="stylesheet" href="{% asset "actionspage.css" %}">
 <link rel="stylesheet" href="{% asset "notices.css" %}">
 <link rel="stylesheet" href="{% asset "receiptspage.css" %}">
 <link rel="stylesheet" href="{% asset "homepage.css" %}">
@@ -3743,6 +3744,24 @@ with {% asset %}, which gives it its hashed address.
       </div>
     </article>
 
+    {% comment %} Your part (`rouh/actions.py`, `actionspage.js`): the hands-on things
+         only the person can do, which hold up work Rouh is doing, grouped by the work
+         each unblocks, at `/actions`; one in full at `/actions/<number>`. {% endcomment %}
+    <article id="actionsView" class="canvas-layer settings-view clock-view ac-view" hidden
+             tabindex="-1" aria-label="Your part">
+      <div class="run-head">
+        <div class="run-heading">
+          <h3>Your part</h3>
+          <div id="actionsMeta" class="run-meta" aria-live="polite"></div>
+        </div>
+        <button id="actionsClose" class="layer-x" type="button"
+                title="Close (Esc)" aria-label="Close and go back to the canvas">&times;</button>
+      </div>
+      <div class="ac-wrap">
+        <div id="actionsBody" class="ac-body" aria-busy="false"></div>
+      </div>
+    </article>
+
     {% comment %} Decisions (`rouh/decisions.py`, `decisionspage.js`): everything
          waiting on the person as one line each, a link to where it is decided,
          at `/decisions`; and one of them at `/decisions/<number>`, drawn in full
@@ -5119,6 +5138,7 @@ with {% asset %}, which gives it its hashed address.
 <script defer src="{% asset "statspage.js" %}"></script>
 <script defer src="{% asset "questspage.js" %}"></script>
 <script defer src="{% asset "decisionspage.js" %}"></script>
+<script defer src="{% asset "actionspage.js" %}"></script>
 <script defer src="{% asset "receiptspage.js" %}"></script>
 <script defer src="{% asset "homepage.js" %}"></script>
 <script defer src="{% asset "homevacuum.js" %}"></script>

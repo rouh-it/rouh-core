@@ -188,6 +188,12 @@ class Ask:
     #: One sentence on what it is for him, under what it is, when its title alone does not say
     #: (a gene: what it does).
     about: str = ""
+    #: "action" when the source knows it is a hands-on step only he can do (`rouh/actions.py`),
+    #: "decision" when it knows it is a choice, "" to have it read once (`actions.read_pending`).
+    kind: str = ""
+    #: What an action's own page shows, where the source can say it: {"do", "minutes", "steps":
+    #: [{"text", "href"?}], "after", "check", "story", "work": [{"label", "href"}]}.
+    action: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -478,10 +484,14 @@ class _Synchronization:
     def _receive(self, kind, ask, row) -> None:
         """Create or refresh a question that passed the gate, with its events."""
         fields = _fields_of(ask)
+        from . import actions
+
         if row is None:
             row = self.numbers.create(source=kind, source_id=_cut(ask.source_id, 300),
                                       key=ask.key, status=OPEN, created_at=ask.asked_at or self.now,
-                                      updated_at=self.now, **fields)
+                                      updated_at=self.now,
+                                      kind=ask.kind if ask.kind in actions.KINDS else "",
+                                      action=actions.content_of(ask.action), **fields)
             if row is None:
                 # Answered or dismissed before, under the same words: not asked again.
                 return
@@ -496,6 +506,18 @@ class _Synchronization:
             self.out.changed = True
             return
         changes = {k: v for k, v in fields.items() if getattr(row, k) != v}
+        if ask.kind in actions.KINDS and ask.kind != row.kind:
+            changes["kind"] = ask.kind
+        merged = actions.merged(row.action, ask.action)
+        if merged != (row.action or {}):
+            changes["action"] = merged
+        if row.status == WITHDRAWN and actions.closed_by_itself(row):
+            # An action withdrawn by itself because its work was finished or put away is not
+            # asked again by a source that has not noticed yet (`actions.withdraw_stale`).
+            if changes.get("action"):
+                self.models.Decision.objects.filter(id=row.id).update(
+                    action=changes["action"], updated_at=self.now)
+            return
         if row.status in (WITHDRAWN, EXPIRED):
             # The source asks it again, in the same words.
             changes.update(status=OPEN, resolved_at=None, result="")
@@ -700,6 +722,7 @@ def as_dict(row, *, events: list | None = None) -> dict:
         "decided_words": (row.answer or {}).get("words") or ""
         if str(row.answered_by or "").startswith("delegate:") else "",
         "decider": "", "decider_told": False, "delegate_notes": [],
+        "kind": row.kind or "", "action": getattr(row, "action", None) or {},
     }
     out["line"] = line_of(row, source, rec)
     if events is not None:
@@ -813,22 +836,30 @@ def counts(who, skip=None) -> dict:
     now = time.time()
     skip = delegated(who) if skip is None else skip
     rows = m.Decision.objects.filter(**_whose(who), status__in=ANSWERABLE).values_list(
-        "id", "status", "snoozed_until", "urgency")
+        "id", "status", "snoozed_until", "urgency", "kind", "line")
     rows = [r[1:] for r in rows if r[0] not in skip]
+    # An action is counted on its own row, Your part (`rouh/actions.py`), never as a decision.
+    acts = [r for r in rows if r[3] == "action"]
+    rows = [r for r in rows if r[3] != "action"]
     waiting = [r for r in rows if r[0] != SNOOZED or (r[1] or 0) <= now]
+    doing = [r for r in acts if r[0] != SNOOZED or (r[1] or 0) <= now]
     return {"open": len(waiting), "now": sum(1 for r in waiting if r[2] == "now"),
-            "snoozed": len(rows) - len(waiting)}
+            "snoozed": len(rows) - len(waiting),
+            "actions": len(doing),
+            "actions_blocking": sum(1 for r in doing if (r[4] or {}).get("blocks"))}
 
 
 def listing(who, *, history: bool = True) -> dict:
     """Everything open, snoozed and on its way, most urgent first, and the recent history;
     and the open ones arranged the way the page and Rouh's tool both say them (`arrange`)."""
     m = _models()
-    rows = list(m.Decision.objects.filter(**_whose(who)).exclude(status__in=DONE))
+    # Actions are drawn on their own page, Your part (`rouh/actions.py`), and never here.
+    rows = list(m.Decision.objects.filter(**_whose(who)).exclude(status__in=DONE)
+                .exclude(kind="action"))
     # What was folded into a grouped decision was never answered: its question goes on in
     # the group, so it is not history.
     done = list(m.Decision.objects.filter(**_whose(who), status__in=DONE)
-                .exclude(status=WITHDRAWN, result__startswith=FOLDED)
+                .exclude(status=WITHDRAWN, result__startswith=FOLDED).exclude(kind="action")
                 .order_by("-resolved_at", "-id")[:HISTORY_MOST]) if history else []
     # What a trusted contact decides is theirs, not his (`delegated`).
     theirs = delegated(who, rows)
@@ -1193,12 +1224,16 @@ def name_of(d) -> str:
     from . import decision_numbers
 
     number = d.get("number") if isinstance(d, dict) else getattr(d, "number", None)
-    return decision_numbers.called(number)
+    kind = d.get("kind") if isinstance(d, dict) else getattr(d, "kind", "")
+    return decision_numbers.called(number, kind or "")
 
 
 def page_of(d) -> str:
     """A decision's own page: /decisions/<its number>."""
     number = d.get("number") if isinstance(d, dict) else getattr(d, "number", None)
+    if (d.get("kind") if isinstance(d, dict) else getattr(d, "kind", "")) == "action":
+        # An action's own page, on Your part (`rouh/actions.py`).
+        return f"/actions/{number}" if number else "/actions"
     return f"/decisions/{number}" if number else "/decisions"
 
 

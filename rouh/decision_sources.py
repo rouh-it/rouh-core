@@ -339,7 +339,16 @@ class TaskSource(Source):
                 wait_cost=(f"{number} is stopped until you answer." if stopped else
                            f"Nothing waits on it: {number.lower()} is finished."),
                 blocks=stopped, tags=[_silo_of(folder)],
-                advice=str(shape.get("recommended") or "") if not rec_id else ""))
+                advice=str(shape.get("recommended") or "") if not rec_id else "",
+                # A question its job marked a hands-on step only he can do (`rouh/actions.py`,
+                # the agent instructions' "Waiting tasks and their questions"): an action, with
+                # whatever its job said of it; else read once.
+                kind=("action" if str(shape.get("kind") or "").lower() == "action" else
+                      "decision" if str(shape.get("kind") or "").lower() == "decision" else ""),
+                action=({"do": shape.get("ask") or ask, "steps": shape.get("steps") or [],
+                         "minutes": shape.get("minutes") or 0,
+                         "check": shape.get("check") or "", "after": shape.get("then") or ""}
+                        if str(shape.get("kind") or "").lower() == "action" else {})))
         return out
 
     def census(self, who) -> dict[str, str] | None:
@@ -774,7 +783,17 @@ class GoalSource(Source):
                            "on it." if after else
                            f"{named.capitalize()} is stopped until you answer." if stuck else
                            "Nothing waits on it."),
-                blocks=bool(after) or stuck, tags=[g.get("title") or ""]))
+                blocks=bool(after) or stuck, tags=[g.get("title") or ""],
+                # A step only he can do is an action (`rouh/actions.py`); a choice, or Rouh
+                # stuck and asking whether to try again, is a decision.
+                kind="decision" if stuck or kind == "decision" else "action",
+                action=({} if stuck or kind == "decision" else {
+                    "do": ask, "after": ("Marks " + named + " complete"
+                                         + (f", which starts {_steps_words(after)}." if after
+                                            else ".")),
+                    "steps": ([{"text": "Read how to do it, on the step's own page.",
+                                "href": f"{here}/{goals.YOURS_DOC}", "link": "How to do it"}]
+                              if here and s.get("yours_page") else [])})))
         return out
 
     def why_not(self, who, source_id: str) -> str:
@@ -860,6 +879,18 @@ class GoalSource(Source):
                                        why=("The person asked for this step to be tried "
                                             "again." + (f" They said: {words}" if words else "")))
             return Applied(True, "Rouh started the step again.")
+        verb = got.get("verb")
+        if verb in ("not_doing", "another"):
+            # An action he will not do, or wants done another way (`rouh/actions.py`): the step
+            # is started again with his words, to find another route or stop, never marked done.
+            await asyncio.to_thread(goals.change_step, task, note=words)
+            await hooks.keeper.do_step(who, goal, task.id, unattended=False, why=(
+                "The person will not do this step's action themselves. " if verb == "not_doing"
+                else "The person wants this step's action done another way. ")
+                + f"Their own words: {words} Find another way to finish the step without them, "
+                "or stop it and say why.")
+            return Applied(True, "Rouh started the step again with your words, to find another "
+                                 "way or stop it.")
         labels = [o["label"] for o in row.options or [] if o["id"] in picked and o["id"] != "done"]
         if labels:
             await asyncio.to_thread(goals.change_step, task, choice=labels[0],
@@ -1098,6 +1129,18 @@ class ApprovalSource(Source):
                                      else f"Asked by job {job} through Rouh's gateway" if job
                                      else "Queued") + (f" for {context}" if context and not job
                                                        else "") + "."}],
+                # A job's ask the gateway read as hands-on is an action; one it read as a
+                # question is a decision; one asked before it read either is read once
+                # (`rouh/actions.py`).
+                kind=("" if a.tool or not job else
+                      "action" if (a.args or {}).get("hands_on") is True else
+                      "decision" if (a.args or {}).get("hands_on") is False else ""),
+                action=({"after": "The job that asked is told your answer, in your words, and "
+                                  "carries on from it.",
+                         "wait": (f"Job {job} is held until you do it." if a.blocking else
+                                  f"Job {job} goes on without it meanwhile.")}
+                        if job and not a.tool and (a.args or {}).get("hands_on") is not False
+                        else {}),
                 yes_does=" ".join(x for x in (
                     f"Runs {a.tool} once, exactly as queued." if a.tool else
                     "Nothing runs: your answer goes to the jobs that asked." if job else
@@ -1583,7 +1626,15 @@ class JobSource(Source):
                                                else "the page") + " in its live browser for you "
                               f"to {step[:1].lower() + step[1:].rstrip('.')}; what you send back "
                               "goes to the job, which carries on."),
-                    wait_cost="The job is stopped until then.", blocks=True))
+                    wait_cost="The job is stopped until then.", blocks=True,
+                    kind="action", action={
+                        "do": f"{step.rstrip('.')}, in Rouh's live browser",
+                        "steps": ([{"text": f"Open {details.address} in Rouh's live browser.",
+                                    "href": details.address, "link": "The page"}]
+                                  if details is not None and details.address.startswith("http")
+                                  else []) + [{"text": step}],
+                        "after": "What you send back goes to the job, which carries on from it.",
+                        "wait": "The job is stopped until then."}))
                 continue
             out.append(Ask(
                 source_id=r.id, key=decisions.key_of(r.id, asked, "prompt"),

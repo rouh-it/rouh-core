@@ -2499,6 +2499,14 @@ class Decision(models.Model):
     apply_at = models.FloatField(null=True, blank=True)
     #: The Telegram message it was sent in, so its buttons can be taken off once answered.
     telegram_message = models.BigIntegerField(null=True, blank=True)
+    #: "action" for a hands-on step only the person can do (`rouh/actions.py`, Petar, 7
+    #: November 2026), "decision" for a choice, "" for one not read yet, drawn as a decision
+    #: until `actions.read_pending` reads it.
+    kind = models.TextField(blank=True, default="", db_default="")
+    #: An action's own page: {"do", "minutes", "steps": [{"id", "text", "href"?}], "after",
+    #: "check", "story", "work": [{"label", "href"}], "ticked": [step ids], "qa": [{"q", "a",
+    #: "at"}], "stale"?, "tries"?}. Empty for a decision.
+    action = models.JSONField(default=dict, db_default={})
     created_at = models.FloatField()
     updated_at = models.FloatField()
     answered_at = models.FloatField(null=True, blank=True)
@@ -2515,7 +2523,9 @@ class Decision(models.Model):
                                                condition=models.Q(number__isnull=False),
                                                name="decisions_one_number")]
         indexes = [models.Index(fields=["org_id", "user_id", "status"], name="decisions_whose"),
-                   models.Index(fields=["status", "apply_at"], name="decisions_due")]
+                   models.Index(fields=["status", "apply_at"], name="decisions_due"),
+                   models.Index(fields=["org_id", "user_id", "kind", "status"],
+                                name="decisions_kind")]
 
 
 class DecisionEvent(models.Model):

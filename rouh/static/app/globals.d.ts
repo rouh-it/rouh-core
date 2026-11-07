@@ -23,6 +23,7 @@ interface Window {
   RouhTrack?: any;
   RouhWorkHost: Record<string, any>;
   RouhDecisionsHost: Record<string, any>;
+  RouhActionsHost: Record<string, any>;
   RouhReceiptsHost: Record<string, any>;
   RouhHomeHost: Record<string, any>;
   RouhInstrHost: Record<string, any>;
@@ -75,6 +76,7 @@ interface Window {
   RouhQuests?: any;
   /** The Decisions page, and the one drawing of a decision (decisionspage.js, decision.js). */
   RouhDecisions?: any;
+  RouhActions?: any;
   /** The Receipts page (receiptspage.js). */
   RouhReceipts?: any;
   /** The Home page (homepage.js), and the sections each kind of device adds to it. */

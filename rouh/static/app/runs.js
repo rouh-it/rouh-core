@@ -17254,8 +17254,9 @@ function decisionsRows() {
   row.setAttribute('aria-expanded', DECIDE.open ? 'true' : 'false');
   var hint = $('decisionsHint');
   if (hint) hint.textContent = DECIDE.count ? String(DECIDE.count) : '';
-  // And on the navigation's Now tab, the one tab that carries a count.
-  navNowCount(DECIDE.count, DECIDE.now > 0);
+  // And on the navigation's Now tab, the one tab that carries a count: everything that waits
+  // on him, the decisions and the actions on Your part.
+  navNowCount(DECIDE.count + ACTS.count, DECIDE.now > 0);
   row.title = DECIDE.count
     ? 'Decisions: ' + DECIDE.count + ' waiting on your answer' + (DECIDE.now ? ', ' + DECIDE.now + ' urgent' : '')
     : 'Decisions: everything waiting on your answer';
@@ -17267,12 +17268,18 @@ function decisionsRows() {
   }
 }
 
-/** @param {{open?: number, now?: number}} m the `decisions` message: how many wait, and how many are urgent */
+/** @param {{open?: number, now?: number, actions?: number, actions_blocking?: number}} m the `decisions` message: how many wait, how many are urgent, and how many actions */
 function decisionsHeard(m) {
   DECIDE.count = Number(m.open) || 0;
   DECIDE.now = Number(m.now) || 0;
+  if (m.actions !== undefined) {
+    ACTS.count = Number(m.actions) || 0;
+    ACTS.holds = Number(m.actions_blocking) || 0;
+    actionsRows();
+  }
   decisionsRows();
   if (window.RouhDecisions) window.RouhDecisions.moved();
+  if (window.RouhActions) window.RouhActions.moved();
 }
 
 // What `decisionspage.js` is handed: closing the layer, an address in Rouh to
@@ -17300,6 +17307,84 @@ window.RouhDecisionsHost = {
   }
   var room = $('crDecisions');
   if (room) room.addEventListener('click', function () { decisionsOpen(''); });
+})();
+
+/* ------------------------------------------------------------------ your part
+
+   The hands-on things only the person can do, which hold up work Rouh is doing
+   (`rouh/actions.py`): every one at `/actions`, one in full at
+   `/actions/<number>`, drawn by `actionspage.js`. This is the layer's side, as
+   with the decisions: opening and closing it, its row under Now with its count
+   (amber when one holds work up), and its address. The count comes over the
+   socket (`decisions`, `actions`) and from the page's own first read. */
+
+var ACTS = { open: false, id: '', count: 0, holds: 0 };
+
+function actionsViewing() { return ACTS.open; }
+
+/** @param {string|number} [id] one action's number to show in full, or '' for the list */
+function actionsOpen(id) {
+  if (ORBX.open) orbExpand(false);
+  var want = id === undefined || id === null ? '' : String(id);
+  var moved = ACTS.open && ACTS.id !== want;
+  ACTS.id = want;
+  if (window.RouhActions) window.RouhActions.shown(ACTS.id);
+  if (ACTS.open) {
+    if ($('actionsView').hidden || settingsViewing()) { showLayer('actionsView'); sidebarDone(); addrTouch(); }
+    actionsRows();
+    if (moved) addrTouch();
+    return;
+  }
+  ACTS.open = true;
+  showLayer('actionsView');
+  sidebarDone();
+  actionsRows();
+  if (!narrow()) $('actionsView').focus({ preventScroll: true });
+}
+
+function actionsClose() {
+  if (!ACTS.open) return;
+  ACTS.open = false;
+  if (window.RouhActions) window.RouhActions.hidden();
+  showLayer(null);
+  actionsRows();
+}
+
+function actionsRows() {
+  var row = $('actionsRow');
+  if (row) {
+    row.classList.toggle('on', ACTS.open);
+    row.classList.toggle('holds', ACTS.holds > 0);
+    row.setAttribute('aria-expanded', ACTS.open ? 'true' : 'false');
+    row.title = ACTS.count
+      ? 'Your part: ' + ACTS.count + (ACTS.count === 1 ? ' thing only you can do' : ' things only you can do')
+      : 'Your part: what only you can do, to unblock work Rouh is doing';
+  }
+  var hint = $('actionsHint');
+  if (hint) hint.textContent = ACTS.count ? String(ACTS.count) : '';
+  navNowCount(DECIDE.count + ACTS.count, DECIDE.now > 0);
+}
+
+// What `actionspage.js` is handed: closing the layer, opening one action (or the list), an
+// address in Rouh to go to, and the count it read.
+window.RouhActionsHost = {
+  open: function (id) { actionsOpen(id); },
+  close: actionsClose,
+  go: function (href) { goToAddress(href); },
+  counted: function (n, holds) {
+    ACTS.count = n;
+    ACTS.holds = holds;
+    actionsRows();
+  }
+};
+
+(function () {
+  var row = $('actionsRow');
+  if (row) {
+    row.addEventListener('click', function () {
+      if (ACTS.open && !ACTS.id) actionsClose(); else actionsOpen('');
+    });
+  }
 })();
 
 /* ------------------------------------------------------------------ receipts
@@ -17959,7 +18044,7 @@ oneConnect();
 
 export { applyObjects, applyWorkspace, ASK, askDelete, askFromPage, BRIEF, briefClose, briefOpen,
   WORK, workClose, workOpen, workViewing,
-  DECIDE, decisionsClose, decisionsHeard, decisionsOpen, decisionsViewing,
+  DECIDE, decisionsClose, decisionsHeard, decisionsOpen, decisionsViewing, ACTS, actionsClose, actionsOpen, actionsViewing,
   receiptsClose, receiptsOpen, receiptsViewing, HOME, homeClose, homeOpen, homeViewing, SOURCES, sourcesClose, sourcesOpen, sourcesViewing,
   APPROVALS, approvalsClose, approvalsOpen, approvalsViewing,
   EVO, evolutionClose, evolutionOpen, evolutionViewing, incubatorHeard,

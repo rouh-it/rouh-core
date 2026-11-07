@@ -1311,6 +1311,42 @@
           "xai"
         ]
       }
+    },
+    "action_reader": {
+      "tier": "smart",
+      "why": "Decides whether something waiting on you is a hands-on action or a choice, and writes the page you do it from, often weeks after it was asked: a wrong story or a wrong link costs you.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "action_ask": {
+      "tier": "cheaper",
+      "why": "Answers one short question about one action, from its own page and the work it holds up; nothing is decided or sent.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
     }
   },
   "double_calls": {

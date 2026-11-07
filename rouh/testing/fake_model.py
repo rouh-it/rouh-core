@@ -1554,10 +1554,80 @@ def a_job_request(body: dict) -> str:
         return json.dumps({"outcome": "tool", "tool": tool.group(1), "gap": gap,
                            "how": "Call it with what the work needs."})
     if "NEEDS OWNER" in said:
-        return json.dumps({"outcome": "owner", "gap": gap,
-                           "question": f"Can you give the job this: {need.split(' NEEDS')[0].rstrip('.')[:160]}?"})
+        # `HANDS ON` makes it something the owner does with their own hands: an action.
+        hands = "HANDS ON" in said
+        what = need.split(' NEEDS')[0].split(' HANDS')[0].rstrip('.')[:160]
+        return json.dumps({"outcome": "owner", "gap": gap, "hands_on": hands,
+                           "question": what + "." if hands else f"Can you give the job this: {what}?"})
     return json.dumps({"outcome": "cannot", "gap": gap,
                        "reason": "The stand-in finds nothing Rouh could give for it."})
+
+
+# --------------------------------------------------------------------------
+# Standing in for reading what waits on the person, and for a question asked on
+# an action's page (`rouh/actions.py`).
+# --------------------------------------------------------------------------
+#
+# Told apart by the first words of their instructions (`actions.READ_SYSTEM`,
+# `actions.ASK_SYSTEM`). The reader calls it an action when its words say
+# something hands-on (install, sign in, run, curl, on your phone, on your Mac),
+# and writes its page from them by plain rules: what it asks as the one line,
+# every web address in it a step that opens it, a command in backticks a step to
+# run, and the story from the lines it was given. The asker answers from the
+# page it was given, and says so.
+
+ACTION_READ = "You read one thing that waits on a person, the owner of a personal assistant"
+ACTION_READ_FILE = "action-read-"
+ACTION_ASK = "You are Rouh, a personal assistant. The person you work for is looking at one ACTION"
+ACTION_ASK_FILE = "action-ask-"
+_HANDS = re.compile(r"\b(install|approve .{0,30} again|sign in|signs? .{0,20} in|log in|run (one|a|the)|curl|on your phone|"
+                    r"on your mac|authori[sz]e)\b", re.I)
+
+
+def is_action_read(body: dict) -> bool:
+    return says(ACTION_READ, _flat(body.get("system")))
+
+
+def is_action_ask(body: dict) -> bool:
+    return says(ACTION_ASK, _flat(body.get("system")))
+
+
+def an_action_read(body: dict) -> str:
+    said = last_user_text(body)
+    asks = (re.search(r"(?m)^What it asks: (.+)$", said) or [None, ""])[1].strip()
+    title = (re.search(r"(?m)^Its title: (.+)$", said) or [None, ""])[1].strip()
+    if not _HANDS.search(asks + " " + title):
+        return json.dumps({"kind": "decision"})
+    steps = []
+    for url in dict.fromkeys(re.findall(r"https?://[^\s)\"'<>`]+", said)):
+        steps.append({"text": f"Open {url.rstrip('.,')} and follow it.", "href": url.rstrip(".,"),
+                      "link": "Open the page"})
+    for cmd in dict.fromkeys(re.findall(r"`([^`]{4,300})`", said)):
+        steps.append({"text": "Run this in Terminal on your Mac.", "command": cmd})
+    if not steps:
+        steps = [{"text": asks or title}]
+    lines = [ln for ln in said.splitlines() if ln.strip()]
+    asked = next((ln for ln in lines if ln.startswith("It was asked on")), "")
+    need = next((ln[len("What it needed: "):] for ln in lines if ln.startswith("What it needed: ")), "")
+    job = next((ln for ln in lines if ln.startswith("The job: ")), "")
+    story = "\n\n".join(x for x in (
+        f"A job needed this from you: {need.split('. ')[0][:200]}." if need else f"Rouh asked you: {asks}",
+        job.replace("The job: ", "It was for the job ").split(". Started")[0] + "." if job else "",
+        "Only you can do it, because it needs your own hands and your own account.") if x)
+    do = asks if re.match(r"^[A-Z][a-z]+ ", asks) and not asks.endswith("?") else (title or asks)
+    return json.dumps({"kind": "action", "do": do[:200], "minutes": 2, "steps": steps[:6],
+                       "after": "The work that asked carries on, and checks it worked.",
+                       "wait": "The work that asked stays stopped until you do it.",
+                       "check": "Rouh runs the same check after you press Done, and tells you if it did not work.",
+                       "story": story})
+
+
+def an_action_answer(body: dict) -> str:
+    said = last_user_text(body)
+    q = (re.search(r"(?m)^Their question: (.+)$", said) or [None, ""])[1].strip()
+    return (f"You asked: {q} From what the page says, you need nothing but your own account and "
+            "the steps above, and it takes about two minutes. If a step does not answer as it "
+            "says, press Not doing this or Do it another way and say what happened.")
 
 
 # --------------------------------------------------------------------------
@@ -2926,6 +2996,8 @@ def build_app(record_dir: str) -> FastAPI:
             (answered, ANSWERED_FILE, an_answered),
             (gating, GATE_FILE, a_gate),
             (is_job_request(body), JOB_REQUEST_FILE, a_job_request),
+            (is_action_read(body), ACTION_READ_FILE, an_action_read),
+            (is_action_ask(body), ACTION_ASK_FILE, an_action_answer),
             (promising, SLACK_PROMISES_FILE, a_slack_promises),
             (deciding, SLACK_DECISIONS_FILE, a_slack_decisions),
             (sourcing, SOURCES_FILE, a_sources),

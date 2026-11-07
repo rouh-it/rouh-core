@@ -980,7 +980,22 @@ def _name_of(a) -> str:
     """How an approval is named to the owner: its decision, "Decision 351", or "Approval 16"
     when it is no decision yet."""
     number = _numbers_of(a.user_id, a.org_id, [a.id], take_in=False).get(str(a.id))
-    return f"Decision {number}" if number else "This approval"
+    return _called(a, number) if number else "This approval"
+
+
+def _called(a, number) -> str:
+    """"Decision 351", or "Action 430" when the person's row of it is a hands-on step only they
+    can do (`rouh/actions.py`), which shares the numbers."""
+    from . import decision_numbers
+    from .models import Decision
+
+    try:
+        kind = (Decision.objects.filter(user_id=str(a.user_id), org_id=str(a.org_id or ""),
+                                        number=number).values_list("kind", flat=True).first()
+                or "")
+    except Exception:  # noqa: BLE001 - named as a decision
+        kind = ""
+    return decision_numbers.called(number, kind)
 
 
 def approval_line(a, number=None) -> str:
@@ -990,7 +1005,7 @@ def approval_line(a, number=None) -> str:
     what heartbeat_end and the heartbeat tool take (`approval_ids_of`). Never the queue's own
     id: "#16" reads as a decision's number and is not one, and two names for one thing is one
     too many (Petar, 29 October 2026: "no, I don't want duplicates")."""
-    line = f"Decision {number}: {a.what}" if number else f"Not yet a decision: {a.what}"
+    line = f"{_called(a, number)}: {a.what}" if number else f"Not yet a decision: {a.what}"
     if a.to_whom:
         line += f" To: {a.to_whom}."
     if a.why:

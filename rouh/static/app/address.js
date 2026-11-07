@@ -14,7 +14,7 @@ import { endTurnOnScreen, wipeTranscript } from 'app/transcript.js';
 import { CARDVIEW, cardViewing, clearTheCards, standingDown, WORKSPACE_ROUTE } from 'app/cards.js';
 import { JOBVIEW, jobViewing, taskRecs, webOpen, webViewing } from 'app/tasks.js';
 import { BRIEF, briefOpen, briefViewing, CANVAS, canvasDoc, controlOpen, controlViewing, CRUMB_HOME,
-  WORK, workOpen, workViewing, DECIDE, decisionsOpen, decisionsViewing, receiptsOpen,
+  WORK, workOpen, workViewing, DECIDE, decisionsOpen, decisionsViewing, ACTS, actionsOpen, actionsViewing, receiptsOpen,
   receiptsViewing, homeOpen, homeViewing, APPROVALS, approvalsOpen, approvalsViewing, SOURCES, sourcesOpen, sourcesViewing, THOUGHTS, thoughtsOpen, thoughtsViewing,
   EVO, evolutionOpen, evolutionViewing,
   BOX, boxOpen, boxViewing,
@@ -202,6 +202,8 @@ var ADDR_HEARTBEAT = '/heartbeat';
 var ADDR_WORK = '/quests';
 //: Decisions, every one and one in focus by its number (`addressing.DECISIONS`).
 var ADDR_DECISIONS = '/decisions';
+// Your part (`rouh/actions.py`), and one action by its number.
+var ADDR_ACTIONS = '/actions';
 //: Receipts, every receipt and invoice in the mail by month (`addressing.RECEIPTS`).
 var ADDR_RECEIPTS = '/receipts';
 //: Home, the house's lights and devices (`addressing.HOME`).
@@ -342,6 +344,12 @@ function addrReadPlace(path, query) {
   // number by the server (`web/decisions.old_address`).
   if (parts.length === 2 && '/' + parts[0] === ADDR_DECISIONS && /^\d+$/.test(parts[1])) {
     return { kind: '', id: '', chat: chat, decisions: parts[1] };
+  }
+  if (parts.length === 1 && '/' + parts[0] === ADDR_ACTIONS) {
+    return { kind: '', id: '', chat: chat, actions: '' };
+  }
+  if (parts.length === 2 && '/' + parts[0] === ADDR_ACTIONS && /^\d+$/.test(parts[1])) {
+    return { kind: '', id: '', chat: chat, actions: parts[1] };
   }
   if (parts.length === 1 && '/' + parts[0] === ADDR_RECEIPTS) {
     return { kind: '', id: '', chat: chat, receipts: true };
@@ -543,6 +551,7 @@ function addrOnCanvas() {
   if (briefViewing()) return ADDR_BRIEF + (BRIEF.view ? '/' + BRIEF.view : '');
   if (workViewing()) return ADDR_WORK + (WORK.id ? '/' + WORK.id : '');
   if (decisionsViewing()) return ADDR_DECISIONS + (DECIDE.id ? '/' + DECIDE.id : '');
+  if (actionsViewing()) return ADDR_ACTIONS + (ACTS.id ? '/' + ACTS.id : '');
   if (receiptsViewing()) return ADDR_RECEIPTS;
   if (homeViewing()) return ADDR_HOME;
   if (memoryViewing()) return memoryAddress();
@@ -689,7 +698,7 @@ function addrPlaceLink(place) {
    the server has said which chat that is. */
 [['runsRow', ADDR_RUNS], ['briefRow', ADDR_BRIEF], ['controlRow', ADDR_CONTROL],
  ['synapseRow', ADDR_SYNAPSE], ['remindersRow', ADDR_REMINDERS], ['goalsRow', ADDR_GOALS],
- ['questsRow', ADDR_WORK], ['decisionsRow', ADDR_DECISIONS], ['crDecisions', ADDR_DECISIONS],
+ ['questsRow', ADDR_WORK], ['decisionsRow', ADDR_DECISIONS], ['actionsRow', ADDR_ACTIONS], ['crDecisions', ADDR_DECISIONS],
  ['receiptsRow', ADDR_RECEIPTS], ['homeBtn', ADDR_HOME], ['approvalsRow', ADDR_APPROVALS], ['thoughtsRow', ADDR_THOUGHTS],
  ['boxRow', ADDR_BOX],
  ['webRow', ADDR_WEB]].forEach(function (row) {
@@ -737,6 +746,7 @@ function addrName() {
   }
   if (workViewing()) return WORK.id ? (WORK.title || 'Quest ' + WORK.id) + ' - Quests' : 'Quests';
   if (decisionsViewing()) return 'Decisions';
+  if (actionsViewing()) return ACTS.id ? 'Action ' + ACTS.id + ' - Your part' : 'Your part';
   if (receiptsViewing()) return 'Receipts';
   if (homeViewing()) return 'Home';
   if (memoryViewing()) {
@@ -971,6 +981,14 @@ function addrAsk() {
     ADDR.wanted = null;
     ADDR.asked = false;
     decisionsOpen(want.decisions);
+    if (want.chat) chatIsWanted();
+    return;
+  }
+  // And Your part, or one action in full.
+  if (want.actions !== undefined) {
+    ADDR.wanted = null;
+    ADDR.asked = false;
+    actionsOpen(want.actions);
     if (want.chat) chatIsWanted();
     return;
   }

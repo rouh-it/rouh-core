@@ -29,7 +29,7 @@ import logging
 import time
 from typing import Awaitable, Callable
 
-from . import decision_gate, decision_sources, decisions, delegation
+from . import actions, decision_gate, decision_sources, decisions, delegation
 
 log = logging.getLogger("rouh.decision_desk")
 
@@ -99,6 +99,7 @@ class Desk:
                 if who is not None:
                     await self.sync(who)
                     await self.judge(who)
+                    await self.actions(who)
             # Apart from the sync, so a sync that failed still lets a count that moved be told.
             with contextlib.suppress(Exception):
                 who = await asyncio.to_thread(self.owner)
@@ -117,6 +118,24 @@ class Desk:
             await self.sync(who)
         if decided >= decision_gate.PER_PASS:
             self.poke()               # more may be waiting: the next pass in a moment
+
+    async def actions(self, who) -> None:
+        """What waits on the person read once as an action or a decision, and each action's page
+        written (`actions.read_pending`), between syncs so no page waits on a model; and the
+        actions whose work no longer needs them withdrawn by themselves (`withdraw_stale`)."""
+        moved = 0
+        try:
+            moved += await actions.read_pending(who)
+        except Exception:
+            log.exception("actions: what waits could not be read this pass")
+        try:
+            moved += await asyncio.to_thread(actions.withdraw_stale, who)
+        except Exception:
+            log.exception("actions: stale ones could not be withdrawn this pass")
+        if moved:
+            await self.tell(who)
+        if moved >= actions.PER_PASS:
+            self.poke()
 
     async def _applying(self) -> None:
         while True:
@@ -194,6 +213,12 @@ class Desk:
             except Exception as exc:  # noqa: BLE001 - written on the decision
                 log.exception("decisions: #%s could not be sent back to its %s", row.id, row.source)
                 got = decisions.Applied(False, f"It failed: {type(exc).__name__}: {exc}")
+            if row.kind == actions.ACTION:
+                # When the job that asked has ended, his answer goes on to the task's chat,
+                # where a job carries the work on and checks it (`actions.after_applied`).
+                with contextlib.suppress(Exception):
+                    got.result = (actions.result_words(row, got) or "") \
+                        + await actions.after_applied(who, row, got)
             await asyncio.to_thread(decisions.finished, row.id, got)
             await self.tell(who)
             if row.telegram_message:
@@ -274,6 +299,15 @@ class Desk:
             return
         from . import notices
 
+        if d.get("kind") == actions.ACTION:
+            page = d.get("action") or {}
+            await notices.notify(
+                who=who, kind="decision", key=f"decision:{ident}",
+                title=f"{decisions.name_of(d)}: {page.get('do') or d['title']}",
+                body=page.get("wait") or d.get("why") or "",
+                link=decisions.page_of(d), link_label="Open it",
+                decision_id=int(ident))
+            return
         await notices.notify(
             who=who, kind="decision", key=f"decision:{ident}",
             title=f"{decisions.name_of(d)}: {d['title'] or d['question']}",
@@ -287,8 +321,10 @@ class Desk:
         d = await asyncio.to_thread(decisions.get, who, ident)
         if d is None or d["status"] != decisions.OPEN or not self._phone_ready():
             return False
-        ids = await self.telegram.send_parts(decisions.telegram_text(d, self.public_url),
-                                             buttons=decisions.telegram_buttons(d), who=who)
+        act = d.get("kind") == actions.ACTION
+        ids = await self.telegram.send_parts(
+            (actions.telegram_text if act else decisions.telegram_text)(d, self.public_url),
+            buttons=(actions.telegram_buttons if act else decisions.telegram_buttons)(d), who=who)
         if ids and ids[-1]:
             await asyncio.to_thread(decisions.set_telegram, ident, ids[-1])
             await asyncio.to_thread(decisions.told, ident, "sent with its answers as buttons")
@@ -319,6 +355,9 @@ class Desk:
             await tg.pressed(query_id, "Later: it comes back in three hours.")
             await tg.rebutton(message_id, None)
             return
+        if option == actions.TG_DONE and d.get("kind") == actions.ACTION:
+            await self._press_done(who, query_id, message_id, what, d)
+            return
         picked = next((o for o in d["options"] if o["id"] == option), None)
         if picked is None:
             await tg.pressed(query_id, "That answer is not one of its answers any more.")
@@ -344,6 +383,61 @@ class Desk:
             await tg.send(f"Answered: {picked['label']}. It goes in "
                           f"{int(decisions.UNDO_SECONDS)} seconds; undo it on the Decisions "
                           "page until then.", who=who)
+
+
+    async def _press_done(self, who, query_id: str, message_id: int, what: str, d: dict) -> None:
+        """Done pressed on an action's Telegram message: its answer, the one way (`actions.answer`);
+        an action that carries a gated risk asks for a second press that names it first."""
+        tg = self.telegram
+        if what == "answer" and d["gated"]:
+            await tg.pressed(query_id, "Confirm it first.")
+            await tg.rebutton(message_id, [
+                [{"text": "Yes, it is done"[:60],
+                  "callback_data": f"{decisions.TG_CONFIRM}{d['id']}:{actions.TG_DONE}"}],
+                [{"text": "Cancel", "callback_data": f"{decisions.TG_CANCEL}{d['id']}"}]])
+            await tg.send(f"⚠ {d['risk_words']}: {d['risk_note'] or d['question']}\n"
+                          "Press “Yes, it is done” to confirm that, or Cancel.", who=who)
+            return
+        try:
+            await asyncio.to_thread(lambda: actions.answer(
+                who, d["id"], actions.DONE, confirm=d["risk"] if what == "confirm" else "",
+                channel="telegram"))
+        except decisions.Refused as exc:
+            await tg.pressed(query_id, str(exc)[:190])
+            await tg.rebutton(message_id, None)
+            return
+        await self.tell(who)
+        await tg.pressed(query_id, "Done")
+        await tg.rebutton(message_id, None)
+        await tg.send(f"{decisions.name_of(d)}: Done. It goes back to the work in "
+                      f"{int(decisions.UNDO_SECONDS)} seconds; undo it on its page until then.",
+                      who=who)
+
+    async def act_on_action(self, who, ident, act: str, body: dict, channel: str = "screen") -> dict:
+        """One press on an action's page (`rouh/actions.py`): done, not_doing, another, tick, ask,
+        snooze, wake, undo, reopen. Raises `decisions.Refused` with the words to show."""
+        if act in actions.VERBS:
+            got = await asyncio.to_thread(lambda: actions.answer(
+                who, ident, act, text=str(body.get("text") or ""),
+                confirm=str(body.get("confirm") or ""), channel=channel))
+        elif act == "tick":
+            got = await asyncio.to_thread(actions.tick, who, ident, str(body.get("step") or ""),
+                                          bool(body.get("on", True)))
+            return got
+        elif act == "ask":
+            return await actions.answer_question(who, ident, str(body.get("text") or ""))
+        elif act == "reopen":
+            got = await asyncio.to_thread(actions.reopen, who, ident)
+            self.poke()
+        elif act in ("snooze", "wake", "undo"):
+            row = await asyncio.to_thread(decisions._row, who, ident)
+            if row is None or not actions.is_action(row):
+                raise decisions.Refused("There is no such action.")
+            return await self.act(who, ident, act, body, channel=channel)
+        else:
+            raise decisions.Refused("That is not something an action can do.")
+        await self.tell(who)
+        return got
 
 
 class _Who:

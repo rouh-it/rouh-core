@@ -42,6 +42,7 @@ from rouh.web import signin as signin_web
 from rouh.web import relay as relay_web
 from rouh.web import slack as slack_web
 from rouh.web import synapse as synapse_web
+from rouh.web import actions as actions_web
 from rouh.web import (apple, assets, auth, boxes, brief, changes as changes_web, clock, cloudflare, comments, control,
                       decisions, defaults,
                       definitions,
@@ -546,6 +547,10 @@ urlpatterns = [
     re_path(r"^api/decisions/at/(?P<ref>\d+)$", decisions.at),
     path("api/decisions/<int:ident>/act", decisions.act),
     re_path(r"^api/decisions/of/(?P<source>[a-z]+)/(?P<source_id>.+)$", decisions.of_source),
+    # Your part: the hands-on things only the person can do (`rouh/web/actions.py`).
+    path("api/actions", actions_web.listing),
+    re_path(r"^api/actions/at/(?P<ref>\d+)$", actions_web.at),
+    path("api/actions/<int:ident>/act", actions_web.act),
     # The quests the heartbeat carries (`rouh/web/quests.py`).
     path("api/quests", quests.listing),
     path("api/quests/<int:number>", quests.page),
@@ -772,6 +777,9 @@ urlpatterns = [
     path(addressing.DECISIONS.lstrip("/"), views.index),
     # One in focus, by its number (`rouh/decision_numbers.py`).
     re_path(r"^" + addressing.DECISIONS.lstrip("/") + r"/\d+$", views.index),
+    # Your part, and one action by its number (`rouh/actions.py`).
+    path(addressing.ACTIONS.lstrip("/"), views.index),
+    re_path(r"^" + addressing.ACTIONS.lstrip("/") + r"/\d+$", views.index),
     re_path(r"^" + addressing.QUESTS.lstrip("/") + r"/\d+$", views.index),
     path(addressing.RECEIPTS.lstrip("/"), views.index),
     path(addressing.HOME.lstrip("/"), views.index),
