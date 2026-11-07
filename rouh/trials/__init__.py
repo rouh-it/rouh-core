@@ -663,6 +663,9 @@ def trial_dict(t, *, steps: bool = False, names: dict | None = None) -> dict:
               .values_list("problem_id", flat=True))
     rows = list(_m().TrialProblem.objects.filter(id__in=ids, org_id=t.org_id, user_id=t.user_id)) if ids else []
     out["open"] = sum(1 for p in rows if standing(p) in ("open", "decided"))
+    # How many different problems it found, the same unit as "open": `problems` is what the try wrote
+    # down, where one problem can be counted twice (the Trials pages, 7 November 2026).
+    out["found_n"] = len(rows)
     if t.first_id:
         out["first"] = _m().Trial.objects.filter(id=t.first_id, org_id=t.org_id, user_id=t.user_id).values_list(
             "number", flat=True).first()

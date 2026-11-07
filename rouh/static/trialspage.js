@@ -121,7 +121,12 @@
   function minShort(s) { var m = Math.round((s || 0) / 60); return m < 1 ? '<1 min' : m + ' min'; }
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
   function chip(text, tone) { return el('span', 'tr-chip tr-tone-' + tone, text); }
-  function result(state) { var r = RESULT[state] || ['Not tried yet', 'slate']; return chip(r[0], r[1]); }
+  function result(state, t) {
+    if (t && stuck(t)) { return chip('Stuck since ' + dayShort(t.started_at || t.created_at), 'rose'); }
+    var r = RESULT[state] || ['Not tried yet', 'slate']; return chip(r[0], r[1]);
+  }
+  /* How many different problems a try found: the same unit as "not fixed". */
+  function foundN(t) { return t.found_n != null ? t.found_n : (t.problems || 0); }
   function upper(text) { text = String(text || ''); return text.charAt(0).toUpperCase() + text.slice(1); }
   function first(name) { return String(name || '').split(/\s+/)[0]; }
   /* Which try it is. A review has no rounds: nothing is fixed between its tries until the owner chooses. */
@@ -642,8 +647,8 @@
     var out = [];
     (sh.jobs || []).forEach(function (j) {
       var l = per[j.number] || [];
-      if (l.length < 2) { out.push({ job: j, dir: 'one', last: l.length ? l[l.length - 1].problems : null }); return; }
-      var a = l[l.length - 2].problems, b = l[l.length - 1].problems;
+      if (l.length < 2) { out.push({ job: j, dir: 'one', last: l.length ? foundN(l[l.length - 1]) : null }); return; }
+      var a = foundN(l[l.length - 2]), b = foundN(l[l.length - 1]);
       out.push({ job: j, dir: b > a ? 'worse' : b < a ? 'better' : 'same', prev: a, last: b,
                  prevTry: l[l.length - 2].number, lastTry: l[l.length - 1].number });
     });
@@ -771,7 +776,7 @@
         m.appendChild(el('span', 'tr-lr-s', t.persona_name + ', ' + day(t.created_at)));
         m.appendChild(el('span', 'tr-lr-r' + (t.state === 'running' || t.state === 'queued' ? ' is-live' : ''),
           stuck(t) ? 'Stuck since ' + dayShort(t.started_at || t.created_at) : t.state === 'running' ? 'Trying now' : t.state === 'queued' ? 'Waiting to start' : t.state === 'broken' ? 'Could not finish: no report'
-            : t.problems ? plural(t.problems, 'problem') : t.state === 'passed' ? 'Passed, no problems' : 'No problems'));
+            : foundN(t) ? plural(foundN(t), 'problem') : t.state === 'passed' ? 'Passed, no problems' : 'No problems'));
         a.appendChild(m);
         li.appendChild(a);
         ol.appendChild(li);
@@ -925,7 +930,7 @@
       var bar = el('div', 'tr-filters');
       bar.appendChild(choose('Tried by', S.jobsFilter.persona, people, function (v) { S.jobsFilter.persona = v; load(); }));
       bar.appendChild(choose('Latest try', S.jobsFilter.result, [['', 'Any result'], ['passed', 'Passed'],
-        ['failed', 'Did not pass'], ['running', 'Trying now'], ['broken', 'Could not finish']],
+        ['failed', 'Did not pass'], ['running', 'Trying now or stuck'], ['broken', 'Could not finish']],
         function (v) { S.jobsFilter.result = v; load(); }));
       sec.appendChild(bar);
     }
@@ -941,7 +946,7 @@
       var a = link('', HOME + '/job/' + j.number, 'tr-row');
       var top = el('span', 'tr-row-top');
       top.appendChild(el('span', 'tr-row-what', j.name));
-      top.appendChild(result(j.latest && j.latest.state));
+      top.appendChild(result(j.latest && j.latest.state, j.latest && trialOf(S.shell, j.latest.number)));
       a.appendChild(top);
       if (j.covers || j.goal) { a.appendChild(el('span', 'tr-row-goal', j.covers || '“' + j.goal + '”')); }
       var meta = el('span', 'tr-row-meta');
@@ -973,7 +978,7 @@
     var ph = el('section', 'tr-phone tr-hub-phone');
     ph.appendChild(el('h1', 'tr-h1', j.name));
     var line = el('div', 'tr-head-line');
-    line.appendChild(result(j.latest && j.latest.state));
+    line.appendChild(result(j.latest && j.latest.state, j.latest && (trialOf(S.shell, j.latest.number) || j.tries[0])));
     line.appendChild(el('span', 'tr-dim', 'Job ' + j.number + ' · ' + plural(j.tries_count, 'try', 'tries') +
       (j.open ? ' · ' + plural(j.open, 'problem') + ' not fixed' : '')));
     ph.appendChild(line);
@@ -997,14 +1002,14 @@
     lad.appendChild(el('p', 'tr-cap', 'The height is how many problems the try found. A dashed one gave no report, or is still going.'));
     var wrapL = el('div', 'tr-ladder-wrap');
     var cols = el('div', 'tr-lcols');
-    var most = Math.max.apply(null, [1].concat(j.tries.map(function (t) { return t.problems || 0; })));
+    var most = Math.max.apply(null, [1].concat(j.tries.map(function (t) { return foundN(t); })));
     j.tries.slice().reverse().forEach(function (t) {
       var col = link('', HOME + '/' + t.number, 'tr-lcol');
-      col.setAttribute('aria-label', 'Try ' + t.number + ' by ' + t.persona_name + ': ' + (RESULT[t.state] || ['?'])[0] + ', ' + plural(t.problems || 0, 'problem'));
-      var n = t.state === 'broken' ? 'no report' : t.state === 'running' || t.state === 'queued' ? 'going' : String(t.problems || 0);
+      col.setAttribute('aria-label', 'Try ' + t.number + ' by ' + t.persona_name + ': ' + (RESULT[t.state] || ['?'])[0] + ', ' + plural(foundN(t), 'problem'));
+      var n = t.state === 'broken' ? 'no report' : t.state === 'running' || t.state === 'queued' ? 'going' : String(foundN(t));
       col.appendChild(el('span', 'tr-lcol-n' + (/\D/.test(n) ? ' is-word' : ''), n));
       var bar = el('span', 'tr-lcol-bar is-' + t.state);
-      if (t.state !== 'broken' && t.state !== 'running' && t.state !== 'queued') { bar.style.height = Math.max(3, Math.round((t.problems || 0) / most * 110)) + 'px'; }
+      if (t.state !== 'broken' && t.state !== 'running' && t.state !== 'queued') { bar.style.height = Math.max(3, Math.round(foundN(t) / most * 110)) + 'px'; }
       col.appendChild(bar);
       col.appendChild(face(testerOf(t.persona) || { key: t.persona, name: t.persona_name }, 'xs'));
       col.appendChild(el('span', 'tr-lcol-lab', 'Try ' + t.number));
@@ -1028,15 +1033,16 @@
       wn.appendChild(el('span', 'tr-dim', tryName(t.round, t.mode)));
       who.appendChild(wn);
       top.appendChild(who);
-      top.appendChild(t.mode === 'review' && (t.state === 'passed' || t.state === 'failed') ? reviewChip(t) : result(t.state));
+      top.appendChild(t.mode === 'review' && (t.state === 'passed' || t.state === 'failed') ? reviewChip(t) : result(t.state, t));
       a.appendChild(top);
       var meta = el('span', 'tr-row-meta');
       meta.appendChild(modeChip(t.mode));
       meta.appendChild(el('span', '', 'Try ' + t.number + ' · ' + day(t.created_at)));
       if (t.state !== 'queued') { meta.appendChild(el('span', '', plural(t.steps, 'step') + ' · ' + minutes(t.seconds))); }
       if (t.managed) { meta.appendChild(el('span', '', tryLine(t))); }
-      meta.appendChild(el('span', t.open ? 'tr-has' : '', !t.problems ? 'No problems'
-        : plural(t.problems, 'problem') + (t.open === t.problems ? ', not fixed yet' : t.open ? ', ' + t.open + ' not fixed yet' : ', all fixed or set aside')));
+      var fn = foundN(t);
+      meta.appendChild(el('span', t.open ? 'tr-has' : '', !fn ? 'No problems'
+        : plural(fn, 'problem') + (t.open === fn ? ', not fixed yet' : t.open ? ', ' + t.open + ' not fixed yet' : ', all fixed or set aside')));
       a.appendChild(meta);
       li.appendChild(a);
       ul.appendChild(li);
@@ -1270,7 +1276,7 @@
     head.appendChild(el('p', 'tr-goalq', '“' + t.goal + '”'));
     if (t.state !== 'queued' && t.state !== 'running') {
       var facts = el('div', 'tr-facts');
-      [[String(t.steps), plural(t.steps, 'step').replace(/^\d+ /, '')], [String(t.problems || 0), 'problems found' + (t.open ? ', ' + t.open + ' not fixed' : '')],
+      [[String(t.steps), plural(t.steps, 'step').replace(/^\d+ /, '')], [String(foundN(t)), 'problems found' + (t.open ? ', ' + t.open + ' not fixed' : '')],
        [minShort(t.seconds), 'time it took'], [MANAGED[t.managed] || '–', 'managed it?']].forEach(function (x) {
         var f = el('div', 'tr-fact');
         f.appendChild(el('b', '', x[0]));
@@ -1532,8 +1538,11 @@
     var box = section('tr-probs', 'Problems, worst first', 'tr-probs-sec');
     var found = t.found || [];
     if (!found.length) { box.appendChild(el('p', 'tr-dim', t.state === 'passed' || t.managed ? 'No problems.' : 'None yet.')); return box; }
-    var by = {};
-    found.forEach(function (f) { by[f.how_bad] = (by[f.how_bad] || 0) + 1; });
+    var by = {}, distinct = {};
+    found.forEach(function (f) { by[f.how_bad] = (by[f.how_bad] || 0) + 1; distinct[f.number] = 1; });
+    var nd = Object.keys(distinct).length;
+    // One card for each time a problem was met, so a problem met at two steps has two cards: said, so the counts agree.
+    if (nd < found.length) { box.appendChild(el('p', 'tr-dim', plural(nd, 'problem') + ', met ' + found.length + ' times in this try: a card for each time.')); }
     var bar = el('div', 'tr-tabs');
     bar.setAttribute('role', 'group');
     bar.setAttribute('aria-label', 'Show by how bad');
@@ -2448,7 +2457,7 @@
       var mid = el('span', 'tr-hist-mid');
       mid.appendChild(el('span', 'tr-strong', x.job_name || upper(x.subject) || 'A page of Rouh'));
       mid.appendChild(el('span', 'tr-dim', day(x.created_at) + ' · ' + tryName(x.round, x.mode) + ' · ' +
-        (x.problems ? plural(x.problems, 'problem') : 'No problems')));
+        (foundN(x) ? plural(foundN(x), 'problem') : 'No problems')));
       a.appendChild(mid);
       a.appendChild(result(x.state));
       li.appendChild(a);
