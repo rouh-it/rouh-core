@@ -83,6 +83,51 @@ def hand(folder: Path, bundle_of: list[str], path: str, about: dict) -> tuple[Pa
 
 UPSTREAM = "refs/upstream/heads/main"
 
+#: The last main of Rouh's code before it went public on 7 November 2026 (task 139, step 139-17).
+#: The public repository's history begins anew there, sharing no commit with the one before, which
+#: is kept privately as rouh-core-history. A run whose clone was made before that has its own
+#: commits laid onto the public main once (``carry_across``), as land.sh carries a branch across
+#: the October split; nothing of the old history goes with them.
+OLD_HISTORY_TIP = "20035c50c5f960804cbdefd6f03114775536ab69"
+
+
+def carry_across(path: str, target: str) -> dict | None:
+    """None when the clone shares history with `target`; else its own commits on top of `target`."""
+    if git("merge-base", "HEAD", target, cwd=path).stdout.strip():
+        return None
+    if git("cat-file", "-e", f"{OLD_HISTORY_TIP}^{{commit}}", cwd=path).returncode:
+        git("fetch", "-q", CODE, OLD_HISTORY_TIP, cwd=path)
+    start = git("merge-base", "HEAD", OLD_HISTORY_TIP, cwd=path).stdout.strip()
+    if not start:
+        return {"state": "error", "reason": "this clone shares no history with the code that runs, nor with "
+                "Rouh's code before it went public, so there is nothing to lay its work on"}
+    own = git("rev-list", "--reverse", "--no-merges", f"{start}..HEAD", cwd=path).stdout.split()
+    if not own:
+        return {"state": "nothing", "reason": "nothing new to land"}
+    tip = target
+    for c in own:
+        tree = git("merge-tree", "--write-tree", "--merge-base", f"{c}^", tip, c, cwd=path)
+        if tree.returncode:
+            return {"state": "error", "reason": f"its commit {c[:12]} does not lay cleanly on the public history "
+                    "of Rouh's code; its work is still on this clone's branch"}
+        fmt = git("log", "-1", "--format=%an%x00%ae%x00%aI%x00%B", c, cwd=path).stdout
+        name, mail, when, msg = (fmt.split("\x00", 3) + ["", "", "", ""])[:4]
+        env = dict(os.environ, GIT_AUTHOR_NAME=name, GIT_AUTHOR_EMAIL=mail, GIT_AUTHOR_DATE=when,
+                   GIT_COMMITTER_NAME="Rouh", GIT_COMMITTER_EMAIL="rouh@localhost")
+        made = subprocess.run(["git", "-c", "safe.directory=*", "commit-tree", tree.stdout.split()[0], "-p", tip,
+                               "-m", msg.strip() or "a run's change"], cwd=path, capture_output=True, text=True, env=env)
+        if made.returncode:
+            return {"state": "error", "reason": f"its commit {c[:12]} could not be laid on the public history: "
+                    + made.stderr.strip()[:200]}
+        tip = made.stdout.strip()
+    # The clone's branch moves to the carried commits; the old ones stay findable by this name.
+    branch = git("symbolic-ref", "-q", "--short", "HEAD", cwd=path).stdout.strip()
+    git("update-ref", "refs/rouh-land/before-public", git("rev-parse", "HEAD", cwd=path).stdout.strip(), cwd=path)
+    git("reset", "-q", "--keep", tip, cwd=path) if branch else git("checkout", "-q", "--detach", tip, cwd=path)
+    print(f"rouh-land: {len(own)} commit(s) of this run carried onto the public history of Rouh's code",
+          file=sys.stderr, flush=True)
+    return {"state": "carried", "commits": len(own)}
+
 
 def onto(path: str) -> tuple[str, str, str]:
     """(the code that runs, what the work goes on top of, why not) - the Creator Rouh's
@@ -181,6 +226,11 @@ def land_code(a, path: str) -> int:
     if not target:
         return say(state="handback", reason=why, handback=why[0].upper() + why[1:] + ".")
     git("fetch", "-q", CODE, target, cwd=path)
+    carried = carry_across(path, target)
+    if carried and carried.get("state") == "nothing":
+        return say(state="nothing", reason=carried["reason"])
+    if carried and carried.get("state") == "error":
+        return say(state="error", reason=carried["reason"])
     if git("merge-base", "--is-ancestor", target, "HEAD", cwd=path).returncode != 0:
         # The code that runs moved on while the run worked: its commits are fitted on top of it.
         got = fit(a, path, target)
