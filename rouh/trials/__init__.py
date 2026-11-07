@@ -324,8 +324,11 @@ def testers(who, *, archived: bool = False) -> list[dict]:
 #
 # Petar, 5 November 2026: "Can you please pause vesela and Boris testing. ideally give me a pause button I
 # can toggle on/off". A paused tester, or every tester while the switch that pauses everyone is on, starts
-# no new try of any kind: not the automatic ones a build or a nightly run starts, not a review asked for by
-# name. A try already going may finish. Pausing changes nothing else: they stay on the list and stay the
+# no automatic try: not the ones a build or a nightly run starts. A try already going may finish. Petar,
+# 7 November 2026: "the pause is for automatically running her on all various developments. That should be
+# separate from times I ask you specifically". So a review the owner asked for (`mode="review"`) still
+# starts while the tester is paused, and the pause stays exactly as it was: nothing resumes anybody.
+# Pausing changes nothing else: they stay on the list and stay the
 # one who tries every change, so resuming puts everything back exactly as it was. A build that meets a
 # pause skips its trial quietly (`Paused`, `SKIPPED`): it is never a failure, and never worked round.
 
@@ -1290,8 +1293,10 @@ def start(who, *, persona_id: str = "", goal: str = "", subject: str = "", gene:
     if not goal:
         raise Refused("A trial needs its goal: one sentence, as the person would put it.")
     pid = persona(who, persona_id)["id"] if persona_id else default_persona(who)
-    # A paused tester, or everyone while all testing is paused, starts nothing new (Petar, 5 November 2026).
-    _refuse_if_paused(who, pid)
+    # A paused tester, or everyone while all testing is paused, starts no automatic try (Petar, 5 November
+    # 2026); a review the owner asked for still starts, and leaves the pause as it was (7 November 2026).
+    if mode != "review":
+        _refuse_if_paused(who, pid)
     # A review has no rounds: nothing is fixed between its tries until the owner chooses.
     round_no = 1 if mode == "review" else max(1, min(ROUNDS, int(round_no or 1)))
     first_id = None
@@ -1812,7 +1817,7 @@ rouh-trial tester-add --name "..." --profile-file p.md [--age 33 --job ... --cit
 rouh-trial tester-remove <name> | default <name>   # only when the person says so in their own words
 ```
 
-A tester can be paused by the person, or all testing at once (`rouh-trial personas` says who is). A paused tester starts no new try of any kind: `rouh-trial run` and `queue` then print `SKIPPED: skipped: tester paused` and exit 0. That is never a failure and never blocks a build: record "skipped: tester paused" in your report and test results, carry on, and never work round it (another tester, resuming one, or anything else). Only the person pauses and resumes, on Evolution, Trials, Testers or in their own words.
+A tester can be paused by the person, or all testing at once (`rouh-trial personas` says who is). The pause is for automatic tries only: a paused tester starts no automatic try, and `rouh-trial run` then prints `SKIPPED: skipped: tester paused` and exits 0. That is never a failure and never blocks a build: record "skipped: tester paused" in your report and test results, carry on, and never work round it (another tester, resuming one, `--review` without the person asking, or anything else). A review the person asked for in their own words (`rouh-trial run --review`, or `rouh-trial queue`) still runs while the tester is paused, and the pause stays as it was. Only the person pauses and resumes, on Evolution, Trials, Testers or in their own words.
 
 A goal is one sentence, as the person would put it, never how the thing was built. A problem is closed only by a later trial that passes, never by hand. A problem the person decided ("Fix it like this") is fixed their way; one they set aside (not a problem, won't fix) is left alone, and so is one waiting on their choice from a review."""
 

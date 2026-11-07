@@ -47,8 +47,9 @@ it sees, thinks and does; this does it, until the tester is done or gives up, or
 
 It ends with PASS (the person managed it, and nothing stopped or confused them) or FAIL, the problems, and
 the trial's page in Rouh, and exits 0 for PASS, 1 for FAIL, 2 when it could not run. When the person has
-paused the tester, or all testing, it starts nothing, prints SKIPPED: skipped: tester paused, and exits 0:
-that is never a failure, and never something to work round.
+paused the tester, or all testing, an automatic run starts nothing, prints SKIPPED: skipped: tester paused,
+and exits 0: that is never a failure, and never something to work round. The pause is for automatic tries
+only: a review the person asked for (--review, or queue) still runs while the tester is paused.
 
 It is part of Rouh's code (`bin/`), which a run has on its PATH, like rouh-task, and reaches Rouh the same
 way: on the server http://127.0.0.1:8021/internal/trials, and in the containers the address and key Rouh

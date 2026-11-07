@@ -1978,8 +1978,9 @@ class ToolRegistry:
             "tester_remove and default: take a tester off the list (kept for old tries) or make one try every "
             "change, only when the owner says so in their own words. pause and resume: pause a tester (persona) "
             "or, with no persona, all testing at once, and let them go again, only on the owner's own words "
-            "(\"pause Vesela\", \"stop the testing\"). A paused tester starts no new try of any kind, automatic "
-            "or review; a try already going may finish; they stay on the list and stay the one who tries every "
+            "(\"pause Vesela\", \"stop the testing\"). A paused tester starts no automatic try (a build's or a "
+            "nightly run's); a review the owner asks for (run) still starts and leaves the pause as it was; a try "
+            "already going may finish; they stay on the list and stay the one who tries every "
             "change, so resume puts everything back as it was. A build that meets a pause skips its trial, which "
             "is not a failure. personas says who is paused. fix_chosen (number: a review's try): start one "
             "run that fixes the problems the owner chose from that review (decided, with how), only on their own "
@@ -11508,17 +11509,17 @@ class ToolRegistry:
                          + (f"; {p['running']} try going now" if p.get("running") else "")
                          + (f"; {p['skipped']} tries skipped while paused" if p.get("skipped") else "")
                          for p in got]
-                head = ["All testing is paused: no tester starts a try."] if everyone else []
+                head = ["All testing is paused: no tester starts an automatic try; a review the owner asks for still runs."] if everyone else []
                 return "\n".join(head + lines) or "There are no testers."
             if action in ("pause", "resume"):
                 on = action == "pause"
                 got = await asyncio.to_thread(_trials.set_paused, who, persona, on)
                 if got.get("everyone"):
-                    return ("All testing is paused: no tester starts a new try until you resume it; a try already "
-                            "going may finish. Page: /evolution/trials/testers" if on else
+                    return ("All testing is paused: no tester starts an automatic try until you resume it; a review "
+                            "you ask for still runs, and a try already going may finish. Page: /evolution/trials/testers" if on else
                             "All testing is resumed. Testers paused on their own stay paused. Page: /evolution/trials/testers")
                 tail = " (all testing is still paused too)" if got.get("paused_all") and not on else ""
-                return (f"{got['first']} is {'paused: no new try starts' if on else 'resumed'}{tail}. "
+                return (f"{got['first']} is {'paused: no automatic try starts, and a review you ask for still runs' if on else 'resumed'}{tail}. "
                         f"Page: /evolution/trials/tester/{got['key']}")
             if action == "persona":
                 t = await asyncio.to_thread(_trials.tester_read, who, persona)

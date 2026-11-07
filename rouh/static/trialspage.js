@@ -749,7 +749,7 @@
     var heldN = sh.paused_all ? live.length : live.filter(function (t) { return t.paused; }).length;
     var t4 = stat('Testers', HOME + '/testers');
     t4.appendChild(el('div', 'tr-big-n', (live.length - heldN) + ' of ' + live.length + ' testing'));
-    t4.appendChild(el('p', 'tr-cap', sh.paused_all ? 'All testing is paused. No tester starts a new try until you resume.'
+    t4.appendChild(el('p', 'tr-cap', sh.paused_all ? 'All testing is paused. No tester starts a try by itself until you resume.'
       : heldN ? live.filter(function (t) { return t.paused; }).map(function (t) { return t.first; }).join(' and ') + (heldN === 1 ? ' is' : ' are') + ' paused.'
       : 'Every tester tries changes as usual.'));
     var faces = el('div', 'tr-faces');
@@ -893,7 +893,7 @@
     var held = live.filter(function (t) { return t.paused; });
     if (sh.paused_all || held.length) {
       var sub = el('div', 'tr-need-s');
-      sub.appendChild(el('div', '', 'No new tries start while ' + (sh.paused_all || held.length === live.length ? (live.length === 2 ? 'they are' : 'everyone is') : (held.length === 1 ? held[0].first + ' is' : 'they are')) + ' paused.'));
+      sub.appendChild(el('div', '', 'No automatic tries start while ' + (sh.paused_all || held.length === live.length ? (live.length === 2 ? 'they are' : 'everyone is') : (held.length === 1 ? held[0].first + ' is' : 'they are')) + ' paused. A trial you ask for still runs.'));
       var actions = el('div', 'tr-flex');
       if (sh.paused_all || held.length === live.length) { actions.appendChild(pauseAllButton(live, !!sh.paused_all, 'tr-btn tr-btn-s')); }
       else {
@@ -1170,19 +1170,20 @@
     pickT.appendChild(el('legend', 'tr-label', 'Who tries it'));
     var def = sh && sh['default'];
     var firstFree = null, anyone = null;
-    // A paused tester can be picked too: Start then resumes them first, so the button is never dead.
+    // A paused tester can be picked too: the pause holds back only automatic tries, so a trial asked for here
+    // runs while they stay paused, and nothing resumes them (Petar, 7 November 2026).
     testers.forEach(function (t) {
       var held = !!t.paused || !!(sh && sh.paused_all);
       var l = el('label', 'tr-pick-t');
       var r = el('input');
       r.type = 'radio'; r.name = 'tester'; r.value = t.key;
       if (!anyone || t.key === def) { anyone = r; }
-      if (!held && (t.key === def || !firstFree)) { firstFree = r; }
+      if (t.key === def || !firstFree) { firstFree = r; }
       l.appendChild(r);
       l.appendChild(face(t, '', held));
       var w = el('span');
       w.appendChild(el('b', '', t.first));
-      w.appendChild(el('span', 'tr-dim', held ? ' paused' : ''));
+      w.appendChild(el('span', 'tr-dim', held ? ' paused for automatic tries' : ''));
       l.appendChild(w);
       pickT.appendChild(l);
     });
@@ -1195,19 +1196,8 @@
     var startB = button('tr-btn tr-primary', null);
     withIcon(startB, 'phone', 'Start the trial');
     startB.type = 'submit';
+    if ((sh && sh.paused_all) || testers.some(function (t) { return t.paused; })) pickT.appendChild(el('p', 'tr-dim', 'A pause holds back only the tries Rouh starts by itself. A trial you start here runs, and the pause stays.'));
     startB.disabled = !testers.length || !jobs.length;
-    function who() {
-      var k = (f.querySelector('input[name=tester]:checked') || {}).value;
-      return testers.filter(function (t) { return t.key === k; })[0] || null;
-    }
-    // Says what Start will do: resume the one picked, or all testing, when they are paused.
-    function label() {
-      var t = who();
-      startB.textContent = '';
-      withIcon(startB, 'phone', sh && sh.paused_all ? 'Resume all testing and start' : t && t.paused ? 'Resume ' + t.first + ' and start' : 'Start the trial');
-    }
-    pickT.addEventListener('change', label);
-    label();
     foot.appendChild(cancel);
     foot.appendChild(startB);
     f.appendChild(foot);
@@ -1229,13 +1219,7 @@
       if (!jn || !tk) { return; }
       startB.disabled = true;
       err.textContent = '';
-      var t = who();
-      var resume = sh && sh.paused_all ? call('/pause', { on: false }) : t && t.paused ? call('/testers/' + t.key + '/pause', { on: false }) : Promise.resolve();
-      resume.then(function () {
-        if (sh && sh.paused_all) { sh.paused_all = false; } else if (t) { t.paused = false; }
-        drawTop();
-        return call('/jobs/' + jn + '/run', { persona: tk });
-      }).then(function (j) {
+      call('/jobs/' + jn + '/run', { persona: tk }).then(function (j) {
         shut();
         S.carry = j.said || 'Starting.';
         S.shell = null;
@@ -2210,8 +2194,8 @@
     S.error = '';
     S.said = '';
     if (!quiet) {
-      toast(!key ? (on ? 'All testing is paused. No tester starts a new try until you resume.' : 'All testing is on again.')
-        : on ? firstName + ' is paused. ' + firstName + ' starts no new try until you resume.'
+      toast(!key ? (on ? 'All testing is paused. No tester starts a try by itself until you resume; a trial you ask for still runs.' : 'All testing is on again.')
+        : on ? firstName + ' is paused. ' + firstName + ' starts no try by itself until you resume; a trial you ask for still runs.'
           : allPaused() ? firstName + ' is resumed, but all testing is still paused, so ' + firstName + ' waits for that too.'
             : firstName + ' is testing again.');
     }
@@ -2241,9 +2225,9 @@
     var every = live.length > 0 && held.length === live.length;
     var names = held.map(function (t) { return t.first; }).join(' and ');
     return on
-      ? 'No tester starts a new try, by itself or when you ask. A try already going may finish. Rouh still builds ' +
+      ? 'No tester starts a try by itself. A trial you ask for still runs, and a try already going may finish. Rouh still builds ' +
         'and ships changes, nightly runs included, just without a tester trying them. Resume any time.'
-      : every ? names + (held.length === 1 ? ' is' : ' are') + ' paused, so no try starts. Resume one on their card, or all of them here.'
+      : every ? names + (held.length === 1 ? ' is' : ' are') + ' paused, so no automatic try starts; a trial you ask for still runs. Resume one on their card, or all of them here.'
       : held.length ? names + (held.length === 1 ? ' is' : ' are') + ' paused. Resume on their card, or pause all ' + live.length + ' here.'
       : 'Testers try changes as usual. Pause one on their card, or all ' + live.length + ' here. You can resume any time.';
   }
@@ -2367,7 +2351,7 @@
       pw.appendChild(el('b', '', t.paused ? firstName + ' is paused' : t.paused_all
         ? firstName + ' is paused with everyone' : firstName + ' is testing'));
       pw.appendChild(el('span', 'tr-dim', t.paused || t.paused_all
-        ? firstName + ' starts no new try, by itself or when you ask.' + (t['default'] ? ' Changes are still built and ' +
+        ? firstName + ' starts no try by itself; a trial you ask for still runs.' + (t['default'] ? ' Changes are still built and ' +
           'shipped, without a tester trying them, and ' + firstName + ' tries every change again once resumed.' : '') + (t.paused && t.paused_all ? ' Resuming ' + firstName +
           ' alone is not enough while all testing is paused.' : !t.paused && t.paused_all
           ? ' Resume all testing on the testers page to let ' + firstName + ' go again.' : '')

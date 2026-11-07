@@ -542,3 +542,46 @@ def page_pictures_linked() -> None:
         except picturelinks.Refused:
             continue
         expect(False, "a token that ran out, or was changed, was taken")
+
+
+@check("own", "a paused tester still runs a review the owner asked for",
+       "pausing a tester, or all testing, holds back only the automatic tries a build or a nightly run "
+       "starts: a review the owner asked for still starts, and the pause stays exactly as it was",
+       needs_db=True)
+def trials_pause_holds_back_only_automatic() -> None:
+    """7 November 2026: Petar paused Vesela so builds stop trying every change on her, then asked for
+    her to test one page, and the review was refused because she was paused. His words: "the pause is
+    for automatically running her on all various developments. That should be separate from times I
+    ask you specifically". This pauses a tester, then all testing, and asks `trials.start` for both
+    kinds of try each time."""
+    import uuid
+
+    from rouh import models, trials
+
+    who = trials._Whose("selfcheck-org", f"selfcheck-{uuid.uuid4().hex[:8]}")
+    mine = {"org_id": who.org_id, "user_id": who.user_id}
+    goal = "You want to see what your testers found."
+    try:
+        tester = trials.default_persona(who)
+        for everyone in (False, True):
+            if everyone:
+                trials.set_paused(who, tester, False)
+                trials.set_paused(who, "", True)
+            else:
+                trials.set_paused(who, tester, True)
+            how = "all testing paused" if everyone else f"{tester} paused"
+            try:
+                trials.start(who, persona_id=tester, goal=goal, job_name="Pause check", by="selfcheck")
+                expect(False, f"{how}: an automatic try was started")
+            except trials.Paused:
+                pass
+            t = trials.start(who, persona_id=tester, goal=goal, job_name="Pause check", by="selfcheck", mode="review")
+            expect(t["mode"] == "review" and t["state"] == "running",
+                   f"{how}: the review the owner asked for came back {t['mode']}, {t['state']}")
+            paused, by_all = trials.is_paused(who, tester)
+            expect(paused and by_all == everyone, f"{how}: starting the review changed the pause")
+    finally:
+        models.Trial.objects.filter(**mine).delete()
+        models.TrialJob.objects.filter(**mine).delete()
+        models.TrialTester.objects.filter(**mine).delete()
+        models.UserSetting.objects.filter(user_id=who.user_id).delete()
