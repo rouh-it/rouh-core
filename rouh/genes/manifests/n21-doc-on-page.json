@@ -1,0 +1,42 @@
+{
+  "id": "n21-doc-on-page",
+  "name": "On the page?",
+  "title": "On the page?: which paragraphs of a Google Doc a task links to are on the task's pages word for word, and which are on none",
+  "aliases": [
+    "on the page",
+    "in sync with the doc",
+    "is the page up to date",
+    "copy doc against page",
+    "doc versus page"
+  ],
+  "group": "work",
+  "route": "/tasks",
+  "icon": "<path d=\"M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10.5a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z\"/><path d=\"M9 13l2 2 4-4.5\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "lab",
+  "switch": "doc_on_page",
+  "signals": {
+    "events": {
+      "checked": "You pressed On the page? on a Google Doc in a task's Documents"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads a Google Doc linked in a task's notes from Google Docs when you press On the page?",
+      "reads the pages (.html files) of that task from the workspace to compare"
+    ],
+    "accounts": [
+      "Google Docs"
+    ],
+    "tables": [],
+    "jobs": [],
+    "remove": "Turn the switch doc_on_page off on its row in Evolution, Mutations, and the button is gone from a task's Documents; to remove it for good revert night 21's commit (rouh/doc_on_page.py, rouh/web/doc_on_page.py and its route in rouh/project/urls.py, its line in rouh/task_docs.py, the doc_on_page act in cards.js, the odoc-onpage code in taskpage.js and its rule in taskbrowser.css, this manifest)."
+  }
+}

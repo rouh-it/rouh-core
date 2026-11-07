@@ -1,0 +1,51 @@
+{
+  "id": "n27-talk-deck",
+  "name": "The deck for your talk",
+  "title": "The deck for your talk: on the day of a talk and the day before, what is still open in its deck, in the morning brief",
+  "aliases": [
+    "the deck for my talk",
+    "my talk today",
+    "deck for tomorrow",
+    "speaker notes missing",
+    "comments on my deck"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<rect x=\"3\" y=\"4\" width=\"18\" height=\"12\" rx=\"1.5\"/><path d=\"M12 16v4M8 20.5h8M7 9h6M7 12h9\"/>",
+  "attaches_to": [
+    "task"
+  ],
+  "maturity": "lab",
+  "switch": "talk_deck",
+  "signals": {
+    "events": {
+      "opened": "You pressed Open the deck on the deck for your talk in the morning brief",
+      "slide": "You pressed Open slide on a slide with no speaker notes in the deck for your talk",
+      "comment": "You pressed Open the comment on an open comment in the deck for your talk",
+      "let_be": "You pressed Let it be on the deck for your talk in the morning brief"
+    },
+    "runs": {
+      "shown": "Rouh put what is still open in the deck for today's or tomorrow's talk in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "looks in Rouh's own Google Drive for decks named with today's or tomorrow's date",
+      "reads those decks slide by slide, their comments and who changed them last",
+      "keeps the decks you let be in your own settings"
+    ],
+    "accounts": [
+      "Google Drive and Google Slides, read only"
+    ],
+    "tables": [
+      "user_settings",
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch talk_deck off on its row in Evolution, Mutations, and the section is gone; to remove it for good revert night 27's commit (rouh/talk_deck.py, the brief_talk_deck route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawTalkDeck and its helpers in briefpage.js, the .bf-talkdeck rules in briefpage.css, this manifest; rouh/decks.py and rouh/google_api/slides.py go with the last of night 27's genes that use them) and delete the user setting talk_deck."
+  }
+}

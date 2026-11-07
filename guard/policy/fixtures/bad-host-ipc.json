@@ -1,0 +1,866 @@
+{
+ "name": "rouh",
+ "networks": {
+  "browser": {
+   "internal": true,
+   "ipam": {},
+   "name": "rouh_browser"
+  },
+  "db": {
+   "internal": true,
+   "ipam": {},
+   "name": "rouh_db"
+  },
+  "default": {
+   "ipam": {},
+   "name": "rouh_default"
+  },
+  "edge": {
+   "ipam": {},
+   "name": "rouh_edge"
+  },
+  "egress": {
+   "ipam": {},
+   "name": "rouh_egress"
+  },
+  "guard-check": {
+   "internal": true,
+   "ipam": {},
+   "name": "rouh_guard-check"
+  },
+  "workers": {
+   "internal": true,
+   "ipam": {},
+   "name": "rouh_workers"
+  }
+ },
+ "services": {
+  "browser": {
+   "cap_drop": [
+    "ALL"
+   ],
+   "command": null,
+   "depends_on": {
+    "guard-init": {
+     "condition": "service_completed_successfully",
+     "required": true
+    },
+    "keyproxy": {
+     "condition": "service_healthy",
+     "required": true
+    }
+   },
+   "entrypoint": [
+    "/opt/rouh-guard/bin/rouh-browser-server"
+   ],
+   "environment": {
+    "HOME": "/tmp",
+    "ROUH_BROWSER_PORT": "9230",
+    "ROUH_BROWSER_PROXY": "http://keyproxy:8080"
+   },
+   "healthcheck": {
+    "interval": "15s",
+    "retries": 4,
+    "start_period": "30s",
+    "test": [
+     "CMD",
+     "python",
+     "-c",
+     "import socket; socket.create_connection(('127.0.0.1', 9230), 4).close()"
+    ],
+    "timeout": "5s"
+   },
+   "image": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "init": true,
+   "logging": {
+    "driver": "local",
+    "options": {
+     "max-file": "3",
+     "max-size": "10m"
+    }
+   },
+   "networks": {
+    "browser": null
+   },
+   "read_only": true,
+   "restart": "unless-stopped",
+   "security_opt": [
+    "no-new-privileges:true"
+   ],
+   "tmpfs": [
+    "/tmp:rw,exec,size=1g"
+   ],
+   "user": "10001:10001",
+   "volumes": [
+    {
+     "read_only": true,
+     "source": "guard-bin",
+     "target": "/opt/rouh-guard",
+     "type": "volume",
+     "volume": {}
+    }
+   ]
+  },
+  "checkdb": {
+   "command": null,
+   "entrypoint": null,
+   "environment": {
+    "POSTGRES_DB": "rouh",
+    "POSTGRES_PASSWORD": "check",
+    "POSTGRES_USER": "rouh"
+   },
+   "healthcheck": {
+    "interval": "10s",
+    "retries": 5,
+    "start_period": "30s",
+    "test": [
+     "CMD-SHELL",
+     "pg_isready -U rouh -d rouh"
+    ],
+    "timeout": "5s"
+   },
+   "image": "pgvector/pgvector:0.8.2-pg18-trixie@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+   "logging": {
+    "driver": "local",
+    "options": {
+     "max-file": "3",
+     "max-size": "10m"
+    }
+   },
+   "networks": {
+    "guard-check": null
+   },
+   "restart": "unless-stopped",
+   "security_opt": [
+    "no-new-privileges:true"
+   ],
+   "shm_size": "134217728",
+   "tmpfs": [
+    "/var/lib/postgresql:size=2g"
+   ]
+  },
+  "code-install": {
+   "cap_add": [
+    "CHOWN",
+    "DAC_OVERRIDE",
+    "FOWNER",
+    "SETUID",
+    "SETGID"
+   ],
+   "cap_drop": [
+    "ALL"
+   ],
+   "command": null,
+   "depends_on": {
+    "guard-init": {
+     "condition": "service_completed_successfully",
+     "required": true
+    },
+    "keyproxy": {
+     "condition": "service_healthy",
+     "required": true
+    }
+   },
+   "entrypoint": [
+    "python",
+    "-I",
+    "/opt/rouh-guard/bin/rouh-code-install"
+   ],
+   "environment": {
+    "HTTPS_PROXY": "http://keyproxy:8080",
+    "NO_PROXY": "keyproxy,localhost,127.0.0.1",
+    "ROUH_INSTALL_CODE": "",
+    "ROUH_INSTALL_URL": "https://rouh.it/mac/code/install",
+    "ROUH_RELEASE_COMMIT": "",
+    "https_proxy": "http://keyproxy:8080"
+   },
+   "healthcheck": {
+    "disable": true
+   },
+   "image": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "logging": {
+    "driver": "local",
+    "options": {
+     "max-file": "3",
+     "max-size": "10m"
+    }
+   },
+   "networks": {
+    "workers": null
+   },
+   "restart": "no",
+   "security_opt": [
+    "no-new-privileges:true"
+   ],
+   "user": "0:0",
+   "volumes": [
+    {
+     "read_only": true,
+     "source": "guard-bin",
+     "target": "/opt/rouh-guard",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "source": "code",
+     "target": "/code",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "source": "extra",
+     "target": "/extra",
+     "type": "volume",
+     "volume": {}
+    }
+   ]
+  },
+  "core": {
+   "cap_add": [
+    "CHOWN",
+    "DAC_OVERRIDE",
+    "FOWNER",
+    "SETUID",
+    "SETGID"
+   ],
+   "cap_drop": [
+    "ALL"
+   ],
+   "command": null,
+   "depends_on": {
+    "guard": {
+     "condition": "service_healthy",
+     "required": true
+    },
+    "postgres": {
+     "condition": "service_healthy",
+     "required": true
+    },
+    "worker": {
+     "condition": "service_started",
+     "required": true
+    }
+   },
+   "entrypoint": [
+    "/opt/rouh-guard/bin/rouh-core-entrypoint"
+   ],
+   "env_file": [
+    {
+     "path": "@STACK@/stack.env",
+     "required": false
+    }
+   ],
+   "environment": {
+    "PATH": "/opt/rouh-guard/bin:/home/rouh/.local/bin:/opt/venv/bin:/extra/python3.12/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "ROUH_ALLOWED_HOSTS": "core",
+    "ROUH_BROWSER": "1",
+    "ROUH_BROWSER_REMOTE": "ws://browser:9230/browser",
+    "ROUH_DB_NAME": "rouh",
+    "ROUH_DB_PASSWORD": "fixture-password",
+    "ROUH_DB_USER": "rouh",
+    "ROUH_GUARD_SIGNAL": "/run/guard-signal",
+    "ROUH_GUARD_SOCKET": "/run/guard/guard.sock",
+    "ROUH_INTERNAL_URL": "http://core:8021",
+    "ROUH_LANDINGS_DIR": "/run/one/landings",
+    "ROUH_ONE_BROWSER": "/run/one/browser.json",
+    "ROUH_ONE_HTTP": "http://worker:8031",
+    "ROUH_PORT": "8021",
+    "ROUH_PUBLIC_URL": "http://127.0.0.1:8420",
+    "ROUH_PUBLISHED_PORT": "8420",
+    "ROUH_SAVE_WORKSPACE": "1",
+    "ROUH_SHELL": "worker",
+    "ROUH_WORKER_KEY_FILE": "/run/one/rouh-worker.json",
+    "ROUH_WORKSPACE_FOLLOW": "1",
+    "ROUH_WORKSPACE_ORIGIN": "/workspace-origin/workspace.git",
+    "ROUH_YOUTUBE_BROWSER": "1"
+   },
+   "extra_hosts": [
+    "host.docker.internal=host-gateway"
+   ],
+   "healthcheck": {
+    "interval": "15s",
+    "retries": 4,
+    "start_period": "3m0s",
+    "test": [
+     "CMD",
+     "python",
+     "-c",
+     "import urllib.request,sys; sys.exit(0 if b'\"ok\":true' in urllib.request.urlopen('http://127.0.0.1:8021/healthz', timeout=4).read() else 1)"
+    ],
+    "timeout": "5s"
+   },
+   "image": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "init": true,
+   "logging": {
+    "driver": "local",
+    "options": {
+     "max-file": "3",
+     "max-size": "10m"
+    }
+   },
+   "networks": {
+    "browser": null,
+    "db": null,
+    "edge": null,
+    "workers": null
+   },
+   "ports": [
+    {
+     "host_ip": "127.0.0.1",
+     "mode": "ingress",
+     "protocol": "tcp",
+     "published": "8420",
+     "target": 8021
+    }
+   ],
+   "restart": "unless-stopped",
+   "security_opt": [
+    "no-new-privileges:true"
+   ],
+   "volumes": [
+    {
+     "source": "core-data",
+     "target": "/data",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "source": "keys",
+     "target": "/keys",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "source": "one-run",
+     "target": "/run/one",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "source": "workspace",
+     "target": "/workspace-origin",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "source": "code",
+     "target": "/code",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "source": "extra",
+     "target": "/extra",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "read_only": true,
+     "source": "guard-bin",
+     "target": "/opt/rouh-guard",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "read_only": true,
+     "source": "guard-run",
+     "target": "/run/guard",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "read_only": true,
+     "source": "guard-signal",
+     "target": "/run/guard-signal",
+     "type": "volume",
+     "volume": {}
+    }
+   ]
+  },
+  "guard": {
+   "cap_add": [
+    "CHOWN",
+    "DAC_OVERRIDE",
+    "FOWNER",
+    "SETUID",
+    "SETGID"
+   ],
+   "cap_drop": [
+    "ALL"
+   ],
+   "command": null,
+   "depends_on": {
+    "checkdb": {
+     "condition": "service_healthy",
+     "required": true
+    },
+    "code-install": {
+     "condition": "service_completed_successfully",
+     "required": true
+    },
+    "guard-init": {
+     "condition": "service_completed_successfully",
+     "required": true
+    }
+   },
+   "entrypoint": [
+    "python",
+    "-I",
+    "/opt/rouh-guard/bin/rouh-guard",
+    "serve"
+   ],
+   "environment": {
+    "HTTPS_PROXY": "http://keyproxy:8080",
+    "NO_PROXY": "core,keyproxy,checkdb,localhost,127.0.0.1",
+    "ROUH_GUARD_CHECK_DB": "checkdb",
+    "ROUH_GUARD_HEALTH": "http://core:8021/healthz",
+    "ROUH_GUARD_SIGNAL": "/run/guard-signal",
+    "ROUH_GUARD_SOCKET": "/run/guard/guard.sock",
+    "ROUH_GUARD_STATE": "/guard",
+    "https_proxy": "http://keyproxy:8080"
+   },
+   "healthcheck": {
+    "interval": "15s",
+    "retries": 4,
+    "start_period": "1m0s",
+    "test": [
+     "CMD",
+     "python",
+     "-I",
+     "/opt/rouh-guard/bin/rouh-guard",
+     "status"
+    ],
+    "timeout": "10s"
+   },
+   "image": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "init": true,
+   "logging": {
+    "driver": "local",
+    "options": {
+     "max-file": "3",
+     "max-size": "10m"
+    }
+   },
+   "networks": {
+    "guard-check": null,
+    "workers": null
+   },
+   "restart": "unless-stopped",
+   "security_opt": [
+    "no-new-privileges:true"
+   ],
+   "user": "0:0",
+   "volumes": [
+    {
+     "read_only": true,
+     "source": "guard-bin",
+     "target": "/opt/rouh-guard",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "source": "code",
+     "target": "/code",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "read_only": true,
+     "source": "extra",
+     "target": "/extra",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "source": "guard-state",
+     "target": "/guard",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "source": "guard-run",
+     "target": "/run/guard",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "source": "guard-signal",
+     "target": "/run/guard-signal",
+     "type": "volume",
+     "volume": {}
+    }
+   ]
+  },
+  "guard-init": {
+   "cap_add": [
+    "CHOWN",
+    "DAC_OVERRIDE",
+    "FOWNER"
+   ],
+   "cap_drop": [
+    "ALL"
+   ],
+   "command": null,
+   "entrypoint": [
+    "/opt/rouh-guard/bin/rouh-guard-install",
+    "/guard-bin"
+   ],
+   "healthcheck": {
+    "disable": true
+   },
+   "image": "ghcr.io/rouh-it/rouh-guard@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+   "logging": {
+    "driver": "local",
+    "options": {
+     "max-file": "3",
+     "max-size": "10m"
+    }
+   },
+   "network_mode": "none",
+   "restart": "no",
+   "security_opt": [
+    "no-new-privileges:true"
+   ],
+   "user": "0:0",
+   "volumes": [
+    {
+     "source": "guard-bin",
+     "target": "/guard-bin",
+     "type": "volume",
+     "volume": {}
+    }
+   ]
+  },
+  "keyproxy": {
+   "cap_drop": [
+    "ALL"
+   ],
+   "command": null,
+   "entrypoint": [
+    "python",
+    "-I",
+    "/opt/rouh-guard/rouh_guard/keyproxy.py"
+   ],
+   "environment": {
+    "ROUH_KEYPROXY_ALLOW": "",
+    "ROUH_KEYPROXY_PORTS": "80,443"
+   },
+   "healthcheck": {
+    "interval": "15s",
+    "retries": 3,
+    "start_period": "5s",
+    "test": [
+     "CMD",
+     "python",
+     "-c",
+     "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=4).status == 200 else 1)"
+    ],
+    "timeout": "5s"
+   },
+   "image": "ghcr.io/rouh-it/rouh-guard@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+   "init": true,
+   "logging": {
+    "driver": "local",
+    "options": {
+     "max-file": "3",
+     "max-size": "10m"
+    }
+   },
+   "networks": {
+    "browser": null,
+    "egress": null,
+    "workers": null
+   },
+   "read_only": true,
+   "restart": "unless-stopped",
+   "security_opt": [
+    "no-new-privileges:true"
+   ],
+   "user": "10002:10002",
+   "volumes": [
+    {
+     "read_only": true,
+     "source": "keys",
+     "target": "/keys",
+     "type": "volume",
+     "volume": {}
+    }
+   ]
+  },
+  "postgres": {
+   "command": null,
+   "entrypoint": null,
+   "environment": {
+    "POSTGRES_DB": "rouh",
+    "POSTGRES_PASSWORD": "fixture-password",
+    "POSTGRES_USER": "rouh"
+   },
+   "healthcheck": {
+    "interval": "10s",
+    "retries": 5,
+    "start_period": "30s",
+    "test": [
+     "CMD-SHELL",
+     "pg_isready -U rouh -d rouh"
+    ],
+    "timeout": "5s"
+   },
+   "image": "pgvector/pgvector:0.8.2-pg18-trixie@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+   "logging": {
+    "driver": "local",
+    "options": {
+     "max-file": "3",
+     "max-size": "10m"
+    }
+   },
+   "networks": {
+    "db": null
+   },
+   "restart": "unless-stopped",
+   "security_opt": [
+    "no-new-privileges:true"
+   ],
+   "shm_size": "268435456",
+   "volumes": [
+    {
+     "source": "pgdata",
+     "target": "/var/lib/postgresql",
+     "type": "volume",
+     "volume": {}
+    }
+   ]
+  },
+  "sidecar": {
+   "command": null,
+   "entrypoint": null,
+   "image": "busybox",
+   "ipc": "host",
+   "networks": {
+    "default": null
+   }
+  },
+  "worker": {
+   "cap_drop": [
+    "ALL"
+   ],
+   "command": null,
+   "depends_on": {
+    "guard": {
+     "condition": "service_healthy",
+     "required": true
+    },
+    "keyproxy": {
+     "condition": "service_healthy",
+     "required": true
+    },
+    "worker-perms": {
+     "condition": "service_completed_successfully",
+     "required": true
+    }
+   },
+   "entrypoint": [
+    "/opt/rouh-guard/bin/rouh-workers-entrypoint"
+   ],
+   "environment": {
+    "HTTPS_PROXY": "http://keyproxy:8080",
+    "HTTP_PROXY": "http://keyproxy:8080",
+    "NO_PROXY": "core,keyproxy,localhost,127.0.0.1",
+    "ONE_ALLOWED_HOSTS": "worker",
+    "ONE_CGROUP": "",
+    "ONE_CODEX_API_BASE_URL": "http://keyproxy:8080/openai/v1",
+    "ONE_EFFORT": "xhigh",
+    "ONE_HTTP_HOST": "0.0.0.0",
+    "ONE_MAX_RUNS": "2",
+    "ONE_PUBLIC_HOSTS": "",
+    "ONE_PUBLIC_URL": "http://127.0.0.1:8420/one",
+    "ONE_RUN_MEMORY_MAX": "4G",
+    "ONE_SHELL_FOR_ROUH": "1",
+    "ONE_WORKSPACE_ORIGIN": "/workspace-origin/workspace.git",
+    "OPENAI_API_KEY": "via-keyproxy",
+    "PATH": "/opt/rouh-guard/bin:/home/rouh/.local/bin:/opt/venv/bin:/extra/python3.12/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "ROUH_GUARD_SIGNAL": "/run/guard-signal",
+    "ROUH_LAND_THROUGH": "/code/bin/rouh-land",
+    "ROUH_MODEL_PROXY": "http://keyproxy:8080",
+    "ROUH_WORKER_KEY_FILE": "/run/one/rouh-worker.json",
+    "http_proxy": "http://keyproxy:8080",
+    "https_proxy": "http://keyproxy:8080",
+    "no_proxy": "core,keyproxy,localhost,127.0.0.1"
+   },
+   "healthcheck": {
+    "interval": "30s",
+    "retries": 3,
+    "start_period": "10m0s",
+    "test": [
+     "CMD-SHELL",
+     "test -x /home/rouh/.local/bin/claude && test -S /run/one/one.sock"
+    ],
+    "timeout": "5s"
+   },
+   "image": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "init": true,
+   "logging": {
+    "driver": "local",
+    "options": {
+     "max-file": "3",
+     "max-size": "10m"
+    }
+   },
+   "mem_limit": "6442450944",
+   "networks": {
+    "workers": null
+   },
+   "restart": "unless-stopped",
+   "security_opt": [
+    "no-new-privileges:true"
+   ],
+   "shm_size": "1073741824",
+   "user": "10001:10001",
+   "volumes": [
+    {
+     "source": "worker-home",
+     "target": "/home/rouh",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "source": "one-run",
+     "target": "/run/one",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "read_only": true,
+     "source": "workspace",
+     "target": "/workspace-origin",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "read_only": true,
+     "source": "code",
+     "target": "/code",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "read_only": true,
+     "source": "extra",
+     "target": "/extra",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "read_only": true,
+     "source": "guard-bin",
+     "target": "/opt/rouh-guard",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "read_only": true,
+     "source": "guard-signal",
+     "target": "/run/guard-signal",
+     "type": "volume",
+     "volume": {}
+    }
+   ]
+  },
+  "worker-perms": {
+   "cap_add": [
+    "CHOWN",
+    "DAC_READ_SEARCH"
+   ],
+   "cap_drop": [
+    "ALL"
+   ],
+   "command": null,
+   "entrypoint": [
+    "/bin/sh",
+    "-c",
+    "find /home/rouh /run/one -xdev \\( ! -uid 10001 -o ! -gid 10001 \\) -exec chown -h 10001:10001 {} + && echo \"worker-perms - the worker's volumes are 10001's\""
+   ],
+   "healthcheck": {
+    "disable": true
+   },
+   "image": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "logging": {
+    "driver": "local",
+    "options": {
+     "max-file": "3",
+     "max-size": "10m"
+    }
+   },
+   "network_mode": "none",
+   "restart": "no",
+   "security_opt": [
+    "no-new-privileges:true"
+   ],
+   "user": "0:0",
+   "volumes": [
+    {
+     "source": "worker-home",
+     "target": "/home/rouh",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "source": "one-run",
+     "target": "/run/one",
+     "type": "volume",
+     "volume": {}
+    }
+   ]
+  }
+ },
+ "volumes": {
+  "code": {
+   "name": "rouh_code"
+  },
+  "core-data": {
+   "name": "rouh_core-data"
+  },
+  "extra": {
+   "name": "rouh_extra"
+  },
+  "guard-bin": {
+   "name": "rouh_guard-bin"
+  },
+  "guard-run": {
+   "name": "rouh_guard-run"
+  },
+  "guard-signal": {
+   "name": "rouh_guard-signal"
+  },
+  "guard-state": {
+   "name": "rouh_guard-state"
+  },
+  "keys": {
+   "name": "rouh_keys"
+  },
+  "one-run": {
+   "name": "rouh_one-run"
+  },
+  "pgdata": {
+   "name": "rouh_pgdata"
+  },
+  "worker-home": {
+   "name": "rouh_worker-home"
+  },
+  "workspace": {
+   "name": "rouh_workspace"
+  }
+ },
+ "x-hardening": {
+  "logging": {
+   "driver": "local",
+   "options": {
+    "max-file": "3",
+    "max-size": "10m"
+   }
+  },
+  "restart": "unless-stopped",
+  "security_opt": [
+   "no-new-privileges:true"
+  ]
+ }
+}

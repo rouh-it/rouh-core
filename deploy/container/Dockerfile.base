@@ -1,0 +1,202 @@
+# syntax=docker/dockerfile:1.7
+#
+# rouh-base: what every one of Rouh's containers runs on, and what "latest"
+# means for a Rouh (Petar, 23 October 2026). It holds Linux, the apt packages,
+# Chromium for the headless browser, Node with Codex and Playwright MCP, and
+# the Python libraries from the base line's pinned lock. **It holds no Rouh
+# code.** Rouh's own code is the user's, in the code volume mounted at /code,
+# a git repository that no pull, image update or restart ever writes to
+# (deploy/container/code-init.sh fills it once, when it is empty).
+#
+# One image for the core, the key proxy and the worker: they are kept apart by
+# their containers, users, volumes and networks (compose.yml), not by what is
+# on their disks, and one image is one thing to patch, check and point
+# "latest" at.
+#
+# Tagged by patch level, <line>.<patch> (1.0.0, 1.0.1, ...). A line fixes the
+# Python minor version and every library's minor version; a patch only ever
+# moves a patch number, Debian's security updates and Chromium's security
+# releases. deploy/container/base_patch.py finds them each night and
+# .github/workflows/base.yml builds, checks and publishes them. Anything
+# bigger reaches a Rouh as a gene.
+#
+#   docker buildx build -f deploy/container/Dockerfile.base -t rouh-base .
+#
+# Built from the top of the repository, but only deploy/container/ is read
+# (.dockerignore keeps the rest out of reach anyway).
+
+ARG PYTHON_IMAGE=python:3.12.14-slim-trixie
+ARG NODE_IMAGE=node:24.22.1-trixie-slim
+
+FROM ${NODE_IMAGE} AS node
+
+FROM ${PYTHON_IMAGE}
+
+ARG BASE_LINE=dev
+ARG BASE_LEVEL=dev
+ARG CODEX_VERSION=0.163.0
+ARG PLAYWRIGHT_MCP_VERSION=0.0.83
+# frp's client, for the phone address on the relay (rouh/relay.py, FRP_VERSION and FRP_SHA256,
+# which name the same release and checksums; change them together).
+ARG FRP_VERSION=0.71.1
+ARG FRP_SHA256_AMD64=1d9875210972a5d1a62b2dc4c48df45ab0af05d3ca1b5e494a014428259df803
+ARG FRP_SHA256_ARM64=8edf590b0c396fa42f9c147121a76af83cfc2002b08f5aef0ea1008c43482019
+ARG TARGETARCH
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    npm_config_update_notifier=false
+
+# Everything from Debian, with every security update there is at build time
+# (the upgrade), and Debian's Chromium, which trixie-security keeps on Chrome's
+# security releases for Intel and Arm alike. git: /code and the workspaces are
+# git repositories. libheif with only its decoder (LGPL): pillow-heif is built
+# against it below rather than installed from its wheels, which bundle a GPL
+# encoder (98-05, WP10). The rest is what a run works with.
+RUN apt-get update \
+ && apt-get -y upgrade \
+ && apt-get install -y --no-install-recommends git ca-certificates tzdata util-linux \
+        libheif1 libheif-plugin-libde265 \
+        curl bash procps less ripgrep openssh-client jq unzip xz-utils \
+        chromium fonts-liberation \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
+# Codex, and Playwright MCP pinned. The runs' MCP list in /code
+# (mcp-servers.json) asks for @playwright/mcp@latest; the one program runs this
+# version instead and points it at Debian's Chromium (ONE_PLAYWRIGHT_MCP and
+# ONE_PLAYWRIGHT_CHROMIUM below, one/asuser.py), so nothing is downloaded at a
+# run's start and the browser is the one the base keeps patched.
+RUN npm install -g "@openai/codex@${CODEX_VERSION}" "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}" \
+ && npm cache clean --force
+
+# frpc, checked against the release's own sha256 before it is unpacked. Only frpc: the relay's
+# server, frps, is the birth service's and never runs here.
+RUN arch="${TARGETARCH:-$(dpkg --print-architecture)}" \
+ && case "$arch" in amd64) sum="$FRP_SHA256_AMD64" ;; arm64) sum="$FRP_SHA256_ARM64" ;; \
+        *) echo "no frpc for $arch" >&2; exit 1 ;; esac \
+ && curl -fsSL -o /tmp/frp.tgz "https://github.com/fatedier/frp/releases/download/v${FRP_VERSION}/frp_${FRP_VERSION}_linux_${arch}.tar.gz" \
+ && echo "$sum  /tmp/frp.tgz" | sha256sum -c - \
+ && tar -xzf /tmp/frp.tgz -C /tmp "frp_${FRP_VERSION}_linux_${arch}/frpc" \
+ && install -m 0755 "/tmp/frp_${FRP_VERSION}_linux_${arch}/frpc" /usr/local/bin/frpc \
+ && rm -rf /tmp/frp.tgz "/tmp/frp_${FRP_VERSION}_linux_${arch}" \
+ && frpc --version
+
+# rouh (10001) runs the core and the worker; keys (10002) runs the key proxy
+# and is the group the two model keys are given to.
+RUN groupadd -g 10001 rouh \
+ && useradd -u 10001 -g 10001 -m -d /home/rouh -s /bin/bash rouh \
+ && groupadd -g 10002 keys \
+ && useradd -u 10002 -g 10002 -M -d /nonexistent -s /usr/sbin/nologin keys \
+ && usermod -aG keys rouh \
+ && printf '[user]\n\tname = Rouh\n\temail = rouh@localhost\n[init]\n\tdefaultBranch = main\n' \
+        > /home/rouh/.gitconfig \
+ && chown rouh:rouh /home/rouh/.gitconfig \
+ && install -d -o 10001 -g 10001 -m 0700 /run/one \
+ && install -d -o 10001 -g 10001 -m 0755 /code /extra
+
+# Every Python library of the line, pinned (deploy/container/base/requirements.txt,
+# which the base line's lock writes out: main's version list, the same commit
+# as this file). Then, last, Python is told where the extra environment is: the
+# libraries a Rouh adds itself, through a gene, into the extra volume at
+# /extra (rouh-extra-pip). A .pth line puts them on sys.path after this
+# image's own site-packages, so they survive every base update and can never
+# shadow a library the base keeps patched.
+COPY deploy/container/base/requirements.txt /tmp/requirements.txt
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends gcc libc6-dev pkg-config libheif-dev \
+ && python -m venv /opt/venv \
+ && grep -v '^pillow-heif==' /tmp/requirements.txt > /tmp/requirements-wheels.txt \
+ && /opt/venv/bin/pip install -r /tmp/requirements-wheels.txt \
+ && /opt/venv/bin/pip install --no-binary pillow-heif "$(grep '^pillow-heif==' /tmp/requirements.txt)" \
+ && apt-get purge -y gcc libc6-dev pkg-config libheif-dev && apt-get autoremove -y \
+ && rm -rf /var/lib/apt/lists/* /tmp/requirements*.txt \
+ && install -d /opt/rouh-base \
+ && /opt/venv/bin/pip freeze --all > /opt/rouh-base/constraints.txt \
+ && py="$(/opt/venv/bin/python -c 'import sys; print(f"python{sys.version_info[0]}.{sys.version_info[1]}")')" \
+ && echo "/extra/${py}/lib/${py}/site-packages" > "/opt/venv/lib/${py}/site-packages/zz-rouh-extra.pth"
+
+# No start scripts and no checks here: since 24 October 2026 they are the protected core's
+# (guard/, the rouh-guard image), which the stack copies into its guard-bin volume and every
+# container mounts read-only (task 98, step 98-23). This image is Linux, Python and libraries.
+
+# What this base is, for the check, the patch job and anyone who asks.
+RUN { echo "line=${BASE_LINE}"; echo "level=${BASE_LEVEL}"; \
+      echo "python=$(python -c 'import platform; print(platform.python_version())')"; \
+      echo "debian=$(cat /etc/debian_version)"; \
+      echo "chromium=$(dpkg-query -W -f='${Version}' chromium)"; \
+      echo "node=$(node --version | tr -d v)"; \
+      echo "codex=${CODEX_VERSION}"; echo "playwright_mcp=${PLAYWRIGHT_MCP_VERSION}"; \
+      echo "frpc=$(frpc --version)"; } > /opt/rouh-base/base.env \
+ && dpkg-query -W -f='${Package} ${Version}\n' > /opt/rouh-base/dpkg.txt \
+ && cat /opt/rouh-base/base.env
+
+LABEL org.opencontainers.image.title="rouh-base" \
+      org.opencontainers.image.version="${BASE_LEVEL}" \
+      it.rouh.base.line="${BASE_LINE}" \
+      it.rouh.base.level="${BASE_LEVEL}"
+
+# What the server sets in rouh.service and its drop-ins, for a container (the
+# core reads the ROUH_ ones, the worker the ONE_ ones; none is a secret).
+# Everything an installation chooses is in compose.yml and .env.example. Off in
+# the core, each for the same reason, that the core holds the keys and runs no
+# one else's code: Rouh's own crew of Claude Code workers in tmux (the one
+# program in the worker container does that work), the live browser, the
+# YouTube fallback browser, the inline shell and self-update. ONE_CGROUP is not
+# set: the one program's processor and memory gates then read the worker's own
+# cgroup, read-only in the container, and keep to the worker's own limits; each
+# run's memory limit and its ending are kept by its holder (one/runprocs.py).
+ENV ROUH_APP_DIR=/code \
+    ROUH_VENV=/opt/venv \
+    ROUH_EXTRA=/extra \
+    ROUH_HOST=0.0.0.0 \
+    ROUH_PORT=8021 \
+    ROUH_DATA_DIR=/data/rouh \
+    ROUH_WORKSPACE=/data/workspace \
+    ROUH_ASSISTANT_USER=rouh \
+    ROUH_FIRST_RUN_CODE_FILE=/data/first-run-code \
+    ROUH_CLAUDE_SIGNIN=1 \
+    ROUH_KEYS_DIR=/keys \
+    ROUH_ONE_SOCKET=/run/one/one.sock \
+    ROUH_ONE_TOKEN=/run/one/voice.json \
+    ROUH_ONE_GETS_KEYS=0 \
+    ROUH_DELEGATE=0 \
+    ROUH_LAND_DIR=/data/rouh/land \
+    ROUH_BROWSER=0 \
+    ROUH_YOUTUBE_BROWSER=0 \
+    ROUH_SHELL=0 \
+    ROUH_SELF_UPDATE=0 \
+    ROUH_DB_HOST=postgres \
+    ROUH_DB_PASSWORD_FILE=/data/secrets/postgres.json \
+    ROUH_TELEGRAM_FILE=/data/secrets/rouh_telegram.json \
+    ROUH_BREVO_FILE=/data/secrets/brevo.json \
+    OPENBLAS_NUM_THREADS=1 \
+    HOME=/home/rouh \
+    ONE_DATA=/home/rouh/one-data \
+    ONE_SOCKET=/run/one/one.sock \
+    ONE_HTTP_HOST=127.0.0.1 \
+    ONE_HTTP_PORT=8031 \
+    ONE_BASE_PATH=/one \
+    ONE_RUN_AS="" \
+    ONE_ASUSER_PYTHON=/usr/local/bin/python3 \
+    ONE_ASUSER_HOME=/home/rouh \
+    ONE_WORKSPACE=/home/rouh/workspace \
+    ONE_RUNS_DIR=/home/rouh/runs \
+    ONE_SCRATCH_DIR=/home/rouh/runs/scratch \
+    ONE_SPACES_DIR=/home/rouh/spaces \
+    ONE_FOLDERS_DIR=/home/rouh/folders \
+    ONE_CLAUDE=/home/rouh/.local/bin/claude \
+    ONE_CLAUDE_SIGNIN=1 \
+    ONE_CODEX=/usr/local/bin/codex \
+    ONE_TELEGRAM=/home/rouh/one-data/telegram.json \
+    ONE_ROUH_URL=http://core:8021 \
+    ONE_PLAYWRIGHT_MCP=@playwright/mcp@${PLAYWRIGHT_MCP_VERSION} \
+    ONE_PLAYWRIGHT_CHROMIUM=/usr/bin/chromium \
+    PATH=/home/rouh/.local/bin:/opt/venv/bin:/extra/python3.12/bin:$PATH
+
+WORKDIR /code

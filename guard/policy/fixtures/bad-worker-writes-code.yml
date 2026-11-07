@@ -1,0 +1,9 @@
+services:
+  worker:
+    volumes: !override
+      - worker-home:/home/rouh
+      - one-run:/run/one
+      - code:/code
+      - extra:/extra:ro
+      - guard-bin:/opt/rouh-guard:ro
+      - guard-signal:/run/guard-signal:ro

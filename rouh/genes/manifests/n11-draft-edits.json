@@ -1,0 +1,44 @@
+{
+  "id": "n11-draft-edits",
+  "name": "Draft edits",
+  "title": "Draft edits: every change you made to an email Rouh drafted before you pressed Send, what Rouh wrote and what you sent",
+  "aliases": [
+    "draft edits",
+    "my edits",
+    "email edits",
+    "rewrites",
+    "how i write",
+    "drafts learn your edits"
+  ],
+  "group": "machine",
+  "route": "/anatomy/behaviour/draft-edits",
+  "anatomy": {
+    "order": 60
+  },
+  "icon": "<path d=\"M4 6.5h10M4 10.5h7M4 14.5h5\"/><path d=\"M13.5 19.5l1-3.5 5.5-5.5a1.8 1.8 0 0 1 2.5 2.5L17 18.5z\"/>",
+  "attaches_to": [
+    "email"
+  ],
+  "maturity": "lab",
+  "switch": "draft_edits",
+  "signals": {
+    "events": {
+      "edits_learned": "You changed a draft Rouh wrote and sent it, and Rouh noted how"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "when you press Send on an email Rouh drafted on a card and you changed it first, keeps the draft as Rouh wrote it, the email as it went and each place they differ; nothing is sent, and nothing is put back into what Rouh is told"
+    ],
+    "accounts": [],
+    "tables": [
+      "draft_edits"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch draft_edits off on its row in Evolution, Mutations: nothing more is recorded and Anatomy, Behaviour has no Draft edits. To remove it for good revert night 11's commit and mutation request 2's (rouh/draft_edits.py, its call in composing.py, the first on a compose block, rouh/web/draftedits.py and its address in urls.py, draftedits.js and draftedits.css, the draft-edits section in index.html and settingsPages in app/runs.js, migration 0165 and this manifest), and drop the table draft_edits."
+  }
+}

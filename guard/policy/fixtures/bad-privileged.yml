@@ -1,0 +1,3 @@
+services:
+  core:
+    privileged: true

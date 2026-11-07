@@ -1,0 +1,49 @@
+{
+  "id": "n26-task-comments",
+  "name": "Comments on the task's documents",
+  "title": "Comments on the task's documents: open comments shown under each document on a task's page, with Have a job apply them",
+  "aliases": [
+    "open comments",
+    "comments on the task's docs",
+    "apply the comments",
+    "apply the feedback",
+    "reviewer's comments"
+  ],
+  "group": "work",
+  "route": "/tasks",
+  "icon": "<path d=\"M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10.5a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z\"/><path d=\"M14 3.5V8h4\"/><path d=\"M9 11.5h6v4h-3l-2 1.5v-1.5h-1z\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "lab",
+  "switch": "task_comments",
+  "signals": {
+    "events": {
+      "opened": "You pressed the open comments of a Google document in a task's Documents",
+      "applied": "You pressed Have a job apply them under a document's open comments"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the comments on the Google documents a task's notes link to, in Rouh's own Google Drive",
+      "starts a job in the task's chat when you press Have a job apply them",
+      "keeps which comments a job was started on in your own settings"
+    ],
+    "accounts": [
+      "Google Drive, read only"
+    ],
+    "tables": [
+      "user_settings",
+      "analytics.event"
+    ],
+    "jobs": [
+      "one job per press of Have a job apply them, in the task's own chat"
+    ],
+    "remove": "Turn the switch task_comments off on its row in Evolution, Mutations, and the button is gone from task pages; to remove it for good revert night 26's commit (rouh/task_comments.py, the comments and apply_comments routes in rouh/web/task_docs.py and rouh/project/urls.py, its hooks in rouh/runtime.py, the doc_comments acts in cards.js, the odoc-cmts code in taskpage.js and the .odoc-cmt rules in taskbrowser.css, this manifest) and delete the user setting task_comments."
+  }
+}

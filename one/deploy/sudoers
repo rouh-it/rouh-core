@@ -1,0 +1,15 @@
+# The one program (task 30, step 10) runs as the user "one" and never as root.
+# It may run exactly one command as the "assistant" user, who owns the
+# person's workspace copy and every space: asuser.py, which makes run
+# checkouts, lands their work and starts Claude Code with a clean
+# environment. Nothing else, and never as root itself.
+#
+# Every run works as assistant, which may use sudo with nobody asked
+# (sudoers-assistant), so a run can do anything on this machine. That is the
+# person's decision of 15 September 2026 (D42).
+#
+# use_pty is off for this user because the command already runs on a
+# terminal the program holds; a second terminal inside it would only add a
+# layer between the person taking over and the run.
+Defaults:one !use_pty, env_reset
+one ALL=(assistant) NOPASSWD: /usr/bin/python3 -I /srv/one/app/one/asuser.py *

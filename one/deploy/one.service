@@ -1,0 +1,119 @@
+[Unit]
+Description=one - the program from task 30 step 07: every run, one list, four places to reach it
+After=network-online.target
+Wants=network-online.target
+
+# Restart=always below means always, and this is the line that makes it true.
+# systemd's default rate limit sits on top of Restart=: five starts inside ten
+# seconds, and then the unit is left `failed` until a person runs
+# `systemctl restart one`. With RestartSec=2 a program that exits at once is
+# started at t=0, 2, 4, 6, 8, which is exactly five inside the window, so the
+# sixth is refused. On a machine coming back from a power cut with nobody at
+# the keyboard, a service that has given up is a service that was never
+# enabled. Zero turns the limit off: try again every two seconds, for as long
+# as it takes. Found on one of the machines on 22 September 2026 (task 45, step 13), where
+# a cold boot that was a few seconds rough would have ended here.
+StartLimitIntervalSec=0
+
+[Service]
+Type=notify
+NotifyAccess=main
+User=one
+Group=one
+WorkingDirectory=/srv/one/app
+Environment=PYTHONUNBUFFERED=1
+Environment=ONE_DATA=/var/lib/one
+Environment=ONE_SOCKET=/run/one/one.sock
+Environment=ONE_HTTP_HOST=127.0.0.1
+Environment=ONE_HTTP_PORT=8031
+Environment=ONE_BASE_PATH=/one
+# The installation's own public address, and every name it is opened under,
+# are the machine's: set them in a drop-in the deploy never touches,
+# /etc/systemd/system/one.service.d/hostname.conf, for example
+#   Environment=ONE_PUBLIC_URL=https://rouh.example.com/one
+#   Environment=ONE_PUBLIC_HOSTS=rouh.example.com
+Environment=ONE_RUN_AS=assistant
+Environment=ONE_SUDO=/usr/bin/sudo
+Environment=ONE_ASUSER_PYTHON=/usr/bin/python3
+# The person's workspace: a checkout of its own repository, which the runs in
+# the `assistant` space are worktrees of. It was `workspace/` inside the `rouh`
+# checkout from 21 September to 21 October 2026, and is a repository of its own
+# again since, beside Rouh's code. Rouh's code is the space `rouh`
+# (/srv/spaces/rouh). Naming the path here rather than leaving it to the code,
+# because this file is where every other path on this machine is written down.
+Environment=ONE_WORKSPACE=/srv/spaces/workspace
+Environment=ONE_RUNS_DIR=/srv/one-runs
+Environment=ONE_SCRATCH_DIR=/srv/one-runs/scratch
+Environment=ONE_SPACES_DIR=/srv/spaces
+Environment=ONE_FOLDERS_DIR=/srv/folders
+Environment=ONE_CLAUDE=/usr/bin/claude
+# How hard a run thinks. A run works unwatched and nobody is waiting on it the
+# way they wait on a spoken answer, so it gets the thinking rather than the
+# speed. Rouh's own background jobs are runs of this program, so this is
+# their effort too. Only for a run whose request did not say: Rouh says for every
+# run it starts, from the defaults in its Settings (rouh/modeldefaults.py), so
+# this is a run started from a terminal or from this program's own page.
+Environment=ONE_EFFORT=medium
+# Codex, for a run the person asks for by name. Claude Code is what a run is
+# otherwise. Installed with: npm install -g @openai/codex. A run of Codex on a
+# machine where it is not there ends saying so; it never becomes a Claude run.
+Environment=ONE_CODEX=/usr/bin/codex
+# The same decision for Codex, which has no --effort flag: the level is a
+# config setting, and the program passes it as -c model_reasoning_effort. It is
+# the model's level, not Codex's, so one that a model does not have is taken
+# without complaint and the run starts anyway. Blank would leave it to Codex.
+Environment=ONE_CODEX_EFFORT=xhigh
+Environment=ONE_TELEGRAM=/etc/one/telegram.json
+# Where ssh from another machine reaches this one, for the command the page
+# offers for taking a run over in a real terminal. Left out, the program asks
+# the routing table for this machine's own address and says root@<it>.
+#Environment=ONE_SSH_TARGET=root@203.0.113.10
+ExecStart=/srv/one/venv/bin/python -m one.program
+
+# The socket's folder. Kept across restarts, so a terminal that reconnects
+# finds it where it was.
+RuntimeDirectory=one
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=yes
+
+# Only the program itself is stopped on a restart. Every run's holder is
+# left running, so a deploy, a crash or the watchdog never kills a run.
+KillMode=process
+
+# Each run's processes get a cgroup of their own, made by its holder under
+# this service's, so that closing a run ends everything it started. Without
+# this the holder has nowhere to make one and falls back to signalling the
+# command alone, which is what left six servers of run f9c548c7 running for
+# hours on 19 September 2026: they had called setsid() and nothing that
+# follows parents could reach them. Nothing here changes what a restart
+# stops; KillMode above still leaves every run alone.
+Delegate=yes
+Restart=always
+RestartSec=2
+TimeoutStopSec=20
+
+# The program has to say it is alive every few seconds from the loop that
+# does everything else. If that loop stops for half a minute, systemd starts
+# it again. Rouh's site stopped answering for 11 minutes on 14 September
+# 2026 with systemd still calling it active.
+WatchdogSec=30
+
+# How many runs of Claude Code work at once is NOT set here. It is
+# ONE_MAX_RUNS in /etc/systemd/system/one.service.d/limits.conf, which is the
+# one place that number is decided, and which install.sh does not touch: this
+# file is replaced on every deploy, the drop-in is not. The 4 in
+# one/config.py is only the fallback for a machine that has no drop-in. Do
+# not tune it by hand, and do not copy the live number into it: on 16
+# September 2026 two copies of that number drifted apart.
+
+# What the program and every run it holds may use, together. The machine has
+# twelve processors and serves other sites; the program may use six.
+CPUQuota=600%
+MemoryMax=14G
+TasksMax=4096
+
+StandardOutput=append:/var/log/one/one.log
+StandardError=append:/var/log/one/one.log
+
+[Install]
+WantedBy=multi-user.target

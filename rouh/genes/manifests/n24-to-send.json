@@ -1,0 +1,45 @@
+{
+  "id": "n24-to-send",
+  "name": "To send from your mail",
+  "title": "To send from your mail: a reply a task drafted for you to send yourself waits on the task's page, with Write it in Gmail, until you have sent it",
+  "aliases": [
+    "to send",
+    "reply to send",
+    "draft to send",
+    "write it in gmail",
+    "send from my mail"
+  ],
+  "group": "work",
+  "route": "/tasks",
+  "icon": "<path d=\"M3.5 6.5h17v11h-17z\"/><path d=\"M3.5 6.5l8.5 6.5 8.5-6.5\"/><path d=\"M15 19.5h5.5M18 17l2.5 2.5L18 22\"/>",
+  "attaches_to": [
+    "task"
+  ],
+  "maturity": "lab",
+  "switch": "to_send",
+  "signals": {
+    "events": {
+      "opened": "You pressed Write it in Gmail on a reply a task drafted for you to send",
+      "let_go": "You pressed Not sending on a reply a task drafted for you to send"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the replies a task drafted for you to send yourself (its sends_himself list)",
+      "writes Not sending into that list, so Sent by you stops waiting for it",
+      "tells every run to keep the draft's words in that list too"
+    ],
+    "accounts": [
+      "Gmail, opened in your own browser: nothing is sent by Rouh"
+    ],
+    "tables": [
+      "task"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch to_send off on its row in Evolution, Mutations, and the section is gone from task pages and runs are no longer told to keep the draft's words; to remove it for good revert night 24's commit (rouh/to_send.py, rouh/web/to_send.py and its route in rouh/project/urls.py, its lines in rouh/objectindex.py and rouh/agent_instructions.py, the to_send act in cards.js, the tkToSend code in taskpage.js and the .osend rules in taskbrowser.css, this manifest). Words already kept in a task's list stay there."
+  }
+}

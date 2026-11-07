@@ -1,0 +1,87 @@
+/* The highlighter (highlights.js, rouh/highlights.py).
+
+   Drawn inside a shadow root, so a page's own styles never reach it and none
+   of these reach the page; the marks themselves are on the page, and their
+   colours are written there by highlights.js. The colours of the control are
+   the ones comments use (comments.css), because they sit in one floating
+   control and are one thing to the reader. */
+
+:host{
+  --s:#161b24; --p2:#1e2530; --b:#232a35; --bs:#2f3742;
+  --t:#e7eaf0; --m:#c2cad6; --d:#8b94a3; --a:#6d5cf0; --bad:#ef4444;
+  --sans:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+.mk, .mk *{ box-sizing:border-box }
+.mk{
+  position:absolute; inset:0; pointer-events:none; overflow:hidden;
+  font:13px/1.45 var(--sans); color:var(--t); letter-spacing:normal; text-align:left;
+}
+.mk button{ font:inherit; color:inherit; margin:0; cursor:pointer }
+.mk svg{ display:block }
+[hidden]{ display:none !important }
+
+/* ---------- a colour ---------- */
+.sw{ width:26px; height:26px; padding:0; border-radius:50%; flex:none; display:grid; place-items:center;
+  background:var(--c); border:2px solid transparent; box-shadow:inset 0 0 0 1px rgba(0,0,0,.25);
+  transition:transform .12s }
+.sw:hover{ transform:scale(1.1) }
+.sw span{ display:none }
+.sw svg{ width:12px; height:12px; fill:none; stroke:#1a1a1a; stroke-width:2.2;
+  stroke-linecap:round; stroke-linejoin:round }
+.sw.on{ border-color:var(--t) }
+.sw.on span{ display:block }
+.sw:focus-visible{ outline:2px solid var(--a); outline-offset:2px }
+
+/* ---------- the marker's bar, at the bottom while it is on ---------- */
+.bar{
+  position:absolute; z-index:8; left:50%; bottom:16px; transform:translateX(-50%); display:none;
+  align-items:center; gap:12px; padding:7px 8px 7px 10px; pointer-events:auto;
+  background:var(--s); border:1px solid var(--bs); border-radius:999px;
+  box-shadow:0 8px 26px rgba(0,0,0,.4); white-space:nowrap; color:var(--m);
+}
+.bar.on{ display:flex }
+.bar .sws{ display:flex; gap:7px }
+.bar kbd{ font:11px var(--mono); padding:1px 5px; border-radius:4px; border:1px solid var(--bs);
+  color:var(--t) }
+.bar .done{ border:1px solid var(--bs); background:var(--p2); border-radius:999px;
+  padding:4px 11px; font-size:12px; color:var(--t) }
+.bar .done:hover{ border-color:var(--a) }
+/* On a phone: the words go, and the colours and Done stay, to the right of
+   Rouh's orb, as comments' and Edit's bars are. */
+@media (max-width:560px){
+  .bar{ left:auto; right:12px; transform:none; bottom:10px }
+  .bar .words{ display:none }
+}
+
+/* ---------- one passage's little bar: its colour, or no highlight ---------- */
+.pop{
+  position:fixed; z-index:9; display:flex; align-items:center; gap:7px; padding:6px 7px;
+  pointer-events:auto; background:var(--s); border:1px solid var(--bs); border-radius:999px;
+  box-shadow:0 8px 26px rgba(0,0,0,.4);
+}
+.pop .sep{ width:1px; height:20px; background:var(--bs); margin:0 1px }
+.pop .bin{ width:28px; height:28px; padding:0; border:0; border-radius:50%; background:none;
+  display:grid; place-items:center; color:var(--m) }
+.pop .bin:hover{ background:var(--p2); color:#ffb4b4 }
+.pop .bin svg{ width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8;
+  stroke-linecap:round; stroke-linejoin:round }
+.pop .bin:focus-visible{ outline:2px solid var(--a); outline-offset:1px }
+
+/* ---------- who made a passage: on a mouse resting on it, or a tap ---------- */
+.who{
+  position:fixed; z-index:9; max-width:min(320px, calc(100vw - 16px)); padding:4px 10px;
+  border-radius:8px; background:var(--s); border:1px solid var(--bs); color:var(--m);
+  box-shadow:0 6px 18px rgba(0,0,0,.35); font-size:12px; line-height:1.4; pointer-events:none;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.who b{ color:var(--t); font-weight:600 }
+
+/* ---------- a word about what went wrong ---------- */
+.toast{
+  position:absolute; z-index:10; left:50%; bottom:70px; transform:translateX(-50%); max-width:min(460px, 92%);
+  padding:9px 14px; border-radius:10px; background:var(--s); border:1px solid var(--bs);
+  box-shadow:0 10px 30px rgba(0,0,0,.45); color:var(--m); pointer-events:auto; display:none;
+}
+.toast.on{ display:block }
+.toast.bad{ border-color:color-mix(in srgb, var(--bad) 60%, transparent); color:#ffb4b4 }

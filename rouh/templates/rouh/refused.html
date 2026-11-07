@@ -1,0 +1,10 @@
+{% extends "rouh/signin_base.html" %}
+{% comment %}A form a person sent that Rouh refused before reading it, such as one
+   without the page's token or from an address this Rouh was never told
+   (`rouh/web/gate.py`, `csrf_failure`).{% endcomment %}
+{% block title %}Not sent{% endblock %}
+{% block body %}
+ <h2>Not sent</h2>
+ <div class="bad" role="alert"><p>{{ said }}</p></div>
+ <p class="back"><a href="{{ back }}">Back</a></p>
+{% endblock %}

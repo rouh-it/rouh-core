@@ -1,0 +1,50 @@
+{
+  "id": "dreame",
+  "name": "Dreame",
+  "title": "Dreame: the robot vacuum at home through the Dreamehome or Mi Home cloud, its state, rooms and cleaning",
+  "aliases": [
+    "dreame",
+    "dreamehome",
+    "robot vacuum",
+    "vacuum",
+    "hoover",
+    "cleaning robot",
+    "mop",
+    "mi home",
+    "xiaomi"
+  ],
+  "group": "machine",
+  "route": "/anatomy/connections/dreame",
+  "anatomy": {
+    "order": 36
+  },
+  "icon": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M8 5.5h8\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "signs in to the person's Dreamehome account with the email and password they type into Settings, and keeps the password sealed so it can sign in again by itself; or to their Xiaomi account for a robot in Mi Home, with the password, the two-step code or the picture's letters they type themselves, keeping only Xiaomi's sign-in, sealed, and not the password",
+      "starts, pauses and docks the person's Dreame robot vacuum, cleans the rooms they name, makes it say where it is, and changes its suction, cleaning mode and mop wetness, through the Dreamehome or Xiaomi cloud, when they ask in a conversation or press it on the Home page",
+      "asks the robot's base to wash or dry the mop pads or empty the dust bin, when they ask",
+      "asks the robot for its map, to read the names of its rooms"
+    ],
+    "accounts": [
+      "Dreamehome",
+      "Xiaomi (Mi Home)"
+    ],
+    "tables": [
+      "dreame_connections"
+    ],
+    "jobs": [],
+    "remove": "the Anatomy section in rouh/templates/rouh/index.html, dreamepage.js/.css, homevacuum.js/.css (the Home page's Vacuum section) and their entries in settingsPages (app/runs.js), rouh/dreame.py, rouh/dreame_mi.py, rouh/web/dreame.py and its routes, the vacuum tool in rouh/tools.py and its area in rouh/toolsearch.py, _dreame in rouh/anatomy.py, rouh/models/dreame.py, rouh/testing/fake_dreame.py and its place in rouh/testing/browser.py, tests/e2e/conftest.py and tests/e2e/serve.py, and this manifest; drop dreame_connections with a migration."
+  },
+  "uses": {
+    "tools": [
+      "vacuum"
+    ]
+  }
+}

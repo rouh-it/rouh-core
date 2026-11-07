@@ -1,0 +1,431 @@
+{
+ "about": "Every version of every capability's contract (rouh/capabilities.py, CAPABILITIES.md). Written by python -m rouh.capabilities lock; never edited by hand.",
+ "capabilities": {
+  "calendar.write": {
+   "1": {
+    "contract": {
+     "authority": "grant",
+     "constraints": {
+      "per_day": {
+       "max": 10,
+       "min": 1,
+       "type": "count"
+      }
+     },
+     "effects": [
+      "calendar"
+     ],
+     "level": "",
+     "resource": "calendar",
+     "rows": true,
+     "tools": [
+      {
+       "guard": "tool",
+       "tool": "create_calendar_event"
+      },
+      {
+       "guard": "tool",
+       "tool": "update_calendar_event"
+      }
+     ]
+    },
+    "hash": "aa0df35e795dbb6d"
+   }
+  },
+  "clockwork.item": {
+   "1": {
+    "contract": {
+     "authority": "grant",
+     "constraints": {
+      "per_day": {
+       "max": 10,
+       "min": 1,
+       "type": "count"
+      },
+      "to": {
+       "type": "choice",
+       "values": [
+        "both",
+        "owner",
+        "them"
+       ]
+      }
+     },
+     "effects": [
+      "schedule"
+     ],
+     "level": "",
+     "resource": "self",
+     "rows": true,
+     "tools": [
+      {
+       "counts": false,
+       "tool": "clockwork_for_contact",
+       "when": {
+        "action": [
+         "list",
+         "pause"
+        ]
+       }
+      },
+      {
+       "tool": "clockwork_for_contact",
+       "value_defaults": {
+        "to": "owner"
+       },
+       "value_map": {
+        "to": {
+         "contact": "them",
+         "petar": "owner"
+        }
+       },
+       "values": {
+        "to": "to"
+       },
+       "when": {
+        "action": [
+         "add"
+        ]
+       }
+      },
+      {
+       "tool": "clockwork_for_contact",
+       "value_map": {
+        "to": {
+         "contact": "them",
+         "petar": "owner"
+        }
+       },
+       "values": {
+        "to": "to"
+       },
+       "when": {
+        "action": [
+         "change",
+         "resume"
+        ]
+       }
+      }
+     ]
+    },
+    "hash": "1b55585a7c78762c"
+   }
+  },
+  "communication.reply": {
+   "1": {
+    "contract": {
+     "authority": "grant",
+     "constraints": {},
+     "effects": [
+      "reply"
+     ],
+     "level": "",
+     "resource": "none",
+     "rows": false,
+     "tools": []
+    },
+    "hash": "8d31b1da71ce29a0"
+   }
+  },
+  "inbox.change": {
+   "1": {
+    "contract": {
+     "authority": "grant",
+     "constraints": {},
+     "effects": [
+      "change_inbox"
+     ],
+     "level": "",
+     "resource": "none",
+     "rows": false,
+     "tools": []
+    },
+    "hash": "7dfd2d6fcc79a2e7"
+   }
+  },
+  "inbox.read": {
+   "1": {
+    "contract": {
+     "authority": "grant",
+     "constraints": {},
+     "effects": [
+      "read_inbox"
+     ],
+     "level": "",
+     "resource": "none",
+     "rows": false,
+     "tools": []
+    },
+    "hash": "272a05a6a7a1026e"
+   }
+  },
+  "memory.note": {
+   "1": {
+    "contract": {
+     "authority": "grant",
+     "constraints": {
+      "per_day": {
+       "max": 20,
+       "min": 1,
+       "type": "count"
+      }
+     },
+     "effects": [
+      "keep_note"
+     ],
+     "level": "",
+     "resource": "self",
+     "rows": true,
+     "tools": [
+      {
+       "tool": "remember_for_contact"
+      }
+     ]
+    },
+    "hash": "0c2f150e5878f74b"
+   }
+  },
+  "tasks.access": {
+   "1": {
+    "contract": {
+     "authority": "task_level",
+     "constraints": {},
+     "effects": [
+      "change_task"
+     ],
+     "level": "edit",
+     "resource": "task",
+     "rows": false,
+     "tools": []
+    },
+    "hash": "c82c1eaffabba846"
+   }
+  },
+  "tasks.ask_ai": {
+   "1": {
+    "contract": {
+     "authority": "task_level",
+     "constraints": {},
+     "effects": [
+      "change_task"
+     ],
+     "level": "edit",
+     "resource": "task",
+     "rows": false,
+     "tools": []
+    },
+    "hash": "c82c1eaffabba846"
+   }
+  },
+  "tasks.change": {
+   "1": {
+    "contract": {
+     "authority": "task_level",
+     "constraints": {},
+     "effects": [
+      "change_task"
+     ],
+     "level": "edit",
+     "resource": "task",
+     "rows": false,
+     "tools": [
+      {
+       "counts": false,
+       "defaults": {
+        "action": "list"
+       },
+       "tool": "shared_task",
+       "when": {
+        "action": [
+         "list"
+        ]
+       }
+      },
+      {
+       "resource": "task",
+       "tool": "shared_task",
+       "when": {
+        "action": [
+         "add"
+        ]
+       }
+      }
+     ]
+    },
+    "hash": "75371133b7deee20"
+   }
+  },
+  "tasks.decide": {
+   "1": {
+    "contract": {
+     "authority": "task_level",
+     "constraints": {},
+     "effects": [
+      "decide"
+     ],
+     "level": "decide",
+     "resource": "task",
+     "rows": false,
+     "tools": [
+      {
+       "guard": "tool",
+       "tool": "delegate_act"
+      }
+     ]
+    },
+    "hash": "4462091ef08e27e1"
+   }
+  },
+  "tasks.make_shared": {
+   "1": {
+    "contract": {
+     "authority": "grant",
+     "constraints": {
+      "per_day": {
+       "max": 3,
+       "min": 1,
+       "type": "count"
+      }
+     },
+     "effects": [
+      "make_task"
+     ],
+     "level": "",
+     "resource": "self",
+     "rows": true,
+     "tools": [
+      {
+       "tool": "shared_task",
+       "when": {
+        "action": [
+         "create"
+        ]
+       }
+      }
+     ]
+    },
+    "hash": "12c6e0f93765cc44"
+   }
+  },
+  "tasks.read": {
+   "1": {
+    "contract": {
+     "authority": "task_level",
+     "constraints": {},
+     "effects": [
+      "read_tasks"
+     ],
+     "level": "view",
+     "resource": "task",
+     "rows": false,
+     "tools": [
+      {
+       "counts": false,
+       "tool": "read_granted_tasks"
+      }
+     ]
+    },
+    "hash": "6ccdf6379486a16a"
+   }
+  },
+  "tasks.share_page": {
+   "1": {
+    "contract": {
+     "authority": "grant",
+     "constraints": {},
+     "effects": [
+      "share_page"
+     ],
+     "level": "",
+     "resource": "task",
+     "rows": false,
+     "tools": [
+      {
+       "counts": false,
+       "tool": "read_granted_tasks"
+      },
+      {
+       "guard": "tool",
+       "tool": "share_granted_page"
+      }
+     ]
+    },
+    "hash": "7db57c674dd5dbe1"
+   }
+  },
+  "work.job": {
+   "1": {
+    "contract": {
+     "authority": "grant",
+     "constraints": {
+      "per_day": {
+       "max": 10,
+       "min": 1,
+       "type": "count"
+      }
+     },
+     "effects": [
+      "start_job"
+     ],
+     "level": "",
+     "resource": "none",
+     "rows": true,
+     "tools": [
+      {
+       "counts": false,
+       "tool": "check_tasks"
+      },
+      {
+       "counts": false,
+       "tool": "look_at_task"
+      },
+      {
+       "tool": "assistant_job"
+      },
+      {
+       "tool": "change_picture"
+      },
+      {
+       "tool": "make_picture"
+      }
+     ]
+    },
+    "hash": "f20ad9f4cd32274b"
+   }
+  },
+  "work.research": {
+   "1": {
+    "contract": {
+     "authority": "grant",
+     "constraints": {
+      "per_day": {
+       "max": 10,
+       "min": 1,
+       "type": "count"
+      }
+     },
+     "effects": [
+      "start_job"
+     ],
+     "level": "",
+     "resource": "none",
+     "rows": true,
+     "tools": [
+      {
+       "counts": false,
+       "tool": "check_tasks"
+      },
+      {
+       "counts": false,
+       "tool": "look_at_task"
+      },
+      {
+       "tool": "assistant_job"
+      }
+     ]
+    },
+    "hash": "cbe03f41050d2f9a"
+   }
+  }
+ }
+}

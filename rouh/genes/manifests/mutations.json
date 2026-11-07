@@ -1,0 +1,77 @@
+{
+  "id": "mutations",
+  "name": "Mutations",
+  "title": "Mutations: every gene the nightly run built for you, its card, your decisions, mutations, questions and how it is learned",
+  "aliases": [
+    "gene library",
+    "genes",
+    "to review",
+    "decide later",
+    "mutate",
+    "mutation",
+    "trial week",
+    "month view",
+    "passed",
+    "failed",
+    "nightly genes built",
+    "switches",
+    "feature switches",
+    "other switches"
+  ],
+  "group": "evolution",
+  "route": "/evolution/mutations",
+  "icon": "<path d=\"M8 3c0 4.5 8 4.5 8 9s-8 4.5-8 9M16 3c0 4.5-8 4.5-8 9s8 4.5 8 9\"/><path d=\"M9.3 5.7h5.4M9.3 9.3h5.4M9.3 18.3h5.4M9.3 14.7h2.2\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "nav": {
+    "place": "list",
+    "order": 20,
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "switches a gene the nightly run built on when you keep it and off when you turn it off, through its own feature switch",
+      "keeps your mutation requests for the next night to build, through its usual tests and land.sh, within the night's caps",
+      "asks a model your questions about a gene, with that gene's record only (Models, Questions about a gene)",
+      "offers a kept gene in your own chats at its moment, at most three a day; switches off an ask-for-it gene unused in its trial week, with a notice and Keep anyway",
+      "books ten minutes on Clockwork for a gene that changes how you work, when you pick a time",
+      "starts a run that takes a gene's code out, only when you press Reject and say why",
+      "reads every change that lands in Rouh's code and puts it to a gene, asking a model when its commit does not say (Models, Writing the gene log)",
+      "counts each person's uses of each gene from the event log, and asks a model once a month how useful the genes they used are (Models, How useful a gene is)",
+      "starts a run that takes a gene out as its contract says, only when an administrator presses Take it out in the gene log",
+      "drafts a gene's contract from a conversation when you ask, and grows it into Rouh with a run only when you say grow it (Genes on the fly, switch gene_drafts)",
+      "reads the nightly run's services.md, and never writes it, to name on a gene's card the outside services it brought in",
+      "turns a switch no gene has on or off when you press it under Other switches, in Passed"
+    ],
+    "accounts": [],
+    "tables": [
+      "mutations_genes",
+      "mutations_gene_events",
+      "gene_mutations",
+      "gene_questions",
+      "gene_log",
+      "gene_log_events",
+      "gene_log_commits",
+      "gene_use_daily",
+      "gene_marks",
+      "gene_evals",
+      "nightly_feature_nights",
+      "nightly_feature_services",
+      "feature_switches"
+    ],
+    "jobs": [
+      "every fifteen minutes: nights brought in, trials judged by use, mutations and removals settled (evolution.tick)",
+      "every fifteen minutes: the gene log reads what landed and counts each gene's use, and from the 25th the model evaluates the month's genes (runtime._gene_log_loop)"
+    ],
+    "remove": "Delete this manifest, rouh/evolution.py, rouh/gene_questions.py, rouh/web/evolution.py, evolutionpage.js and evolutionpage.css (with Other switches; every switch stays where it is), the Evolution layer in index.html, GeneSource in decision_sources.py, the gene_offer tool and the offers line in brain.py, and drop the tables mutations_genes, mutations_gene_events, gene_mutations and gene_questions; every gene's own feature switch stays where it is. The gene log goes with it: turn its switches gene_log and gene_usage off, or drop its six tables with a migration and delete rouh/genelog.py, rouh/geneuse.py, rouh/web/genelog.py and genelogpage.js/.css."
+  },
+  "uses": {
+    "tools": [
+      "gene_offer",
+      "gene_draft"
+    ],
+    "purposes": [
+      "gene_question"
+    ]
+  }
+}

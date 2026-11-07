@@ -1,0 +1,121 @@
+/* The Payments page in Settings (`paymentspage.js`, `rouh/payments.py`).
+
+   The cards of the Heartbeat page (`heartbeatpage.css`) with three things of
+   its own: the saved cards and the key, shown as their brand and masked
+   number or their masked form and nothing more, each card with its silo and caps; the Stripe key over the permissions
+   to make it with; and the purchases. The cards are grouped under the billing
+   entity each is billed to, drawn as a bordered block of its own. */
+
+.pay-saved {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px;
+  padding: 10px 12px; border-radius: var(--radius-s);
+  border: 1px solid var(--line-soft); background: var(--panel-2);
+}
+.pay-brand { font-weight: 600; font-size: 14px; }
+.pay-last4 { font-family: var(--mono); font-size: 14px; letter-spacing: 0.04em; }
+.pay-hint { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+.pay-when { color: var(--dimmer); font-size: 12px; margin-left: auto; }
+.pay-card-form .hb-field input { font-variant-numeric: tabular-nums; }
+
+/* The saved cards, one row each: brand and masked number over the name, the
+   expiry and when it was saved, with Remove to the right of both. */
+.pay-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pay-saved.pay-saved-card {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px;
+}
+.pay-card-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-width: 0; }
+.pay-saved-card .pay-last4 { white-space: nowrap; }
+.pay-saved-card .pay-when { grid-column: 1; margin-left: 0; overflow-wrap: anywhere; }
+.pay-saved-card > .ctl { grid-column: 2; grid-row: 1 / span 4; }
+.pay-saved-card .pay-silo { align-self: center; }
+/* The card's silo, picked from the account's silos (rouh/silos.py), or none. */
+.pay-silo-pick { grid-column: 1; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--dim); }
+.pay-silo-pick select {
+  height: 30px; min-width: 0; max-width: 100%; padding: 0 8px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 13px;
+}
+.pay-silo-pick select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pay-in-use {
+  font-size: 11px; font-weight: 600; line-height: 1.5; color: var(--accent);
+  border: 1px solid currentColor; border-radius: 999px; padding: 0 7px;
+}
+.pay-card-form .hb-h5:first-child { margin-top: 0; }
+/* A card's pickers, its silo and its billing entity, side by side, wrapping on a phone. */
+.pay-picks { grid-column: 1; display: flex; flex-wrap: wrap; gap: 6px 16px; min-width: 0; }
+/* Each label on one line and as wide as the other, so stacked on a phone the two
+   drop-downs start at the same place. */
+.pay-picks .pay-silo-pick > span { white-space: nowrap; min-width: 4.4em; }
+
+/* A card's own caps, under its name: each one set, with what is spent against the
+   day's and the month's, or plainly none, with the button to change them beside; and
+   the small form that opens in its place, its three fields side by side. */
+.pay-caps-line {
+  grid-column: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+  min-width: 0; font-size: 13px;
+}
+.pay-caps-said { min-width: 0; overflow-wrap: anywhere; }
+.pay-caps-name { color: var(--dim); }
+.pay-caps-amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pay-caps-spent { color: var(--dim); font-variant-numeric: tabular-nums; }
+.pay-caps-line.none .pay-caps-said { color: var(--dim); }
+.pay-caps-form {
+  grid-column: 1; min-width: 0; margin: 4px 0 2px; padding: 10px 12px;
+  border-radius: var(--radius-s); border: 1px solid var(--line); background: var(--panel);
+}
+.pay-caps-form .hb-h5 { margin-top: 0; }
+.pay-caps-form .settings-help { margin: 0; }
+.pay-caps-row > .hb-field { flex: 1 1 86px; }
+
+/* A billing entity: its name and how many cards, with Edit and Remove; what its
+   invoices carry, only what is filled in; its cards; and Add card under them. */
+.pay-entity {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0;
+  padding: 12px; border-radius: var(--radius-s); border: 1px solid var(--line);
+}
+.pay-entity + .pay-entity, .pay-entity + .hb-actions, .pay-entity + .pay-entity-form { margin-top: 12px; }
+.pay-entity-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+.pay-entity-name { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
+.pay-entity-count { color: var(--dim); font-size: 12.5px; white-space: nowrap; }
+.pay-entity-acts { display: flex; gap: 6px; margin-left: auto; }
+.pay-entity-facts {
+  display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 12px; margin: 0;
+  font-size: 13px; line-height: 1.45;
+}
+.pay-entity-facts dt { color: var(--dim); }
+.pay-entity-facts dd { margin: 0; overflow-wrap: anywhere; }
+.pay-entity > .hb-actions, .pay-entity > .hb-empty { margin: 0; }
+.pay-entity-loose { border-style: dashed; }
+.pay-entity-form .hb-h5:first-child { margin-top: 0; }
+.pay-entity-form .settings-help { margin: 2px 0 0; }
+
+/* The key, and under it what to make it with: Settings' column is too narrow
+   for the two side by side, even at a desk. */
+.pay-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.pay-key { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-content: start; min-width: 0; }
+.pay-key .hb-h5 { margin: 4px 0 0; }
+.pay-perms {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-content: start; min-width: 0;
+  padding: 10px 12px; border-radius: var(--radius-s); border: 1px solid var(--line-soft);
+}
+.pay-perms .hb-h5 { margin: 0; }
+.pay-perm { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 8px; font-size: 13px; line-height: 1.45; }
+.pay-perm-name { font-weight: 600; }
+.pay-perm.write .pay-perm-name { color: var(--accent); }
+.pay-perm.read .pay-perm-name { color: var(--good); }
+.pay-perm.none .pay-perm-name { color: var(--dim); }
+.pay-perm-what { color: var(--text); }
+
+.pay-charge.void .hb-beat-what, .pay-charge.void .hb-beat-nums { color: var(--dim); text-decoration: line-through; }
+.pay-charge.failed .hb-beat-nums { color: var(--bad); }
+.pay-charge.bank .hb-beat-nums, .pay-charge.confirming .hb-beat-nums,
+.pay-charge.unconfirmed .hb-beat-nums { color: var(--accent); }
+.pay-charge .hb-ask-do { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* A field the server said is wrong: outlined in red, with what is wrong under it,
+   until it is changed (`markWrong`). Fields side by side keep their inputs level
+   when only one of them says something. */
+#paymentsBody .hb-field { align-content: start; }
+#paymentsBody .hb-field.wrong input, #paymentsBody .hb-field.wrong select {
+  border-color: var(--bad); box-shadow: inset 0 0 0 1px var(--bad);
+}
+.pay-field-error { color: var(--bad); font-size: 12.5px; line-height: 1.4; overflow-wrap: anywhere; }

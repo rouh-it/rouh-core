@@ -1,0 +1,46 @@
+{
+  "id": "n21-page-gdoc",
+  "name": "A Google Doc of this page",
+  "title": "A Google Doc of this page: a page open on the canvas made into a Google Doc, with its headings, lists, tables and links, and kept in step on the next press, from the share icon's menu",
+  "aliases": [
+    "google doc",
+    "make it a google doc",
+    "export to google docs",
+    "copy to docs",
+    "gdoc"
+  ],
+  "group": "work",
+  "route": "/tasks",
+  "icon": "<path d=\"M6 3.5h8.5L18.5 7.5v13H6z\"/><path d=\"M14 3.5v4.5h4.5\"/><path d=\"M9 11.5h6M9 14.5h6M9 17.5h4\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "lab",
+  "switch": "page_gdoc",
+  "signals": {
+    "events": {
+      "made": "You pressed Make a Google Doc of this page in a page's share menu",
+      "updated": "You pressed Update the Google Doc in a page's share menu",
+      "opened": "You pressed Open the Google Doc in a page's share menu or its notice"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the page open on the canvas from the workspace when you press Make a Google Doc of this page",
+      "makes a Google Doc of it in the connected Google account's Drive, or puts the page into the one made before, and gives you edit access when that account is not your own"
+    ],
+    "accounts": [
+      "Google Drive"
+    ],
+    "tables": [
+      "user_settings"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch page_gdoc off on its row in Evolution, Mutations, and the section is gone from the share menu; the Google Docs it made stay in Drive. To remove it for good revert night 21's commit (rouh/page_gdoc.py, rouh/web/page_gdoc.py and its route in rouh/project/urls.py, Drive.import_html in rouh/google_api/drive.py, the gdocSection in rouh/templates/rouh/index.html, the gdoc code in runs.js, the gdoc icon in menu.js, this manifest) and delete the user setting page_gdoc."
+  }
+}

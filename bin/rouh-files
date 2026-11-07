@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""rouh-files: the files of a task or a chat, at the path every job and Rouh see them at.
+
+    rouh-files list 169-04                   a task's (or a step's) files, and its folder
+    rouh-files list --chat chat-d6c834153344 a chat's files
+    rouh-files where d88ee51fa1af41bc        one file: where it is, what it is, whose it is
+    rouh-files place d88ee51fa1af41bc 169-04 move a file into a task's folder (one kept the old
+                                             way is put on the list on the way)
+    rouh-files add out/report.pdf 169-04     a file this job made, moved into the task's folder
+                                             and put on the list
+    rouh-files bin d88ee51fa1af41bc          put a file in the bin; it is kept until the bin is
+                                             emptied, and can be had back
+    rouh-files unbin d88ee51fa1af41bc        take it back out of the bin
+    rouh-files restore d88ee51fa1af41bc 1    put an earlier version back (`where` lists them);
+                                             the state it replaces is kept as a version too
+
+Every file Rouh is handed lives in one store that Rouh, its jobs and the one program's runs see
+read and write at the same path (`rouh/filestore.py`): in the containers /run/one/files. A task's
+files are in tasks/<task id>/ there, and its folder in the workspace has `files`, a link to it.
+Open, change, unzip or rename them where they are; never copy one somewhere else to work on it.
+
+Rouh keeps the list of files (`rouh/web/filesapi.py`); this asks it, the way `rouh-task` does:
+on the server at http://127.0.0.1:8021, in the containers with the key Rouh gave the worker
+(/run/one/rouh-worker.json). Standard library only.
+"""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+LOCAL = "http://127.0.0.1:8021"
+TIMEOUT = 60
+
+
+def fail(message: str, code: int = 1) -> None:
+    print(f"rouh-files: {message}", file=sys.stderr)
+    sys.exit(code)
+
+
+def worker_key() -> dict:
+    path = os.environ.get("ROUH_WORKER_KEY_FILE", "").strip() or "/run/one/rouh-worker.json"
+    try:
+        said = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return said if isinstance(said, dict) and said.get("token") else {}
+
+
+def call(method: str, payload: dict | None = None, query: dict | None = None) -> dict:
+    key = worker_key()
+    url = (os.environ.get("ROUH_URL", "").strip() or str(key.get("url") or "") or LOCAL).rstrip("/")
+    address = url + "/internal/files" + ("?" + urllib.parse.urlencode(query) if query else "")
+    headers = {"Accept": "application/json"}
+    data = None
+    if payload is not None:
+        payload = {**payload, "run": os.environ.get("ONE_RUN", "") or os.environ.get("ROUH_JOB", "")}
+        data = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    if key:
+        headers["X-Rouh-Worker-Key"] = key["token"]
+    request = urllib.request.Request(address, data=data, headers=headers, method=method)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(request, timeout=TIMEOUT) as response:
+            body = response.read()
+    except urllib.error.HTTPError as exc:
+        try:
+            said = json.loads(exc.read().decode("utf-8"))
+        except ValueError:
+            said = {}
+        fail(said.get("error") or f"Rouh at {url} answered {exc.code}.", 1 if exc.code == 400 else 2)
+    except (urllib.error.URLError, OSError) as exc:
+        fail(f"Rouh could not be reached at {url} ({getattr(exc, 'reason', exc)}).", 2)
+    try:
+        return json.loads(body.decode("utf-8"))
+    except ValueError:
+        fail(f"Rouh at {url} gave an answer that is not JSON.", 2)
+    return {}
+
+
+def owner(args: list[str]) -> dict:
+    if args and args[0] == "--chat" and len(args) > 1:
+        return {"chat": args[1]}
+    if args:
+        return {"task": args[0]}
+    fail("Say which task (its number, or its two numbers for a step) or --chat <id>.")
+    return {}
+
+
+def show(record: dict) -> None:
+    size = int(record.get("size") or 0)
+    print(f"{record.get('path')}")
+    print(f"  id {record.get('id')}  {record.get('media_type') or record.get('kind')}  {size:,} bytes")
+
+
+def main(argv: list[str]) -> int:
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    verb, rest = argv[0], argv[1:]
+    if verb == "list":
+        got = call("GET", query=owner(rest))
+        print(f"{got['owner']['label']}: {got['folder']}")
+        for record in got.get("files") or []:
+            show(record)
+        if not got.get("files"):
+            print("  (no files yet)")
+        return 0
+    if verb == "where" and rest:
+        got = call("GET", query={"id": rest[0]})["file"]
+        show(got)
+        print("  owners: " + ", ".join(f"{o['kind']} {o['id']}" for o in got.get("owners") or []))
+        for v in got.get("versions") or []:
+            kept = "on disk" if v.get("on_disk") else ("in R2" if v.get("in_r2") else "not kept")
+            print(f"  version {v['number']}: {v['size']:,} bytes, {kept}, {v.get('by') or ''}")
+        return 0
+    if verb == "unbin" and rest:
+        print(call("POST", {"action": "unbin", "id": rest[0]}).get("did"))
+        return 0
+    if verb == "restore" and len(rest) >= 2:
+        print(call("POST", {"action": "restore", "id": rest[0], "version": rest[1]}).get("did"))
+        return 0
+    if verb == "place" and len(rest) >= 2:
+        got = call("POST", {"action": "place", "id": rest[0], **owner(rest[1:])})
+        print(got.get("did"))
+        return 0
+    if verb == "add" and len(rest) >= 2:
+        src = Path(rest[0]).resolve()
+        if not src.is_file():
+            fail(f"{rest[0]} is not a file.")
+        where = call("GET", query=owner(rest[1:]))
+        folder = Path(where["folder"])
+        folder.mkdir(parents=True, exist_ok=True)
+        if src.parent != folder.resolve():
+            dest = folder / src.name
+            n = 2
+            while dest.exists():
+                dest = folder / f"{src.stem} ({n}){src.suffix}"
+                n += 1
+            shutil.move(str(src), str(dest))
+            src = dest
+        got = call("POST", {"action": "add", "path": str(src), **owner(rest[1:])})
+        print(got.get("did"))
+        show(got["file"])
+        return 0
+    if verb == "bin" and rest:
+        got = call("POST", {"action": "bin", "id": rest[0]})
+        print(got.get("did"))
+        return 0
+    fail("Say list, where, place, add, bin, unbin or restore; rouh-files --help says how.")
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

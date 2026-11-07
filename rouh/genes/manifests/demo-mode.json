@@ -1,0 +1,45 @@
+{
+  "id": "demo-mode",
+  "name": "Demo mode",
+  "title": "Demo mode: one switch beside the house blurs all your content on every device, so Rouh can be shown and recorded; you approve what may be seen",
+  "aliases": [
+    "demo mode",
+    "demo",
+    "show off rouh",
+    "blur everything",
+    "presentation mode",
+    "recording",
+    "stage",
+    "audience",
+    "shown in demo",
+    "demo copy"
+  ],
+  "group": "work",
+  "route": "/tasks",
+  "icon": "<path d=\"M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z\"/><circle cx=\"12\" cy=\"12\" r=\"2.8\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "lab",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "while it is on, every page draws your words as soft bars from its first paint, in a font with one bar for every letter, and only Rouh's own interface and what you approved stay sharp",
+      "keeps a record of every time it was turned on or off and from which device (demo_event)",
+      "keeps what you approved for an audience, as it was when you approved it (demo_approval)",
+      "a turn asked while it is on is told none of your memory, rules or words, and offered only tools that see nothing of yours"
+    ],
+    "accounts": [],
+    "tables": [
+      "demo_state",
+      "demo_event",
+      "demo_approval"
+    ],
+    "jobs": [],
+    "remove": "Turn demo mode off, then delete rouh/demo.py, rouh/demo_style.py, rouh/static/demo-redact.woff2, tools/demo-font, rouh/web/demo.py, rouh/models/demo.py and rouh/static/app/demo.js; take out DemoLens from MIDDLEWARE, the /api/demo routes, DEMO_HEAD in index.html and _page_for, the demo lines in rouh/web/consumers.py, rouh/web/views.py (_in_demo), rouh/objectindex.py (index_data), rouh/brain.py, rouh/tools.py, rouh/memory.py (_on_stage) and rouh/runtime.py, demoFrame in app/cards.js, the Shown in demo filter, rows and menu items in taskbrowser.js, the demo buttons in index.html, the demo section of app.css, withDemoHead in sw.js, and this manifest; drop the three tables with a migration."
+  }
+}

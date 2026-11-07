@@ -1,0 +1,31 @@
+{
+  "id": "search",
+  "name": "Search",
+  "title": "Search everything",
+  "aliases": [
+    "find",
+    "look up",
+    "search everything"
+  ],
+  "group": "work",
+  "route": null,
+  "icon": "<circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"M20 20l-3.6-3.6\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "dedicated",
+    "opens": "press",
+    "press": "searchBtn",
+    "counts": true
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "object",
+      "uploaded_file"
+    ],
+    "jobs": [],
+    "remove": "Not removable: Search is in the dedicated area, at the end of the profile row."
+  }
+}

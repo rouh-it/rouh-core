@@ -1,0 +1,49 @@
+{
+  "id": "thoughts",
+  "name": "Thoughts",
+  "title": "Thoughts: your own thoughts, kept in your words, each researched into an enriched version",
+  "aliases": [
+    "thought",
+    "ideas",
+    "notes",
+    "journal",
+    "my thoughts",
+    "kept words"
+  ],
+  "group": "memory",
+  "route": "/thoughts",
+  "icon": "<path d=\"M12 3.2a6 6 0 0 0-3.7 10.7c.8.6 1.2 1.4 1.2 2.3h5c0-.9.4-1.7 1.2-2.3A6 6 0 0 0 12 3.2z\"/><path d=\"M9.6 18.6h4.8M10.6 21h2.8\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 10,
+    "opens": "own",
+    "row": "thoughtsRow",
+    "controls": "thoughtsView",
+    "marks": [
+      {
+        "id": "thoughtsHint",
+        "class": "sb-row-hint"
+      }
+    ]
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "thoughts",
+      "synapse.item"
+    ],
+    "jobs": [
+      "assistant_job: one run per new thought, in a task of its own (rouh/thought_enrich.py)"
+    ],
+    "remove": "Delete rouh/thoughts.py, rouh/thought_enrich.py, rouh/web/thoughts.py, thoughtspage.js/.css and this manifest, and the call to thought_enrich in assistant_job.Lander._goal_step_done and runtime's _thought_enrich_hooks; drop thoughts with a migration. Their copies in Synapse stay until removed there, and the tasks made for their enriched versions stay in the workspace."
+  },
+  "uses": {
+    "tools": [
+      "capture_thought",
+      "thoughts"
+    ]
+  }
+}

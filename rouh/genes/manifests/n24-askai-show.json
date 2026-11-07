@@ -1,0 +1,40 @@
+{
+  "id": "n24-askai-show",
+  "name": "Show me where",
+  "title": "Show me where: each change Ask AI made to a page has Show me, which brings that part of the page into view and lights it up",
+  "aliases": [
+    "show me where",
+    "where did you change",
+    "show me the change",
+    "where is the change"
+  ],
+  "group": "work",
+  "route": "/tasks",
+  "icon": "<circle cx=\"11\" cy=\"11\" r=\"6.5\"/><path d=\"M16 16l4.5 4.5\"/><path d=\"M8.5 11h5M11 8.5v5\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "lab",
+  "switch": "askai_show",
+  "signals": {
+    "events": {
+      "shown": "You pressed Show me on a change Ask AI made to a page"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the changes Ask AI made to a page for you (askai_edits), to find where each one is"
+    ],
+    "accounts": [],
+    "tables": [
+      "askai_edits"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch askai_show off on its row in Evolution, Mutations, and Show me is gone from Ask AI's change lines; to remove it for good revert night 24's commit (rouh/askai_show.py, askai_where in rouh/web/views.py and its route in rouh/project/urls.py, the \"show\" flag in rouh/askai.py, askShowWhere, askShown and askShowSaid in rouh/static/app/runs.js and .ask-show-said in rouh/static/app.css, showPart in rouh/static/askai/askai.js, this manifest)."
+  }
+}

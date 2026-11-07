@@ -1,0 +1,47 @@
+{
+  "id": "apple-contacts",
+  "name": "Apple Contacts",
+  "title": "Apple Contacts over iCloud",
+  "aliases": [
+    "apple",
+    "icloud",
+    "contacts",
+    "address book",
+    "carddav"
+  ],
+  "group": "machine",
+  "route": "/anatomy/connections/apple",
+  "anatomy": {
+    "order": 30
+  },
+  "icon": "<rect x=\"5\" y=\"3.5\" width=\"14\" height=\"17\" rx=\"2\"/><circle cx=\"12\" cy=\"10\" r=\"2.6\"/><path d=\"M8 17a4 4 0 0 1 8 0\"/>",
+  "attaches_to": [
+    "person"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [
+      "iCloud (CardDAV)"
+    ],
+    "tables": [
+      "apple_connections"
+    ],
+    "jobs": [],
+    "remove": "the Settings group's own cards in rouh/templates/rouh/index.html and its script; see APPLE.md."
+  },
+  "uses": {
+    "tools": [
+      "search_contacts",
+      "show_contact",
+      "update_contact_profile",
+      "save_contact",
+      "delete_contact",
+      "link_person"
+    ]
+  }
+}

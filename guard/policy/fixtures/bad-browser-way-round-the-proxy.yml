@@ -1,0 +1,4 @@
+services:
+  browser:
+    environment:
+      ROUH_BROWSER_PROXY: ""

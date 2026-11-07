@@ -1,0 +1,144 @@
+{
+  "id": "email",
+  "name": "Email and calendar",
+  "title": "Your Google connection, the mailboxes Rouh reads, and new mail",
+  "aliases": [
+    "google",
+    "gmail",
+    "calendar",
+    "mailbox",
+    "mailboxes",
+    "connect google"
+  ],
+  "group": "machine",
+  "route": "/anatomy/connections/email",
+  "anatomy": {
+    "order": 10
+  },
+  "icon": "<rect x=\"3\" y=\"5.5\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M3.5 7l8.5 6 8.5-6\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [
+      "Google (OAuth client per organisation, tokens per person; GOOGLE.md)"
+    ],
+    "tables": [
+      "google_clients",
+      "google_connections",
+      "read_mailboxes",
+      "gmail_push",
+      "mail_alerts"
+    ],
+    "jobs": [],
+    "remove": "the Settings group's own cards in rouh/templates/rouh/index.html and its script; see GOOGLE.md."
+  },
+  "uses": {
+    "tools": [
+      "read_recent_mail",
+      "read_mail",
+      "read_mail_attachment",
+      "send_mail",
+      "forward_mail",
+      "forward_thread",
+      "draft_mail",
+      "modify_mail",
+      "show_inbox",
+      "search_drive",
+      "list_drive_folder",
+      "list_shared_drives",
+      "create_shared_drive",
+      "add_shared_drive_members",
+      "write_drive_file",
+      "upload_drive_file",
+      "create_drive_folder",
+      "manage_drive_file",
+      "share_drive_file",
+      "list_drive_permissions",
+      "read_doc",
+      "create_doc",
+      "edit_doc",
+      "list_calendars",
+      "list_calendar_events",
+      "read_calendar_event",
+      "create_calendar_event",
+      "update_calendar_event",
+      "delete_calendar_event",
+      "restore_calendar_event",
+      "add_shared_calendar",
+      "create_calendar",
+      "share_calendar"
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "inbox.read",
+      "version": 1,
+      "name": "Read your inbox",
+      "action": "inbox",
+      "said": "have your own inbox read for them, as far as their page allows",
+      "resource": "none",
+      "authority": "grant",
+      "legacy_grant": "inbox",
+      "rows": false,
+      "effects": [
+        "read_inbox"
+      ],
+      "tools": [],
+      "about": "Your inbox - how far, on their page. The mail tools check how far on every read."
+    },
+    {
+      "id": "inbox.change",
+      "version": 1,
+      "name": "Change your inbox",
+      "action": "inbox_write",
+      "said": "have your own inbox labelled, archived and drafted in for them",
+      "resource": "none",
+      "authority": "grant",
+      "legacy_grant": "inbox_write",
+      "rows": false,
+      "effects": [
+        "change_inbox"
+      ],
+      "tools": []
+    },
+    {
+      "id": "calendar.write",
+      "version": 1,
+      "name": "Your calendar",
+      "action": "calendar",
+      "said": "put events in your calendar and move events made for them",
+      "resource": "calendar",
+      "authority": "grant",
+      "legacy_grant": "lift:time",
+      "rows": true,
+      "effects": [
+        "calendar"
+      ],
+      "tools": [
+        {
+          "tool": "create_calendar_event",
+          "guard": "tool"
+        },
+        {
+          "tool": "update_calendar_event",
+          "guard": "tool"
+        }
+      ],
+      "constraints": {
+        "per_day": {
+          "type": "count",
+          "min": 1,
+          "max": 10,
+          "default": 3,
+          "said": "up to {n} changes a day"
+        }
+      },
+      "about": "It lifts committing your time, and only that: nobody is invited and no invitation is answered. The calendar tools reach only the calendars it names."
+    }
+  ]
+}

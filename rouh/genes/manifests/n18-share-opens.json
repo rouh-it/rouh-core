@@ -1,0 +1,47 @@
+{
+  "id": "n18-share-opens",
+  "name": "Who opened it",
+  "title": "Who opened it: in the Share panel of a page or task, beside each person it is shared with, when they last opened it, or Not opened yet",
+  "aliases": [
+    "who opened it",
+    "did they read it",
+    "read receipts",
+    "viewed",
+    "opened by",
+    "seen by"
+  ],
+  "group": "work",
+  "route": null,
+  "icon": "<path d=\"M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "lab",
+  "switch": "share_opens",
+  "signals": {
+    "events": {
+      "seen": "You opened Share on something you shared and saw when each person last opened it"
+    },
+    "runs": {
+      "opened_by_them": "A person you shared a page or task with opened it"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "press",
+    "press": "shareBtn"
+  },
+  "touches": {
+    "permissions": [
+      "keeps one row in the event log when a person you shared a page or task with opens it: when, under your own ids, with a short hash of the share and nothing of what they read",
+      "reads those rows for your own shares when you open Share"
+    ],
+    "accounts": [],
+    "tables": [
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch share_opens off on its row in Evolution, Mutations, and nothing is kept or shown; to remove it for good revert night 18's commit 32d91ed0 (rouh/share_opens.py, the share.opened name in rouh/events.py, _opened in rouh/web/guests.py, the opened field in _share_state and _people, the line in sharePerson in runs.js and its app.css rules, this manifest)."
+  }
+}

@@ -1,0 +1,5 @@
+# What the base image (Dockerfile.base) is built from: its own files and
+# nothing else, an allow-list. Above all no Rouh code: the base holds none, and
+# its build cache moves only when one of these files does.
+*
+!deploy/container/base/requirements.txt

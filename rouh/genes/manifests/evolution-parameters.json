@@ -1,0 +1,34 @@
+{
+  "id": "evolution-parameters",
+  "name": "Parameters",
+  "title": "Parameters: how many genes the nightly run builds a night, and how many of each kind",
+  "aliases": [
+    "genes a night",
+    "nightly genes",
+    "how many genes",
+    "gene kinds",
+    "pause the night",
+    "evolution settings"
+  ],
+  "group": "evolution",
+  "route": "/evolution/parameters",
+  "icon": "<path d=\"M4 7h9M17 7h3M4 17h3M11 17h9\"/><circle cx=\"15\" cy=\"7\" r=\"2.2\"/><circle cx=\"9\" cy=\"17\" r=\"2.2\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "nav": {
+    "place": "list",
+    "order": 10,
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "sets how many genes the nightly feature run builds each night and of which kinds, read by the run when it starts at its time on Clockwork; it never starts a run, and the night's caps (100 dollars, two sign-ups) stay as they are"
+    ],
+    "accounts": [],
+    "tables": [
+      "evolution_settings"
+    ],
+    "jobs": [],
+    "remove": "Delete this manifest and the Parameters page in evolutionpage.js, take nightly_brief out of nightly_feature.brief_for, and drop the table evolution_settings; the nightly run then builds as run.md alone says."
+  }
+}

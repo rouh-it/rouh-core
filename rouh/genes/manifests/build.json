@@ -1,0 +1,34 @@
+{
+  "id": "build",
+  "name": "This build",
+  "title": "This build: which conversation this is, and which version and commit of Rouh answers it, with the day it was committed",
+  "aliases": [
+    "version",
+    "build",
+    "commit",
+    "session",
+    "session id",
+    "chat id",
+    "which version",
+    "revision"
+  ],
+  "group": "machine",
+  "route": "/anatomy/meta/build",
+  "anatomy": {
+    "order": 40
+  },
+  "icon": "<rect x=\"3.5\" y=\"4.5\" width=\"17\" height=\"15\" rx=\"2\"/><path d=\"M7.5 9.5l2.5 2.5-2.5 2.5M12.5 14.5h4\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [],
+    "jobs": [],
+    "remove": "Not removable: it is what is looked up when something has gone wrong. /healthz reports the same version and commit."
+  }
+}

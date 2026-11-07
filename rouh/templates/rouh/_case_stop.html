@@ -1,0 +1,32 @@
+{% comment %}
+  One stop of a case, for the case page's Fix this area (`rouh/case_trace.py`,
+  `diagnose`): what stopped it, whether it looks like a false alarm, and the
+  likely causes with their files. Since 8 October 2026 there is no brief to copy
+  here: a false alarm told to Fix starts the run itself (`rouh/case_fixes.py`).
+{% endcomment %}
+<div class="stop" style="display:grid;gap:10px">
+  {% if not first %}<p style="margin:0">{{ one.plain }}</p>
+  {% if one.finding %}<p style="margin:0"><span class="k">What the check found</span>{{ one.finding }}</p>{% endif %}
+  {% if one.block_reason %}<p style="margin:0"><span class="k">Why the case was blocked</span>{{ one.block_reason }}</p>{% endif %}{% endif %}
+  {% if not first and one.false_alarm_words %}<div class="row"><span class="badge {{ one.false_alarm }}">{{ one.false_alarm_words }}</span></div>
+  {% if one.false_alarm_why %}<ul class="why" style="margin:0">{% for w in one.false_alarm_why %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}{% endif %}
+  {% if one.signals %}
+  <div><span class="k">What the page read in the steps</span>
+    <ul class="plain small">{% for sig in one.signals %}<li>✓ {{ sig.0 }}</li>{% endfor %}</ul></div>
+  {% endif %}
+  {% if one.causes %}
+  <div style="display:grid;gap:8px">
+    <span class="k">Likely causes{% if one.step %}, for <a href="#{{ one.step }}" data-open="{{ one.step }}">{{ one.step }}</a>{% endif %}</span>
+    {% for c in one.causes %}
+    <div class="cause {% if c.likely %}likely{% endif %}">
+      <span class="ck">{{ c.kind_words }}{% if c.likely %} <span class="pill warn" style="text-transform:none;letter-spacing:0">likely</span>{% endif %}</span>
+      <span class="ct">{{ c.title }}</span>
+      <span class="small muted">{{ c.detail }}</span>
+      <ul class="files">{% for f in c.files %}<li>{{ f }}</li>{% endfor %}</ul>
+    </div>
+    {% endfor %}
+  </div>
+  {% elif first %}
+  <p class="muted small" style="margin:0">Nothing stopped this case. If its outcome is still wrong, tell Fix which step went wrong, above, and why, or ask.</p>
+  {% endif %}
+</div>

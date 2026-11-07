@@ -1,0 +1,137 @@
+# The stack test: the real stack (deploy/stack/compose.yml) on the base and the protected core
+# built from the commit being tested, that commit as the Rouh's own code, every outside service a
+# stand-in, and every feature CONTAINERS.md says works, checked from outside (tests/stack/run.sh,
+# tests/stack/smoke.py). On Intel and on Arm, each natively, as base.yml builds.
+#
+# Petar, 29 October 2026: every feature the Creator Rouh has must work in the containers every
+# Rouh instance runs, and from then on a change that breaks one fails. So this runs:
+#
+#   - for every push to main, from "Tests on main" (main-tests.yml calls it), whose record that a
+#     commit passed is what rouh.land hands a new install: a commit that breaks a feature in the
+#     containers is never the code a Rouh starts from;
+#   - for every branch land.sh hands it, stack-check/<run>, before that work is pushed to main,
+#     when the work touches what only the containers can show (land.sh, stack_guard). Each result
+#     is written down on the branch stack-checks, results/<commit>.json, which land.sh reads over
+#     the same SSH access it pushes with;
+#   - by hand, or for a branch proof/stack-*, while the containers' side is being built.
+#
+# Nothing here is published and no image is pushed: the images are built into the runner's own
+# Docker and thrown away. The base's layers are read from base.yml's cache.
+
+name: Stack test
+
+on:
+  push:
+    branches: ["stack-check/**", "proof/stack-**"]
+  workflow_dispatch: {}
+  workflow_call: {}
+
+permissions:
+  contents: write
+  packages: read
+
+# Called from "Tests on main", github.workflow is that workflow's name, and its own concurrency
+# decides; a branch's newer push cancels its older run.
+concurrency:
+  group: stack-test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.workflow == 'Stack test' }}
+
+env:
+  PREFIX: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  stack:
+    name: The stack, ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 100
+    env:
+      ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Make room
+        run: |
+          df -h / | tail -1
+          if [ "$(df --output=avail -BG / | tail -1 | tr -dc 0-9)" -lt 40 ]; then
+            sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+            df -h / | tail -1
+          fi
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: A browser for the smoke test
+        run: |
+          set -euo pipefail
+          # age opens the encrypted off-site copy the backup check makes (tests/stack/checks_backup.py).
+          sudo apt-get install -y -qq age >/dev/null
+          python3 -m pip install --quiet --break-system-packages -r tests/stack/requirements.txt
+          python3 -m playwright install --with-deps chromium >/dev/null
+          # The real age, which opens the weekly copy off the machine (backup.offsite).
+          sudo apt-get install -y -qq age >/dev/null
+
+      - name: Build, start and check the stack
+        env:
+          STACK_TEST_CACHE: type=registry,ref=${{ env.PREFIX }}/rouh-base:cache-${{ matrix.arch }}
+          STACK_TEST_OUT: ${{ github.workspace }}/.stack-test
+        run: |
+          set -o pipefail
+          tests/stack/run.sh | tee stack-test.log
+          status=$?
+          grep '^STACK-TEST ' stack-test.log | tail -1 | cut -d' ' -f2- > ".stack-test/summary-$ARCH.json" || true
+          { echo "### The stack on $ARCH, at ${GITHUB_SHA:0:12}"; echo; echo '```';
+            grep -E '^(ok |FAIL|now passes|broken|untested|manual|[0-9]+ passed|stack-test:)' stack-test.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: stack-test-${{ matrix.arch }}
+          path: |
+            .stack-test
+            stack-test.log
+          retention-days: 7
+          if-no-files-found: ignore
+          include-hidden-files: true
+
+  record:
+    name: Write the result down
+    needs: stack
+    # A run cancelled by a newer one of the same commit writes nothing: the newer one writes the
+    # result land.sh reads, and a "cancelled" written first was read as a failure (task 161).
+    if: always() && needs.stack.result != 'cancelled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: results/<commit>.json on the branch stack-checks
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RESULT: ${{ needs.stack.result }}
+        run: |
+          set -euo pipefail
+          git init -q record && cd record
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:$TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          for try in 1 2 3 4 5; do
+            if git fetch -q --depth 1 origin stack-checks 2>/dev/null; then git checkout -q -B stack-checks FETCH_HEAD; else git checkout -q --orphan stack-checks; git rm -rfq . 2>/dev/null || true; fi
+            mkdir -p results
+            jq -n --arg commit "$GITHUB_SHA" --arg ref "$GITHUB_REF_NAME" --arg result "$RESULT" \
+                  --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+                  '{commit: $commit, ref: $ref, ok: ($result == "success"), result: $result, at: $at, run: $run}' > "results/$GITHUB_SHA.json"
+            git add results
+            git commit -q -m "stack test of ${GITHUB_SHA:0:12} ($GITHUB_REF_NAME): $RESULT"
+            git push -q origin HEAD:stack-checks && break
+            sleep $((try * 5))
+          done

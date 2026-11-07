@@ -1,0 +1,3 @@
+services:
+  keyproxy:
+    volumes: ["code:/code:ro"]

@@ -1,0 +1,14 @@
+services:
+  mongo:
+    image: mongo:7.0
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes: [mongo-data:/data/db]
+    networks: [mongo]
+  core:
+    networks: [db, workers, edge, mongo]
+networks:
+  mongo:
+    internal: true
+volumes:
+  mongo-data: {}

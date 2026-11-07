@@ -1,0 +1,46 @@
+# Every commit of a pull request is signed off (CONTRIBUTING.md, the DCO).
+#
+# A contributor certifies the Developer Certificate of Origin (the DCO file) by a line
+# "Signed-off-by: Name <email>" in each commit, which `git commit -s` adds. This check lists the
+# pull request's commits through GitHub's API and fails, naming each one, when a commit has no
+# such line, or when none of its lines names the commit's author's email address.
+# Nothing is checked out and no third-party action runs, so no code of the pull request runs here.
+# The base workflow's own level branches (base-patch/*, made and merged by Actions) are skipped.
+
+name: Sign-off
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  sign-off:
+    if: ${{ !startsWith(github.head_ref, 'base-patch/') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every commit is signed off by its author
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$REPO/pulls/$PR/commits" \
+            --jq '.[] | [.sha, (.commit.author.email | ascii_downcase), (.commit.message | @base64)] | @tsv' > commits.tsv
+          missing=0
+          while IFS=$'\t' read -r sha email msg; do
+            body=$(printf '%s' "$msg" | base64 -d)
+            offs=$(printf '%s\n' "$body" | grep -iE '^Signed-off-by: .+ <[^>]+>\s*$' || true)
+            if [ -z "$offs" ]; then
+              echo "::error::${sha:0:12} has no Signed-off-by line (git commit -s, see CONTRIBUTING.md)"; missing=1
+            elif ! printf '%s\n' "$offs" | tr 'A-Z' 'a-z' | grep -qF "<$email>"; then
+              echo "::error::${sha:0:12} is signed off, but not by its author's address $email"; missing=1
+            fi
+          done < commits.tsv
+          n=$(wc -l < commits.tsv)
+          [ "$missing" = 0 ] && echo "All $n commits are signed off by their authors." || exit 1

@@ -1,0 +1,54 @@
+{
+  "id": "goals",
+  "name": "Goals",
+  "title": "What you want to reach, and the plan to get there",
+  "aliases": [
+    "goal",
+    "goals",
+    "plans",
+    "targets",
+    "objectives"
+  ],
+  "group": "work",
+  "route": "/goals",
+  "icon": "<circle cx=\"12\" cy=\"12\" r=\"8.2\"/><circle cx=\"12\" cy=\"12\" r=\"4.4\"/><circle cx=\"12\" cy=\"12\" r=\"0.9\" fill=\"currentColor\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 30,
+    "opens": "own",
+    "row": "goalsRow",
+    "controls": "goalsView",
+    "marks": [
+      {
+        "id": "goalsHint",
+        "class": "sb-row-hint"
+      }
+    ]
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "task",
+      "reminders"
+    ],
+    "jobs": [
+      "goal steps run at their times through the timekeeper (rouh/timekeeper.py)"
+    ],
+    "remove": "A goal is a task: delete rouh/goals.py, its routes and view, and this manifest; the tasks stay."
+  },
+  "uses": {
+    "tools": [
+      "set_goal",
+      "plan_goal",
+      "goal_step",
+      "goals",
+      "goal_control"
+    ]
+  }
+}

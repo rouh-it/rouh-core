@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# rouh-proxy-grant: let Rouh's runs reach more of the internet, for some hours. Run it on your Mac.
+#
+#   rouh-proxy-grant internet [HOURS]      any public server, any port (the office network stays
+#                                          closed): the one for upgrades; `all` is its older name
+#   rouh-proxy-grant ssh [HOURS]           ssh (ports 22, 222, 2022, 2222, 22022) to any public server
+#   rouh-proxy-grant servers [HOURS]       your own servers, on any port (servers list says which)
+#   rouh-proxy-grant lan [HOURS]           the office network and the host itself, on any port
+#   rouh-proxy-grant example.com [HOURS]   that name and everything under it, on any port
+#   rouh-proxy-grant HOST:PORT [HOURS]     one port of one server only
+#   rouh-proxy-grant internet lan 8        several at once; HOURS is 8 if not given, at most 72
+#   rouh-proxy-grant list                  what is open, and until when
+#   rouh-proxy-grant log [COUNT]           what the grants were used for: where, which port, which grant
+#   rouh-proxy-grant revoke all            close every one of them now (revoke ssh, revoke example.com ...)
+#   rouh-proxy-grant servers list | add NAME-OR-IP [ADDRESS] | remove NAME-OR-IP
+#   rouh-proxy-grant update                fetch the latest of these commands and put them in place,
+#                                          here and on the host (open grants are kept)
+#
+# Without a grant the runs reach only web pages and https on public servers. `internet` never reaches a
+# private address (the host, the office network, Rouh's own containers); only `lan` reaches the
+# office network and the host, and never Rouh's containers. Each grant ends by itself at its end;
+# nothing takes it away when a job finishes, and Rouh reads it itself (deploy/grants/README.md).
+# Each command prints one line a grant; ROUH_GRANT_QUIET=1 prints nothing but a failure (rouh-open).
+# Settings (in ~/.config/rouh/grants.env): ROUH_HOST_SSH (user@address of the machine the Rouh
+# stack runs on), ROUH_HOST_SSH_PORT (22), ROUH_HOST_IDENTITY_FILE (the key to log in with; see install-from-mac.sh).
+set -euo pipefail
+# This installation's own values, never in the code: ~/.config/rouh/grants.env (or the file
+# ROUH_GRANTS_ENV names), lines of NAME=value; a value already set in the shell wins over the file.
+# install-from-mac.sh writes it the first time (deploy/grants/README.md, "This installation's values").
+GRANTS_ENV=${ROUH_GRANTS_ENV:-$HOME/.config/rouh/grants.env}
+if [ -f "$GRANTS_ENV" ]; then
+  while IFS='=' read -r k v; do
+    case "$k" in ROUH_[A-Z0-9_]*) [ -n "${!k:-}" ] || export "$k=$v" ;; esac
+  done < <(grep -E '^ROUH_[A-Z0-9_]+=' "$GRANTS_ENV")
+fi
+# ROUH_MOZART_* are the older names of the same three settings, still read.
+HOST=${ROUH_HOST_SSH:-${ROUH_MOZART_SSH:-}}
+PORT=${ROUH_HOST_SSH_PORT:-${ROUH_MOZART_SSH_PORT:-22}}
+[ -n "$HOST" ] || { echo "Which machine runs the Rouh stack? Set ROUH_HOST_SSH=user@address (and ROUH_HOST_SSH_PORT) in $GRANTS_ENV (deploy/grants/README.md)."; exit 1; }
+SSH_OPTS=(-o IdentitiesOnly=yes)
+KEY=${ROUH_HOST_IDENTITY_FILE:-${ROUH_MOZART_IDENTITY_FILE:-}}
+if [ -n "$KEY" ]; then
+  # shellcheck disable=SC2088  # a ~/ written in the setting, made whole here
+  case "$KEY" in "~/"*) KEY=$HOME/${KEY#"~/"} ;; esac
+  [ -f "$KEY" ] && [ -r "$KEY" ] || { echo "ROUH_HOST_IDENTITY_FILE is not a readable file: $KEY"; exit 1; }
+  SSH_OPTS+=(-i "$KEY")
+fi
+# The Mac's locale is never sent to a server. macOS's ssh sends LANG and LC_* (SendEnv in
+# /etc/ssh/ssh_config) and a Mac's shell often has LC_CTYPE=UTF-8, which is no locale on Linux:
+# the host then answered "manpath: can't set the locale". So every ssh here runs without them, and
+# the server uses its own. (An -o SendEnv=-LC_* cannot do it: the system's file adds them back.)
+ssh_clean() {
+  local v u=()
+  for v in $(compgen -e); do case "$v" in LANG|LANGUAGE|LC_*) u+=(-u "$v") ;; esac; done
+  env "${u[@]}" "$@"
+}
+remote() { ssh_clean ssh "${SSH_OPTS[@]}" -p "$PORT" -o ConnectTimeout=20 "$HOST" "sudo -n /usr/local/sbin/rouh-grant $*"; }
+usage() { sed -n '4,17p' "$0" | sed 's/^# //'; exit 2; }
+# Every word goes to the host as it is, so each is checked here first: a group, a name, HOST:PORT, a number.
+word_ok() { [[ "$1" =~ ^[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || { echo "Not a group, a name or HOST:PORT: $1"; exit 2; }; }
+
+update() {
+  local dest=${ROUH_GRANTS_DIR:-$HOME/.rouh-grants} repo=${ROUH_GRANTS_REPO:-rouh-it/rouh-core} tmp
+  command -v gh >/dev/null || { echo "gh is not installed here: brew install gh && gh auth login"; exit 1; }
+  local sha
+  # main's commit first, then that very commit's files, so what is installed is exactly the commit
+  # named (a download of "main" can be a moment behind the commit just pushed).
+  sha=$(gh api "repos/$repo/commits/main" --jq .sha 2>/dev/null) && [[ "$sha" =~ ^[0-9a-f]{40}$ ]] \
+    || { echo "Could not ask GitHub for $repo's main (is gh signed in? gh auth status). Nothing was changed."; exit 1; }
+  tmp=$(mktemp -d "$dest.new.XXXXXX")
+  echo "Fetching $repo at ${sha:0:8} (its main now) into $dest ..."
+  if ! gh api "repos/$repo/tarball/$sha" | tar -xz -C "$tmp" --strip-components=1 \
+     || [ ! -f "$tmp/deploy/grants/install-from-mac.sh" ]; then
+    rm -rf "$tmp"; echo "Could not fetch $repo (is gh signed in? gh auth status). Nothing was changed."; exit 1
+  fi
+  printf '%s\n' "$sha" > "$tmp/.rouh-grants-commit"
+  rm -rf "$dest.old"
+  [ -d "$dest" ] && mv "$dest" "$dest.old"
+  mv "$tmp" "$dest" && rm -rf "$dest.old"
+  exec bash "$dest/deploy/grants/install-from-mac.sh"
+}
+
+# (macOS's own bash is 3.2, so nothing here needs a newer one.)
+if [ "${1:-}" = servers ]; then
+  case "${2:-}" in
+    list) remote servers list; exit ;;
+    add|remove) [ $# -ge 3 ] || usage; for w in "${@:3}"; do word_ok "$w"; done; remote servers "${@:2}"; exit ;;
+  esac
+fi
+
+case "${1:-}" in
+  ""|-h|--help|help) usage ;;
+  update) [ $# -eq 1 ] || usage; update ;;
+  list) [ $# -eq 1 ] || usage; remote list ;;
+  log) [ $# -le 2 ] || usage; [[ "${2:-40}" =~ ^[0-9]{1,4}$ ]] || usage; remote log "${2:-40}" ;;
+  revoke)
+    [ $# -ge 2 ] || usage
+    for w in "${@:2}"; do word_ok "$w"; done
+    rc=0; out=$(remote revoke "${@:2}" 2>&1) || rc=$?
+    if [ "$rc" -ne 0 ] || [ "${ROUH_GRANT_QUIET:-}" != 1 ]; then [ -z "$out" ] || printf '%s\n' "$out"; fi
+    exit $rc
+    ;;
+  *)
+    hours=8; words=()
+    for w in "$@"; do
+      if [[ "$w" =~ ^[0-9]+$ ]]; then
+        [ "$w" -ge 1 ] && [ "$w" -le 72 ] || { echo "Give a whole number of hours from 1 to 72."; exit 2; }
+        hours=$w
+      else
+        word_ok "$w"; words+=("$w")
+      fi
+    done
+    [ ${#words[@]} -gt 0 ] || usage
+    # `internet` is sent as `all`, the word every copy of rouh-grant on the host knows.
+    sent=(); for w in "${words[@]}"; do [ "$w" = internet ] && w=all; sent+=("$w"); done
+    rc=0; out=$(remote open "${sent[@]}" "$hours" 2>&1) || rc=$?
+    if [ "$rc" -ne 0 ] || [ "${ROUH_GRANT_QUIET:-}" != 1 ]; then [ -z "$out" ] || printf '%s\n' "$out"; fi
+    exit $rc
+    ;;
+esac

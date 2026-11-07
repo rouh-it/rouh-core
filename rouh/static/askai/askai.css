@@ -1,0 +1,695 @@
+/* Ask AI - injected into every spec explainer by specs/_askai/server.py.
+   Self-sufficient on purpose: spec pages define their own palettes (or none),
+   so nothing here inherits from the host page. Values mirror the product's
+   static/css/tokens.css so the drawer looks like the product on any page. */
+
+:root{
+  --askai-surface:#161b24;
+  --askai-panel:#1b212c;
+  --askai-panel-2:#1e2530;
+  --askai-border:#232a35;
+  --askai-border-strong:#2f3742;
+  --askai-copy:#e7eaf0;
+  --askai-muted:#c2cad6;
+  --askai-subtle:#8b94a3;
+  --askai-primary:#6d5cf0;
+  --askai-primary-hover:#7e6ff5;
+  --askai-error:#ef4444;
+  --askai-success:#22c55e;
+  --askai-warning:#eab308;
+  --askai-sans:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --askai-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --askai-w:420px;
+  --askai-crumb-h:44px;
+  /* The purple task 61-01 marks its switchable versions with, and the ink on
+     it: Petar asked for the options to wear the same one. */
+  --askai-opt:#b9a2ff; --askai-ok:#22c55e;
+  --askai-opt-ink:#170d33;
+}
+
+/* ---------- page shift: push content aside, never cover it ---------- */
+/* The top bar is fixed, so the page is pushed down from <html>. Padding on <html>
+   sits outside any padding an explainer sets on <body>, so no page's own spacing
+   is clobbered. (Two explainers pin html/body to height:100%; there the bar adds
+   its own height to the scroll range - cosmetic, nothing is hidden.) */
+html{
+  padding-top:var(--askai-crumb-h);
+  /* Anchor jumps (and a hash restored on load) would otherwise land the heading
+     under the fixed bar. This covers the specs' own TOC links too. */
+  scroll-padding-top:calc(var(--askai-crumb-h) + 12px);
+}
+body{ transition:margin-right .28s cubic-bezier(.4,0,.2,1) }
+body.askai-open{ margin-right:var(--askai-w) }
+
+/* ---------- the bar over a selected passage ---------- */
+/* One button or two, depending on what this reader may do with the page: Ask
+   always, and Change where Rouh said so. They sit in a bar of their own rather
+   than each being positioned, so a second button can be added or left out
+   without anything having to be measured twice. */
+#askai-acts{
+  position:fixed; z-index:2147483000; display:none; align-items:stretch; gap:1px;
+  border-radius:8px; overflow:hidden; box-shadow:0 6px 20px rgba(0,0,0,.4);
+}
+#askai-acts.on{ display:flex }
+/* Define (definitions.js) is Ask's twin, reading rather than changing, so it
+   wears Ask's colour beside it. */
+#askai-btn, #askai-define, #askai-change, #askai-typeit{
+  display:flex; align-items:center; gap:6px;
+  background:var(--askai-primary); color:#fff; border:none; border-radius:0;
+  cursor:pointer; font-family:var(--askai-mono); font-size:11px; letter-spacing:.06em;
+  padding:8px 12px; white-space:nowrap;
+}
+#askai-btn:hover, #askai-define:hover, #askai-change:hover, #askai-typeit:hover{
+  background:var(--askai-primary-hover) }
+/* Changing the page is the heavier of the two and the rarer, so it is the
+   quieter half of the bar rather than a second thing shouting the same. */
+#askai-change, #askai-typeit{ background:var(--askai-panel-2); color:var(--askai-copy) }
+#askai-change:hover, #askai-typeit:hover{ background:var(--askai-surface); color:#fff }
+
+/* ---------- the floating bar (top-right, always available) ---------- */
+/* The sparkle, History under it for the owner, Options where the page has
+   any, and room for Comments. Down the edge, because a page's own menu runs
+   along the top. It rides beside the drawer instead of hiding under it, so
+   the sparkle doubles as a close control once the conversation is open. */
+#askai-root [hidden]{ display:none !important }
+#askai-float{
+  position:fixed; top:5px; right:14px; z-index:2147483001;
+  display:flex; flex-direction:column; align-items:flex-end; gap:6px;
+  transition:right .28s cubic-bezier(.4,0,.2,1);
+}
+body.askai-open #askai-float{ right:calc(var(--askai-w) + 14px) }
+body.askai-resizing #askai-float{ transition:none }
+#askai-float #askai-launch, #askai-float .askai-fb{
+  position:static; margin:0; padding:0;
+  width:34px; height:34px; display:grid; place-items:center;
+  background:var(--askai-surface); border:1px solid var(--askai-border-strong);
+  border-radius:9px; cursor:pointer; color:var(--askai-primary);
+  box-shadow:0 4px 14px rgba(0,0,0,.28); font:inherit;
+  transition:border-color .15s, color .15s, background .15s;
+}
+#askai-launch svg{ width:17px; height:17px; fill:currentColor }
+#askai-launch:hover{ border-color:var(--askai-primary); color:var(--askai-primary-hover) }
+#askai-float .askai-fb{ color:var(--askai-muted) }
+#askai-float .askai-fb:hover, #askai-float .askai-fb.on{ border-color:var(--askai-border-strong);
+  color:#fff; background:var(--askai-panel-2) }
+#askai-float .askai-fb:focus-visible, #askai-launch:focus-visible{
+  outline:2px solid var(--askai-primary); outline-offset:2px }
+#askai-root svg.askai-line{ width:17px; height:17px; fill:none; stroke:currentColor;
+  stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; flex:none }
+#askai-float #askai-opts-btn{ width:auto; display:flex; gap:6px; padding:0 10px 0 9px;
+  color:var(--askai-opt); border-color:color-mix(in srgb, var(--askai-opt) 45%, var(--askai-border-strong)) }
+#askai-float #askai-opts-btn:hover, #askai-float #askai-opts-btn.on{
+  color:var(--askai-opt-ink); background:var(--askai-opt); border-color:var(--askai-opt) }
+#askai-opts-btn .askai-fbn{ font-family:var(--askai-mono); font-size:11.5px; font-weight:700 }
+
+/* ---------- drill-down mode: its switch, and the layer it draws in ---------- */
+/* Only on pages with a findings file; the view itself is drawn by askai.js in a
+   shadow root, so the page's styles never reach it. */
+#askai-dd-toggle{
+  position:fixed; top:5px; right:56px; z-index:2147483001;
+  height:34px; padding:0 12px; display:flex; align-items:center; gap:6px;
+  background:var(--askai-surface); border:1px solid var(--askai-border-strong);
+  border-radius:9px; cursor:pointer; color:var(--askai-copy);
+  font-family:var(--askai-sans); font-size:12.5px; font-weight:600; white-space:nowrap;
+  box-shadow:0 4px 14px rgba(0,0,0,.28);
+  transition:right .28s cubic-bezier(.4,0,.2,1), border-color .15s;
+}
+#askai-dd-toggle:hover{ border-color:var(--askai-primary) }
+#askai-dd-toggle.on{ background:var(--askai-primary); border-color:var(--askai-primary); color:#fff }
+#askai-dd-toggle:focus-visible{ outline:2px solid var(--askai-primary); outline-offset:2px }
+body.askai-open #askai-dd-toggle{ right:calc(var(--askai-w) + 56px) }
+body.askai-resizing #askai-dd-toggle{ transition:none }
+body.askai-has-dd #askai-crumb{ padding-right:176px }
+#askai-dd{
+  position:fixed; z-index:2147482000; top:var(--askai-crumb-h); left:0; right:0; bottom:0;
+  transition:right .28s cubic-bezier(.4,0,.2,1);
+}
+#askai-dd[hidden]{ display:none }
+body.askai-open #askai-dd{ right:var(--askai-w) }
+html.askai-dd-on, html.askai-dd-on body{ overflow:hidden }
+
+/* ---------- top bar: one home breadcrumb for every explainer ---------- */
+/* Explainers have wildly different layouts - sticky sidebars, centered reports,
+   bare presentations - and only 12 of 50 carry any branding of their own. So the
+   way out is injected here rather than expected from the page. */
+#askai-crumb{
+  position:fixed; top:0; left:0; right:0; height:var(--askai-crumb-h);
+  z-index:2147483000; box-sizing:border-box;
+  display:flex; align-items:center; gap:9px; padding:0 60px 0 14px;
+  background:var(--askai-surface); border-bottom:1px solid var(--askai-border);
+  font-family:var(--askai-sans); font-size:12.5px; line-height:1;
+  color:var(--askai-muted);
+  transition:right .28s cubic-bezier(.4,0,.2,1);
+}
+body.askai-open #askai-crumb{ right:var(--askai-w) }
+body.askai-resizing #askai-crumb{ transition:none }
+
+/* A published page is somebody else's HTML, and it may well style .sub, .num
+   or .title for its own purposes. Those generic names would otherwise bleed
+   into this bar - a host page's ".sub{margin:0 0 2.5rem}" shunts the step
+   label clean out of it. Reset everything inside the bar first, nested spans
+   included; the rules below are more specific, so they still win. */
+#askai-crumb *{
+  margin:0; padding:0; border:0; background:none; font:inherit; color:inherit;
+  text-transform:none; letter-spacing:normal; text-indent:0; float:none;
+  position:static; box-shadow:none; max-width:none; min-height:0;
+}
+
+#askai-crumb .home{
+  display:inline-flex; align-items:center; gap:7px; flex:none;
+  padding:6px 10px; border-radius:8px; text-decoration:none;
+  color:var(--askai-copy); background:var(--askai-panel);
+  border:1px solid var(--askai-border-strong);
+  transition:border-color .15s, color .15s, background .15s;
+}
+#askai-crumb .home:hover{
+  border-color:var(--askai-primary); color:#fff; background:var(--askai-panel-2);
+}
+#askai-crumb .home svg{
+  width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:2;
+  stroke-linecap:round; stroke-linejoin:round;
+}
+#askai-crumb .sep{ color:var(--askai-subtle); flex:none }
+/* The task and the step: one element each, both reading "number · name", in
+   the home button's design. The title gives way first, then the step. */
+#askai-crumb .askai-pill{
+  display:inline-flex; align-items:center; gap:6px; flex:0 1 auto; min-width:0;
+  padding:6px 10px; border-radius:8px; text-decoration:none; white-space:nowrap;
+  color:var(--askai-copy); background:var(--askai-panel);
+  border:1px solid var(--askai-border-strong);
+  transition:border-color .15s, color .15s, background .15s;
+}
+#askai-crumb .askai-step{ flex-shrink:3 }
+#askai-crumb a.askai-pill:hover{
+  border-color:var(--askai-primary); color:#fff; background:var(--askai-panel-2);
+}
+#askai-crumb .askai-pn{ flex:none; font-family:var(--askai-mono); color:var(--askai-primary) }
+#askai-crumb .askai-pd{ flex:none; color:var(--askai-subtle) }
+#askai-crumb .askai-pt{ min-width:0; overflow:hidden; text-overflow:ellipsis }
+#askai-crumb .sub{
+  flex:none; color:var(--askai-subtle); min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+#askai-crumb .title{
+  flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
+/* ---------- highlights (live inside the host page's own content) ---------- */
+mark.askai-hl{
+  background:color-mix(in srgb, #6d5cf0 24%, transparent); color:inherit;
+  box-shadow:inset 0 -1.5px 0 color-mix(in srgb, #6d5cf0 72%, transparent);
+  border-radius:2px; cursor:pointer; transition:background .12s;
+}
+mark.askai-hl.active{ background:color-mix(in srgb, #6d5cf0 40%, transparent) }
+
+/* ---------- tooltip ---------- */
+#askai-tip{
+  position:fixed; z-index:2147483001; display:none; width:310px;
+  background:var(--askai-surface); border:1px solid var(--askai-border-strong);
+  border-radius:10px; padding:12px 14px; box-shadow:0 12px 34px rgba(0,0,0,.45);
+  font-family:var(--askai-sans); font-size:12.5px; line-height:1.55; color:var(--askai-copy);
+}
+#askai-tip.on{ display:block }
+#askai-tip .meta{ font-family:var(--askai-mono); font-size:10px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--askai-subtle); margin-bottom:7px }
+#askai-tip .q{ font-weight:600; margin-bottom:5px }
+#askai-tip .a{ color:var(--askai-muted); display:-webkit-box; -webkit-line-clamp:4;
+  line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; margin-bottom:10px }
+#askai-tip .acts{ display:flex; gap:8px }
+#askai-tip button{ font-family:var(--askai-mono); font-size:10.5px; padding:5px 9px;
+  border-radius:6px; cursor:pointer; border:1px solid var(--askai-border-strong);
+  background:var(--askai-panel-2); color:var(--askai-muted) }
+#askai-tip button.p{ background:var(--askai-primary); border-color:var(--askai-primary); color:#fff }
+
+/* ---------- drawer (chat-interface-standard) ---------- */
+#askai-root{ font-family:var(--askai-sans) }
+#askai-drawer{
+  position:fixed; top:0; right:0; bottom:0; width:var(--askai-w); z-index:2147482000;
+  background:var(--askai-surface); border-left:1px solid var(--askai-border);
+  display:flex; flex-direction:column; color:var(--askai-copy); font-size:15px;
+  transform:translateX(100%); transition:transform .28s cubic-bezier(.4,0,.2,1);
+}
+body.askai-open #askai-drawer{ transform:translateX(0) }
+
+/* ---------- drag-to-resize divider ---------- */
+/* Sits on the drawer's own left edge, so it moves with the panel and needs no
+   second element in the page's layout. */
+#askai-grip{
+  position:absolute; left:-3px; top:0; bottom:0; width:7px; z-index:1;
+  cursor:col-resize; touch-action:none;
+}
+#askai-grip::after{
+  content:""; position:absolute; left:3px; top:0; bottom:0; width:1px;
+  background:transparent; transition:background .15s;
+}
+#askai-grip:hover::after{ background:var(--askai-primary) }
+body.askai-resizing #askai-grip::after{ background:var(--askai-primary) }
+/* Transitions belong to the open/close slide; during a drag they trail the pointer. */
+body.askai-resizing, body.askai-resizing #askai-drawer{ transition:none !important }
+body.askai-resizing{ user-select:none }
+
+#askai-drawer .head{ flex:none; display:flex; align-items:center; gap:8px;
+  padding:14px 16px; border-bottom:1px solid var(--askai-border) }
+#askai-drawer .head .t{ flex:1; font-family:var(--askai-mono); font-size:11px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--askai-subtle);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+#askai-drawer .head button{ background:var(--askai-panel-2); border:1px solid var(--askai-border);
+  color:var(--askai-muted); font-family:var(--askai-mono); font-size:10.5px;
+  padding:5px 9px; border-radius:6px; cursor:pointer }
+#askai-drawer .head button:hover{ color:var(--askai-copy); border-color:var(--askai-border-strong) }
+
+#askai-drawer .quote{ flex:none; display:none; margin:12px 16px 0; padding:10px 12px;
+  border-left:2px solid var(--askai-primary); background:var(--askai-panel);
+  border-radius:0 8px 8px 0; font-size:12.5px; color:var(--askai-muted);
+  max-height:104px; overflow:auto }
+#askai-drawer .quote.on{ display:block }
+
+#askai-msgs{ flex:1 1 auto; overflow-y:auto; padding:16px; display:flex;
+  flex-direction:column; gap:14px }
+#askai-msgs .msg{ font-size:13.5px; line-height:1.6 }
+#askai-msgs .msg.user{ align-self:flex-end; max-width:88%; padding:9px 13px;
+  background:color-mix(in srgb, #6d5cf0 18%, transparent);
+  border:1px solid color-mix(in srgb, #6d5cf0 34%, transparent);
+  border-radius:12px 12px 3px 12px; color:var(--askai-copy); white-space:pre-wrap;
+  overflow-wrap:anywhere }
+#askai-msgs .msg.ai{ color:var(--askai-muted) }
+#askai-msgs .msg.ai > :first-child{ margin-top:0 }
+#askai-msgs .msg.ai h1,#askai-msgs .msg.ai h2,#askai-msgs .msg.ai h3{
+  font-size:14px; margin:14px 0 6px; color:var(--askai-copy); font-weight:640 }
+#askai-msgs .msg.ai p{ margin:0 0 10px }
+#askai-msgs .msg.ai ul,#askai-msgs .msg.ai ol{ margin:0 0 10px; padding-left:20px }
+#askai-msgs .msg.ai li{ margin-bottom:4px }
+#askai-msgs .msg.ai code{ font-family:var(--askai-mono); font-size:.87em;
+  background:var(--askai-panel-2); border:1px solid var(--askai-border);
+  padding:1px 5px; border-radius:5px; color:var(--askai-copy) }
+#askai-msgs .msg.ai pre{ background:var(--askai-panel-2); border:1px solid var(--askai-border);
+  border-radius:8px; padding:10px 12px; overflow-x:auto; margin:0 0 10px }
+#askai-msgs .msg.ai pre code{ background:none; border:none; padding:0; font-size:11.5px }
+#askai-msgs .msg.ai table{ border-collapse:collapse; width:100%; font-size:12px; margin:0 0 10px }
+#askai-msgs .msg.ai th,#askai-msgs .msg.ai td{ border:1px solid var(--askai-border);
+  padding:6px 9px; text-align:left; vertical-align:top }
+#askai-msgs .msg.ai th{ font-family:var(--askai-mono); font-size:10px;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--askai-subtle); font-weight:400 }
+#askai-msgs .msg.ai blockquote{ margin:0 0 10px; padding-left:12px;
+  border-left:2px solid var(--askai-border-strong); color:var(--askai-subtle) }
+#askai-msgs .msg.ai a{ color:var(--askai-primary-hover) }
+#askai-msgs .msg.err{ color:var(--askai-error) }
+
+#askai-msgs .tool{ border:1px solid var(--askai-border); border-radius:8px;
+  background:var(--askai-panel); font-size:12px }
+#askai-msgs .tool summary{ cursor:pointer; padding:7px 11px; list-style:none;
+  font-family:var(--askai-mono); font-size:10.5px; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--askai-subtle) }
+#askai-msgs .tool summary::-webkit-details-marker{ display:none }
+#askai-msgs .tool summary::before{ content:"\25B8 "; color:var(--askai-primary) }
+#askai-msgs .tool[open] summary::before{ content:"\25BE " }
+#askai-msgs .tool .body{ padding:0 11px 9px; color:var(--askai-muted);
+  font-family:var(--askai-mono); font-size:11px; word-break:break-word }
+
+#askai-msgs .dots{ display:flex; gap:4px; padding:4px 0 }
+#askai-msgs .dots i{ width:6px; height:6px; border-radius:50%;
+  background:var(--askai-subtle); animation:askai-b 1.2s infinite }
+#askai-msgs .dots i:nth-child(2){ animation-delay:.15s }
+#askai-msgs .dots i:nth-child(3){ animation-delay:.3s }
+@keyframes askai-b{ 0%,60%,100%{opacity:.25;transform:translateY(0)}
+  30%{opacity:1;transform:translateY(-3px)} }
+
+#askai-msgs .histbtn{ display:block; width:100%; text-align:left; margin-bottom:6px;
+  padding:8px 10px; border-radius:8px; border:1px solid var(--askai-border);
+  background:var(--askai-panel); color:var(--askai-muted); font-size:12.5px;
+  font-family:inherit; cursor:pointer }
+#askai-msgs .histbtn:hover{ border-color:var(--askai-border-strong); color:var(--askai-copy) }
+
+/* jump-to-latest: only while autoscroll is paused mid-read */
+#askai-jump{ position:absolute; left:50%; transform:translateX(-50%) translateY(6px);
+  bottom:92px; z-index:2; opacity:0; pointer-events:none;
+  transition:opacity .15s, transform .15s;
+  background:var(--askai-panel-2); border:1px solid var(--askai-border-strong);
+  color:var(--askai-muted); font-family:var(--askai-mono); font-size:10.5px;
+  padding:5px 11px; border-radius:999px; cursor:pointer }
+#askai-jump.on{ opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0) }
+#askai-jump:hover{ color:var(--askai-copy); border-color:var(--askai-primary) }
+
+/* unified two-line composer */
+#askai-composer{ flex:none; margin:0 16px 8px; border:1px solid var(--askai-border);
+  background:var(--askai-panel); border-radius:12px; cursor:text;
+  transition:border-color .15s }
+#askai-composer:focus-within{ border-color:color-mix(in srgb, #6d5cf0 60%, transparent) }
+#askai-input{ display:block; width:100%; border:none; background:none; resize:none;
+  outline:none; color:var(--askai-copy); font-family:var(--askai-sans);
+  font-size:13.5px; line-height:1.5; padding:11px 13px 4px; max-height:330px;
+  overflow-y:auto }
+#askai-input::placeholder{ color:var(--askai-subtle) }
+#askai-bar{ display:flex; align-items:center; gap:5px; padding:5px 8px 7px }
+#askai-bar button{ width:27px; height:27px; display:flex; align-items:center;
+  justify-content:center; background:none; border:none; border-radius:6px;
+  color:var(--askai-subtle); cursor:pointer; padding:0 }
+#askai-bar button:hover:not(:disabled){ background:var(--askai-panel-2); color:var(--askai-copy) }
+#askai-bar button:disabled{ opacity:.34; cursor:not-allowed }
+#askai-bar svg{ width:15px; height:15px; fill:none; stroke:currentColor;
+  stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round }
+#askai-bar select{ background:none; border:none; color:var(--askai-subtle);
+  font-family:var(--askai-mono); font-size:10.5px; cursor:pointer; outline:none }
+#askai-bar .sp{ flex:1 }
+#askai-bar .send{ width:29px; height:29px; background:var(--askai-primary); color:#fff }
+#askai-bar .send:hover:not(:disabled){ background:var(--askai-primary-hover); color:#fff }
+#askai-bar .send:disabled{ background:var(--askai-panel-2); color:var(--askai-subtle) }
+
+#askai-note{ flex:none; padding:0 16px 12px; font-family:var(--askai-mono);
+  font-size:10.5px; color:var(--askai-subtle) }
+
+/* ---------- pointing at part of the page ----------
+   Petar, 24 September 2026: "for editing, pointing to a section might be a
+   better approach. If I point to a headline or a div, it knows exactly which
+   HTML element to edit." While pointing, a box follows the pointer round the
+   element under it and says what it is; a click picks it, and it keeps a
+   dashed outline for as long as it is the thing being talked about. */
+#askai-pick-box{
+  position:fixed; z-index:2147483002; pointer-events:none; display:none;
+  border:2px solid #5ec2ff; border-radius:4px; background:rgba(94,194,255,.10);
+  box-shadow:0 0 0 1px rgba(4,18,28,.6);
+}
+#askai-pick-box.on{ display:block }
+#askai-pick-tag{
+  position:absolute; left:-2px; bottom:100%; margin-bottom:3px; white-space:nowrap;
+  background:#5ec2ff; color:#04121c; border-radius:4px; padding:2px 6px;
+  font:600 11px/1.3 var(--askai-mono); max-width:320px; overflow:hidden; text-overflow:ellipsis;
+}
+#askai-pick-box.below #askai-pick-tag{ bottom:auto; top:100%; margin:3px 0 0 }
+/* At the bottom, where comment mode says the same kind of thing, and never
+   over the floating bar whose pencil started it. */
+#askai-pick-hint{
+  position:fixed; z-index:2147483003; bottom:16px; left:50%; transform:translateX(-50%);
+  display:none; align-items:center; gap:10px; padding:8px 8px 8px 14px; border-radius:999px;
+  background:#12161c; color:#e7ecf3; border:1px solid #2f3742;
+  box-shadow:0 8px 24px rgba(0,0,0,.45); font:13px/1.3 var(--askai-sans); white-space:nowrap;
+}
+#askai-pick-hint.on{ display:flex }
+/* A phone is narrower than the sentence: it wraps inside the screen rather than
+   running off both sides of it, and keeps to the right of Rouh's orb, which sits
+   over the bottom left corner of a phone's page. */
+@media (max-width:560px){
+  #askai-pick-hint{ white-space:normal; left:auto; right:12px; transform:none;
+    max-width:calc(100vw - 112px); box-sizing:border-box; width:max-content; border-radius:16px }
+  #askai-pick-hint button{ flex:none }
+}
+#askai-pick-hint button{
+  font:600 12px/1 var(--askai-sans); padding:6px 10px; border-radius:999px; cursor:pointer;
+  border:1px solid #2f3742; background:#1b212c; color:#e7ecf3;
+}
+#askai-pick-hint button:hover{ border-color:#5ec2ff }
+html.askai-picking, html.askai-picking *{ cursor:crosshair !important }
+/* Edit (E) is the same pointing, kept on, with a pencil for a pointer. */
+html.askai-editing, html.askai-editing *{
+  cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Cpath d='M3 23l1.2-5.6L17.6 4a2.4 2.4 0 0 1 3.4 0l1 1a2.4 2.4 0 0 1 0 3.4L8.6 21.8z' fill='%235ec2ff' stroke='%2304121c' stroke-width='1.6' stroke-linejoin='round'/%3E%3Cpath d='M15.6 6l4.4 4.4' stroke='%2304121c' stroke-width='1.6'/%3E%3C/svg%3E") 3 23, crosshair !important }
+#askai-float #askai-edit-btn.on{ color:#04121c; background:#5ec2ff; border-color:#5ec2ff }
+/* Text that can be typed over, under the pointer with Edit on: a caret for a
+   pointer, and the box says so. */
+html.askai-editing.askai-over-text, html.askai-editing.askai-over-text *{ cursor:text !important }
+#askai-pick-box.text{ border-style:dashed; background:rgba(94,194,255,.06) }
+
+/* ---------- typing over the page's text ----------
+   fr_65039fdac5a2: the person could not find a way to type a change straight
+   into the text. The piece being typed in is outlined, the bar under it says
+   how to save, and a line at the bottom says it was saved, with Undo. */
+.askai-typing{ outline:2px solid #5ec2ff !important; outline-offset:3px !important;
+  border-radius:2px; caret-color:#5ec2ff; cursor:text !important;
+  background-color:rgba(94,194,255,.08) !important }
+.askai-typing *{ cursor:text !important }
+#askai-type-bar{
+  position:fixed; z-index:2147483003; display:none; align-items:center; gap:6px;
+  padding:5px 5px 5px 12px; border-radius:999px; background:#12161c; color:#e7ecf3;
+  border:1px solid #2f3742; box-shadow:0 8px 24px rgba(0,0,0,.45);
+  font:12.5px/1.3 var(--askai-sans); white-space:nowrap;
+}
+#askai-type-bar.on{ display:flex }
+#askai-type-bar .k{ color:#9aa6b6; margin-right:4px }
+#askai-type-bar button{
+  font:600 12px/1 var(--askai-sans); padding:6px 10px; border-radius:999px; cursor:pointer;
+  border:1px solid #2f3742; background:#1b212c; color:#e7ecf3;
+}
+#askai-type-bar button:hover{ border-color:#5ec2ff }
+#askai-type-bar .save{ background:#5ec2ff; border-color:#5ec2ff; color:#04121c }
+#askai-type-said{
+  position:fixed; z-index:2147483003; bottom:16px; left:50%; transform:translateX(-50%);
+  display:none; align-items:center; gap:10px; padding:8px 8px 8px 14px; border-radius:999px;
+  background:#12161c; color:#e7ecf3; border:1px solid #2f3742; max-width:min(560px, calc(100vw - 32px));
+  box-shadow:0 8px 24px rgba(0,0,0,.45); font:13px/1.35 var(--askai-sans);
+}
+#askai-type-said.on{ display:flex }
+#askai-type-said.bad{ border-color:#7a3340; border-radius:14px }
+#askai-type-said.bad .w{ color:#ffb4bf }
+#askai-type-said button{
+  flex:none; font:600 12px/1 var(--askai-sans); padding:6px 10px; border-radius:999px;
+  cursor:pointer; border:1px solid #2f3742; background:#1b212c; color:#e7ecf3;
+}
+#askai-type-said button:hover{ border-color:#5ec2ff }
+/* Above Edit's own line at the bottom, while Edit is on. */
+html.askai-picking #askai-type-said{ bottom:62px }
+.askai-picked{ outline:2px dashed #5ec2ff !important; outline-offset:3px !important }
+
+/* The element pointed at, over the drawer's box: what it is, and a cross to
+   stop talking about it. */
+#askai-drawer .picked{ flex:none; display:none; align-items:center; gap:8px; margin:12px 16px 0;
+  padding:8px 8px 8px 12px; border-left:2px solid #5ec2ff; background:var(--askai-panel);
+  border-radius:0 8px 8px 0; font-size:12.5px; color:var(--askai-muted) }
+#askai-drawer .picked.on{ display:flex }
+#askai-drawer .picked .w{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap }
+#askai-drawer .picked b{ font-family:var(--askai-mono); font-weight:600; color:#5ec2ff;
+  margin-right:6px }
+#askai-drawer .picked button{ flex:none; width:24px; height:24px; border-radius:6px;
+  border:1px solid var(--askai-border); background:var(--askai-panel-2);
+  color:var(--askai-muted); cursor:pointer; line-height:1 }
+#askai-drawer .picked button:hover{ color:var(--askai-copy) }
+#askai-bar #askai-point.on{ background:rgba(94,194,255,.16); color:#5ec2ff }
+
+/* A change Ask AI made to the page, as a line of its own in the conversation,
+   with the way to put it back on it. */
+#askai-msgs .msg.edit{ display:flex; align-items:center; gap:10px; padding:9px 10px 9px 12px;
+  border:1px solid rgba(94,194,255,.35); background:rgba(94,194,255,.08);
+  border-radius:10px; color:var(--askai-copy) }
+#askai-msgs .msg.edit .w{ flex:1; min-width:0 }
+#askai-msgs .msg.edit button{ flex:none; font:600 12px/1 var(--askai-sans); padding:6px 10px;
+  border-radius:7px; border:1px solid var(--askai-border-strong); background:var(--askai-panel-2);
+  color:var(--askai-copy); cursor:pointer }
+#askai-msgs .msg.edit button:hover:not(:disabled){ border-color:#5ec2ff }
+#askai-msgs .msg.edit button:disabled{ opacity:.5; cursor:default }
+#askai-msgs .msg.edit.undone .w{ text-decoration:line-through; color:var(--askai-subtle) }
+
+@media (max-width:900px){
+  body.askai-open{ margin-right:0 }
+  #askai-drawer{ width:100% }
+  /* The drawer covers the viewport, so the floating bar would sit on top of it. */
+  body.askai-open #askai-float, body.askai-open #askai-panel{ display:none }
+  /* Full-width drawer has no divider to drag, and the grip would sit over content. */
+  #askai-grip{ display:none }
+  /* Narrow screens keep the escape hatch; the spec title is the first thing to go. */
+  #askai-crumb .title, #askai-crumb .sep, #askai-crumb .askai-step, #askai-crumb .sub{ display:none }
+  body.askai-open #askai-crumb{ right:0 }
+}
+
+@media print{
+  #askai-crumb{ display:none }
+  html{ padding-top:0 }
+}
+
+/* ---------- History and options (askai.js, "history and options") ---------- */
+/* Everything here is drawn over the page, never in it, and the page's own
+   style sheet may style buttons, paragraphs and spans for itself, so each
+   thing starts from nothing, the way the top bar does. */
+#askai-panel *, #askai-optpop *, #askai-viewing *, #askai-chips *{
+  margin:0; padding:0; border:0; background:none; font:inherit; color:inherit;
+  text-transform:none; letter-spacing:normal; text-indent:0; float:none;
+  box-shadow:none; max-width:none; min-height:0; text-align:left; line-height:inherit;
+}
+
+/* The panel under the floating bar, holding History or the page's options. */
+#askai-panel{
+  position:fixed; z-index:2147483000; top:calc(var(--askai-crumb-h) + 5px); right:56px;
+  width:min(390px, calc(100vw - 70px)); max-height:calc(100vh - var(--askai-crumb-h) - 14px);
+  display:flex; flex-direction:column; box-sizing:border-box;
+  background:var(--askai-surface); border:1px solid var(--askai-border-strong);
+  border-radius:12px; box-shadow:0 18px 44px rgba(0,0,0,.5);
+  font-family:var(--askai-sans); font-size:13px; line-height:1.45; color:var(--askai-copy);
+}
+body.askai-open #askai-panel{ right:calc(var(--askai-w) + 56px) }
+/* Where the page has comments, their floating control is the bar (comments.js)
+   and presses History and Options through; this one steps aside, and the
+   panel drops under that control instead of beside this one. */
+html.askai-cm-on #askai-root #askai-float{ display:none !important }
+html.askai-cm-on #askai-panel{ top:calc(var(--askai-crumb-h) + 46px); right:14px;
+  width:min(390px, calc(100vw - 28px)); max-height:calc(100vh - var(--askai-crumb-h) - 56px) }
+html.askai-cm-on body.askai-open #askai-panel{ right:calc(var(--askai-w) + 14px) }
+#askai-panel .askai-ph{ flex:none; display:flex; align-items:baseline; gap:8px;
+  padding:12px 12px 10px 14px; border-bottom:1px solid var(--askai-border) }
+#askai-panel .askai-pt{ font-family:var(--askai-mono); font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--askai-subtle); flex:none }
+#askai-panel .askai-ps{ flex:1; min-width:0; color:var(--askai-subtle); font-size:12px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+#askai-panel .askai-px{ flex:none; width:24px; height:24px; border-radius:6px; cursor:pointer;
+  color:var(--askai-subtle); text-align:center; font-size:12px; align-self:center }
+#askai-panel .askai-px:hover{ color:#fff; background:var(--askai-panel-2) }
+#askai-panel .askai-pl{ flex:1 1 auto; overflow-y:auto; padding:6px; overscroll-behavior:contain }
+#askai-panel .askai-pn{ padding:12px 10px; color:var(--askai-subtle); font-size:12.5px }
+#askai-panel .askai-pn.bad{ color:var(--askai-error) }
+
+/* One line of the history. */
+#askai-panel .askai-he{ border-radius:9px; padding:2px; margin-bottom:2px }
+#askai-panel .askai-he.on{ background:color-mix(in srgb, var(--askai-primary) 16%, transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--askai-primary) 50%, transparent) }
+#askai-panel .askai-hb{ display:block; width:100%; box-sizing:border-box; padding:7px 9px 6px;
+  border-radius:7px; cursor:pointer }
+#askai-panel .askai-he:not(.on) .askai-hb:hover{ background:var(--askai-panel-2) }
+#askai-panel .askai-he.on .askai-hb{ cursor:default }
+#askai-panel .askai-hw{ display:block; color:var(--askai-copy); font-weight:560;
+  overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; line-clamp:3;
+  -webkit-box-orient:vertical; overflow:hidden }
+#askai-panel .askai-he.undone .askai-hw{ text-decoration:line-through;
+  text-decoration-color:var(--askai-subtle); color:var(--askai-muted) }
+#askai-panel .askai-he.k-now .askai-hw{ color:var(--askai-primary-hover) }
+#askai-panel .askai-hm{ display:block; margin-top:2px; color:var(--askai-subtle); font-size:12px }
+#askai-panel .askai-ht{ display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+  padding:0 9px 7px }
+#askai-root .askai-tag{ display:inline-block; padding:2px 7px; border-radius:999px;
+  font-family:var(--askai-mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--askai-subtle); border:1px solid var(--askai-border-strong); line-height:1.5;
+  white-space:nowrap }
+#askai-root .askai-tag.opt{ color:var(--askai-opt-ink); background:var(--askai-opt);
+  border-color:var(--askai-opt); font-weight:700 }
+#askai-root .askai-tag.opt-line{ color:var(--askai-opt);
+  border-color:color-mix(in srgb, var(--askai-opt) 60%, transparent) }
+
+/* The question under a change nobody has decided about. */
+#askai-panel .askai-kq{ display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+  padding:7px 8px; border-radius:8px; width:100%; box-sizing:border-box;
+  border:1px dashed color-mix(in srgb, var(--askai-opt) 55%, transparent);
+  background:color-mix(in srgb, var(--askai-opt) 7%, transparent) }
+#askai-panel .askai-kw{ flex:1 1 auto; color:var(--askai-opt); font-size:12.5px; font-weight:600 }
+#askai-panel .askai-ky, #askai-panel .askai-kn{ padding:4px 10px; border-radius:7px;
+  cursor:pointer; font-size:12px; font-weight:600; border:1px solid var(--askai-border-strong);
+  background:var(--askai-panel-2); color:var(--askai-copy) }
+#askai-panel .askai-ky{ background:var(--askai-opt); border-color:var(--askai-opt);
+  color:var(--askai-opt-ink) }
+#askai-panel .askai-ky:hover{ filter:brightness(1.08) }
+#askai-panel .askai-kn:hover{ border-color:var(--askai-subtle); color:#fff }
+#askai-panel .askai-ky:disabled, #askai-panel .askai-kn:disabled{ opacity:.5; cursor:default }
+#askai-panel .askai-kerr{ padding:0 9px 8px; color:var(--askai-error); font-size:12px }
+
+/* The bar over an old version: which moment it is, and the way back. */
+#askai-viewing{
+  position:fixed; top:0; left:0; right:0; height:44px; z-index:2147483000;
+  box-sizing:border-box; display:flex; align-items:center; gap:10px;
+  padding:0 60px 0 14px;
+  background:color-mix(in srgb, var(--askai-primary) 22%, var(--askai-surface));
+  border-bottom:1px solid color-mix(in srgb, var(--askai-primary) 55%, transparent);
+  font-family:var(--askai-sans); font-size:13px; line-height:1.3; color:var(--askai-copy);
+}
+#askai-viewing .askai-vi{ flex:none; display:grid; color:var(--askai-primary-hover) }
+#askai-viewing .askai-vw{ flex:1 1 auto; min-width:0; font-size:12.5px; line-height:1.3;
+  display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden; overflow-wrap:anywhere }
+@media (max-width:560px){ #askai-viewing .askai-vr{ display:none } }
+#askai-viewing .askai-vw b{ font-weight:700 }
+#askai-viewing .askai-vr{ flex:none; font-family:var(--askai-mono); font-size:10px;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--askai-muted);
+  padding:2px 7px; border:1px solid var(--askai-border-strong); border-radius:999px }
+#askai-viewing .askai-vb{ flex:none; padding:6px 11px; border-radius:8px; cursor:pointer;
+  font-weight:650; font-size:12.5px; color:#fff; background:var(--askai-primary);
+  white-space:nowrap }
+#askai-viewing .askai-vb:hover{ background:var(--askai-primary-hover) }
+
+/* The tab on a part of the page that has versions, and the outline it draws
+   round that part while it is pointed at. */
+#askai-chips .askai-chip{
+  position:fixed; z-index:2147482500; display:flex; align-items:center; gap:5px;
+  padding:3px 8px 3px 6px; border-radius:999px; cursor:pointer;
+  background:var(--askai-opt); color:var(--askai-opt-ink);
+  font-family:var(--askai-mono); font-size:10px; font-weight:700; letter-spacing:.07em;
+  text-transform:uppercase; line-height:1.4; white-space:nowrap;
+  box-shadow:0 3px 10px rgba(0,0,0,.35), 0 0 0 1px rgba(23,13,51,.35);
+}
+#askai-chips .askai-chip svg.askai-line{ width:13px; height:13px; stroke-width:2.3 }
+#askai-chips .askai-chip:hover{ filter:brightness(1.07) }
+#askai-chips .askai-chip:focus-visible{ outline:2px solid #fff; outline-offset:2px }
+#askai-optbox{
+  position:fixed; z-index:2147482400; display:none; pointer-events:none; box-sizing:border-box;
+  border:2px dashed var(--askai-opt); border-radius:6px;
+  background:color-mix(in srgb, var(--askai-opt) 8%, transparent);
+}
+#askai-optbox.on{ display:block }
+
+/* One option: its versions, which is the default, and making another one it.
+   The pop-up over the page and the list under the bar draw the same block. */
+/* Over the comment pins (comments.js draws them at 2147483002), which would
+   otherwise sit on top of the versions being read. */
+#askai-optpop{
+  position:fixed; z-index:2147483003; width:min(340px, calc(100vw - 16px)); box-sizing:border-box;
+  background:var(--askai-surface); border-radius:12px; padding:2px;
+  border:1.5px dashed color-mix(in srgb, var(--askai-opt) 70%, transparent);
+  box-shadow:0 18px 44px rgba(0,0,0,.55);
+  font-family:var(--askai-sans); font-size:13px; line-height:1.45; color:var(--askai-copy);
+}
+#askai-root .askai-ob{ padding:10px 10px 9px; border-radius:10px;
+  background:color-mix(in srgb, var(--askai-opt) 7%, transparent) }
+#askai-panel .askai-ob{ margin:4px 2px 8px;
+  border:1.5px dashed color-mix(in srgb, var(--askai-opt) 55%, transparent) }
+#askai-root .askai-ot{ display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px;
+  margin-bottom:7px }
+#askai-root .askai-otl{ font-family:var(--askai-mono); font-size:10.5px; font-weight:750;
+  letter-spacing:.09em; text-transform:uppercase; color:var(--askai-opt) }
+#askai-root .askai-ots{ flex:1 1 150px; min-width:0; color:var(--askai-muted); font-size:12.5px;
+  overflow-wrap:anywhere }
+#askai-root .askai-ogo{ cursor:pointer; color:var(--askai-opt); font-size:12px; font-weight:600 }
+#askai-root .askai-ogo:hover{ text-decoration:underline }
+#askai-root .askai-onote{ flex-basis:100%; color:var(--askai-subtle); font-size:11.5px }
+#askai-root .askai-oa{ display:flex; align-items:center; gap:8px; margin-top:6px }
+#askai-root .askai-os{ flex:1 1 auto; min-width:0; display:block; padding:6px 9px; border-radius:8px;
+  cursor:pointer; border:1px solid var(--askai-border-strong); background:var(--askai-panel);
+  color:var(--askai-muted) }
+#askai-root .askai-os:hover{ color:var(--askai-copy); border-color:var(--askai-subtle) }
+#askai-root .askai-os[aria-pressed="true"]{ background:var(--askai-opt); border-color:var(--askai-opt);
+  color:var(--askai-opt-ink) }
+#askai-root .askai-ol{ display:block; font-weight:650; font-size:12.5px; overflow-wrap:anywhere }
+/* Why the version exists: in every version, under its name. */
+#askai-root .askai-orsn{ display:block; margin:2px 0 1px; font-size:12px; line-height:1.4;
+  overflow-wrap:anywhere }
+#askai-root .askai-orsn.none{ font-style:italic; opacity:.7 }
+#askai-root .askai-om{ display:block; font-size:11.5px; opacity:.78 }
+#askai-root .askai-orw{ display:flex; align-items:center; gap:6px; margin:3px 0 2px 2px }
+#askai-root .askai-orb{ cursor:pointer; border:0; background:none; padding:1px 0;
+  color:var(--askai-subtle); font-size:11.5px; text-decoration:underline;
+  text-decoration-color:var(--askai-border-strong) }
+#askai-root .askai-orb:hover{ color:var(--askai-copy) }
+#askai-root .askai-ori{ flex:1 1 auto; min-width:0; padding:5px 8px; border-radius:7px;
+  border:1px solid var(--askai-border-strong); background:var(--askai-panel);
+  color:var(--askai-copy); font-size:12px }
+#askai-root .askai-ori:focus{ outline:none; border-color:var(--askai-opt) }
+#askai-root .askai-omk{ flex:none; cursor:pointer; padding:3px 8px; border-radius:7px;
+  font-size:11.5px; font-weight:600; color:var(--askai-opt);
+  border:1px solid color-mix(in srgb, var(--askai-opt) 45%, transparent) }
+#askai-root .askai-omk:hover{ background:color-mix(in srgb, var(--askai-opt) 16%, transparent) }
+#askai-root .askai-omk:disabled{ opacity:.6; cursor:default }
+#askai-root .askai-oacts{ flex:0 0 92px; display:flex; flex-direction:column; gap:4px }
+#askai-root .askai-oa .askai-tag, #askai-root .askai-oa .askai-omk{ width:92px;
+  box-sizing:border-box; text-align:center }
+/* Decided: the choice closed, in green, on the tab and in the block. */
+#askai-root .askai-ofn{ color:var(--askai-ok);
+  border-color:color-mix(in srgb, var(--askai-ok) 50%, transparent) }
+#askai-root .askai-ofn:hover{ background:color-mix(in srgb, var(--askai-ok) 16%, transparent) }
+#askai-root .askai-oa .askai-tag.final{ color:#062611; background:var(--askai-ok);
+  border-color:var(--askai-ok) }
+#askai-root .askai-ob.final{ background:color-mix(in srgb, var(--askai-ok) 7%, transparent) }
+#askai-root .askai-ob.final .askai-otl{ color:var(--askai-ok) }
+#askai-root .askai-ob.final .askai-os[aria-pressed="true"]{ background:var(--askai-ok);
+  border-color:var(--askai-ok); color:#062611 }
+#askai-chips .askai-chip.final{ background:var(--askai-ok); color:#062611 }
+#askai-root .askai-of{ margin-top:8px; color:var(--askai-subtle); font-size:11.5px }
+#askai-root .askai-orm{ display:block; margin-top:6px; cursor:pointer; color:var(--askai-subtle); font-size:11.5px;
+  text-decoration:underline; text-decoration-color:var(--askai-border-strong) }
+#askai-root .askai-orm:hover{ color:var(--askai-copy) }
+#askai-root .askai-oe{ margin-top:6px; color:var(--askai-error); font-size:12px }
+
+@media print{
+  #askai-float, #askai-panel, #askai-chips, #askai-optbox, #askai-optpop, #askai-viewing{ display:none !important }
+}

@@ -1,0 +1,44 @@
+#!/bin/bash
+#
+# Put a model key into the core's keys volume, from standard input, without it
+# ever being an argument, a line of a log or a variable the workers see:
+#
+#   docker compose exec -T core rouh-keys set anthropic < key.txt
+#   docker compose exec core rouh-keys list
+#   docker compose restart core       # so Rouh's own calls use it too
+#
+# The key proxy reads the file afresh on every request, so the workers can use
+# a new key at once; Rouh itself reads it when the core starts.
+set -euo pipefail
+
+file_for() {
+  case "$1" in
+    anthropic) echo anthropic_api_key ;;
+    openai) echo openai_api_key ;;
+    *) echo "rouh-keys: the key is anthropic or openai" >&2; exit 2 ;;
+  esac
+}
+
+case "${1:-}" in
+  set)
+    name="$(file_for "${2:-}")"
+    value="$(tr -d '\r\n')"
+    [ -n "$value" ] || { echo "rouh-keys: nothing came on standard input" >&2; exit 2; }
+    tmp="$(mktemp /keys/.new.XXXXXX)"
+    printf '%s' "$value" > "$tmp"
+    chown 10001:10002 "$tmp"
+    chmod 0440 "$tmp"
+    mv -f "$tmp" "/keys/$name"
+    echo "Kept the ${2} key. Restart the core for Rouh's own calls to use it."
+    ;;
+  list)
+    for n in anthropic openai; do
+      f="/keys/$(file_for "$n")"
+      if [ -s "$f" ]; then echo "$n: set"; else echo "$n: not set"; fi
+    done
+    ;;
+  *)
+    echo "usage: rouh-keys set anthropic|openai < key   |   rouh-keys list" >&2
+    exit 2
+    ;;
+esac

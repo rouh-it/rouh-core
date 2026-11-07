@@ -1,0 +1,4 @@
+services:
+  worker:
+    networks: !reset null
+    network_mode: host

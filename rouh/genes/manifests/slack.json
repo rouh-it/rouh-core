@@ -1,0 +1,65 @@
+{
+  "id": "slack",
+  "name": "Slack",
+  "title": "Slack: Rouh's own app in your workspace, listening, reading back and answering",
+  "aliases": [
+    "slack",
+    "channels",
+    "slack app",
+    "workspace",
+    "direct messages"
+  ],
+  "group": "machine",
+  "route": "/anatomy/connections/slack",
+  "anatomy": {
+    "order": 25
+  },
+  "icon": "<path d=\"M9.5 3.5 7.5 20.5\"/><path d=\"M16.5 3.5l-2 17\"/><path d=\"M4 9h16.5\"/><path d=\"M3.5 15H20\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads every message in the Slack channels Rouh's bot is in, in direct messages to it, and in the person's own direct messages with their read-only user token",
+      "posts in Slack as Rouh's bot, never as the person: an answer to a message to Rouh, through the one outbox for a case, and slack_send only on the person's yes",
+      "reads every kept message for promises made by the person or to them, with a model, a conversation a call (rouh/slack_promises.py): the person's own become Clockwork reminders a day before they are due (cancelled when a later message shows them kept), and one made to them is a decision only once it is late, whose Chase posts a nudge as Rouh's bot only on the person's yes",
+      "joins a public channel itself only on the person's word",
+      "answers people the owner set up as trusted contacts from what they - and in a channel everybody in it - may see of the owner's meetings, tasks and files (rouh/slack_team.py); anybody else gets one polite answer and the owner one notice per person",
+      "writes each decision made in a Slack channel the person linked to a task into that task's notes (its AGENTS.md, under Decided in Slack), with a link to the message, never from a direct message (rouh/slack_tasks.py)"
+    ],
+    "accounts": [
+      "Slack"
+    ],
+    "tables": [
+      "slack_connections",
+      "slack_conversations",
+      "slack_people",
+      "slack_messages",
+      "slack_promises",
+      "slack_task_links",
+      "slack_task_decisions"
+    ],
+    "jobs": [
+      "the Socket Mode listener and its 90-day read back (rouh/slack_listen.py), started with Rouh",
+      "Slack conversations into Synapse Master, one item a day, in the ten-minute sync (synapse/master.py sync_slack)",
+      "before a meeting, what the owner and each guest last said in Slack, read from the kept messages by one model call under the meeting brief's pick (rouh/meeting_slack.py), on the brief and in meeting_people's answer",
+      "reading kept messages for promises once Slack is quiet, and every ten minutes (slack_listen.Listener._promise_reader)",
+      "reading the channels linked to tasks for decisions, at the same quiet moment as the promises (slack_tasks.sweep from slack_listen.Listener._promise_reader)"
+    ],
+    "remove": "the Anatomy section in rouh/templates/rouh/index.html, slackpage.js/.css, rouh/slack.py, rouh/slack_listen.py, rouh/web/slack.py and its routes, the slack_* tools in rouh/tools.py, the SLACK prompt in rouh/brain.py, the slack channel in mail_outbox/mail_cases/trusted, sync_slack in synapse/master.py, the slack source in rouh/silos.py, rouh/slack_team.py, find_for_them in rouh/tools.py and mail_turn.py, Trusted.within, rouh/testing/fake_slack.py, rouh/meeting_slack.py with its calls in meeting_brief.make and tools._meeting_people, slackDraw in briefpage.js and its CSS, the meeting_slack stand-in in fake_model.py, rouh/slack_promises.py with PromiseSource in rouh/decision_sources.py, the slack_promises use in rouh/modeldefaults.py and its stand-in in fake_model.py, the Clockwork reminders it made (reminders rows whose ids are in slack_promises.clockwork_id), rouh/slack_tasks.py with its sweep in slack_listen.py, the slack_link tool, _slack_section and the slack_* actions in rouh/objectindex.py, the Slack part of taskpage.js and its CSS in taskbrowser.css, the slack_decisions use in rouh/modeldefaults.py and its stand-in in fake_model.py, and this manifest; drop the seven slack_* tables with a migration."
+  },
+  "uses": {
+    "tools": [
+      "slack_channels",
+      "slack_read",
+      "slack_search",
+      "slack_join",
+      "slack_send",
+      "find_for_them",
+      "slack_link"
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+#!/bin/bash
+#
+# rouh-extra-pip: a library a Rouh adds itself, put into its extra environment.
+#
+#   rouh-extra-pip install some-library==1.2.3     # in the core, as rouh
+#   rouh-extra-pip list
+#
+# Why an extra environment, and why this one (Petar, 23 October 2026: libraries
+# a Rouh adds through a gene must survive a base update):
+#
+#   - The base image's venv (/opt/venv) is replaced whole by every base update,
+#     so nothing a Rouh adds may live there.
+#   - So it goes into the extra volume, /extra, which no update touches, as a
+#     pip --prefix tree per Python minor version (/extra/python3.12/...): a
+#     line never changes its Python minor version, and a library built for
+#     another one is never loaded.
+#   - The base's venv names it with a .pth line (zz-rouh-extra.pth), read after
+#     the base's own site-packages: what the base keeps patched always comes
+#     first, and an extra library can never shadow it. Not a second venv: venvs
+#     do not chain, and one made "with system site packages" would see Debian's
+#     Python, not this venv.
+#   - Every install is held to the base's own pins (constraints.txt, written
+#     when the base was built), so an extra library cannot pull in a different
+#     version of one the base has. A gene that needs a newer minor version of a
+#     base library needs a new base line, which reaches a Rouh as a gene too.
+#   - The base check runs with /extra mounted, so a base update that would break
+#     an extra library is not switched to.
+#
+# Where a gene update will come in: a gene that needs a library names it in its
+# manifest, and the Rouh installing the gene runs this. Nothing does yet.
+set -euo pipefail
+
+py="$(python -c 'import sys; print(f"python{sys.version_info[0]}.{sys.version_info[1]}")')"
+prefix="${ROUH_EXTRA:-/extra}/$py"
+
+case "${1:-}" in
+  install)
+    shift
+    [ $# -gt 0 ] || { echo "rouh-extra-pip: name the library to install, with its version" >&2; exit 2; }
+    [ -w "${ROUH_EXTRA:-/extra}" ] || { echo "rouh-extra-pip: ${ROUH_EXTRA:-/extra} is not writable here; run it in the core" >&2; exit 1; }
+    mkdir -p "$prefix"
+    exec python -m pip install --prefix "$prefix" --constraint /opt/rouh-base/constraints.txt "$@"
+    ;;
+  list)
+    PYTHONPATH="$prefix/lib/$py/site-packages" python -m pip list --path "$prefix/lib/$py/site-packages" 2>/dev/null \
+      || echo "nothing in the extra environment"
+    ;;
+  *)
+    echo "usage: rouh-extra-pip install <library>==<version> ... | rouh-extra-pip list" >&2
+    exit 2
+    ;;
+esac

@@ -1,0 +1,44 @@
+{
+  "id": "cloudflare",
+  "name": "Cloudflare",
+  "title": "Cloudflare: an API token for each zone, typed in and kept sealed",
+  "aliases": [
+    "cloudflare",
+    "dns",
+    "domains",
+    "zones",
+    "api token",
+    "rouh.land"
+  ],
+  "group": "machine",
+  "route": "/anatomy/connections/cloudflare",
+  "anatomy": {
+    "order": 40
+  },
+  "icon": "<path d=\"M7 18.5h10.5a3.5 3.5 0 0 0 .4-7 5.5 5.5 0 0 0-10.6-1.4A4.2 4.2 0 0 0 7 18.5z\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "calls Cloudflare's API for a zone with the token kept for it, by zone name, never showing it",
+      "sets up a zone's Email Routing (mail forwarding): never removes or replaces a DNS record without replace_mx, and only the MX and SPF records it names"
+    ],
+    "accounts": [
+      "Cloudflare"
+    ],
+    "tables": [
+      "cloudflare_zones"
+    ],
+    "jobs": [],
+    "remove": "the Settings group's card in rouh/templates/rouh/index.html, cloudflarepage.js/.css, rouh/cloudflare.py, rouh/web/cloudflare.py, the cloudflare tool in rouh/tools.py and this manifest; drop the cloudflare_zones table with a migration."
+  },
+  "uses": {
+    "tools": [
+      "cloudflare"
+    ]
+  }
+}

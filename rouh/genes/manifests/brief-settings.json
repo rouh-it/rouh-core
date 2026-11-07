@@ -1,0 +1,32 @@
+{
+  "id": "brief-settings",
+  "name": "Morning brief settings",
+  "title": "When the morning brief is made and where it is sent",
+  "aliases": [
+    "brief time",
+    "morning brief time",
+    "brief channels"
+  ],
+  "group": "machine",
+  "route": "/anatomy/behaviour/brief",
+  "anatomy": {
+    "order": 30,
+    "name": "Morning brief"
+  },
+  "icon": "<path d=\"M5.5 17a6.5 6.5 0 0 1 13 0\"/><path d=\"M3 17h18M3 20.5h18\"/><path d=\"M12 4.5v2.6M4.9 8.9l1.8 1.8M19.1 8.9l-1.8 1.8\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "user_settings"
+    ],
+    "jobs": [],
+    "remove": "the Settings group's own cards in rouh/templates/rouh/index.html and its script; goes with the Morning brief."
+  }
+}

@@ -1,0 +1,1054 @@
+#!/usr/bin/env python3
+"""rouh-grant: timed grants for a Rouh's runs, written where its key proxy reads them. Run as root.
+
+The runs of a Rouh in containers reach the outside only through the key proxy
+(guard/rouh_guard/keyproxy.py), which reads the keys volume. This writes two files there, each
+grant with its end time, and the proxy stops using one at that time without anybody doing anything:
+
+    github_grant.json        the owner's GitHub token, its end, and the GitHub user it is
+    keyproxy_grants.json     the open grants past the standing rules, with the servers' list and
+                             the office network's addresses they need
+    server_logins.json       the owner's own servers whose login rouh-open opened for the jobs
+                             (rouh.land, the relay), each with its end: a record for Rouh to
+                             read, not a permission; the servers themselves hold the keys
+
+    rouh-grant github set HOURS          the token on standard input, never as an argument
+    rouh-grant github status [--details] (--details adds the token's scopes)
+    rouh-grant github revoke
+    rouh-grant open WHAT... [HOURS]      WHAT: internet (any public server, any port; the older
+                                         word is all), ssh, servers, lan, a name (example.com
+                                         and everything under it, any port) or HOST:PORT
+    rouh-grant login open NAME HOURS...  record that NAME's login is open for HOURS (rouh-open)
+    rouh-grant login close NAME...       record that it is closed
+    rouh-grant jobs-key open NAME HOURS FROM KEYTYPE KEYBODY COMMENT
+                                         the jobs' key into the keys of the account that ran
+                                         this with sudo (the owner's own account), with its end, here on the host itself
+    rouh-grant jobs-key close NAME       that key out now, its sessions ended, and what changed
+    rouh-grant jobs-key until NAME       its end in epoch seconds, 0 when closed
+    rouh-grant summary                   one line each, for rouh-open to read: github UNTIL LOGIN,
+                                         grant KEY UNTIL, login NAME UNTIL (UNTIL in epoch seconds)
+    rouh-grant list                      what is open, and until when, in plain words
+    rouh-grant revoke WHAT...            all closes every one of them; or a group, a name, HOST:PORT
+    rouh-grant servers [list]            the owner's servers, kept in servers beside this helper
+    rouh-grant servers add NAME-OR-IP [ADDRESS...]
+    rouh-grant servers remove NAME-OR-IP
+    rouh-grant log [COUNT]               what the grants were used for: host, port, which grant
+    rouh-grant prune                     what has ended, deleted, and the log gathered
+                                         (rouh-grant-prune.timer, each minute)
+    rouh-grant keyproxy [--check]        put a key proxy that reads these grants in place, until a
+                                         release carries one (deploy/grants/README.md)
+    rouh-grant allow add|list|revoke ... the older words for open, list and revoke
+
+HOURS is a whole number from 1 to 72 (8 if left out). Nothing is ever taken away when a job
+finishes: a grant lasts until its end, or until `revoke`.
+
+The owner runs these from their own machine with rouh-github-grant, rouh-proxy-grant and
+rouh-open, over SSH with sudo. Settings: ROUH_STACK_PROJECT (rouh), ROUH_STACK_DIR
+(/srv/rouh-stack), ROUH_GRANT_KEYS_DIR (the keys volume's folder; found with docker when not
+set), ROUH_GRANT_LOG (/var/log/rouh-grant.log), ROUH_GRANT_USED_LOG
+(/var/log/rouh-grant-connections.log), ROUH_GRANT_LIB (/usr/local/lib/rouh-grant, which holds
+servers), and, only for a test, ROUH_GRANT_GITHUB_API and ROUH_GRANT_LAN_NETS, _HOSTS and _DENY
+(comma separated, instead of reading this machine's networks). The token is never printed,
+logged or put in an argument. Standard library only.
+"""
+from __future__ import annotations
+
+import ipaddress
+import contextlib
+import json
+import os
+import re
+import socket
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+PROJECT = os.environ.get("ROUH_STACK_PROJECT", "rouh")
+STACK_DIR = Path(os.environ.get("ROUH_STACK_DIR", "/srv/rouh-stack"))
+LOG = Path(os.environ.get("ROUH_GRANT_LOG", "/var/log/rouh-grant.log"))
+LIB = Path(os.environ.get("ROUH_GRANT_LIB", "/usr/local/lib/rouh-grant"))
+USED_LOG = Path(os.environ.get("ROUH_GRANT_USED_LOG", "/var/log/rouh-grant-connections.log"))
+STATE = Path(os.environ.get("ROUH_GRANT_STATE", "/var/lib/rouh-grant"))
+GITHUB_FILE = "github_grant.json"
+ALLOW_FILE = "keyproxy_allow_timed"
+GRANTS_FILE = "keyproxy_grants.json"
+LOGINS_FILE = "server_logins.json"
+SERVERS_FILE = "servers"
+GROUPS = ("all", "ssh", "servers", "lan")
+#: What each group opens, in plain words.
+SAYS = {
+    "all": "any public server, any port (office network stays closed)",
+    "ssh": "ssh to any public server (ports 22, 222, 2022, 2222, 22022)",
+    "servers": "your own servers, on any port",
+    "lan": "the office network and the host itself, on any port (never Rouh's own containers)",
+}
+#: Each group's short name, the first word of its line.
+LABEL = {"all": "Internet", "ssh": "SSH", "servers": "Your servers", "lan": "Office network"}
+#: The words that open the internet grant: `internet`, and `all`, its older name.
+INTERNET_WORDS = ("internet", "all")
+#: Who reads the files: the key proxy runs as 10002:10002, the core as 10001 (guard/bin/rouh-keys).
+OWNER = (10001, 10002)
+TOKEN_SHAPE = re.compile(r"[A-Za-z0-9_.\-]{8,512}")
+HOST_SHAPE = re.compile(r"(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*")
+#: What marks a key proxy that reads the grants this writes: ROUH_GRANTS_FORMAT = 2 or later.
+FORMAT = 2
+#: Where the token is checked; only a test points it elsewhere.
+GITHUB_API = os.environ.get("ROUH_GRANT_GITHUB_API", "https://api.github.com")
+
+
+class Refused(Exception):
+    pass
+
+
+def hours_of(text: str | None) -> int:
+    text = "8" if text in (None, "") else text
+    if not re.fullmatch(r"\d{1,2}", text) or not 1 <= int(text) <= 72:
+        raise Refused("Give a whole number of hours from 1 to 72.")
+    return int(text)
+
+
+def end_of(text: str) -> int:
+    """HOURS from now, or @END (seconds since 1970, within 72 hours): the end, in epoch seconds."""
+    if re.fullmatch(r"@\d{9,11}", text or ""):
+        end = int(text[1:])
+        if not time.time() < end <= time.time() + 72 * 3600:
+            raise Refused("Give an end within the next 72 hours.")
+        return end
+    return int(time.time()) + hours_of(text) * 3600
+
+
+def when(epoch: float) -> str:
+    """On the owner's own clock (this machine's, Sofia): 22:55 today, 09:00 tomorrow, Thu 5 Nov 09:00."""
+    local = datetime.fromtimestamp(epoch).astimezone()
+    days = (local.date() - datetime.now().astimezone().date()).days
+    if days == 0:
+        return f"{local:%H:%M} today"
+    if days == 1:
+        return f"{local:%H:%M} tomorrow"
+    if days == -1:
+        return f"{local:%H:%M} yesterday"
+    return f"{local:%a} {local.day} {local:%b %H:%M}"
+
+
+def left(epoch: float) -> str:
+    minutes = max(0, int((epoch - time.time()) // 60))
+    return f"{minutes // 60} h {minutes % 60:02d} min left"
+
+
+def note(line: str) -> None:
+    """What was done, without the token, into the log."""
+    try:
+        with open(LOG, "a", encoding="utf-8") as fh:
+            who = os.environ.get("SUDO_USER") or "root"
+            fh.write(f"{datetime.now(timezone.utc):%Y-%m-%dT%H:%M:%SZ} {who} {line}\n")
+    except OSError:
+        pass
+
+
+def docker(*args: str, check: bool = True, timeout: float = 600) -> subprocess.CompletedProcess:
+    try:
+        r = subprocess.run(["docker", *args], capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        r = subprocess.CompletedProcess(["docker", *args], 127, "", str(e))
+    if check and r.returncode:
+        raise Refused(f"docker {args[0]} failed: {(r.stderr or r.stdout).strip()[-300:]}")
+    return r
+
+
+def keys_dir() -> Path:
+    if os.environ.get("ROUH_GRANT_KEYS_DIR"):
+        return Path(os.environ["ROUH_GRANT_KEYS_DIR"])
+    r = docker("volume", "inspect", f"{PROJECT}_keys", "--format", "{{ .Mountpoint }}", check=False)
+    if r.returncode or not r.stdout.strip():
+        raise Refused(f"There is no keys volume {PROJECT}_keys on this machine (is the stack running here?).")
+    return Path(r.stdout.strip())
+
+
+def write(path: Path, text: str) -> None:
+    """Into the keys volume whole or not at all, readable by the key proxy's group only."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".grant.")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        if os.geteuid() == 0:
+            os.chown(tmp, *OWNER)
+        os.chmod(tmp, 0o440)
+        os.replace(tmp, path)
+    except BaseException:
+        with_missing_ok(Path(tmp))
+        raise
+
+
+def with_missing_ok(path: Path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+# --- GitHub ----------------------------------------------------------------------------------------
+
+def github_user(token: str) -> tuple[str, str]:
+    """(login, scopes) as GitHub says, or Refused when it does not take the token."""
+    req = urllib.request.Request(f"{GITHUB_API}/user", headers={
+        "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
+        "User-Agent": "rouh-grant"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.load(r).get("login", ""), r.headers.get("X-OAuth-Scopes") or ""
+    except urllib.error.HTTPError as e:
+        raise Refused(f"GitHub did not take the token ({e.code}); nothing was changed.") from None
+    except OSError as e:
+        raise Refused(f"GitHub could not be asked about the token ({e}); nothing was changed.") from None
+
+
+def read_github(keys: Path) -> dict | None:
+    try:
+        grant = json.loads((keys / GITHUB_FILE).read_text())
+        return grant if isinstance(grant, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def github_set(hours: int, token_text: str, *, check: bool = True) -> None:
+    token = token_text.strip()
+    if not TOKEN_SHAPE.fullmatch(token):
+        raise Refused("That is not a GitHub token (nothing, or more than one line, came on standard input).")
+    login, scopes = github_user(token) if check else ("", "")
+    keys = keys_dir()
+    now = time.time()
+    until = now + hours * 3600
+    write(keys / GITHUB_FILE, json.dumps({"token": token, "until": int(until), "login": login,
+                                          "scopes": scopes, "granted": int(now)}))
+    note(f"github set {hours}h until {int(until)} as {login or '?'}")
+    print(f"GitHub open for Rouh's runs as {login or 'the token given'} until {when(until)} ({hours} h).")
+    proxy_note()
+
+
+def github_status(details: bool = False) -> int:
+    grant = read_github(keys_dir())
+    if not grant:
+        print("No GitHub grant is open.")
+        return 1
+    until = float(grant.get("until") or 0)
+    if until <= time.time():
+        print(f"The GitHub grant ended at {when(until)}; the prune deletes it within a minute.")
+        return 1
+    print(f"GitHub open for Rouh's runs as {grant.get('login') or '(user not known)'} until {when(until)} ({left(until)}).")
+    if details and grant.get("scopes"):
+        print(f"The token's scopes: {grant['scopes']}")
+    proxy_note()
+    return 0
+
+
+def github_revoke() -> None:
+    keys = keys_dir()
+    had = (keys / GITHUB_FILE).exists()
+    with_missing_ok(keys / GITHUB_FILE)
+    note("github revoke")
+    print("GitHub closed for Rouh's runs; the token is deleted from the host." if had else "GitHub was not open.")
+
+
+# --- the grants past the standing rules -------------------------------------------------------------
+
+def is_ipv4(text: str) -> bool:
+    m = re.fullmatch(r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})", text)
+    return bool(m) and all(int(x) <= 255 for x in m.groups())
+
+
+def host_of(text: str) -> str:
+    """A host name or an IPv4 address, in small letters, or Refused."""
+    host = text.strip().lower().strip(".")
+    if is_ipv4(host):
+        return host
+    if not HOST_SHAPE.fullmatch(host) or host.replace(".", "").isdigit():
+        raise Refused(f"{text!r} is not a host name or an IPv4 address.")
+    return host
+
+
+def pair_of(text: str) -> str:
+    """host:port in small letters, port 443 when left out; a name or an IPv4 address only."""
+    text = text.strip().lower()
+    if text.count(":") > 1:
+        raise Refused(f"{text!r}: give a host name or an IPv4 address, with :PORT if not 443.")
+    host, _, port = text.partition(":")
+    host = host_of(host)
+    port = port or "443"
+    if not port.isdigit() or not 1 <= int(port) <= 65535:
+        raise Refused(f"{port!r} is not a port.")
+    return f"{host}:{int(port)}"
+
+
+def grant_of(word: str) -> dict:
+    """What one word opens: a group, HOST:PORT, or a name and everything under it."""
+    w = word.strip().lower()
+    if w in INTERNET_WORDS:
+        return {"kind": "all"}
+    if w in GROUPS:
+        return {"kind": w}
+    if ":" in w:
+        host, _, port = pair_of(w).rpartition(":")
+        return {"kind": "pair", "host": host, "port": int(port)}
+    return {"kind": "name", "name": host_of(w)}
+
+
+def key_of(g: dict) -> str:
+    if g["kind"] == "pair":
+        return f"{g['host']}:{g['port']}"
+    if g["kind"] == "name":
+        return g["name"]
+    return g["kind"]
+
+
+def label(g: dict) -> str:
+    """The short name a grant's line starts with."""
+    return LABEL.get(g["kind"]) or (g.get("name") or f"{g.get('host')}:{g.get('port')}")
+
+
+def says(g: dict) -> str:
+    if g["kind"] in SAYS:
+        return SAYS[g["kind"]]
+    if g["kind"] == "name":
+        what = g["name"]
+        if is_ipv4(what):
+            return f"{what}, on any port"
+        return f"{what} and everything under it (such as www.{what}), on any port"
+    return f"{g['host']} on port {g['port']} only"
+
+
+def read_grants(keys: Path) -> list[dict]:
+    """The grants in the file, and the older timed list's lines as pairs, ended or not."""
+    out = []
+    try:
+        raw = json.loads((keys / GRANTS_FILE).read_text())
+        for g in raw.get("grants") or []:
+            if isinstance(g, dict) and g.get("kind") in (*GROUPS, "name", "pair") and str(g.get("until", "")).isdigit():
+                out.append({k: g[k] for k in ("kind", "until", "name", "host", "port", "granted") if k in g})
+    except (OSError, ValueError, AttributeError):
+        pass
+    try:
+        text = (keys / ALLOW_FILE).read_text()
+    except OSError:
+        text = ""
+    for line in text.splitlines():
+        parts = line.split("#", 1)[0].split()
+        if len(parts) >= 2 and parts[1].isdigit() and parts[0].count(":") == 1:
+            host, _, port = parts[0].rpartition(":")
+            if port.isdigit():
+                out.append({"kind": "pair", "host": host, "port": int(port), "until": int(parts[1])})
+    return out
+
+
+def live(grants: list[dict]) -> list[dict]:
+    """The grants whose end has not passed, one of each (the later end kept)."""
+    now = time.time()
+    best: dict[str, dict] = {}
+    for g in grants:
+        if int(g["until"]) > now and (key_of(g) not in best or int(g["until"]) > int(best[key_of(g)]["until"])):
+            best[key_of(g)] = g
+    return list(best.values())
+
+
+def write_grants(keys: Path, grants: list[dict]) -> None:
+    """The file the key proxy reads, whole: the grants, and what servers and lan need. The older
+    timed list is folded into it and deleted, so there is one file to read."""
+    kept = live(grants)
+    data = {"format": FORMAT, "written": int(time.time()), "grants": sorted(kept, key=lambda g: (g["until"], key_of(g))),
+            "servers": servers_resolved() if any(g["kind"] == "servers" for g in kept) else [],
+            "lan": lan_addresses() if any(g["kind"] == "lan" for g in kept) else {}}
+    write(keys / GRANTS_FILE, json.dumps(data, indent=1) + "\n")
+    if (keys / ALLOW_FILE).exists():
+        with_missing_ok(keys / ALLOW_FILE)
+
+
+def open_grants(words: list[str]) -> None:
+    hours = 8
+    if words and words[-1].isdigit():
+        hours = hours_of(words.pop())
+    if not words:
+        raise Refused("Say what to open: internet, ssh, servers, lan, a name such as example.com, or HOST:PORT.")
+    wanted = [grant_of(w) for w in words]
+    keys = keys_dir()
+    now = int(time.time())
+    until = now + hours * 3600
+    grants = [g for g in live(read_grants(keys)) if key_of(g) not in {key_of(w) for w in wanted}]
+    grants += [{**w, "until": until, "granted": now} for w in wanted]
+    write_grants(keys, grants)
+    for w in wanted:
+        note(f"open {key_of(w)} {hours}h until {until}")
+        print(f"{label(w)} open for Rouh's runs until {when(until)} ({hours} h): {says(w)}.")
+        if w["kind"] == "servers":
+            print("  " + ", ".join(server_words(e) for e in servers_resolved()))
+        if w["kind"] == "lan":
+            lan = lan_addresses()
+            print(f"  the office network: {', '.join(lan['nets']) or 'none found'}; "
+                  f"the host: {', '.join(lan['hosts']) or 'none found'}")
+    proxy_note()
+
+
+def list_grants() -> int:
+    grants = sorted(live(read_grants(keys_dir())), key=lambda g: (g["until"], key_of(g)))
+    if not grants:
+        print("Nothing extra is open. The runs reach only the standing rules below.")
+    else:
+        print("Open now:")
+        for g in grants:
+            print(f"  {says(g)}")
+            print(f"      until {when(g['until'])}, {left(g['until'])}   (close it: revoke {'internet' if g['kind'] == 'all' else key_of(g)})")
+            if g["kind"] == "servers":
+                print("      " + ", ".join(server_words(e) for e in servers_resolved()))
+    print()
+    print("Always open, with no grant: web pages and https (ports 80 and 443) on public servers, "
+          "and Anthropic and OpenAI with Rouh's keys.")
+    fixed = settings_allow()
+    if fixed:
+        print(f"Also always open (ROUH_KEYPROXY_ALLOW in {STACK_DIR / '.env'}): {fixed}")
+    gh = read_github(keys_dir())
+    if gh and float(gh.get("until") or 0) > time.time():
+        print(f"GitHub: open as {gh.get('login') or '(user not known)'} until {when(float(gh['until']))}.")
+    proxy_note()
+    return 0
+
+
+def revoke_grants(words: list[str]) -> None:
+    if not words:
+        raise Refused("Say what to close: all, a group (ssh, servers, lan), a name or HOST:PORT.")
+    keys = keys_dir()
+    grants = live(read_grants(keys))
+    if [w.lower() for w in words] == ["all"]:
+        write_grants(keys, [])
+        note("revoke all")
+        print(f"Every proxy grant closed ({len(grants)} open before); web pages and https stay open as always.")
+        return
+    gone = {key_of(grant_of(w)) for w in words}
+    kept = [g for g in grants if key_of(g) not in gone]
+    write_grants(keys, kept)
+    for k in sorted(gone):
+        note(f"revoke {k}")
+        shown = LABEL.get(k, k)
+        print(f"{shown} closed." if any(key_of(g) == k for g in grants) else f"{shown} was not open.")
+
+
+def settings_allow() -> str:
+    try:
+        for line in (STACK_DIR / ".env").read_text().splitlines():
+            if line.startswith("ROUH_KEYPROXY_ALLOW="):
+                return line.split("=", 1)[1].strip().strip("'\"")
+    except OSError:
+        pass
+    return ""
+
+
+# --- the owner's servers ---------------------------------------------------------------------------
+
+def servers_path() -> Path:
+    return LIB / SERVERS_FILE
+
+
+def read_servers() -> list[tuple[str, list[str]]]:
+    """NAME [ADDRESS...] a line, kept beside the helper (install.sh writes the first list)."""
+    try:
+        text = servers_path().read_text()
+    except OSError:
+        return []
+    out = []
+    for line in text.splitlines():
+        parts = line.split("#", 1)[0].split()
+        if parts:
+            out.append((parts[0].lower(), [a for a in parts[1:] if is_ipv4(a)]))
+    return out
+
+
+def write_servers(entries: list[tuple[str, list[str]]]) -> None:
+    lines = ["# The owner's own servers, which `rouh-proxy-grant servers` opens: NAME [ADDRESS...] a line.",
+             "# Written by rouh-grant servers add / remove. A name with no address is looked up when opened."]
+    lines += [" ".join([n, *a]) for n, a in entries]
+    servers_path().parent.mkdir(parents=True, exist_ok=True)
+    tmp = servers_path().with_suffix(".new")
+    tmp.write_text("\n".join(lines) + "\n")
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, servers_path())
+
+
+def servers_resolved() -> list[dict]:
+    """Each server with its addresses: the ones written down, or when none is, what its name
+    resolves to now (public addresses only; a server is never a way onto a private network)."""
+    out = []
+    for name, addresses in read_servers():
+        found = list(addresses)
+        if is_ipv4(name):
+            found.append(name)
+        elif not found and "." in name:
+            try:
+                found += [i[4][0] for i in socket.getaddrinfo(name, None, socket.AF_INET, socket.SOCK_STREAM)]
+            except OSError:
+                pass
+        found = [a for a in found if ipaddress.ip_address(a).is_global]
+        out.append({"name": name, "addresses": sorted(set(found))})
+    return out
+
+
+def server_words(e: dict) -> str:
+    adds = [a for a in e["addresses"] if a != e["name"]]
+    return f"{e['name']} ({', '.join(adds)})" if adds else e["name"]
+
+
+def servers_cmd(args: list[str]) -> int:
+    entries = read_servers()
+    if args in ([], ["list"]):
+        print("Your servers, which `rouh-proxy-grant servers` opens on any port:")
+        if not entries:
+            print("  none yet: rouh-proxy-grant servers add NAME-OR-IP")
+        for e in servers_resolved():
+            print(f"  {server_words(e)}")
+        print(f"(kept in {servers_path()})")
+        return 0
+    if args[0] == "add" and len(args) >= 2:
+        name = host_of(args[1])
+        addresses = [host_of(a) for a in args[2:]]
+        bad = [a for a in addresses if not is_ipv4(a)]
+        if bad:
+            raise Refused(f"{bad[0]!r} is not an IPv4 address.")
+        if not addresses and not is_ipv4(name) and "." in name:
+            try:
+                addresses = sorted({i[4][0] for i in socket.getaddrinfo(name, None, socket.AF_INET, socket.SOCK_STREAM)})
+            except OSError:
+                raise Refused(f"{name} does not resolve here. Give its address too: servers add {name} ADDRESS") from None
+        elif not addresses and not is_ipv4(name):
+            raise Refused(f"{name} is not a name that resolves. Give its address too: servers add {name} ADDRESS")
+        for a in [name, *addresses]:
+            if is_ipv4(a) and not ipaddress.ip_address(a).is_global:
+                raise Refused(f"{a} is a private address; the office network is the lan group, not a server.")
+        entries = [(n, a) for n, a in entries if n != name] + [(name, addresses)]
+        write_servers(entries)
+        note(f"servers add {name} {' '.join(addresses)}")
+        print(f"{server_words({'name': name, 'addresses': addresses})} is on your servers' list.")
+    elif args[0] == "remove" and len(args) == 2:
+        name = host_of(args[1])
+        kept = [(n, a) for n, a in entries if n != name and name not in a]
+        if len(kept) == len(entries):
+            print(f"{name} was not on your servers' list.")
+            return 1
+        write_servers(kept)
+        note(f"servers remove {name}")
+        print(f"{name} is off your servers' list.")
+    else:
+        print(USAGE, file=sys.stderr)
+        return 2
+    keys = keys_dir()
+    grants = live(read_grants(keys))
+    if any(g["kind"] == "servers" for g in grants):
+        write_grants(keys, grants)
+        print("The open servers grant now covers the new list.")
+    return 0
+
+
+# --- the office network ----------------------------------------------------------------------------
+
+def _env_list(name: str) -> list[str]:
+    return [v.strip() for v in os.environ.get(name, "").split(",") if v.strip()]
+
+
+def lan_addresses() -> dict:
+    """What a lan grant reaches, worked out on this machine: the private networks of its own
+    interfaces that are not Docker's (the office network), its own addresses (the host itself,
+    including the gateway of each container network, which is the host), and every container
+    network Docker has, which stays refused but for the host's own address on it."""
+    if any(os.environ.get(f"ROUH_GRANT_LAN_{k}") for k in ("NETS", "HOSTS", "DENY")):
+        return {"nets": _env_list("ROUH_GRANT_LAN_NETS"), "hosts": _env_list("ROUH_GRANT_LAN_HOSTS"),
+                "deny": _env_list("ROUH_GRANT_LAN_DENY")}
+    nets, hosts, deny = set(), set(), set()
+    try:
+        r = subprocess.run(["ip", "-j", "-4", "addr", "show"], capture_output=True, text=True, timeout=20)
+        links = json.loads(r.stdout or "[]")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        links = []
+    for link in links:
+        dev = link.get("ifname", "")
+        for a in link.get("addr_info") or []:
+            if a.get("family") != "inet" or not a.get("local"):
+                continue
+            address = ipaddress.ip_address(a["local"])
+            if address.is_loopback:
+                continue
+            hosts.add(str(address))
+            dockers = dev.startswith(("docker", "br-", "veth"))
+            net = ipaddress.ip_network(f"{a['local']}/{a.get('prefixlen', 32)}", strict=False)
+            if dockers:
+                deny.add(str(net))
+            elif not address.is_global and net.prefixlen < 32:
+                nets.add(str(net))
+    r = docker("network", "ls", "-q", check=False)
+    ids = r.stdout.split() if r.returncode == 0 else []
+    if ids:
+        r = docker("network", "inspect", "--format", "{{range .IPAM.Config}}{{.Subnet}} {{end}}", *ids, check=False)
+        for sub in r.stdout.split():
+            with contextlib.suppress(ValueError):
+                net = ipaddress.ip_network(sub, strict=False)
+                if net.version == 4:
+                    deny.add(str(net))
+    # The office network is never also a container network.
+    nets = {n for n in nets if not any(ipaddress.ip_network(n).overlaps(ipaddress.ip_network(d)) for d in deny)}
+    return {"nets": sorted(nets), "hosts": sorted(hosts), "deny": sorted(deny)}
+
+
+# --- the record of what the grants were used for -----------------------------------------------------
+
+def _stamp(text: str) -> str:
+    """Docker's RFC 3339 time with its fraction always nine digits, so two compare as text."""
+    m = re.fullmatch(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d+))?Z", text)
+    return f"{m.group(1)}.{(m.group(2) or '').ljust(9, '0')[:9]}Z" if m else ""
+
+
+def gather_used() -> None:
+    """The key proxy's GRANT lines since the last time, from its log into USED_LOG, which outlives
+    the proxy's container. One line a connection: when, which grant, how, host:port, address."""
+    cid = proxy_container()
+    if not cid:
+        return
+    STATE.mkdir(parents=True, exist_ok=True)
+    mark = STATE / "used-since"
+    try:
+        since_id, since = mark.read_text().split()
+    except (OSError, ValueError):
+        since_id, since = "", ""
+    args = ["logs", "--timestamps"]
+    if since and since_id == cid:
+        args += ["--since", since]
+    r = docker(*args, cid, check=False, timeout=60)
+    if r.returncode:
+        return
+    last = _stamp(since) if since_id == cid else ""
+    newest = last
+    out = []
+    for line in (r.stdout + r.stderr).splitlines():
+        raw, _, rest = line.partition(" ")
+        stamp = _stamp(raw)
+        if not stamp or " GRANT " not in rest or (last and stamp <= last):
+            continue
+        fields = rest.split(" GRANT ", 1)[1].split()
+        # name and servers grants are two words: "name example.com", "servers rou".
+        if fields and fields[0] in ("name", "servers", "pair") and len(fields) >= 5:
+            fields = [f"{fields[0]} {fields[1]}", *fields[2:]]
+        if len(fields) >= 4:
+            grant, how, target, address = fields[:4]
+            out.append(f"{stamp[:19]}Z  {grant:24} {how:7} {target:40} {address}")
+            newest = max(newest, stamp)
+    if out:
+        out.sort()
+        with open(USED_LOG, "a", encoding="utf-8") as fh:
+            fh.write("\n".join(out) + "\n")
+        os.chmod(USED_LOG, 0o640)
+    if newest:
+        mark.write_text(f"{cid} {newest}\n")
+
+
+def show_used(count: int) -> int:
+    gather_used()
+    try:
+        lines = USED_LOG.read_text().splitlines()
+    except OSError:
+        lines = []
+    if not lines:
+        print("No connection has gone through a grant yet. (Ports 80 and 443 to public servers are the "
+              "standing rules and are not in this record.)")
+        return 0
+    counts: dict[str, int] = {}
+    for line in lines:
+        f = line.split()
+        if len(f) >= 4:
+            target = f[-2]
+            counts[target] = counts.get(target, 0) + 1
+    print(f"What the grants were used for, {len(lines)} connections since {lines[0][:16].replace('T', ' ')} UTC.")
+    print("Most used:")
+    for target, n in sorted(counts.items(), key=lambda kv: -kv[1])[:15]:
+        print(f"  {n:6}  {target}")
+    print(f"The latest {min(count, len(lines))} (when, which grant, how, where, address):")
+    for line in lines[-count:]:
+        print(f"  {line}")
+    print(f"(kept in {USED_LOG} on the host)")
+    return 0
+
+
+def prune() -> None:
+    keys = keys_dir()
+    grant = read_github(keys)
+    if (keys / GITHUB_FILE).exists() and (not grant or float(grant.get("until") or 0) <= time.time()):
+        with_missing_ok(keys / GITHUB_FILE)
+        note("github ended, deleted")
+    try:
+        on_disk = json.loads((keys / GRANTS_FILE).read_text())
+    except (OSError, ValueError):
+        on_disk = None
+    grants = read_grants(keys)
+    still = live(grants)
+    if len(still) != len(grants) or (keys / ALLOW_FILE).exists():
+        write_grants(keys, still)
+        note(f"pruned {len(grants) - len(still)}")
+    elif on_disk is not None and still:
+        # The servers' addresses and the office network can change while a grant is open; the
+        # file is written again only when what the proxy would read is different.
+        fresh_servers = servers_resolved() if any(g["kind"] == "servers" for g in still) else []
+        fresh_lan = lan_addresses() if any(g["kind"] == "lan" for g in still) else {}
+        if fresh_servers != on_disk.get("servers", []) or fresh_lan != on_disk.get("lan", {}):
+            write_grants(keys, still)
+    logins = read_logins(keys)
+    if (keys / LOGINS_FILE).exists() and any(e["until"] <= time.time() for e in logins) or \
+            ((keys / LOGINS_FILE).exists() and not logins):
+        write_logins(keys, logins)
+        note("logins ended, pruned")
+    with contextlib.suppress(Exception):
+        gather_used()
+
+
+# --- the owner's own servers' logins, as rouh-open opened them -------------------------------------
+#
+# rouh.land and the relay keep the jobs' key themselves, with its end, and refuse it after. This is
+# only the record of it, in the keys volume beside the other grants, so Rouh can say what is open
+# and until when without anybody telling it (rouh/tools.py, server_health's access).
+
+NAME_SHAPE = re.compile(r"[a-z0-9][a-z0-9.-]{0,62}")
+
+
+def read_logins(keys: Path) -> list[dict]:
+    try:
+        raw = json.loads((keys / LOGINS_FILE).read_text())
+        return [{"name": str(e["name"]), "until": int(e["until"])} for e in raw.get("logins") or []
+                if isinstance(e, dict) and NAME_SHAPE.fullmatch(str(e.get("name", ""))) and str(e.get("until", "")).isdigit()]
+    except (OSError, ValueError, AttributeError, KeyError):
+        return []
+
+
+def write_logins(keys: Path, logins: list[dict]) -> None:
+    now = time.time()
+    kept = sorted((e for e in logins if e["until"] > now), key=lambda e: e["name"])
+    if not kept:
+        with_missing_ok(keys / LOGINS_FILE)
+        return
+    write(keys / LOGINS_FILE, json.dumps({"written": int(now), "logins": kept}, indent=1) + "\n")
+
+
+def login_cmd(args: list[str]) -> None:
+    if args[:1] == ["open"] and len(args) >= 3 and len(args) % 2 == 1:
+        pairs = list(zip(args[1::2], args[2::2]))
+    elif args[:1] == ["close"] and len(args) >= 2:
+        pairs = [(n, None) for n in args[1:]]
+    else:
+        raise Refused("login open NAME HOURS [NAME HOURS...], or login close NAME...")
+    for name, _ in pairs:
+        if not NAME_SHAPE.fullmatch(name):
+            raise Refused(f"{name!r} is not a server's name.")
+    keys = keys_dir()
+    names = {n for n, _ in pairs}
+    logins = [e for e in read_logins(keys) if e["name"] not in names]
+    now = int(time.time())
+    for name, hours in pairs:
+        if hours is not None:
+            logins.append({"name": name, "until": end_of(hours)})
+        note(f"login {name} {'open ' + hours + 'h' if hours else 'closed'}")
+    write_logins(keys, logins)
+
+
+def summary() -> int:
+    """What is open, one line each, for rouh-open on the owner's Mac to read; no token, ever."""
+    keys = keys_dir()
+    gh = read_github(keys)
+    if gh and float(gh.get("until") or 0) > time.time():
+        print(f"github {int(float(gh['until']))} {gh.get('login') or '-'}")
+    for g in sorted(live(read_grants(keys)), key=lambda g: (g["until"], key_of(g))):
+        print(f"grant {key_of(g)} {int(g['until'])}")
+    for e in read_logins(keys):
+        if e["until"] > time.time():
+            print(f"login {e['name']} {e['until']}")
+    return 0
+
+
+# --- the host's own login, for the jobs (rouh-open's "the host  server login") ------------------------
+#
+# Petar, 4 November 2026: the host itself on rouh-open's list. The jobs' key is written into the
+# keys of the account the owner ran this from (pp, whose sudo is the owner's own admin), with an
+# end time and from=, by the same helper the relay uses (servers/rouh-jobs-keys, kept in LIB and
+# in /usr/local/sbin), whose 5-minute timer takes it out at its end. Nothing here can be run
+# without the owner's own approved login to the host, so nothing inside Rouh or the host opens it.
+
+JOBS_KEYS = "rouh-jobs-keys"
+KEY_TYPES = ("ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521")
+
+
+def jobs_keys_helper() -> Path:
+    for p in (LIB / JOBS_KEYS, Path("/usr/local/sbin") / JOBS_KEYS):
+        if p.exists():
+            return p
+    raise Refused(f"{LIB / JOBS_KEYS} is not on the host yet: run rouh-open update on the Mac.")
+
+
+def router_gateways() -> list[str]:
+    """The gateway of each of this machine's default routes (the office router, the 5G box). A job
+    that reaches the host by its public address and port comes back in through one of them, and some
+    routers show such a connection as coming from their own address, so from= names them too."""
+    if os.environ.get("ROUH_GRANT_GATEWAYS") is not None:
+        return _env_list("ROUH_GRANT_GATEWAYS")
+    try:
+        r = subprocess.run(["ip", "-j", "-4", "route", "show", "default"], capture_output=True, text=True, timeout=20)
+        routes = json.loads(r.stdout or "[]")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return []
+    return sorted({g["gateway"] for g in routes if isinstance(g, dict) and is_ipv4(str(g.get("gateway", "")))})
+
+
+def sshd_takes(user: str, address: str, ktype: str) -> str:
+    """Why sshd here would not take the jobs' key for this account, or "" when it would (or cannot
+    be asked). Nothing in sshd's settings is changed for it: the host's own rule stands."""
+    if os.environ.get("ROUH_GRANT_SSHD_T") is not None:
+        text = os.environ["ROUH_GRANT_SSHD_T"].replace(";", "\n")
+    else:
+        try:
+            r = subprocess.run(["sshd", "-T", "-C", f"user={user},host=rouh-jobs,addr={address}"],
+                               capture_output=True, text=True, timeout=20)
+        except (OSError, subprocess.SubprocessError):
+            return ""
+        if r.returncode:
+            return ""
+        text = r.stdout
+    conf: dict[str, str] = {}
+    for line in text.splitlines():
+        k, _, v = line.strip().partition(" ")
+        conf.setdefault(k.lower(), v.strip())
+    if conf.get("pubkeyauthentication", "yes") != "yes":
+        return "the host's sshd takes no plain keys"
+    methods = conf.get("authenticationmethods", "any")
+    if methods != "any" and "publickey" not in methods.split(" "):
+        return f"the host's sshd asks more than a key for {user} ({methods})"
+    algos = conf.get("pubkeyacceptedalgorithms") or conf.get("pubkeyacceptedkeytypes") or ""
+    if algos and ktype not in algos.split(",") and not any(a.endswith("*") and ktype.startswith(a[:-1]) for a in algos.split(",")):
+        return f"the host's sshd takes only these kinds of key: {algos}"
+    allow = conf.get("allowusers", "")
+    if allow and not any(a.split("@")[0] in (user, "*") for a in allow.split()):
+        return f"{user} is not among the host's AllowUsers"
+    return ""
+
+
+def sudo_words(user: str) -> str:
+    """Whether the account may use sudo with no password, which a job needs: yes, password or no."""
+    if os.environ.get("ROUH_GRANT_SUDO") is not None:
+        return os.environ["ROUH_GRANT_SUDO"]
+    try:
+        r = subprocess.run(["sudo", "-n", "-l", "-U", user], capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    text = r.stdout
+    if re.search(r"\(ALL(\s*:\s*ALL)?\)\s*NOPASSWD:\s*ALL\b", text):
+        return "yes"
+    if re.search(r"\(ALL(\s*:\s*ALL)?\)\s*(PASSWD:\s*)?ALL\b", text):
+        return "password"
+    return "no"
+
+
+def jobs_key_cmd(args: list[str]) -> int:
+    helper = jobs_keys_helper()
+    env = dict(os.environ)
+    if args[:1] == ["open"] and len(args) == 7:
+        name, hours, frm, ktype, kbody, comment = args[1:]
+        if not NAME_SHAPE.fullmatch(name):
+            raise Refused(f"{name!r} is not a key's name.")
+        end_of(hours)
+        user = os.environ.get("SUDO_USER") or ""
+        if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", user) or user == "root":
+            raise Refused("Run it with sudo from the owner's own account (pp), so the key goes into that account's keys.")
+        if ktype not in KEY_TYPES:
+            raise Refused(f"{ktype!r} is not a kind of key.")
+        addresses = [a for a in frm.split(",") if a]
+        if not addresses or not all(is_ipv4(a) for a in addresses):
+            raise Refused(f"{frm!r} is not a list of addresses.")
+        why = sshd_takes(user, addresses[0], ktype)
+        if why:
+            raise Refused(f"{why}; the key was not written, and sshd's settings are unchanged.")
+        frm = ",".join(dict.fromkeys(addresses + router_gateways()))
+        env["ROUH_JOBS_KEYS_USER"] = user
+        r = subprocess.run(["bash", str(helper), "open", name, hours, frm, ktype, kbody, comment],
+                           env=env, capture_output=True, text=True, timeout=120)
+        out = (r.stdout + r.stderr).strip()
+        note(f"jobs-key open {name} {hours}h as {user} from {frm}: {'ok' if r.returncode == 0 else 'refused'}")
+        print(out)
+        if r.returncode == 0:
+            print(f"sudo: {sudo_words(user)} {user}")
+        return r.returncode
+    if args[:1] in (["close"], ["until"], ["status"]) and len(args) == (1 if args[0] == "status" else 2):
+        r = subprocess.run(["bash", str(helper), *args], env=env, capture_output=True, text=True, timeout=120)
+        out = (r.stdout + r.stderr).strip()
+        if args[0] == "close":
+            note(f"jobs-key close {args[1]}: {'files changed while in' if 'WARNING' in out else 'nothing else changed'}")
+        print(out)
+        return r.returncode
+    raise Refused("jobs-key open NAME HOURS FROM KEYTYPE KEYBODY COMMENT, jobs-key close NAME, jobs-key until NAME")
+
+
+# --- the key proxy that reads them -----------------------------------------------------------------
+
+def proxy_container() -> str:
+    r = docker("ps", "-q", "--filter", f"label=com.docker.compose.project={PROJECT}",
+               "--filter", "label=com.docker.compose.service=keyproxy", check=False)
+    return r.stdout.strip().splitlines()[0] if r.returncode == 0 and r.stdout.strip() else ""
+
+
+def format_of(text: str) -> int:
+    """Which grants a key proxy's source reads: ROUH_GRANTS_FORMAT, 1 for the first one (the
+    timed host:port list only), 0 for none."""
+    m = re.search(r"^ROUH_GRANTS_FORMAT = (\d+)", text, re.M)
+    if m:
+        return int(m.group(1))
+    return 1 if "keyproxy_allow_timed" in text else 0
+
+
+def running_proxy() -> tuple[str, str] | None:
+    """The running key proxy's source and image, or None when it is not running."""
+    cid = proxy_container()
+    if not cid:
+        return None
+    r = docker("exec", cid, "cat", "/opt/rouh-guard/rouh_guard/keyproxy.py", check=False)
+    image = docker("inspect", "-f", "{{.Config.Image}}", cid, check=False).stdout.strip()
+    return (r.stdout if r.returncode == 0 else ""), image
+
+
+def proxy_reads_grants() -> bool | None:
+    """Whether the running key proxy reads the grants this writes (None when it is not running)."""
+    running = running_proxy()
+    return None if running is None else format_of(running[0]) >= FORMAT
+
+
+def proxy_current() -> bool | None:
+    """Whether the running key proxy needs nothing: it reads these grants, and when it is one this
+    helper put in place (rouh-guard-grants:...), it is this helper's very copy. A release's own
+    proxy that reads them is left alone."""
+    running = running_proxy()
+    if running is None:
+        return None
+    text, image = running
+    if format_of(text) < FORMAT:
+        return False
+    source = LIB / "keyproxy.py"
+    if image.startswith("rouh-guard-grants:") and source.exists():
+        return source.read_text() == text
+    return True
+
+
+def proxy_note() -> None:
+    if os.environ.get("ROUH_GRANT_KEYS_DIR"):
+        return
+    reads = proxy_reads_grants()
+    if reads is None:
+        print("Note: the key proxy is not running.")
+    elif not reads:
+        print("Note: the running key proxy is older than these grants and does not read them yet. "
+              "Put one that does in place: rouh-proxy-grant update (on the Mac), or sudo rouh-grant keyproxy")
+
+
+def keyproxy(check_only: bool) -> int:
+    """The key proxy of this checkout's guard (kept in LIB by install.sh) on top of the image the
+    stack runs, and only the key proxy recreated; until a release carries it. Nothing else of the
+    stack changes, and the next linux_stack.py update or apply puts the release's own back."""
+    current = proxy_current()
+    if current:
+        print("The running key proxy reads these grants already. Nothing to do.")
+        return 0
+    if check_only:
+        print("The running key proxy is not the one that reads these grants." if current is False
+              else "The key proxy is not running.")
+        return 1
+    source = LIB / "keyproxy.py"
+    stack_file = STACK_DIR / "stack" / "stack.json"
+    if not source.exists() or format_of(source.read_text()) < FORMAT:
+        raise Refused(f"{source} is missing or not the one that reads grants; run install.sh again.")
+    stack = json.loads(stack_file.read_text())
+    proxy = (stack.get("services") or {}).get("keyproxy")
+    if not isinstance(proxy, dict) or not proxy.get("image"):
+        raise Refused(f"{stack_file} has no key proxy with an image. Nothing was changed.")
+    base = proxy["image"]
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    with tempfile.TemporaryDirectory() as d:
+        shutil.copy(source, Path(d) / "keyproxy.py")
+        os.chmod(Path(d) / "keyproxy.py", 0o644)
+        (Path(d) / "Dockerfile").write_text(f"FROM {base}\nCOPY keyproxy.py /opt/rouh-guard/rouh_guard/keyproxy.py\n")
+        tag = f"rouh-guard-grants:{stamp}"
+        print(f"Building {tag} on {base} ...")
+        docker("build", "-q", "-t", tag, d, timeout=900)
+    shutil.copy2(stack_file, f"{stack_file}.before-grants-{stamp}")
+    proxy["image"] = tag
+    tmp = stack_file.with_suffix(".new")
+    tmp.write_text(json.dumps(stack, indent=1))
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, stack_file)
+    compose = ["compose", "--project-name", PROJECT, "-f", str(stack_file)]
+    docker(*compose, "up", "-d", "--no-deps", "--force-recreate", "keyproxy", timeout=300)
+    state = ""
+    for _ in range(45):
+        cid = proxy_container()
+        state = docker("inspect", "-f", "{{.State.Health.Status}}", cid, check=False).stdout.strip() if cid else ""
+        if state == "healthy":
+            break
+        time.sleep(2)
+    note(f"keyproxy put in place: {tag} on {base}")
+    print(f"Key proxy recreated on {tag}: {state or 'unknown'}. Copy of the stack file before: "
+          f"{stack_file}.before-grants-{stamp}")
+    if proxy_current():
+        print("The running key proxy reads grants now.")
+        return 0
+    print("The key proxy still does not read grants; put the copy back and recreate it.")
+    return 1
+
+
+# --- the command -----------------------------------------------------------------------------------
+
+USAGE = next(p for p in __doc__.split("\n\n") if p.lstrip().startswith("rouh-grant github set"))
+
+
+def main(argv: list[str]) -> int:
+    args = list(argv)
+    try:
+        if args[:2] == ["github", "set"] and len(args) <= 3:
+            github_set(hours_of(args[2] if len(args) == 3 else None), sys.stdin.read(4096))
+        elif args[:2] == ["github", "status"] and args[2:] in ([], ["--details"]):
+            return github_status(args[2:] == ["--details"])
+        elif args == ["github", "revoke"]:
+            github_revoke()
+        elif args[:1] == ["open"] and len(args) >= 2:
+            open_grants(args[1:])
+        elif args[:2] == ["allow", "add"] and len(args) in (3, 4):
+            open_grants(args[2:])
+        elif args in (["list"], ["allow", "list"]):
+            return list_grants()
+        elif args[:1] == ["revoke"] and len(args) >= 2:
+            revoke_grants(args[1:])
+        elif args[:2] == ["allow", "revoke"] and len(args) == 3:
+            revoke_grants(args[2:])
+        elif args[:1] == ["servers"]:
+            return servers_cmd(args[1:])
+        elif args[:1] == ["log"] and len(args) <= 2:
+            return show_used(int(args[1]) if len(args) == 2 and args[1].isdigit() else 40)
+        elif args[:1] == ["jobs-key"]:
+            return jobs_key_cmd(args[1:])
+        elif args[:1] == ["login"]:
+            login_cmd(args[1:])
+        elif args == ["summary"]:
+            return summary()
+        elif args == ["prune"]:
+            prune()
+        elif args[:1] == ["keyproxy"] and args[1:] in ([], ["--check"]):
+            return keyproxy(args[1:] == ["--check"])
+        else:
+            print(USAGE, file=sys.stderr)
+            return 2
+    except Refused as e:
+        print(e, file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

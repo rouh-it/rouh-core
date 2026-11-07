@@ -1,0 +1,6 @@
+services:
+  core:
+    image: !reset null
+    build:
+      context: ./images/core
+      network: host

@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# rouh-guard-install DIR: puts the protected core's own files (this image's
+# /opt/rouh-guard) into DIR, whole, replacing whatever was there.
+#
+# The stack's one-shot guard-init runs it on every start into the guard-bin
+# volume, which the guard, the core, the worker and the code install then mount
+# read-only at /opt/rouh-guard: so they run the protected core's start scripts,
+# checks and tools, which the Rouh can use and cannot edit, and a volume
+# somebody changed is put right again at the next start. The base check
+# (check-base.sh, the Mac app's StackUpdater.check) runs it into a throwaway
+# volume. Nothing of the Rouh's is read or written.
+set -eu
+out="${1:?rouh-guard-install: name the folder to put the protected core in}"
+src="${ROUH_GUARD_SOURCE:-/opt/rouh-guard}"
+[ -d "$out" ] || { echo "rouh-guard-install: $out is not a folder" >&2; exit 1; }
+[ -f "$src/VERSION" ] || { echo "rouh-guard-install: $src holds no protected core" >&2; exit 1; }
+find "$out" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+cp -a "$src/." "$out/"
+chmod -R a+rX,go-w "$out"
+echo "guard-init - the protected core $(cat "$src/VERSION") is in place"

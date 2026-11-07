@@ -1,0 +1,43 @@
+{
+  "id": "agent-instructions",
+  "name": "Agent instructions",
+  "title": "Agent instructions: what every agent Rouh starts is told before anything else, the rules with their Agent switch on",
+  "aliases": [
+    "agent instructions",
+    "agents",
+    "agents.md",
+    "instructions",
+    "agent rules",
+    "workspace rules",
+    "what agents are told"
+  ],
+  "group": "memory",
+  "route": "/agent-instructions",
+  "icon": "<rect x=\"4\" y=\"3.5\" width=\"16\" height=\"17\" rx=\"2\"/><path d=\"M8 8.5l2.5 2.2L8 13\"/><path d=\"M12.5 13H16\"/><path d=\"M8 17h8\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "agent_instruction",
+      "agent_instruction_group",
+      "agent_instruction_change",
+      "agent_instruction_issue",
+      "synapse.item"
+    ],
+    "jobs": [
+      "every run of the one program and every crew worker starts with them (one/runs.py _instructions, rouh/crew.py)"
+    ],
+    "remove": "Delete rouh/agent_instructions.py and rouh/web/agent_instructions.py, this manifest, the agent_instructions tool in rouh/tools.py, fetch_instructions and its caller in one/agents.py and one/runs.py, and the instructions argument of CrewManager in rouh/crew.py and rouh/runtime.py; take the Agent switch off the Rules page (rules.SIDES, set_switch, for_every_agent, and run_block's leaving out what every agent is told) and drop the four agent_instruction tables with a migration. Agents then start with no standing instructions but a run's brief. Since 30 October 2026 the instructions themselves are rules in the owner's Synapse Master, on the Rules page with Agent on, and stay there."
+  },
+  "uses": {
+    "tools": [
+      "agent_instructions"
+    ]
+  }
+}

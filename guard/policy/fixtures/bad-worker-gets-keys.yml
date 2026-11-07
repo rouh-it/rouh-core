@@ -1,0 +1,3 @@
+services:
+  worker:
+    volumes: ["keys:/keys:ro"]

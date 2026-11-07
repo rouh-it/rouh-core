@@ -1,0 +1,22 @@
+/* Anatomy, Money, Services (`servicespage.js`, `rouh/services.py`).
+
+   The cards and forms of the Heartbeat page (`heartbeatpage.css`) with a few
+   things of its own: what the active services come to a month, a service's
+   fields as a short list under its name, and an error under a field. */
+
+.svc-total { margin: 0; font-size: 13.5px; color: var(--text); font-variant-numeric: tabular-nums; }
+.svc-cost { margin-left: auto; font-variant-numeric: tabular-nums; }
+.svc-item.cancelled .hb-beat-what, .svc-item.cancelled .svc-cost { color: var(--dim); }
+.svc-dl { grid-template-columns: 104px minmax(0, 1fr); }
+.svc-dl a { color: var(--accent); overflow-wrap: anywhere; }
+.svc-acts { margin-top: 8px; }
+.svc-add { margin-top: 2px; }
+.svc-item .svc-form { padding: 4px 0; }
+.svc-form .hb-h5:first-child { margin-top: 0; }
+#servicesBody .hb-field.wrong input, #servicesBody .hb-field.wrong select { border-color: var(--bad); }
+.svc-field-error { color: var(--bad); font-size: 12.5px; line-height: 1.4; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .svc-dl { grid-template-columns: minmax(0, 1fr); gap: 0 10px; }
+  .svc-dl dd { margin-bottom: 6px; }
+  .svc-cost { margin-left: 0; flex-basis: 100%; }
+}

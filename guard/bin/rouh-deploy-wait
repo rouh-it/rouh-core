@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""rouh-deploy-wait --dir DIR --who WHO [--why WHY] [--watch-only] [--cap SECONDS]: wait until Rouh
+is answering nothing, before a deploy restarts it (guard/rouh_guard/deploywait.py has the whole
+of it). Part of the protected core. update-all.sh runs it before Rouh's restart on a server;
+rouh-guard-run does the same in the containers. Always exits 0: a deploy is never stopped by it,
+only held until the answers in progress are over, or for the most it may wait.
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from rouh_guard import deploywait  # noqa: E402
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="rouh-deploy-wait")
+    p.add_argument("--dir", required=True, help="Rouh's deploy-wait folder (DATA_DIR/deploy-wait)")
+    p.add_argument("--who", default="rouh")
+    p.add_argument("--why", default="")
+    p.add_argument("--watch-only", action="store_true", help="only wait for no answers; ask nothing")
+    p.add_argument("--cap", type=float, default=None)
+    a = p.parse_args()
+    try:
+        deploywait.wait(a.dir, a.who, why=a.why, ask=not a.watch_only, cap=a.cap)
+    except Exception as exc:  # noqa: BLE001 - a deploy is never stopped by the wait
+        print(f"rouh-deploy-wait: the wait failed ({type(exc).__name__}: {exc}); going on", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

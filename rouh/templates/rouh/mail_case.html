@@ -1,0 +1,1997 @@
+{% load rouh_assets %}<!doctype html>
+<html lang="en">
+<head>
+<script>document.documentElement.classList.add("js")</script>
+{% include "rouh/_trust_style.html" %}
+<link rel="stylesheet" href="{% asset "mailcasepage.css" %}">
+<title>{{ case.sender_name }} - {{ kind|default:"Email" }}</title>
+<!--
+  Somebody else's email, Telegram message or other message, as a case (`rouh/mail_cases.py`), drawn for debugging
+  and tuning the pipeline that carried it (`rouh/case_trace.py`). Petar, 1
+  October 2026: most stops are false alarms, and the page is for seeing each
+  check - what went in, what came out, what decided the route and why - and
+  for fixing it. Every section folds and starts closed, and since 2 October
+  2026 they run, top to bottom: Redo; what went wrong, unless the case waits
+  for a decision, which then holds its Open the step; the decision; Incoming /
+  Outgoing, theirs and the reply, a tab each; the pipeline, a swim-lane chart
+  of every step, whose dots open each step's brief, tools, tool calls, report
+  and model requests in one panel, and whose pass headers open how each pass
+  and its attempt went; and the logs. Ask, and Fix with the likely causes,
+  a brief for another run and the re-runs, are a bubble at the bottom right
+  that opens either as a panel over the page.
+
+  Since 15 October 2026 it is the case's one page (fr_65ed87c8685b): Rouh
+  shows it in a frame in the Approvals layer, with the orb beside it, at
+  /mail/case/<key>, and it asks this page with ?framed=1. What they asked and
+  Petar's decision on each, with its grant card, are at the top, drawn by
+  `mailcasepage.js`; for that evening they were a page of their own inside
+  Rouh and this one was the trace beside it. A link goes through Rouh around
+  the frame (`caseHost`, below), never inside it.
+
+  Dark only, as Petar asked. Works with no script: sections are <details>, every
+  step's card shows one under another, and every explanation is also a title. The script only adds the prompts on
+  demand, the Ask box, copying and explanations on tap.
+-->
+<style>
+/* The two the asks at the top use (`mailcasepage.css`) that the shared look does not have. */
+:root { --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent); --line-soft: #1a2029; }
+.wrap { max-width: 980px; }
+.case-asks { margin: 0 0 16px; }
+.term { border-bottom: 1px dotted var(--dimmer); cursor: help; }
+.tip { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; margin: 0 0 0 4px; border-radius: 50%; border: 1px solid var(--line); color: var(--dimmer); font-size: 11px; line-height: 1; cursor: help; vertical-align: 1px; background: transparent; padding: 0; font-family: var(--sans); }
+.tip:hover, .tip:focus-visible { color: var(--text); border-color: var(--dim); }
+#tipBox { position: fixed; z-index: 50; max-width: min(340px, calc(100vw - 24px)); padding: 9px 11px; border-radius: var(--radius-s); background: #1d2430; border: 1px solid #334055; color: var(--text); font-size: 12.5px; line-height: 1.45; box-shadow: 0 10px 30px rgba(0,0,0,.45); pointer-events: none; }
+#tipBox[hidden] { display: none; }
+
+/* Every section folds, and starts closed (Petar, 2 October 2026): the page
+   opens as a short list of what the case holds. */
+.card.fold { padding: 0; }
+.fold > details > summary { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 12px 16px; cursor: pointer; color: var(--text); font-size: 13px; border-radius: var(--radius); }
+.fold > details > summary::-webkit-details-marker { display: none; }
+.fold > details > summary::before { content: "›"; color: var(--dim); display: inline-block; width: 10px; font-size: 18px; line-height: 1; transition: transform .12s; }
+.fold > details[open] > summary::before { transform: rotate(90deg); }
+.fold > details > summary:hover::before { color: var(--text); }
+.fold > details > summary:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: -2px; }
+.fold > details > summary h2 { margin: 0; }
+.fold > details > summary .pill { margin-left: auto; }
+.fold > details > summary > .muted { min-width: 0; overflow-wrap: anywhere; }
+.fold .fold-body { padding: 0 16px 14px 36px; min-width: 0; }
+/* A coloured left edge is 2px wider than the plain one: keep the titles in line. */
+.fold:is(.warn, .bad, .good) > details > summary { padding-left: 14px; }
+.fold:is(.warn, .bad, .good) .fold-body { padding-left: 34px; }
+.diag { border-left-width: 3px; }
+.diag .headline { font-size: 16.5px; font-weight: 640; margin: 0 0 6px; overflow-wrap: anywhere; }
+.diag .plain { margin: 0 0 10px; overflow-wrap: anywhere; }
+.badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 620; border: 1px solid var(--line); }
+.badge.likely, .badge.partly { color: var(--good); border-color: color-mix(in srgb, var(--good) 50%, var(--line)); background: color-mix(in srgb, var(--good) 9%, transparent); }
+.badge.possible { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, var(--line)); background: color-mix(in srgb, var(--warn) 9%, transparent); }
+.badge.unlikely { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, var(--line)); background: color-mix(in srgb, var(--bad) 9%, transparent); }
+.files { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.files li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; overflow-wrap: anywhere; }
+.files .fname { font-weight: 600; }
+.ctl.small { padding: 4px 10px; font-size: 12px; min-height: 0; }
+.bad-text { color: var(--bad); margin: 8px 0 0; }
+.step-files { margin: 6px 0 0; }
+.step-files .files li .mono { font-size: 11.5px; }
+ul.why { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.inbox-q { margin: 14px 0 0; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--line)); border-radius: var(--radius-s); background: var(--panel-2); }
+.inbox-q h3 { margin: 0 0 4px; font-size: 14.5px; font-weight: 620; }
+.inbox-q-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); gap: 4px 18px; }
+@media (max-width: 640px) { .inbox-q-cols { grid-template-columns: minmax(0, 1fr); } }
+.inbox-q fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.inbox-q legend { padding: 0; margin: 0 0 4px; }
+.inbox-q .opt { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; cursor: pointer; overflow-wrap: anywhere; }
+.inbox-q .opt input { margin: 3px 0 0; accent-color: var(--accent); flex: none; }
+.inbox-q .opt .said { display: block; }
+.inbox-q .opt .note { display: block; color: var(--warn); }
+.inbox-q .opt .pill { font-size: 11px; padding: 0 8px; }
+.inbox-q .opt:has(input:disabled) { opacity: .45; cursor: not-allowed; }
+.inbox-q .inbox-which { margin: 0 0 4px 22px; }
+.inbox-q .inbox-which[hidden] { display: none; }
+.inbox-q .inbox-which input { width: 100%; }
+.inbox-q .actions { margin-top: 8px; }
+.quick { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
+/* What a yes does, A, B and C in the order they happen (`mail_cases.decision_parts`),
+   and what already went to the sender before it. */
+.parts { margin: 16px 0 0; display: grid; gap: 8px; }
+.part { border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--panel-2); min-width: 0; }
+.part-sum { list-style: none; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 9px; padding: 10px 12px; cursor: pointer; }
+.part-sum::-webkit-details-marker { display: none; }
+.part-sum::before { content: "›"; color: var(--dim); display: inline-block; width: 8px; font-size: 17px; line-height: 1; transition: transform .12s; }
+.part[open] > .part-sum::before { transform: rotate(90deg); }
+.part-sum:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: -2px; border-radius: var(--radius-s); }
+.part-key { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex: none; border-radius: 50%; background: color-mix(in srgb, var(--warn) 22%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--line)); color: var(--text); font-size: 12px; font-weight: 700; }
+.part-label { font-weight: 640; font-size: 14px; }
+.part-hint { color: var(--dim); font-size: 12.5px; min-width: 0; overflow-wrap: anywhere; }
+.part-body { padding: 0 12px 12px 29px; margin: 0; min-width: 0; }
+.part-when { margin: 0 0 8px; color: var(--dim); font-size: 12.5px; overflow-wrap: anywhere; }
+.part pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.part .field { margin: 0; }
+.part-note { margin: 8px 0 0; overflow-wrap: anywhere; }
+.told-list { list-style: none; display: grid; gap: 12px; }
+.out-files { margin: 10px 0 0; }
+.out-files ul { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.out-files li.off { opacity: .55; text-decoration: line-through; }
+.out-files label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .part-body { padding-left: 12px; } }
+
+/* The pipeline as a swim-lane chart (`case_trace._flow`): a lane per stage, a
+   dot per step in time order, the passes as bands behind them. The lane names
+   stay pinned on the left while the chart scrolls sideways. */
+.flow-scroll { overflow-x: auto; overflow-y: hidden; padding: 0 0 6px; scrollbar-width: thin; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.flow-inner { display: flex; width: max-content; min-width: 100%; position: relative; }
+.lane-names { position: sticky; left: 0; z-index: 3; flex: 0 0 auto; width: 132px; background: var(--panel); box-shadow: 8px 0 10px -8px rgba(0,0,0,.6); box-sizing: border-box; }
+.lane-name { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; padding: 0 10px 0 2px; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer; border-radius: 6px; min-height: 0; }
+.lane-name:hover { background: var(--panel-2); }
+.lane-name:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: -2px; }
+.lane-name .lname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lane-name .n { color: var(--dim); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.lane-name.none { color: var(--dimmer); cursor: default; opacity: .55; }
+.lane-name.none .n { color: var(--dimmer); }
+.lane-name.sel .lname { color: var(--accent); }
+.flow-plot { position: relative; flex: 0 0 auto; margin-left: 8px; }
+.band { position: absolute; top: 0; bottom: 0; border-radius: 8px; background: color-mix(in srgb, var(--text) 4.5%, transparent); }
+.band.waiting { background: color-mix(in srgb, var(--warn) 11%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent); }
+.pass-head { position: absolute; top: 0; height: 54px; box-sizing: border-box; padding: 6px 8px 4px; border: 0; border-radius: 8px 8px 0 0; background: transparent; color: var(--dim); font: inherit; font-size: 11.5px; line-height: 1.3; text-align: left; cursor: pointer; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 6px; align-content: start; min-height: 0; z-index: 1; }
+.pass-head:hover { color: var(--text); }
+.pass-head:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: -2px; }
+.pass-head .pn { grid-row: span 2; display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); font-weight: 650; font-size: 11.5px; padding: 0 5px; box-sizing: border-box; }
+.pass-head .pl { color: var(--text); font-weight: 560; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.pass-head .pw { color: var(--dimmer); white-space: nowrap; font-variant-numeric: tabular-nums; grid-column: 2; }
+.waiting + .pass-head .pn { background: color-mix(in srgb, var(--warn) 22%, var(--panel-2)); border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.pass-head.sel .pn { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+.flow-lines { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.flow-lines .rail { stroke: var(--line); stroke-width: 1; opacity: .55; }
+.flow-lines .seg { fill: none; stroke: var(--dim); stroke-width: 1.6; opacity: .75; }
+.flow-lines .seg.back { stroke: var(--bad); stroke-dasharray: 5 4; opacity: 1; stroke-width: 1.8; }
+/* Back from the word review to the route: its verdicts, green when it overruled every
+   flag, orange when it upheld one. A correction, not a failure. */
+.flow-lines .seg.review { stroke: var(--warn); stroke-dasharray: 5 4; opacity: 1; stroke-width: 1.8; }
+.flow-lines .seg.review.good { stroke: var(--good); }
+.flow-lines .seg.restart { stroke: var(--accent); stroke-dasharray: 5 4; opacity: 1; stroke-width: 1.8; }
+.flow-lines .seg-hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; cursor: help; }
+.dot { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; padding: 0; border: 0; border-radius: 50%; background: transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2; min-height: 0; }
+.dot .run { width: 16px; height: 16px; box-shadow: 0 0 0 3px var(--panel); }
+.dot:hover .run { transform: scale(1.15); }
+.dot.sel::before { content: ""; position: absolute; inset: 1px; border-radius: 50%; box-shadow: 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.dot:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
+/* Where the case is now: a ring that slowly pulses. */
+.dot.current::after { content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--warn); opacity: 0; animation: now-pulse 2.4s ease-out infinite; pointer-events: none; }
+.dot.current:not(:has(.warn))::after { border-color: var(--accent); }
+@keyframes now-pulse { 0% { transform: scale(.7); opacity: .9; } 70% { transform: scale(1.35); opacity: 0; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .dot.current::after { animation: none; opacity: .8; transform: none; } }
+/* A wait on Petar, flat in Your decision; the rail of notes under the lanes. */
+.flow-lines .wait { fill: none; stroke: var(--warn); stroke-width: 2.2; stroke-dasharray: 1.5 4; stroke-linecap: round; }
+.flow-lines .wait-label { fill: var(--warn); font-size: 10.5px; font-family: var(--sans); font-variant-numeric: tabular-nums; }
+.flow-lines .divider { stroke: var(--line); stroke-width: 1; }
+.flow-lines .thread { stroke: var(--dim); stroke-width: 1; stroke-dasharray: 1 3; opacity: .55; }
+.rail-name { position: absolute; left: 2px; right: 10px; display: flex; justify-content: space-between; align-items: center; height: 40px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--text); border-bottom: 0; cursor: help; }
+.rail-name .n { color: var(--dim); font-size: 11.5px; }
+.bi { width: 100%; height: 100%; display: block; }
+.bi .bb { fill: var(--bt, var(--dim)); }
+.bell { position: absolute; width: 24px; height: 24px; margin: -12px 0 0 -12px; padding: 3px; border: 0; border-radius: 50%; background: var(--panel); cursor: pointer; z-index: 2; min-height: 0; box-sizing: border-box; }
+.bell:hover .bi { transform: scale(1.12); }
+.bell:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
+.bell.sel { box-shadow: 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--panel)); }
+.bell.unsent .bi { opacity: .5; }
+/* A bell is only a message Rouh sent: always blue. The decision is on the dot. */
+:is(.bell, .bell-ico) { --bt: var(--accent); }
+/* An ask still waiting on Petar pulses, wherever the case is. */
+.dot.asking::after { content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--warn); opacity: 0; animation: now-pulse 2.4s ease-out infinite; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .dot.asking::after { animation: none; opacity: .8; } }
+.run.info { --tone: var(--accent); }
+.pill.info { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.decided { border-top: 1px solid var(--line); padding-top: 10px; }
+.bell-label { position: absolute; transform: translateX(-50%); white-space: nowrap; font-size: 10.5px; line-height: 12px; color: var(--dim); pointer-events: none; font-variant-numeric: tabular-nums; }
+.bell-ico { position: relative; display: inline-block; width: 15px; height: 15px; flex: 0 0 auto; }
+.step > .st-head .bell-ico { grid-row: span 2; align-self: start; margin-top: 2px; width: 16px; height: 16px; }
+.legend .ln.wait { border-top: 2.5px dotted var(--warn); }
+.legend .ln { display: inline-block; width: 22px; height: 0; border-top: 2px dashed var(--tone, var(--dim)); }
+.legend .ln.back { --tone: var(--bad); }
+.legend .ln.restart { --tone: var(--accent); }
+.legend .ln.review { --tone: var(--good); }
+/* A step's icon: its shape says whether it ran (empty circle: not yet, turning
+   ring: now, check: ran), its colour what was decided (green passed, orange
+   waiting on Petar, red declined or stopped, grey nothing to decide yet). */
+.run { --tone: var(--dimmer); width: 16px; height: 16px; border-radius: 50%; flex: 0 0 auto; position: relative; box-sizing: border-box; display: inline-block; }
+.run.good { --tone: var(--good); }
+.run.warn { --tone: var(--warn); }
+.run.bad { --tone: var(--bad); }
+.run-pending { border: 2px solid var(--tone); background: transparent; }
+.run-running { border: 2px solid color-mix(in srgb, var(--tone) 28%, transparent); border-top-color: var(--tone); border-right-color: var(--tone); animation: run-turn .9s linear infinite; }
+.run-done { background: var(--tone); }
+.run-done::after { content: ""; position: absolute; left: 5.5px; top: 2.5px; width: 3.5px; height: 7.5px; border: solid var(--bg); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+@keyframes run-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .run-running { animation-duration: 2.4s; } }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 8px; font-size: 12px; color: var(--dim); align-items: center; }
+.legend > span { display: inline-flex; gap: 6px; align-items: center; }
+.legend .run { width: 13px; height: 13px; }
+.legend .run-done::after { left: 4.2px; top: 1.6px; width: 3px; height: 6.5px; }
+.legend .sw { width: 10px; height: 10px; border-radius: 50%; background: var(--tone); display: inline-block; }
+/* The legend waits behind one small toggle at the right above the chart,
+   closed on load; open, its blocks run full width under it. */
+.legend-fold { margin: 0 0 8px; }
+.legend-fold > summary { list-style: none; display: flex; width: fit-content; margin-left: auto; cursor: pointer; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; color: var(--dim); background: var(--panel-2); }
+.legend-fold > summary::-webkit-details-marker { display: none; }
+.legend-fold > summary::before { content: "›"; display: inline-block; width: 8px; font-size: 15px; line-height: 1; transition: transform .12s; }
+.legend-fold[open] > summary::before { transform: rotate(90deg); }
+.legend-fold > summary:hover { color: var(--text); }
+.legend-fold > summary:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 2px; }
+.legend-fold[open] > summary { margin-bottom: 8px; }
+/* The sender's address beside the name in the heading: smaller, muted, and kept
+   whole on a line of its own when it does not fit after the name. */
+/* Under the heading only when it came and what it cost (Petar, 8 October
+   2026); each part keeps together. */
+.case-sub { font-size: 13px; margin: 0; }
+.case-sub .nw { white-space: nowrap; }
+.case-who { margin: 6px 0 0; max-width: 72ch; overflow-wrap: anywhere; }
+/* The channel's icon before the sender's name. */
+h1 .ch-ico { display: inline-block; width: 22px; height: 22px; margin: 0 9px 0 0; vertical-align: -3px; color: var(--dim); }
+h1 .ch-ico svg { display: block; width: 100%; height: 100%; }
+h1 .case-person { color: inherit; text-decoration: none; }
+h1 .case-person:hover, h1 .case-person:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+h1 .from-addr { display: inline-block; max-width: 100%; font-size: 13px; font-weight: 400; letter-spacing: 0; color: var(--dim); vertical-align: 2px; }
+.idline { margin: 0; font-size: 13.5px; }
+
+
+/* The one panel under the chart: the selected step's card. With no script every
+   card shows, one under another. */
+.step-panel { display: grid; gap: 8px; margin: 12px 0 0; }
+.js .step-panel > .step:not(.sel) { display: none; }
+.step { background: var(--panel); border: 1px solid #2d3846; border-radius: var(--radius); min-width: 0; scroll-margin-top: 12px; }
+.step.s-bad { border-left: 3px solid var(--bad); }
+.step.s-warn { border-left: 3px solid var(--warn); }
+.step > .st-head { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; padding: 11px 14px; color: var(--text); font-size: 14px; }
+.step > .st-head .run { grid-row: span 2; align-self: start; margin-top: 2px; }
+.st-n { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); color: var(--dim); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.st-title { font-weight: 620; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.st-meta { color: var(--dimmer); font-size: 12px; white-space: nowrap; text-align: right; }
+.st-sum { grid-column: 2 / -1; color: var(--dim); font-size: 13px; overflow-wrap: anywhere; }
+.st-body { padding: 0 14px 14px; display: grid; gap: 10px; min-width: 0; }
+.panel { border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg); min-width: 0; }
+.panel > summary { padding: 9px 12px; font-size: 13px; font-weight: 600; color: var(--text); list-style: none; display: flex; gap: 8px; align-items: center; }
+.panel > summary::-webkit-details-marker { display: none; }
+.panel > summary::before { content: "›"; color: var(--dimmer); display: inline-block; transition: transform .12s; font-size: 15px; width: 10px; }
+.panel[open] > summary::before { transform: rotate(90deg); }
+.panel > summary .hint { color: var(--dimmer); font-weight: 400; font-size: 12px; margin-left: auto; text-align: right; }
+.panel-body { padding: 0 12px 12px; display: grid; gap: 10px; min-width: 0; }
+.panel pre { background: var(--panel); max-height: 360px; font-size: 12.5px; }
+pre.mono, .mono-pre { font-family: var(--mono); font-size: 12px; }
+.anomaly { padding: 8px 12px; border-radius: var(--radius-s); background: color-mix(in srgb, var(--warn) 10%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--line)); font-size: 13px; }
+
+table.kv { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.kv th { text-align: left; color: var(--dimmer); font-weight: 500; font-size: 12px; padding: 6px 10px 6px 0; vertical-align: top; width: 150px; white-space: nowrap; }
+table.kv td { padding: 6px 0; vertical-align: top; overflow-wrap: anywhere; }
+table.kv tr + tr { border-top: 1px solid var(--line); }
+table.kv td .long { white-space: pre-wrap; }
+.pills { display: flex; flex-wrap: wrap; gap: 4px; }
+.need-lines { margin: 0; padding-left: 18px; }
+.need-lines li + li { margin-top: 6px; }
+.need-lines .lvl { margin-left: 4px; }
+.lvl { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); color: var(--text); background: var(--panel-2); }
+.tool { display: inline-block; padding: 1px 7px; border-radius: 6px; font-family: var(--mono); font-size: 11.5px; border: 1px solid var(--line); color: var(--dim); }
+.tool.level { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.tool.case { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, var(--line)); }
+.tool.called { font-weight: 700; color: var(--text); }
+
+ol.rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+ol.rules > li { display: grid; grid-template-columns: 22px 180px 1fr; gap: 8px; font-size: 13px; align-items: start; }
+.mark { width: 20px; height: 20px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+.mark.pass { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
+.mark.stop { color: var(--bad); background: color-mix(in srgb, var(--bad) 16%, transparent); }
+.mark.note { color: var(--dim); background: var(--panel-2); }
+.rname { font-weight: 600; }
+.rsaid { color: var(--dim); overflow-wrap: anywhere; }
+.words { font-family: var(--mono); font-size: 11.5px; color: var(--warn); }
+.rlead { color: var(--text); }
+.rthen { display: block; margin-top: 2px; }
+/* Which check raised a row, on the row itself (Petar, 3 October 2026: not only
+   behind the (?)): Rouh's reading, the word check, both, or the reply check. */
+.by { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 500; line-height: 17px; vertical-align: 1px; white-space: nowrap; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.by.by-word { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.by.by-both { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.by.by-reply { color: var(--dim); border-color: var(--line); }
+.rreview { display: block; margin-top: 4px; padding-left: 10px; border-left: 2px solid var(--line); font-size: 12.5px; }
+.rreview.good { border-left-color: var(--good); }
+.rreview.bad { border-left-color: var(--bad); }
+.rreview.warn { border-left-color: var(--warn); }
+.rreview .rv-by { color: var(--dimmer); }
+.rreview.good strong { color: var(--good); }
+.rreview.bad strong { color: var(--bad); }
+.rreview.warn strong { color: var(--warn); }
+/* The word review's step: each flag with its verdict, then its settings. */
+table.wr-flags { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.wr-flags th { text-align: left; color: var(--dimmer); font-weight: 500; font-size: 12px; padding: 4px 10px 4px 0; }
+table.wr-flags td { padding: 6px 10px 6px 0; vertical-align: top; overflow-wrap: anywhere; border-top: 1px solid var(--line); }
+table.wr-flags .finds { margin: 0; }
+table.wr-flags td:first-child { white-space: nowrap; overflow-wrap: normal; }
+.wr-form { display: grid; gap: 10px; }
+pre.wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.wr-form .row { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+.wr-form label.k { display: grid; gap: 4px; }
+.wr-form select { min-width: 150px; }
+.wr-form textarea { min-height: 220px; font-family: var(--mono); font-size: 12px; }
+.wr-tries { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.wr-tries li { padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-s); font-size: 13px; }
+@media (max-width: 560px) { table.wr-flags thead { display: none; } table.wr-flags tr { display: grid; padding: 6px 0; border-top: 1px solid var(--line); } table.wr-flags td { border: 0; padding: 2px 0; } }
+.finds { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3px; }
+.finds li { font-size: 12.5px; color: var(--dim); padding-left: 10px; border-left: 2px solid var(--line); }
+.finds .src { color: var(--dimmer); }
+.finds q { quotes: "\201C" "\201D"; }
+.finds b { font-weight: 600; color: var(--text); background: color-mix(in srgb, var(--warn) 22%, transparent); border-radius: 3px; padding: 0 2px; }
+.rgroups { display: grid; gap: 14px; }
+.rgroup .gtitle { margin: 0 0 6px; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); }
+ol.rules > li.clean .rname { font-weight: 500; color: var(--dim); }
+ol.rules > li.clean .rlead { color: var(--dimmer); }
+ol.rules > li.clean .mark.pass { color: color-mix(in srgb, var(--good) 60%, var(--dim)); background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+.rquote { quotes: "\201C" "\201D"; color: var(--text); }
+/* A rule that failed only because another did, listed under it (11 October 2026). */
+.knocks { display: block; margin-top: 6px; }
+.knocks > .k { display: block; font-size: 11.5px; color: var(--dimmer); }
+.knock-ons { list-style: none; margin: 2px 0 0; padding: 0 0 0 10px; border-left: 2px solid var(--line); display: grid; gap: 3px; font-size: 12.5px; color: var(--dim); }
+.knock-ons .mark { display: inline; }
+.rgroup[data-group="asks"] ol.rules > li { padding-bottom: 6px; }
+.oldmark { display: inline-block; font-size: 11px; line-height: 16px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); background: var(--panel-2); vertical-align: 1px; }
+.rcheck { margin-top: 12px; }
+.conclusion .cby { margin: 3px 0 0; font-size: 13px; }
+.conclusion { margin: 12px 0 0; padding: 12px 0 0; border-top: 1px solid var(--line); }
+.conclusion.first { margin: 0; padding: 0; border-top: 0; }
+.conclusion .cbox { padding: 10px 14px; border-radius: var(--radius-s); border: 1px solid var(--line); border-left-width: 4px; background: var(--panel-2); }
+.conclusion .cval { font-size: 15px; font-weight: 700; margin: 0; }
+.conclusion .cval .means { font-size: 13px; font-weight: 400; color: var(--dim); }
+.conclusion .cwhy { margin: 3px 0 0; font-size: 13px; color: var(--dim); }
+.conclusion.good .cbox { border-color: color-mix(in srgb, var(--good) 40%, var(--line)); border-left-color: var(--good); background: color-mix(in srgb, var(--good) 8%, transparent); }
+.conclusion.warn .cbox { border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, transparent); }
+.conclusion.bad .cbox { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); border-left-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, transparent); }
+.conclusion.good .cval strong { color: var(--good); }
+.conclusion.warn .cval strong { color: var(--warn); }
+.conclusion.bad .cval strong { color: var(--bad); }
+
+ol.tx { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+ol.tx > li { border-left: 2px solid var(--line); padding: 2px 0 2px 10px; min-width: 0; }
+ol.tx > li.call { border-left-color: var(--accent); }
+ol.tx > li.thinking { border-left-color: #3a4558; color: var(--dim); }
+ol.tx > li.err { border-left-color: var(--bad); }
+.tx-head { font-size: 12px; color: var(--dimmer); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.tx-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.tx-call summary { font-size: 13px; color: var(--text); }
+.tx-call summary .tool { margin-right: 4px; }
+.tx-call pre { max-height: 260px; }
+
+table.calls { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+table.calls th { text-align: left; color: var(--dimmer); font-weight: 500; padding: 4px 8px 4px 0; white-space: nowrap; }
+table.calls td { padding: 4px 8px 4px 0; border-top: 1px solid var(--line); white-space: nowrap; }
+.calls-wrap { overflow-x: auto; }
+.linkish { background: none; border: 0; color: var(--accent); padding: 0; font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+
+.cause { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg); display: grid; gap: 4px; }
+.cause.likely { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.cause .ck { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--dimmer); display: flex; gap: 6px; align-items: center; }
+.cause .ct { font-weight: 620; }
+.cause .files { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.cause .files li { font-family: var(--mono); font-size: 11.5px; color: var(--dim); overflow-wrap: anywhere; }
+textarea.brief { font-family: var(--mono); font-size: 12px; min-height: 220px; }
+.forms { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.minicard { border: 1px solid var(--line); border-radius: var(--radius-s); padding: 10px 12px; background: var(--bg); display: grid; gap: 8px; align-content: start; }
+.minicard h3 { font-size: 13.5px; margin: 0; }
+.radio { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; }
+.radio input { accent-color: var(--accent); }
+
+.qa { display: grid; gap: 10px; margin: 0 0 12px; }
+.q { justify-self: end; max-width: 88%; background: color-mix(in srgb, var(--accent) 16%, var(--panel-2)); border-radius: 12px 12px 3px 12px; padding: 8px 12px; overflow-wrap: anywhere; }
+.a { max-width: 100%; background: var(--panel-2); border-radius: 12px 12px 12px 3px; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13.5px; }
+.a.busy { color: var(--dim); }
+.suggest { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.suggest button { font-size: 12px; min-height: 28px; padding: 3px 10px; }
+.note-row { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.note-row:first-child { border-top: 0; }
+
+#viewer { position: fixed; inset: 0; z-index: 40; background: rgba(4,6,9,.72); display: flex; align-items: stretch; justify-content: center; padding: 18px; }
+#viewer[hidden] { display: none; }
+.vbox { background: var(--panel); border: 1px solid #2d3846; border-radius: var(--radius); width: min(1100px, 100%); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.vhead { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.vhead h2 { margin: 0; font-size: 14.5px; }
+.vtabs { display: flex; gap: 4px; padding: 8px 14px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.vtabs button[aria-selected="true"] { color: var(--text); border-color: var(--accent); }
+.vbody { overflow: auto; padding: 12px 14px 20px; flex: 1; min-height: 0; }
+.vbody pre { max-height: none; font-family: var(--mono); font-size: 12px; }
+.msg { margin: 0 0 12px; }
+.msg .role { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--dimmer); margin: 0 0 4px; }
+.msg .role.user { color: var(--accent); }
+.vfind { flex: 1 1 160px; max-width: 260px; min-height: 30px; padding: 4px 8px; font-size: 13px; }
+mark { background: color-mix(in srgb, var(--warn) 55%, transparent); color: var(--text); border-radius: 2px; }
+
+/* The one line on why a case is where it is (D12), and the asks of a ledger step. */
+.case-why { margin: 10px 0 0; font-size: 15px; font-weight: 600; line-height: 1.4; }
+.case-waits { margin: 8px 0 0; }
+.asks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ask-row { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.ask-row[data-status="waiting_for_owner"], .ask-row[data-status="waiting_for_petar"] { border-color: color-mix(in srgb, var(--warn, #c88a1a) 55%, var(--line)); }
+.ask-row[data-status="failed"] { border-color: color-mix(in srgb, var(--bad, #c0392b) 55%, var(--line)); }
+.ask-top { display: flex; gap: 8px; align-items: flex-start; min-width: 0; }
+.ask-n { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  border: 1px solid var(--line); font-size: 12px; font-weight: 650; }
+.ask-q { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.ask-pill { flex: none; margin-left: auto; white-space: nowrap; }
+.ask-label, .ask-meta, .ask-why, .ask-ev { margin: 6px 0 0 30px; overflow-wrap: anywhere; }
+.k-inline { color: var(--dim, #8a8a8a); font-weight: 600; }
+.outbox { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.out-msg .msg-body { margin-top: 6px; }
+@media (max-width: 520px) {
+  .ask-top { flex-wrap: wrap; }
+  .ask-pill { margin-left: 30px; }
+  .ask-label, .ask-meta, .ask-why, .ask-ev { margin-left: 0; }
+}
+.redo-row { display: flex; gap: 10px; align-items: flex-end; margin: 10px 0 0; }
+.redo-row .field { flex: 1 1 auto; margin: 0; min-width: 0; }
+.redo-row textarea { min-height: 64px; }
+.redo-row .ctl { flex: 0 0 auto; min-width: 96px; justify-content: center; text-align: center; }
+#redo ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
+/* A pass's summary, under the chart like a step's card. */
+.pass-n { grid-row: span 2; align-self: start; display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--accent); color: var(--text); font-size: 12px; font-weight: 650; }
+
+/* Incoming / Outgoing: theirs and the reply, a tab each. With no script both show.
+   Nothing in it scrolls on its own (Petar, 8 October 2026): the tab bar, the
+   tabs and the words grow to what they hold, and the page scrolls. */
+.etabs { display: none; }
+.js .etabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: 0 0 14px; }
+.etab { background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--dim); font: inherit; font-size: 13.5px; font-weight: 600; padding: 8px 12px; margin: 0 0 -1px; cursor: pointer; min-height: 40px; white-space: nowrap; }
+.etab:hover { color: var(--text); }
+.etab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.etab:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: -2px; }
+.js .nojs-only { display: none; }
+.etab-panel + .etab-panel { margin-top: 18px; }
+.js .etab-panel + .etab-panel { margin-top: 0; }
+.etab-panel[hidden] { display: none; }
+.msg-subject { font-size: 16px; font-weight: 620; margin: 0 0 8px; overflow-wrap: anywhere; }
+.msg-cc { margin: -4px 0 8px; overflow-wrap: anywhere; }
+.msg-files { margin: 0 0 14px; }
+.files-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; }
+.files-head .k { display: inline; margin: 0; }
+.files.bullets { list-style: disc; display: block; margin: 6px 0 0; padding-left: 20px; }
+.files.bullets li { display: list-item; margin: 0 0 4px; overflow-wrap: anywhere; }
+.files.bullets li::marker { color: var(--dim); }
+.files.bullets .pill { margin-left: 6px; vertical-align: 1px; }
+.msg-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.55; padding-top: 12px; border-top: 1px solid var(--line); }
+.reply-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 10px; overflow-wrap: anywhere; }
+
+/* Logs, in runs of one pass each. */
+.log-pass { display: flex; align-items: center; gap: 8px; margin: 16px 0 8px; font-size: 12.5px; color: var(--dim); overflow-wrap: anywhere; }
+.log-pass:first-child { margin-top: 0; }
+.log-pass strong { color: var(--text); font-weight: 600; }
+.log-pn { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); font-size: 11.5px; font-weight: 650; text-decoration: none; }
+.log-pn:hover, .log-pn:focus-visible { border-color: var(--accent); }
+
+/* Ask and Fix: a bubble at the bottom right, clear of the orb in the bottom-left
+   corner and of a phone's home bar, opening either as a panel over the page. With
+   no script both are plain sections at the end of the page. */
+.helper { max-width: 980px; margin: 18px auto 0; }
+.hp-bubble, .hp-close { display: none; }
+.hp-sec { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin: 0 0 12px; min-width: 0; }
+.hp-title { margin: 0 0 10px; font-size: 15px; }
+.js body { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+.js .helper { position: fixed; z-index: 30; margin: 0; max-width: none; right: max(16px, calc(env(safe-area-inset-right) + 10px)); bottom: max(16px, calc(env(safe-area-inset-bottom) + 10px)); display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none; }
+.js .helper > * { pointer-events: auto; }
+.js .hp-bubble { display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: #1a212b; border: 1px solid #2d3846; box-shadow: 0 8px 26px rgba(0,0,0,.55); }
+.hp-btn { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 15px 0 13px; border: 0; border-radius: 999px; background: transparent; color: var(--text); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.hp-btn svg { color: var(--accent); flex: 0 0 auto; }
+.hp-btn:hover { background: var(--panel-2); }
+.hp-btn[aria-expanded="true"] { background: var(--accent); color: var(--accent-ink); }
+.hp-btn[aria-expanded="true"] svg { color: var(--accent-ink); }
+.hp-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.js .hp-panel { position: relative; box-sizing: border-box; width: min(580px, calc(100vw - 32px - env(safe-area-inset-left) - env(safe-area-inset-right))); max-height: calc(100vh - 110px); max-height: calc(100dvh - 92px - max(16px, env(safe-area-inset-bottom) + 10px) - env(safe-area-inset-top)); display: flex; flex-direction: column; background: var(--panel); border: 1px solid #2d3846; border-radius: var(--radius); box-shadow: 0 18px 50px rgba(0,0,0,.6); transform-origin: 85% 100%; animation: hp-in .16s ease-out; }
+.js .hp-panel[hidden] { display: none; }
+html:not(.js) .hp-panel[hidden] { display: block; }
+@keyframes hp-in { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+@media (prefers-reduced-motion: reduce) { .js .hp-panel { animation: none; } }
+.js .hp-scroll { overflow: auto; overscroll-behavior: contain; padding: 14px 16px 16px; min-height: 0; }
+.js .hp-sec { border: 0; border-radius: 0; padding: 0; margin: 0; background: none; }
+.js .hp-sec[hidden] { display: none; }
+.js .hp-title { padding-right: 44px; outline: none; }
+.js .hp-close { display: inline-flex; align-items: center; justify-content: center; position: absolute; top: 8px; right: 8px; z-index: 1; width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 50%; background: var(--panel); color: var(--dim); cursor: pointer; }
+.hp-close:hover { color: var(--text); border-color: var(--line); }
+.hp-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.js .hp-sec .forms { grid-template-columns: minmax(0, 1fr); }
+
+/* The runs fixing the checks behind steps marked false alarms (`_case_fix.html`). */
+.fix-panel[hidden] { display: none; }
+.fixcard { border-left-width: 3px; }
+.fixcard.busy { border-left: 3px solid var(--accent); }
+.fixcard .run { --tone: var(--accent); }
+.fixcard .run.good { --tone: var(--good); }
+.fixcard .run.bad { --tone: var(--bad); }
+.fixcard .run-done:not(.good):not(.bad) { --tone: var(--dimmer); }
+/* A fix that did not work, or was stopped, is not ticked off: a cross, or a plain dot. */
+:is(.fixcard, .fx-step) .run-done.bad::after { content: ""; left: 3.5px; top: 7px; width: 9px; height: 2px; border: 0; background: var(--bg); transform: rotate(45deg); box-shadow: none; }
+:is(.fixcard, .fx-step) .run-done.bad::before { content: ""; position: absolute; left: 3.5px; top: 7px; width: 9px; height: 2px; background: var(--bg); transform: rotate(-45deg); }
+:is(.fixcard, .fx-step) .run-done:not(.good):not(.bad)::after { display: none; }
+.fx-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fx-head h2 { margin: 0; font-size: 15px; font-weight: 640; min-width: 0; overflow-wrap: anywhere; }
+.fx-head h2 a { color: inherit; }
+.fx-head .pill { margin-left: auto; }
+.fx-now { margin: 10px 0 0; overflow-wrap: anywhere; }
+.fx-track { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 0; margin: 10px 0 0; padding: 0; font-size: 12px; color: var(--dimmer); }
+.fx-track li { display: inline-flex; align-items: center; white-space: nowrap; }
+.fx-track li + li::before { content: ""; width: 14px; height: 1px; margin: 0 6px; background: var(--line); }
+.fx-track li.done { color: var(--dim); }
+.fx-track li.now { color: var(--accent); font-weight: 650; }
+.fx-track li.stop { color: var(--bad); font-weight: 650; }
+.fx-sum { margin: 12px 0 0; display: grid; gap: 10px; }
+.fx-sum > div { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 2px 14px; }
+.fx-sum dt { color: var(--dimmer); font-size: 12px; padding-top: 2px; }
+.fx-sum dd { margin: 0; overflow-wrap: anywhere; }
+.fx-files { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 4px 0 0; }
+.fx-commit, .fx-line { display: block; margin: 4px 0 0; }
+.fx-undo { margin: 12px 0 0; padding: 8px 10px; border-radius: var(--radius-s); background: var(--panel-2); overflow-wrap: anywhere; }
+.fx-undo.good { color: var(--good); }
+.fx-undo.bad { color: var(--bad); }
+.fx-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 0; }
+.fx-foot > .muted { margin-right: auto; }
+.fx-form { margin: 0; }
+.fx-reasons { margin: 8px 0 0; }
+.fx-reasons summary { cursor: pointer; }
+.fx-reasons ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; overflow-wrap: anywhere; }
+.fx-older { margin: 0 0 12px; }
+.fx-sub { margin: 16px 0 8px; font-size: 13.5px; font-weight: 640; }
+.fix-panel .fixcard { background: var(--panel-2); }
+.fx-tell .radio label { display: block; }
+.fx-tell .radio .muted { display: block; margin: 2px 0 0 22px; }
+.fx-lines:empty { display: none; }
+.fx-lines { margin: 12px 0 0; }
+.fx-lines .fx-step { margin: 0 0 8px; }
+.fx-slot:empty { display: none; }
+.fx-step { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 10px; padding: 8px 10px; border-radius: var(--radius-s); background: var(--panel-2); border: 1px solid var(--line); font-size: 13px; overflow-wrap: anywhere; }
+.fx-step .run { --tone: var(--accent); width: 14px; height: 14px; margin-top: 2px; }
+.fx-step.good .run { --tone: var(--good); }
+.fx-step.bad .run { --tone: var(--bad); }
+.fx-step.busy { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.fx-step:not(.busy):not(.good):not(.bad) .run { --tone: var(--dimmer); }
+.nw { white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .fx-sum > div { grid-template-columns: minmax(0, 1fr); }
+  .fx-head { flex-wrap: wrap; }
+  body { padding: 14px 12px 48px; }
+  .redo-row { flex-direction: column; align-items: stretch; }
+  .fold > details > summary { padding: 12px 12px; }
+  .fold .fold-body { padding: 0 12px 12px; }
+  .js body { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .js .hp-scroll { padding: 12px 12px 14px; }
+  .fold:is(.warn, .bad, .good) > details > summary { padding-left: 10px; }
+  .fold:is(.warn, .bad, .good) .fold-body { padding-left: 10px; }
+  .step > .st-head { grid-template-columns: auto 1fr; padding: 10px 12px; }
+  .lane-names { width: 104px; }
+  .lane-name { font-size: 11.5px; padding-right: 6px; }
+  .st-meta { grid-column: 2; text-align: left; }
+  .st-body { padding: 0 10px 12px; }
+  table.kv th { width: auto; display: block; padding: 6px 0 0; }
+  table.kv td { display: block; padding: 2px 0 6px; }
+  table.kv tr { display: block; }
+  ol.rules > li { grid-template-columns: 22px 1fr; }
+  ol.rules > li .rsaid { grid-column: 2; }
+  #viewer { padding: 0; }
+  .vbox { border-radius: 0; border: 0; }
+  .panel > summary { flex-wrap: wrap; row-gap: 0; }
+  .panel > summary .hint { flex-basis: 100%; margin-left: 18px; text-align: left; }
+}
+
+.dry-run { border-top: 1px solid var(--line); margin: 14px 0 0; padding: 12px 0 0; }
+.dry-head { font-size: 14px; margin: 0 0 6px; font-weight: 600; }
+.dry-said { margin: 0 0 10px; }
+.dry-rec { margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main class="wrap" id="caseMain" data-stamp="{{ stamp }}" data-name="{{ case.sender_name|default:case.sender }}">
+  <nav class="nav" aria-label="Pages">
+    <a class="ctl" href="{{ approvals }}" id="allApprovals">All approvals</a>
+    <a class="ctl" href="{{ route }}">Trusted contacts</a>
+    {% if chat_link %}<a class="ctl" href="{{ chat_link }}">Rouh's conversation about it</a>{% endif %}
+  </nav>
+
+  <header style="margin:0 0 14px" id="caseHead">
+    {% comment %}Petar, 8 October 2026: a case is not only an email any more. The heading is
+       the channel's icon (an envelope, Telegram's logo, or a plain message), the name and
+       the address or handle; under it only when it came and what it cost. A case waiting
+       for his decision has no stage pill: the decision below says so.{% endcomment %}
+    <div class="row between">
+      <h1 id="caseTitle"><span class="ch-ico ch-{{ channel }}" role="img" aria-label="{{ kind }}" data-tiptext="{{ kind }}">{% if channel == "email" %}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.75" y="5" width="18.5" height="14" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.6 6.6l8.4 6.3 8.4-6.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></svg>{% elif channel == "telegram" %}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#229ED9"/><path d="M5.3 11.8l11.6-4.5c.54-.2 1.01.13.84.95l-1.98 9.32c-.15.66-.54.82-1.09.51l-3-2.21-1.45 1.4c-.16.16-.3.29-.6.29l.21-3.06 5.57-5.03c.24-.21-.05-.33-.38-.12l-6.88 4.33-2.97-.93c-.64-.2-.66-.64.13-.95z" fill="#fff"/></svg>{% else %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 4.75h15a1.75 1.75 0 0 1 1.75 1.75v9a1.75 1.75 0 0 1-1.75 1.75H10l-4.6 3.5v-3.5H4.5a1.75 1.75 0 0 1-1.75-1.75v-9A1.75 1.75 0 0 1 4.5 4.75z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>{% endif %}</span>{% if contact.id and not implicit %}<a class="case-person" id="casePerson" href="{{ route }}/{{ contact.id }}" title="{{ contact.name }} in Trusted contacts">{{ case.sender_name }} <span class="from-addr mono">{{ from_said|default:case.sender }}</span></a>{% else %}{{ case.sender_name }} <span class="from-addr mono">{{ from_said|default:case.sender }}</span>{% endif %}</h1>
+      <span class="pill {{ state_class }}" id="caseStage">{{ stage_words }}</span>
+    </div>
+    <p class="sub case-sub" id="caseMeta"><span class="nw">{{ received }}</span>{% if trace.requests %} · <span class="nw">{{ trace.requests }} model request{{ trace.requests|pluralize }}</span> · <span class="nw">${{ trace.cost|floatformat:2 }}</span>{% endif %}</p>
+    {% comment %}Petar, 8 October 2026: who they are to him, and the way to change it, at the
+       top, under what the case cost. Petar, 16 October 2026 (fr_c622df46477c): not what they
+       are trusted for and granted, nor the line on why the case is where it is, since the asks
+       below say both for this case; the name in the heading opens their page in Trusted
+       contacts. A contact no longer trusted still says so, and somebody not on the list is
+       told how to trust them. The line on why is kept for a case with no asks, where nothing
+       below says it.{% endcomment %}
+    {% if implicit %}
+    <p class="muted small case-who" id="caseWho">{{ contact.name }} is not on your Trusted contacts, so Rouh has Communication only with them, which everybody has. <a href="{{ route }}">Trust them</a> to give them your tasks or Rouh for themselves.</p>
+    {% elif contact and not contact.trusted %}
+    <p class="muted small case-who" id="caseWho">{{ contact.name }} is <strong>no longer trusted</strong>. <a href="{{ route }}{% if contact.id %}/{{ contact.id }}{% endif %}">Change it</a></p>
+    {% endif %}
+    {% if not ledger %}<p class="case-why" id="caseWhy">{{ why_line }}</p>{% endif %}
+    {% comment %}Petar, 12 October 2026 (D16): every "Waiting for you" names its action. The
+       case's one next press is here at the top: its open decision's main option, answered the
+       way the Decisions page answers it, or Redo when it has no decision. Anything else it
+       waits on says what and who has it.{% endcomment %}
+    {% if waits_on %}
+    <p class="small muted case-waits" id="caseWaitsOn">{% if working %}Working now: {% else %}Not running now; it waits on {% endif %}{{ waits_on }}.</p>
+    {% endif %}
+    {% if merged_into %}<p class="small case-who" id="caseMerged">Part of <a href="{{ merged_into.path }}">{{ merged_into.name }}'s {{ merged_into.subject|default:"message" }}</a>: its asks and its answer are that case's.</p>{% endif %}
+    {% if arrivals %}<p class="small muted case-who" id="caseArrivals">Part of the same request: {% for a in arrivals %}<a href="{{ a.path }}">{% if a.channel == "telegram" %}a Telegram message{% else %}an email{% endif %}</a>{% if not forloop.last %}, {% endif %}{% endfor %}. Its answer is this case's, on each channel it came on.</p>{% endif %}
+  </header>
+
+  {% if said %}<p class="flash good" role="status" id="caseSaid">{{ said }}</p>{% endif %}
+  {% if bad %}<p class="flash bad" role="alert" id="caseBad">{{ bad }}</p>{% endif %}
+
+  {% comment %}Petar, 15 October 2026: one approval page (fr_bfda0e144e7c), and one address
+     (fr_65ed87c8685b). What they asked, where each stands and the decision on each, with
+     its grant card, Test and Redo, are here, drawn from `/api/mail/case/<key>` by
+     `mailcasepage.js`, which keeps it up to date itself, so it is not one of the parts the
+     page draws again below (`caseParts`).{% endcomment %}
+  <section class="case-asks" id="caseAsks" data-key="{{ case.key }}" aria-label="What they asked, and your decisions">
+    <p class="muted small" style="margin:0">What they asked, and your decision on each, show here.</p>
+  </section>
+
+  {% comment %}Petar, 8 October 2026: "we already have fix! That should be merged as concept
+     there." A step he tells Fix was a false alarm sends the check behind it to be fixed by a
+     run (`rouh/case_fixes.py`), so its status and its summary are here, beside what the
+     check sent back to be fixed in the work itself.{% endcomment %}
+  {% if follow or fixes %}
+  <section class="card fold" aria-labelledby="followHead" id="followUp">
+    <details{% if fixes_live or fixes_just %} open{% endif %}>
+    <summary><h2 id="followHead">Sent back to be fixed</h2>{% if follow_pill %}<span class="pill {{ follow_pill.tone }}" id="followState">{{ follow_pill.text }}</span>{% endif %}</summary>
+    <div class="fold-body">
+    {% include "rouh/_case_fix.html" %}
+    {% if follow %}
+    {% if fixes %}<h3 class="fx-sub">The work, sent back by the check</h3>{% endif %}
+    <p class="muted small" style="margin:0 0 8px">What the check found still wrong or missing{% if follow.when %}, sent on {{ follow.when }}{% endif %}, round {{ follow.round }} of {{ follow.rounds }}. Who has it: {{ follow.who }}{% for j in follow.jobs %}{% if forloop.first %}, {% else %} and {% endif %}job <a class="mono" href="{{ j.link }}" {% if forloop.first %}id="followJob"{% endif %}>{{ j.id }}</a>{% if follow.jobs|length > 1 %} in {{ j.where }}{% endif %}{% if j.now %} <span class="muted">({{ j.now }})</span>{% endif %}{% empty %}{% if follow.job %}, job <a class="mono" href="{{ follow.job_link }}" id="followJob">{{ follow.job }}</a>{% endif %}{% endfor %}.</p>
+    {% if follow.findings %}<p style="margin:0 0 8px" id="followFindings"><span class="k">What the check found</span>{{ follow.findings }}</p>{% endif %}
+    <ul class="plain" id="followSteps">
+      {% for f in follow.steps %}<li>{{ f.step }}{% if f.why %} <span class="muted small">- {{ f.why }}</span>{% endif %} <span class="pill">{{ f.kind }}</span>{% if f.where %} <span class="pill">{{ f.where }}</span>{% endif %}</li>{% endfor %}
+    </ul>
+    <p style="margin:10px 0 0" id="followWords">{{ follow.state_words }}</p>
+    {% if follow.report %}
+    <details style="margin:8px 0 0">
+      <summary>What the job reported</summary>
+      <pre id="followReport">{{ follow.report }}</pre>
+    </details>
+    {% endif %}
+    {% endif %}
+    </div>
+    </details>
+  </section>
+  {% endif %}
+
+  {# --- incoming and outgoing: theirs, and the reply ------------------------------- #}
+  {% comment %}Petar, 2 October 2026: the message and the reply that went are one section, closed
+     by default, with a tab for each. A reply that has not gone says so, and where it
+     stands (`mail_cases._reply_not_sent`). Petar, 8 October 2026: it is "Incoming /
+     Outgoing", since a case is not only an email, with nothing else in its heading; a tab
+     is the subject as its heading, the files under it and the words at their own height,
+     part of the page, with no box of its own to scroll and no From, To or Date.{% endcomment %}
+  <section class="card fold" aria-labelledby="msgsHead" id="messages">
+    <details>
+      <summary><h2 id="msgsHead">Incoming / Outgoing</h2></summary>
+      <div class="fold-body">
+      <div class="etabs" role="tablist" aria-label="Incoming / Outgoing" id="msgTabs">
+        <button type="button" class="etab" role="tab" id="tabIn" aria-controls="incoming" aria-selected="true">Incoming</button>
+        <button type="button" class="etab" role="tab" id="tabOut" aria-controls="outgoing" aria-selected="false" tabindex="-1">Outgoing</button>
+      </div>
+      <div class="etab-panel" role="tabpanel" id="incoming" aria-labelledby="tabIn">
+      <span class="k nojs-only">Incoming</span>
+      {% if channel == "email" %}<h3 class="msg-subject" id="inSubject">{{ email.subject|default:"(no subject)" }}</h3>{% endif %}
+      {% if email.cc %}<p class="msg-cc muted small" id="inCc">Cc {{ email.cc }}</p>{% endif %}
+      {% if files %}
+      {% comment %}Petar, 8 October 2026: "Attached", with what Rouh did with the files on the
+         same line, and each file a bullet whose name opens it in a new tab, fetched from
+         Gmail for him alone (`trusted.case_attachment`); no kind or size.{% endcomment %}
+      <div class="msg-files" id="inFiles">
+        <p class="files-head"><span class="k">Attached ({{ files|length }})</span>{% if files_note %}{% with f=files.0 %}<span class="pill {% if f.went == 'read' %}good{% elif f.went %}bad{% elif f.readable %}warn{% endif %}"{% if not f.readable and not f.went %} title="Its words cannot be read here."{% endif %}>{{ files_note }}</span>{% endwith %}{% endif %}</p>
+        <ul class="files bullets">
+          {% for f in files %}<li>{% if f.url %}<a class="fname" href="{{ f.url }}" target="_blank" rel="noopener noreferrer">{{ f.name }}</a>{% else %}<span class="fname">{{ f.name }}</span>{% endif %}{% if not files_note %} <span class="pill {% if f.went == 'read' %}good{% elif f.went %}bad{% elif f.readable %}warn{% endif %}"{% if not f.readable and not f.went %} title="Its words cannot be read here."{% endif %}>{{ f.went_said }}</span>{% endif %}</li>{% endfor %}
+        </ul>
+      </div>
+      {% elif files_known %}
+      <p class="msg-files muted small" id="inFiles">No files were attached.</p>
+      {% endif %}
+      <div class="msg-body" id="inBody">{{ email.body|default:"(nothing written)" }}</div>
+      </div>
+      <div class="etab-panel" role="tabpanel" id="outgoing" aria-labelledby="tabOut">
+      <span class="k nojs-only">Outgoing</span>
+      {% comment %}Petar, 11 October 2026 (D5): every message to them went through the one outbox,
+         once per channel, and each is here, word for word, with whether it went.{% endcomment %}
+      {% if messages %}
+      <ol class="outbox" id="outbox">
+        {% for m in messages %}
+        <li class="out-msg" data-kind="{{ m.kind }}" data-state="{{ m.state }}">
+          <div class="reply-meta"><span class="pill {% if m.state == 'sent' %}good{% elif m.state == 'refused' %}{% elif m.state == 'unknown' %}warn{% else %}bad{% endif %}">{% if m.state == "sent" %}Sent{% elif m.state == "refused" %}Not sent{% elif m.state == "unknown" %}May have gone{% elif m.state == "claimed" %}Sending{% else %}Did not go{% endif %}</span>
+            <span class="small"><strong>{{ m.kind_said }}</strong> by {{ m.channel }} to <span class="mono">{{ m.to }}</span>{% if m.message_id %}, <span class="mono">{{ m.message_id }}</span>{% endif %}{% if m.attempt %}, attempt {{ m.attempt }}{% endif %}</span></div>
+          {% if m.error and m.state != "sent" %}<p class="small muted" style="margin:4px 0">{{ m.error }}</p>{% endif %}
+          <div class="msg-body">{{ m.text }}</div>
+        </li>
+        {% endfor %}
+      </ol>
+      {% elif reply_sent %}
+      <div class="reply-meta" id="outMeta"><span class="pill good">Sent</span>
+        <span class="muted small">{% if channel == "telegram" %}in their Telegram chat{% else %}in the thread{% endif %}{% if case.reply_message_id %}, message <span class="mono">{{ case.reply_message_id }}</span>{% endif %}</span></div>
+      {% if reply_subject %}<h3 class="msg-subject" id="outSubject">{{ reply_subject }}</h3>{% endif %}
+      {% if sent_files %}
+      <div class="msg-files" id="outFiles">
+        <p class="files-head"><span class="k">Attached ({{ sent_files|length }})</span></p>
+        <ul class="files bullets">
+          {% for f in sent_files %}<li><a class="fname" href="{{ f.url }}" target="_blank" rel="noopener noreferrer">{{ f.name|default:f.said }}</a></li>{% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+      <div class="msg-body" id="outBody">{{ reply_sent }}</div>
+      {% else %}
+      <p class="muted" style="margin:0" id="replyNotSent">Nothing has gone to them yet.{% if held %} <a href="#caseAsks">Go to your decision</a>{% endif %}</p>
+      {% endif %}
+      </div>
+      </div>
+    </details>
+  </section>
+
+  {# --- the pipeline: one lane per stage, one dot per step, one card open --------- #}
+  {% comment %}Petar, 2 October 2026, from a mock-up: the strip that showed each stage
+     once with a count, and the long list of every step under it, are one swim-lane
+     chart (`case_trace._flow`). Time runs left to right, one column per step; where
+     the line climbs back the case looped, red when a check sent it back, blue when it
+     started again. A dot opens its step's card in the one panel under the chart.{% endcomment %}
+  <section class="card fold" aria-labelledby="pipeHead" id="pipeline">
+    <details>
+    <summary><h2 id="pipeHead">The pipeline</h2><span class="muted small">{{ steps|length }} step{{ steps|pluralize }}{% if flow.passes|length > 1 %}, {{ flow.passes|length }} passes{% endif %}</span><button type="button" class="tip" data-tip="pipeline" title="{{ glossary.pipeline }}" aria-label="How a case is routed">?</button></summary>
+    <div class="fold-body">
+    <details class="legend-fold" id="legendFold">
+    <summary>Legend</summary>
+    <div class="legend" aria-label="What a step's dot and the line mean">
+      <span class="term" data-tip="run_running" title="{{ glossary.run_running }}"><span class="run run-running" aria-hidden="true"></span>running</span>
+      <span class="term" data-tip="run_done" title="{{ glossary.run_done }}"><span class="run run-done" aria-hidden="true"></span>ran</span>
+      <span class="term" data-tip="tone_good" title="{{ glossary.tone_good }}"><span class="sw run good" aria-hidden="true"></span>passed</span>
+      <span class="term" data-tip="tone_warn" title="{{ glossary.tone_warn }}"><span class="sw run warn" aria-hidden="true"></span>waiting on you</span>
+      <span class="term" data-tip="tone_bad" title="{{ glossary.tone_bad }}"><span class="sw run bad" aria-hidden="true"></span>declined or stopped</span>
+      <span class="term" data-tip="tone_none" title="{{ glossary.tone_none }}"><span class="sw run" aria-hidden="true"></span>nothing to decide yet</span>
+      <span class="term" data-tip="loop_back" title="{{ glossary.loop_back }}"><span class="ln back" aria-hidden="true"></span>sent back by a check</span>
+      <span class="term" data-tip="loop_review" title="{{ glossary.loop_review }}"><span class="ln review" aria-hidden="true"></span>back from the word review</span>
+      <span class="term" data-tip="loop_restart" title="{{ glossary.loop_restart }}"><span class="ln restart" aria-hidden="true"></span>started again</span>
+      <span class="term" data-tip="told_wait" title="{{ glossary.told_wait }}"><span class="ln wait" aria-hidden="true"></span>waited on you</span>
+    </div>
+    <div class="legend" aria-label="Your decision's dot, and a bell on the Told you rail">
+      <span class="muted">Your decision:</span>
+      <span class="term" data-tip="dec_wait" title="{{ glossary.dec_wait }}"><span class="sw run warn" aria-hidden="true"></span>waiting on you</span>
+      <span class="term" data-tip="dec_approved" title="{{ glossary.dec_approved }}"><span class="sw run good" aria-hidden="true"></span>approved</span>
+      <span class="term" data-tip="dec_declined" title="{{ glossary.dec_declined }}"><span class="sw run bad" aria-hidden="true"></span>declined</span>
+      <span class="term" data-tip="dec_instructed" title="{{ glossary.dec_instructed }}"><span class="sw run info" aria-hidden="true"></span>something else instead</span>
+      <span class="term" data-tip="dec_void" title="{{ glossary.dec_void }}"><span class="sw run" aria-hidden="true"></span>lapsed, or no longer held</span>
+      <span class="term" data-tip="bell" title="{{ glossary.bell }}"><span class="bell-ico" aria-hidden="true"><svg class="bi" viewBox="0 0 20 20" aria-hidden="true"><path class="bb" d="M10 2.4c-2.9 0-5 2.2-5 5.2v3.3l-1.5 2.4c-.3.5 0 1.2.6 1.2h11.8c.6 0 .9-.7.6-1.2L15 10.9V7.6c0-3-2.1-5.2-5-5.2z"/><path class="bb" d="M8 15.6a2 2 0 0 0 4 0z"/></svg></span>a message Rouh sent you</span>
+    </div>
+    </details>
+    <div class="flow-scroll" id="flowScroll">
+      <div class="flow-inner" style="height:{{ flow.height }}px">
+        <div class="lane-names" style="padding-top:{{ flow.head }}px">
+          {% for l in flow.lanes %}<button type="button" class="lane-name{% if not l.count %} none{% endif %}" style="height:{{ flow.lane_h }}px" {% if l.step %}data-open="{{ l.step }}" aria-label="{{ l.name }}, ran {{ l.count }} time{{ l.count|pluralize }}: open its latest step"{% else %}disabled aria-label="{{ l.name }}, never reached"{% endif %} data-tiptext="{{ l.what }}"><span class="lname">{{ l.name }}</span><span class="n">{{ l.count }}×</span></button>{% endfor %}
+          <span class="rail-name term" style="top:{{ flow.rail_top }}px" data-tiptext="{{ flow.told_what }}">Told you <span class="n">{{ flow.bells|length }}</span></span>
+        </div>
+        <div class="flow-plot" id="flowPlot" style="width:{{ flow.width }}px;height:{{ flow.height }}px" role="group" aria-label="Every step of the case, in the order it happened">
+          {% for p in flow.passes %}
+          <div class="band{% if p.waiting %} waiting{% endif %}{% if p.now %} now{% endif %}" style="left:{{ p.x }}px;width:{{ p.width }}px" aria-hidden="true"></div>
+          <button type="button" class="pass-head" style="left:{{ p.x }}px;width:{{ p.width }}px" data-open="{{ p.card }}" data-start="{{ p.start }}" data-pass="{{ p.n }}" aria-label="Pass {{ p.n }}, {{ p.when }}, attempt {{ p.attempt }}: {{ p.label }}. Open its summary" data-tiptext="{{ p.hover }}"><span class="pn">{{ p.n }}</span><span class="pl">{{ p.label }}</span><span class="pw">{{ p.when }}</span></button>
+          {% endfor %}
+          <svg class="flow-lines" width="{{ flow.width }}" height="{{ flow.height }}" viewBox="0 0 {{ flow.width }} {{ flow.height }}" aria-hidden="true">
+            {% for l in flow.lanes %}<line class="rail" x1="0" x2="{{ flow.width }}" y1="{{ l.mid }}" y2="{{ l.mid }}"/>{% endfor %}
+            <line class="divider" x1="0" x2="{{ flow.width }}" y1="{{ flow.rail_top }}" y2="{{ flow.rail_top }}"/>
+            {% for b in flow.bells %}<line class="thread" x1="{{ b.x }}" x2="{{ b.x }}" y1="{{ b.from_y }}" y2="{{ b.y|add:-12 }}"/>{% endfor %}
+            {% for w in flow.waits %}<path class="wait{% if w.open %} open{% endif %}" d="{{ w.d }}"/><text class="wait-label" x="{{ w.x }}" y="{{ w.y }}">{{ w.label }}</text>{% endfor %}
+            {% for g in flow.segs %}<path class="seg{% if g.kind %} {{ g.kind }}{% endif %}" d="{{ g.d }}"/>{% if g.why %}<path class="seg-hit" d="{{ g.d }}" data-tiptext="{{ g.why }}" tabindex="-1"/>{% endif %}{% endfor %}
+          </svg>
+          {% for d in flow.dots %}<button type="button" class="dot{% if d.step == flow.current %} current{% endif %}{% if d.asking %} asking{% endif %}" id="dot-{{ d.step }}" style="left:{{ d.x }}px;top:{{ d.y }}px" data-open="{{ d.step }}" data-pass="{{ d.pass }}" aria-label="{{ d.label }}. {{ d.tip }}" data-tiptext="{{ d.label }}"><span class="run run-{{ d.run }} {{ d.status }}" aria-hidden="true"></span></button>{% endfor %}
+          {% for b in flow.bells %}<button type="button" class="bell{% if not b.went %} unsent{% endif %}" id="bell-{{ b.id }}" style="left:{{ b.x }}px;top:{{ b.y }}px" data-open="{{ b.id }}" aria-label="{{ b.hover }}" data-tiptext="{{ b.hover }}"><svg class="bi" viewBox="0 0 20 20" aria-hidden="true"><path class="bb" d="M10 2.4c-2.9 0-5 2.2-5 5.2v3.3l-1.5 2.4c-.3.5 0 1.2.6 1.2h11.8c.6 0 .9-.7.6-1.2L15 10.9V7.6c0-3-2.1-5.2-5-5.2z"/><path class="bb" d="M8 15.6a2 2 0 0 0 4 0z"/></svg></button><span class="bell-label" style="left:{{ b.x }}px;top:{{ b.label_y }}px" aria-hidden="true">{{ b.label }}</span>{% endfor %}
+        </div>
+      </div>
+    </div>
+    {% if not trace.kept_since %}<p class="muted small" style="margin:8px 0 0">This case started before steps were kept as they happen (1 October 2026), so its turns are read back from the log of model requests, and their reports from the model's own case_report calls. They are the same words.</p>{% endif %}
+    <div class="step-panel" id="steps" aria-live="polite" data-current="{{ flow.current }}">
+    {% for s in steps %}{% if not s.bell and not s.merged_into %}
+      <article class="step s-{{ s.status }}{% if s.id == flow.current %} sel{% endif %}" id="{{ s.id }}"{% if s.decision_step %} data-also="{{ s.decision_step.id }}"{% endif %} data-kind="{{ s.kind }}" aria-label="Step {{ s.n }}: {{ s.title }}">
+        <div class="st-head">
+          <span class="run run-{{ s.run }} {{ s.status }}" role="img" aria-label="{{ s.icon_tip }}" title="{{ s.icon_tip }}" data-tipText="{{ s.icon_tip }}"></span>
+          <span class="st-title"><span class="st-n">{{ s.n }}</span>{{ s.title }}{% if s.attempt > 1 %} <span class="muted small">attempt {{ s.attempt }}</span>{% endif %}
+            {% if s.verdict %}<span class="pill {{ s.status }}" title="{{ s.verdict_tip }}" data-tip="{{ s.verdict_key }}">{{ s.verdict }}</span>{% endif %}
+            {% if s.approval %}<span class="pill {{ s.status }}" title="{{ s.approval.tip }}" data-tip="{{ s.approval.status }}">{{ s.approval.status }}</span>{% endif %}
+            {% if s.anomaly %}<span class="pill warn">look here</span>{% endif %}
+            {% if s.note_count %}<span class="pill">{{ s.note_count }} note{{ s.note_count|pluralize }}</span>{% endif %}
+          </span>
+          <span class="st-meta">{{ s.when }}{% if s.took %} · {{ s.took }}{% endif %}{% if s.cost %} · ${{ s.cost|floatformat:3 }}{% endif %}</span>
+          {% if s.summary %}<span class="st-sum">{{ s.summary }}</span>{% endif %}
+        </div>
+        <div class="st-body">
+          <div class="fx-slot" data-fix-step="{{ s.id }}"{% if s.decision_step %} data-fix-also="{{ s.decision_step.id }}"{% endif %}>{% include "rouh/_case_fix_step.html" with fixes=s.fixes %}</div>
+          {% if s.anomaly %}<p class="anomaly" style="margin:0">{{ s.anomaly }}</p>{% endif %}
+          {% if s.what %}<p class="muted small" style="margin:0">{{ s.what }}{% if s.kind == "verify" %}<button type="button" class="tip" data-tip="verifier" title="{{ glossary.verifier }}" aria-label="What the verifier is">?</button>{% endif %}</p>{% endif %}
+          {% if s.trouble %}{% for t in s.trouble %}<p class="anomaly" style="margin:0">The turn: {{ t }}</p>{% endfor %}{% endif %}
+
+          {% if s.kind == "received" %}
+          <p class="idline" id="identityLine"><span class="term" data-tip="identity" title="{{ glossary.identity }}">{{ s.identity_line }}</span></p>
+          {% endif %}
+
+          {% if s.kind == "assess" or s.kind == "carry_out" or s.kind == "verify" %}
+          <details class="panel" {% if s.id == diagnosis.step %}open{% endif %}>
+            <summary>What came out <span class="hint">{% if s.report_from == "model" %}from the model's own case_report call{% elif s.report_from %}as kept{% else %}no report{% endif %}</span></summary>
+            <div class="panel-body">
+              {% if s.report_rows %}
+              <table class="kv">
+                {% for r in s.report_rows %}
+                <tr><th>{% if r.tip %}<span class="term" title="{{ r.tip }}" data-tip="{{ r.tip_key }}">{{ r.label }}</span>{% else %}{{ r.label }}{% endif %}</th>
+                  <td>{% if r.lines %}<ul class="need-lines">{% for v in r.value %}<li>{% if v.what %}{{ v.what }} {% endif %}<span class="lvl" {% if v.tip %}title="{{ v.tip }}" data-tipText="{{ v.tip }}"{% endif %}>{{ v.name }}</span></li>{% endfor %}</ul>{% elif r.list %}<span class="pills">{% for v in r.value %}<span class="lvl" title="{{ v.tip }}" {% if v.tip %}data-tipText="{{ v.tip }}"{% endif %}>{{ v.name }}</span>{% empty %}<span class="muted">none</span>{% endfor %}</span>{% elif r.key == "outcome" %}<strong>{{ r.value }}</strong>{% else %}<span class="{% if r.long %}long{% endif %}">{{ r.value }}</span>{% endif %}</td></tr>
+                {% endfor %}
+              </table>
+              <details><summary>The report as raw JSON</summary><pre class="mono">{{ s.report_json }}</pre></details>
+              {% else %}
+              <p class="muted small" style="margin:0">This turn never reported.</p>
+              {% endif %}
+            </div>
+          </details>
+
+          <details class="panel">
+            <summary>What went in <span class="hint">the brief, the levels, the tools</span></summary>
+            <div class="panel-body">
+              <div><span class="k"><span class="term" data-tip="brief" title="{{ glossary.brief }}">The brief Rouh's code wrote for this turn</span></span>
+                {% if s.brief %}<pre id="brief-{{ s.id }}">{{ s.brief }}</pre>{% else %}<p class="muted small" style="margin:0">Not found in the log.</p>{% endif %}</div>
+              {% if s.kept.step_note %}<div><span class="k">Your note for this re-run</span><pre>{{ s.kept.step_note }}</pre></div>{% endif %}
+              {% if s.kept.instruction %}<div><span class="k">Your instruction it carried</span><pre>{{ s.kept.instruction }}</pre></div>{% endif %}
+              <div><span class="k"><span class="term" data-tip="levels" title="{{ glossary.levels }}">Levels</span> {% if s.levels_then %}when it ran{% else %}granted now (not kept for this turn){% endif %}</span>
+                <span class="pills">{% if s.levels_then %}{% for l in s.levels_then %}<span class="lvl" title="{{ l.tip }}" data-tipText="{{ l.tip }}">{{ l.name }}</span>{% empty %}nothing{% endfor %}{% else %}{% for l in contact_levels %}<span class="lvl">{{ l }}</span>{% empty %}nothing{% endfor %}{% endif %}</span></div>
+              {% if s.tools %}
+              <div><span class="k"><span class="term" data-tip="tools" title="{{ glossary.tools }}">Tools it was offered</span> ({{ s.tools|length }}). <span class="tool case">case</span> only a case's turn has, <span class="tool level">level</span> added by the contact's levels, <strong>bold</strong> it called.</span>
+                <span class="pills">{% for t in s.tools %}<span class="tool{% if t.case %} case{% elif t.level %} level{% endif %}" data-tool="{{ t.name }}">{{ t.name }}</span>{% endfor %}</span></div>
+              {% endif %}
+              {% if s.turns %}<div><button type="button" class="ctl" data-request="{{ s.turns.0.first_request }}" data-tab="system">Read the full prompt as sent</button> <span class="muted small">system prompt, every message, every tool</span></div>{% endif %}
+            </div>
+          </details>
+
+          <details class="panel">
+            <summary>What it did <span class="hint">{% with n=s.turns.0.tools_called|length %}{{ n }} tool call{{ n|pluralize }}{% endwith %}</span></summary>
+            <div class="panel-body">
+              {% for t in s.turns %}
+              <ol class="tx">
+                {% for e in t.transcript %}
+                {% if e.kind == "thinking" %}
+                <li class="thinking"><details><summary class="tx-head">Its reasoning (summarised)</summary><div class="tx-text">{{ e.text }}</div></details></li>
+                {% elif e.kind == "said" %}
+                <li><div class="tx-head">It said</div><div class="tx-text">{{ e.text }}</div></li>
+                {% elif e.kind == "call" %}
+                <li class="call"><details class="tx-call"><summary><span class="tool called">{{ e.name }}</span>{% if e.error %} <span class="pill bad">error</span>{% endif %}{% if e.result %} <span class="muted small">{{ e.result|truncatechars:110 }}</span>{% endif %}</summary>
+                  <span class="k" style="margin-top:6px">What it passed</span><pre class="mono">{{ e.input_json }}</pre>
+                  {% if e.result %}<span class="k" style="margin-top:6px">What came back</span><pre>{{ e.result }}</pre>{% endif %}
+                </details></li>
+                {% elif e.kind == "error" %}
+                <li class="err"><div class="tx-text">{{ e.text }}</div></li>
+                {% endif %}
+                {% endfor %}
+              </ol>
+              {% empty %}
+              <p class="muted small" style="margin:0">No model requests were found for this turn.</p>
+              {% endfor %}
+            </div>
+          </details>
+
+          {% if s.turns %}
+          <details class="panel">
+            <summary>Model calls <span class="hint">{{ s.model }}{% if s.cost %} · ${{ s.cost|floatformat:3 }}{% endif %}</span></summary>
+            <div class="panel-body calls-wrap">
+              <table class="calls">
+                <tr><th>#</th><th>When</th><th>Model</th><th>Effort</th><th>Status</th><th>In</th><th>Cached</th><th>Out</th><th>Cost</th><th>Took</th><th></th></tr>
+                {% for t in s.turns %}{% for c in t.calls %}
+                <tr><td class="mono">{{ c.id }}</td><td>{{ c.when }}</td><td>{{ c.model }}</td><td>{{ c.effort|default:"-" }}</td><td>{{ c.status }}{% if c.stop_reason %} ({{ c.stop_reason }}){% endif %}</td><td>{{ c.input_tokens }}</td><td>{{ c.cache_read_tokens }}</td><td>{{ c.output_tokens }}</td><td>${{ c.cost|floatformat:4 }}</td><td>{% widthratio c.ms 1000 1 %} s</td><td><button type="button" class="linkish" data-request="{{ c.id }}">Open</button></td></tr>
+                {% endfor %}{% endfor %}
+              </table>
+            </div>
+          </details>
+          {% endif %}
+          {% endif %}
+
+          {% if s.kind == "word_review" %}{% with v=s.review %}
+          <table class="wr-flags" id="wrFlags-{{ s.id }}">
+            <thead><tr><th>Flag</th><th>What the word check found</th><th>{{ v.model_name|default:"The review" }} says</th></tr></thead>
+            <tbody>{% for f in v.flags %}
+            <tr data-risk="{{ f.risk }}"><td><strong>{{ f.name }}</strong></td>
+              <td>{% if f.sentences %}<ul class="finds">{% for x in f.sentences %}<li><q>{{ x }}</q></li>{% endfor %}</ul>{% else %}{% for w in f.words %}"{{ w }}"{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}</td>
+              <td><span class="pill {{ f.tone }}">{{ f.verdict }}</span>{% if f.why %} <span class="muted">{{ f.why }}</span>{% endif %}</td></tr>
+            {% endfor %}</tbody>
+          </table>
+          {% if v.error %}<p class="anomaly" style="margin:0">{{ v.error }} Every flag stands, so it waits for you.</p>{% endif %}
+          <details class="panel">
+            <summary>The call <span class="hint">{{ v.model_name|default:"no model" }}{% if v.effort %} · {{ v.effort }}{% endif %}{% if v.cost %} · ${{ v.cost|floatformat:5 }}{% endif %}{% if v.custom %} · your instructions{% else %} · built-in instructions{% endif %}</span></summary>
+            <div class="panel-body calls-wrap">
+              {% if v.calls %}
+              <table class="calls">
+                <tr><th>#</th><th>When</th><th>Model</th><th>Effort</th><th>Status</th><th>In</th><th>Cached</th><th>Out</th><th>Cost</th><th>Took</th><th></th></tr>
+                {% for c in v.calls %}
+                <tr><td class="mono">{{ c.id }}</td><td>{{ c.when }}</td><td>{{ c.model }}</td><td>{{ c.effort|default:"-" }}</td><td>{{ c.status }}{% if c.stop_reason %} ({{ c.stop_reason }}){% endif %}</td><td>{{ c.input_tokens }}</td><td>{{ c.cache_read_tokens }}</td><td>{{ c.output_tokens }}</td><td>${{ c.cost|floatformat:5 }}</td><td>{% widthratio c.ms 1000 1 %} s</td><td><button type="button" class="linkish" data-request="{{ c.id }}">Open</button></td></tr>
+                {% endfor %}
+              </table>
+              {% else %}<p class="muted small" style="margin:0">Its model request was not found in the log.</p>{% endif %}
+              <div><span class="k">The instructions it was given</span><pre class="wrap">{{ v.prompt }}</pre></div>
+              {% if v.raw %}<div><span class="k">What it answered</span><pre class="mono">{{ v.raw }}</pre></div>{% endif %}
+            </div>
+          </details>
+          {% if s.trials %}
+          <div><span class="k">Tried again since, with the settings of the day</span>
+            <ol class="wr-tries">{% for t in s.trials %}<li><span class="muted small">{{ t.when }} · {{ t.model_name }}{% if t.effort %} · {{ t.effort }}{% endif %}{% if t.cost %} · ${{ t.cost|floatformat:5 }}{% endif %} · {% if t.custom %}your instructions{% else %}built-in instructions{% endif %}</span>
+              {% if t.error %}<div>{{ t.error }}</div>{% endif %}
+              <div class="pills" style="margin-top:4px">{% for f in t.flags %}<span class="pill {{ f.tone }}" title="{{ f.why }}">{{ f.name }}: {{ f.verdict }}</span>{% endfor %}</div>
+              {% for f in t.flags %}{% if f.why %}<div class="small muted">{{ f.name }}: {{ f.why }}</div>{% endif %}{% endfor %}</li>{% endfor %}</ol></div>
+          {% endif %}
+          {% endwith %}{% endif %}
+
+          {% if s.kind == "ledger" %}
+          <ol class="asks asks-step" aria-label="The ledger after this reading">
+            {% for a in s.asks %}<li class="ask-row" data-status="{{ a.status }}"><div class="ask-top"><span class="ask-n" aria-hidden="true">{{ a.n }}</span><q class="ask-q">{{ a.quote }}</q><span class="pill {{ a.tone }} ask-pill">{{ a.words }}</span></div>
+              <p class="ask-meta small"><span class="k-inline">Mapped to</span> {% if a.hard_limit %}hard limit {{ a.hard_limit }}{% elif a.grant %}{{ a.grant }}{% elif a.new_grant.name %}a new grant, {{ a.new_grant.name }}{% else %}nothing{% endif %}{% if a.choice %} · <span class="k-inline">your choice</span> {{ a.choice }}{% endif %}</p>
+              {% if a.why %}<p class="ask-why small">{{ a.why }}</p>{% endif %}</li>{% endfor %}
+          </ol>
+          {% if s.held_grants %}<p class="small muted" style="margin:6px 0 0">Grants held then: {{ s.held_grants|join:", " }}.</p>{% endif %}
+          {% endif %}
+
+          {% if s.kind == "route" %}
+          {% comment %}Petar, 8 October 2026: what the route concluded first, then the rules.{% endcomment %}
+          {% if s.conclusion %}{% include "rouh/_case_conclusion.html" with c=s.conclusion first=True %}{% endif %}
+          {% if s.trail %}
+          <div><span class="k">Rule by rule, as it ran</span>
+            {% include "rouh/_case_rules.html" with groups=s.trail_groups %}</div>
+          {% else %}
+          {% if s.reasons %}<div><span class="k">Why it went to you</span><ul class="reasons">{% for r in s.reasons %}<li>{{ r }}</li>{% endfor %}</ul></div>{% endif %}
+          {% if s.checks %}<div><span class="k">What was checked</span><ul class="plain small">{% for c in s.checks %}<li>{{ c }}</li>{% endfor %}</ul></div>{% endif %}
+          {% if s.source == "case" and not s.reasons and not s.checks %}<p class="muted small" style="margin:0">Its rules were not kept for this reading.</p>{% endif %}
+          {% endif %}
+          {% if s.reply_check %}
+          <details class="panel rcheck">
+            <summary>Reply check <button type="button" class="tip" data-tip="reply_check" title="{{ glossary.reply_check }}" aria-label="What the reply check is">?</button><span class="hint">{{ s.reply_check.model|default:"no model" }}{% if s.reply_check.effort %} · {{ s.reply_check.effort }}{% endif %}{% if s.reply_check.cost %} · ${{ s.reply_check.cost|floatformat:3 }}{% endif %}{% if s.reply_check.error %} · could not be read{% endif %}</span></summary>
+            <div class="panel-body calls-wrap">
+              {% if s.reply_check.error %}<p class="muted small" style="margin:0 0 6px">{{ s.reply_check.error }}</p>{% endif %}
+              {% if s.reply_check.calls %}
+              <table class="calls">
+                <tr><th>#</th><th>When</th><th>Model</th><th>Effort</th><th>Status</th><th>In</th><th>Cached</th><th>Out</th><th>Cost</th><th>Took</th><th></th></tr>
+                {% for c in s.reply_check.calls %}
+                <tr><td class="mono">{{ c.id }}</td><td>{{ c.when }}</td><td>{{ c.model }}</td><td>{{ c.effort|default:"-" }}</td><td>{{ c.status }}{% if c.stop_reason %} ({{ c.stop_reason }}){% endif %}</td><td>{{ c.input_tokens }}</td><td>{{ c.cache_read_tokens }}</td><td>{{ c.output_tokens }}</td><td>${{ c.cost|floatformat:4 }}</td><td>{% widthratio c.ms 1000 1 %} s</td><td><button type="button" class="linkish" data-request="{{ c.id }}">Open</button></td></tr>
+                {% endfor %}
+              </table>
+              {% else %}<p class="muted small" style="margin:0">Its model request was not found in the log.</p>{% endif %}
+            </div>
+          </details>
+          {% endif %}
+          {% if s.replay %}
+          <details class="panel" {% if not s.trail and not s.checks %}open{% endif %}>
+            <summary>Replayed with today's rules <button type="button" class="tip" data-tip="replayed" title="{{ glossary.replayed }}" aria-label="What a replay is">?</button><span class="hint">would conclude: <strong>{{ s.conclusion_now.value|default:s.route_now }}</strong>{% if s.conclusion and s.conclusion_now.value != s.conclusion.value %} (then: {{ s.conclusion.value }}){% endif %}</span></summary>
+            <div class="panel-body">
+              {% include "rouh/_case_rules.html" with groups=s.replay_groups %}
+              {% if s.conclusion_now %}{% include "rouh/_case_conclusion.html" with c=s.conclusion_now %}{% endif %}
+            </div>
+          </details>
+          {% endif %}
+          {% endif %}
+
+          {% if s.approval %}
+          <table class="kv">
+            <tr><th>Status</th><td><span class="term" title="{{ s.approval.tip }}" data-tip="{{ s.approval.status }}">{{ s.approval.status }}</span>{% if s.approval.why_invalid %}: {{ s.approval.why_invalid }}{% endif %}</td></tr>
+            <tr><th>Asked</th><td>{{ s.approval.asked }}{% if s.approval.decided %}, decided {{ s.approval.decided }}{% endif %}</td></tr>
+            <tr><th>Proposed action</th><td><span class="long">{{ s.approval.action|default:"Nothing but the reply." }}</span></td></tr>
+            {% if s.approval.instruction %}<tr><th>Your instructions</th><td>{{ s.approval.instruction }}</td></tr>{% endif %}
+            {% if s.approval.reply %}<tr><th>Reply{% if s.approval.edited %} (changed by you){% endif %}</th><td><span class="long">{{ s.approval.reply }}</span></td></tr>{% endif %}
+          </table>
+          {% if s.decision_step %}{% with d=s.decision_step %}
+          <div class="decided" id="{{ d.id }}-in"><span class="k">Your decision <span class="st-n">{{ d.n }}</span> {{ d.when }}</span>
+            <p style="margin:0">{{ d.summary }}</p>
+            {% if d.log %}<ol class="timeline">{% for l in d.log %}<li><time>{{ l.when }}</time><span>{{ l.said }}</span></li>{% endfor %}</ol>{% endif %}
+          </div>
+          {% endwith %}{% endif %}
+          {% endif %}
+          {% if s.files %}
+          <div class="step-files"><span class="k">{% if s.kind == "reply" %}Went with the reply{% else %}Files for the reply{% endif %}</span>
+            <ul class="files">{% for f in s.files %}<li>{% if f.gone %}<span class="fname">{{ f.name }}</span>{% else %}<a class="fname" href="{{ f.url }}" target="_blank" rel="noopener">{{ f.name }}</a>{% endif %}<span class="muted small">{{ f.kind_said }}, {{ f.size_said }}</span>{% if f.removed %}<span class="pill warn">taken off</span>{% endif %}{% if f.gone %}<span class="pill">changed since, or gone</span>{% endif %}<span class="muted small mono">{{ f.path }}</span></li>{% endfor %}</ul>
+          </div>
+          {% endif %}
+
+          {% if s.sent %}
+          <div class="step-sent"><span class="k">Sent to them, word for word</span>
+            {% for m in s.sent %}
+            <div class="sent-one" id="{{ s.id }}-sent-{{ forloop.counter }}">
+              <p class="small muted" style="margin:4px 0">{{ m.kind_said }} · {{ m.when }} · on {{ m.channel|capfirst }} to {{ m.to_name|default:m.to }} · {% if m.message_id %}message <span class="mono">{{ m.message_id }}</span>{% else %}no message id{% endif %}{% if not m.ok %} · <strong>not sent</strong>: {{ m.error }}{% endif %}</p>
+              <pre class="wrap">{{ m.text }}</pre>
+              {% if m.log %}<p class="muted small" style="margin:4px 0 0">Also written down in <span class="mono">{{ m.log }}</span>.</p>{% elif m.source == "case" %}<p class="muted small" style="margin:4px 0 0">As the case kept it when it went; this message is older than the sent log.</p>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          {% if s.log and s.kind != "received" and s.kind != "route" %}
+          <div><span class="k">Also written down during this step</span>
+            <ol class="timeline">{% for l in s.log %}<li><time>{{ l.when }}</time><span>{{ l.said }}</span></li>{% endfor %}</ol></div>
+          {% endif %}
+
+        </div>
+      </article>
+    {% endif %}{% endfor %}
+    {% for b in flow.bells %}
+      <article class="step note-card" id="{{ b.id }}" data-kind="told" aria-label="{{ b.title_long }}, {{ b.when }}">
+        <div class="st-head">
+          <span class="bell-ico" aria-hidden="true"><svg class="bi" viewBox="0 0 20 20" aria-hidden="true"><path class="bb" d="M10 2.4c-2.9 0-5 2.2-5 5.2v3.3l-1.5 2.4c-.3.5 0 1.2.6 1.2h11.8c.6 0 .9-.7.6-1.2L15 10.9V7.6c0-3-2.1-5.2-5-5.2z"/><path class="bb" d="M8 15.6a2 2 0 0 0 4 0z"/></svg></span>
+          <span class="st-title">{{ b.title_long }}{% if b.decision %} <span class="pill {% if b.status == 'wait' %}warn{% elif b.status == 'approved' %}good{% elif b.status == 'declined' %}bad{% elif b.status == 'instructed' %}info{% endif %}">{{ b.decision|lower }}</span>{% endif %}{% if not b.went %} <span class="pill bad">not sent</span>{% endif %}</span>
+          <span class="st-meta">{{ b.when }}</span>
+        </div>
+        <div class="st-body">
+          <table class="kv">
+            <tr><th>What was sent</th><td>{% if b.text %}<span class="long">{{ b.text }}</span>{% elif b.went %}<span class="muted">Its words were not kept in the mail log.</span>{% else %}<span class="muted">Nothing: it could not go.</span>{% endif %}</td></tr>
+            <tr><th>Where it went</th><td>{{ b.where }}</td></tr>
+            <tr><th>When</th><td>{{ b.when }}</td></tr>
+            {% if b.kind == "ask" %}
+            <tr><th>Your decision</th><td>{{ b.decision }}{% if b.decided %}, {{ b.decided }}{% endif %}{% if b.why and b.status == "void" %}: {{ b.why }}{% endif %}</td></tr>
+            {% if b.instruction %}<tr><th>Your instructions</th><td>{{ b.instruction }}</td></tr>{% endif %}
+            {% if b.waited %}<tr><th>{% if b.status == "wait" %}Waiting so far{% else %}It waited{% endif %}</th><td>{{ b.waited }}</td></tr>{% endif %}
+            {% endif %}
+          </table>
+          {% if b.ask_step %}<div><a class="ctl" href="#{{ b.ask_step }}" data-open="{{ b.ask_step }}">Open the step that asked</a></div>{% elif b.kind == "stop" %}<div><a class="ctl" href="#{{ b.step }}" data-open="{{ b.step }}">Open the step where it stopped</a></div>{% endif %}
+        </div>
+      </article>
+    {% endfor %}
+    {% comment %}A pass's summary, opened from its header (Petar, 2 October 2026): what started
+       it, and for a pass of an earlier attempt what only the old Earlier attempts section
+       showed - how that attempt ended, the instructions it carried and was redone with,
+       and what reached anybody outside.{% endcomment %}
+    {% for p in flow.passes %}{% with a=p.earlier %}
+      <article class="step pass-card" id="{{ p.card }}"{% if p.anchor %} data-also="{{ p.anchor }}"{% endif %} data-kind="pass" data-attempt="{{ p.attempt }}" aria-label="Pass {{ p.n }}: {{ p.label }}">
+        <div class="st-head">
+          <span class="pass-n" aria-hidden="true">{{ p.n }}</span>
+          <span class="st-title">Pass {{ p.n }}: {{ p.label }} <span class="pill">attempt {{ p.attempt }}</span>{% if a %} <span class="pill">superseded</span>{% if p.last_of_attempt %} <span class="pill {% if a.lapsed or a.withdrawn %}warn{% else %}bad{% endif %}">{% if a.lapsed %}decision lapsed{% elif a.withdrawn %}decision withdrawn{% else %}{{ a.end_words|lower }}{% endif %}</span>{% endif %}{% else %} <span class="pill info">current</span>{% endif %}</span>
+          <span class="st-meta">{{ p.when }}</span>
+          <span class="st-sum">{{ p.steps_n }} step{{ p.steps_n|pluralize }}{% if p.span %}, {{ p.span }}{% endif %}</span>
+        </div>
+        <div class="st-body">
+          <table class="kv">
+            <tr><th>What started it</th><td><span class="long">{{ p.said }}</span></td></tr>
+            {% if a %}
+            <tr><th>Attempt</th><td>Attempt {{ a.number }}, {{ a.started }} - {{ a.ended }}. Superseded: redone {{ a.ended }} as <a href="#attempt-{{ a.superseded_by }}">attempt {{ a.superseded_by }}</a>{% if a.superseded_by == attempt_no %}, the current one{% endif %}.</td></tr>
+            <tr><th>How it ended</th><td class="attempt-end">{{ a.end_said }}</td></tr>
+            <tr><th>Your instruction it carried</th><td>{% if a.instruction %}<span class="long">{{ a.instruction }}</span>{% else %}<span class="muted">None</span>{% endif %}</td></tr>
+            <tr><th>Redone with</th><td>{% if a.redo_instruction %}<span class="long">{{ a.redo_instruction }}</span>{% else %}<span class="muted">No instructions</span>{% endif %}</td></tr>
+            <tr><th>What it did</th><td class="attempt-effects">{% for e in a.effects %}<div class="long{% if e.outside %} reached{% endif %}">{{ e.said }}{% if e.outside %} <span class="pill warn">reached outside</span>{% endif %}</div>{% empty %}Nothing reached anybody outside.{% endfor %}</td></tr>
+            {% else %}
+            <tr><th>Attempt</th><td>Attempt {{ p.attempt }}, the current one: {{ stage_words|lower }}.</td></tr>
+            {% endif %}
+          </table>
+          <div class="row" style="gap:6px"><a class="ctl" href="#{{ p.start }}" data-open="{{ p.start }}">Open the step that started it</a>{% if p.dots %}<a class="ctl" href="#{{ p.dots.0.step }}" data-open="{{ p.dots.0.step }}">Its first step</a>{% endif %}</div>
+        </div>
+      </article>
+    {% endwith %}{% endfor %}
+    </div>
+    </div>
+    </details>
+  </section>
+
+  {% comment %}Petar, 11 October 2026: Test runs the case again with the grants as they are
+     now - every model really asked, nothing sent and nothing lasting changed - and shows how
+     far it would go, step by step, with what it cost (`rouh/case_dry_run.py`).{% endcomment %}
+  {% if not junk %}
+  <section class="card fold" aria-labelledby="testsHead" id="tests">
+    <details{% if dry_runs and dry_runs.0.state == "running" %} open{% endif %}>
+      <summary><h2 id="testsHead">Tests</h2><span class="muted small">{% if dry_runs %}{{ dry_runs|length }} run{{ dry_runs|pluralize }}, the last {{ dry_runs.0.state }}{% else %}Run it again with nothing sent{% endif %}</span></summary>
+      <div class="fold-body">
+        <form method="post" action="{{ path }}" class="row" style="gap:10px;align-items:center">
+          {% csrf_token %}
+          <input type="hidden" name="back" value="tests">
+          <button class="ctl" type="submit" name="choice" value="test" id="testCase">Test</button>
+          <span class="muted small">Runs the {{ noun }} again with the grants as they are now and your choices on its asks: the reading, the route ask by ask, the work, the check and the reply's checks. Models are really asked, which costs; nothing is sent to anybody and nothing lasting changes.</span>
+        </form>
+        {% for t in dry_runs %}
+        <div class="dry-run" id="test-{{ t.id }}" data-state="{{ t.state }}">
+          <h3 class="dry-head">Test {{ t.id }} · {% if t.state == "running" %}<span class="pill info">running</span>{% elif t.state == "done" %}<span class="pill">done</span>{% else %}<span class="pill bad">stopped</span>{% endif %} · {{ t.minutes }} min · ${{ t.cost|floatformat:2 }}</h3>
+          {% if t.said %}<p class="dry-said" id="testSaid-{{ t.id }}">{{ t.said }}</p>{% endif %}
+          {% include "rouh/_case_timeline.html" with rows=t.steps tl_id="testSteps" empty="No step has finished yet." %}
+          {% for st in t.steps %}{% if st.recorded %}<p class="muted small dry-rec">{{ st.step }}: would have called {% for r in st.recorded %}<span class="mono">{{ r.tool }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}. None was called.</p>{% endif %}{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+  </section>
+  {% endif %}
+
+  {% comment %}Petar, 11 October 2026: every step as it was kept - who, what it was given, what
+     it decided and what it put out word for word (`case_trace.timeline`).{% endcomment %}
+  <section class="card fold" aria-labelledby="stepByStepHead" id="stepByStep">
+    <details>
+      <summary><h2 id="stepByStepHead">Step by step</h2><span class="muted small">{{ trace.timeline|length }} step{{ trace.timeline|pluralize }}, as kept</span></summary>
+      <div class="fold-body">{% include "rouh/_case_timeline.html" with rows=trace.timeline tl_id="caseTimeline" %}</div>
+    </details>
+  </section>
+
+  {% comment %}Every event of every attempt, in order, in runs of one pass each: the pass's
+     own summary is a tap away (`case_trace.attempts_on_passes`).{% endcomment %}
+  <section class="card fold" aria-labelledby="eventsHead" id="events">
+    <details>
+      <summary><h2 id="eventsHead">Logs <span class="muted small" style="font-weight:400">({{ events|length }})</span></h2></summary>
+      <div class="fold-body" id="timeline">
+      {% for g in log_groups %}
+      {% if flow.passes|length > 1 %}<p class="log-pass" data-pass="{{ g.pass }}">{% if g.card %}<a href="#{{ g.card }}" data-open="{{ g.card }}" class="log-pn" aria-label="Pass {{ g.pass }}: open its summary">{{ g.pass }}</a>{% endif %}<span><strong>Pass {{ g.pass }}</strong> · attempt {{ g.attempt }}{% if g.superseded %}, superseded{% endif %} · {{ g.label }}</span></p>{% endif %}
+      <ol class="timeline" data-pass="{{ g.pass }}">
+        {% for e in g.events %}<li><time>{{ e.when }}</time><span>{{ e.said }}</span></li>{% endfor %}
+      </ol>
+      {% endfor %}
+      </div>
+    </details>
+  </section>
+
+</main>
+
+{# --- Ask, Fix and Redo: a bubble at the bottom right, each opening as a panel --- #}
+{% comment %}Petar, 2 October 2026: Ask and Fix are not sections in the page's flow but a
+   small bubble at the bottom right, clear of the orb in the bottom-left corner, whose
+   two buttons open either as a panel over the page. Every link to #ask or #fix opens
+   the panel on that section. With no script both are plain sections at the end.{% endcomment %}
+<aside class="helper" id="helper" aria-label="Ask about this case, fix it or redo it">
+  <div class="hp-panel" id="helperPanel" role="dialog" aria-modal="false" aria-label="Ask, fix or redo" hidden>
+    <button type="button" class="hp-close" id="helperClose" aria-label="Close the panel" title="Close (Esc)"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+    <div class="hp-scroll" id="helperScroll">
+  <section class="hp-sec" id="ask" data-helper="ask" aria-labelledby="askHead" role="region">
+    <h2 id="askHead" class="hp-title" tabindex="-1">Ask about this case</h2>
+    <div class="hp-body">
+    <p class="muted small" style="margin:0 0 10px">Answered with the whole trace in front of the model: every brief, tool call, report and rule on this page. The questions and answers are kept with the case.</p>
+    <div class="qa" id="qa">
+      {% for q in questions %}<div class="q">{{ q.text }}</div><div class="a">{{ q.answer }}</div>{% endfor %}
+    </div>
+    <noscript><p class="muted small">The Ask box needs the page's script.</p></noscript>
+    <form id="askForm" hidden>
+      <div class="suggest" id="suggest">
+        <button type="button" class="ctl" data-q="Why did this stop, in plain words, and is it a false alarm?">Why did it stop?</button>
+        <button type="button" class="ctl" data-q="What exactly should change in the prompt or the code so this does not stop next time, without letting a real risk through? Name the file and function.">What should change?</button>
+        <button type="button" class="ctl" data-q="Which tools did each turn have and use, and which tool was missing?">Which tools?</button>
+        <button type="button" class="ctl" data-q="What would have happened with today's rules?">With today's rules?</button>
+      </div>
+      <label class="k" for="askText">Your question</label>
+      <textarea id="askText" style="min-height:70px" placeholder="For example: why did the verifier not trust share_granted_page?"></textarea>
+      <div class="actions"><button class="ctl primary" type="submit" id="askGo">Ask</button></div>
+    </form>
+    </div>
+  </section>
+  <section class="hp-sec" id="fix" data-helper="fix" aria-labelledby="fixHead" role="region">
+    <h2 id="fixHead" class="hp-title" tabindex="-1">Fix this</h2>
+    <div class="hp-body">
+    {% comment %}Petar, 8 October 2026: a false alarm told to Fix is what starts the run that
+       fixes the check behind it; a real problem told to Fix is kept for every later fix to
+       replay, and starts nothing. Its status and summary are in Sent back to be fixed.{% endcomment %}
+    <form method="post" action="{{ path }}" class="minicard fx-tell" id="markForm">
+      {% csrf_token %}<input type="hidden" name="back" value="fix">
+      <h3>Was a step wrong?</h3>
+      <label class="k" for="markStep">Which step</label>
+      <select id="markStep" name="step">{% for s in steps %}<option value="{{ s.id }}" {% if s.id == mark_default %}selected{% endif %}>{{ s.when }} · {{ s.title }}{% if s.verdict %} · {{ s.verdict }}{% endif %}</option>{% endfor %}</select>
+      <div class="radio" style="flex-direction:column;gap:6px">
+        <label><input type="radio" name="choice" value="false_alarm" checked> False alarm: fix the check <span class="muted small">A run finds why it stopped, fixes that in general, proves it on the replay of real cases, and deploys it; your Redo then runs this {{ noun }} with it.</span></label>
+        <label><input type="radio" name="choice" value="real_problem"> Real problem: it was right to stop <span class="muted small">Kept, and every later fix must still stop it. No run starts.</span></label>
+      </div>
+      <label class="k" for="markReason">Why, in a few words</label>
+      <textarea id="markReason" name="reason" style="min-height:70px" required></textarea>
+      <div><button class="ctl primary" type="submit" id="markGo">Fix it</button></div>
+    </form>
+    <div class="fx-lines" id="fixLines" data-fix-lines>{% include "rouh/_case_fix_step.html" with fixes=fix_lines %}</div>
+    <div style="margin:14px 0 0">{% include "rouh/_case_stop.html" with one=diagnosis first=True %}</div>
+    {% for e in earlier %}
+    <details class="panel" style="margin:12px 0 0" id="stop-{{ e.blocked }}">
+      <summary>Earlier stop, {{ e.when }}: {{ e.headline }} <span class="hint">{{ e.false_alarm_words }}</span></summary>
+      <div class="panel-body">{% include "rouh/_case_stop.html" with one=e first=False %}</div>
+    </details>
+    {% endfor %}
+
+    <div class="forms" style="margin:14px 0 0">
+    </div>
+    {% if tuning %}
+    <div style="margin:14px 0 0" id="tuning">
+      <span class="k">What you said about this case, kept for tuning ({{ tuning|length }})</span>
+      {% for n in tuning %}<div class="note-row"><span class="pill {% if n.kind == 'false_alarm' %}good{% elif n.kind == 'real_problem' %}bad{% elif n.kind == 'fix' %}info{% endif %}">{% if n.kind == "false_alarm" %}false alarm{% elif n.kind == "real_problem" %}real problem{% elif n.kind == "fix" %}fix run{% else %}re-ran {{ n.step }}{% endif %}</span><span><span class="muted small">{{ n.when }}{% if n.step and n.kind != "rerun" %} · <a href="#{{ n.step }}" data-open="{{ n.step }}">{{ n.step }}</a>{% endif %}</span><br>{{ n.text|default:"(no note)" }}</span></div>{% endfor %}
+    </div>
+    {% endif %}
+    </div>
+  </section>
+  {% comment %}Redo: the whole case again, as a fresh attempt (`CaseDesk.redo`). Petar, 8 October
+     2026: a third button beside Ask and Fix rather than a section of the page.{% endcomment %}
+  {% if redo.open or redo.why_not %}
+  <section class="hp-sec" id="redo" data-helper="redo" aria-labelledby="redoHead" role="region">
+    <h2 id="redoHead" class="hp-title" tabindex="-1">Redo</h2>
+    <div class="hp-body">
+    {% if redo.open %}
+    <p class="muted small" style="margin:0">Redo runs this {{ noun }} again as attempt {{ attempt_no|add:1 }}, with the grants and your choices as they are now. {% if redo.reread %}It was never split into asks, so Rouh reads it again first.{% else %}What is done stays done; what is allowed or approved and not done is done now, and the answer goes only if something changed since the last one. With your own words, Rouh reads it again first.{% endif %} This attempt stays below as it is.</p>
+    <form method="post" action="{{ path }}" id="redoForm">
+      {% csrf_token %}
+      <input type="hidden" name="choice" value="redo">
+      <input type="hidden" name="attempt" value="{{ attempt_no }}">
+      <div class="redo-row">
+        <div class="field">
+          <label class="k" for="redoNote">Instructions for the new attempt (optional)</label>
+          <textarea id="redoNote" name="instruction" placeholder="For example: the pages are shared now; only answer her."></textarea>
+        </div>
+        <button class="ctl primary" type="submit" id="redoGo">Redo</button>
+      </div>
+    </form>
+    {% else %}
+    <p class="small" style="margin:0" id="redoWhyNot">Not yet: {{ redo.why_not }}</p>
+    {% endif %}
+    </div>
+  </section>
+  {% endif %}
+    </div>
+  </div>
+  <div class="hp-bubble" id="helperBubble" role="group" aria-label="Ask about this case, fix it or redo it">
+    <button type="button" class="hp-btn" data-helper-go="ask" aria-controls="helperPanel" aria-expanded="false" aria-label="Ask about this case"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H9l-3.6 2.8V14.5H4A1.5 1.5 0 0 1 2.5 13V6A1.5 1.5 0 0 1 4 4.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg><span>Ask</span></button>
+    <button type="button" class="hp-btn" data-helper-go="fix" aria-controls="helperPanel" aria-expanded="false" aria-label="Fix this case"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M12.6 3.2a4 4 0 0 0-4.9 5.2l-4.6 4.6a1.6 1.6 0 0 0 2.3 2.3l4.6-4.6a4 4 0 0 0 5.2-4.9l-2.4 2.4-2-.6-.6-2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg><span>Fix</span></button>
+    {% if redo.open or redo.why_not %}<button type="button" class="hp-btn" data-helper-go="redo" aria-controls="helperPanel" aria-expanded="false" aria-label="Redo this case from the start"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M15.6 10a5.6 5.6 0 1 1-1.7-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M15.2 2.8v3.7h-3.7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Redo</span></button>{% endif %}
+  </div>
+</aside>
+
+<div id="tipBox" role="tooltip" hidden></div>
+<div id="viewer" hidden role="dialog" aria-modal="true" aria-labelledby="vTitle">
+  <div class="vbox">
+    <div class="vhead">
+      <h2 id="vTitle">Request</h2>
+      <span class="muted small" id="vMeta"></span>
+      <input type="search" class="vfind" id="vFind" placeholder="Find in it" aria-label="Find in the request">
+      <button type="button" class="ctl" id="vCopy">Copy</button>
+      <button type="button" class="ctl" id="vClose" style="margin-left:auto">Close</button>
+    </div>
+    <div class="vtabs" role="tablist" id="vTabs">
+      <button type="button" class="ctl" role="tab" data-vtab="system">System prompt</button>
+      <button type="button" class="ctl" role="tab" data-vtab="messages">Messages</button>
+      <button type="button" class="ctl" role="tab" data-vtab="tools">Tools</button>
+      <button type="button" class="ctl" role="tab" data-vtab="answer">The answer</button>
+      <button type="button" class="ctl" role="tab" data-vtab="raw">Raw JSON</button>
+    </div>
+    <div class="vbody" id="vBody"></div>
+  </div>
+</div>
+
+<script>
+  // The parts of the page as the server drew them, before any script touched them: what the
+  // live drawing below compares the server's next drawing with (`caseLive`).
+  window.caseParts = ["caseHead", "caseWhy", "followUp", "messages",
+                      "pipeline", "tests", "stepByStep", "events", "redo"];
+  window.caseDrawn = {};
+  for (const id of window.caseParts) {
+    const el = document.getElementById(id);
+    if (el) window.caseDrawn[id] = el.outerHTML;
+  }
+</script>
+<script id="glossary" type="application/json">{{ glossary_json|safe }}</script>
+<script>
+(() => {
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+  let glossary = {};
+  try { glossary = JSON.parse($("#glossary").textContent || "{}"); } catch (e) {}
+  const csrf = (document.querySelector("input[name=csrfmiddlewaretoken]") || {}).value || "";
+  const casePath = "{{ path|escapejs }}";
+
+  // --- explanations on hover, focus or tap -------------------------------------
+  const box = $("#tipBox");
+  let pinned = null;
+  const textOf = (el) => el.dataset.tiptext || glossary[el.dataset.tip] || el.getAttribute("data-title") || "";
+  function tips(root = document) {
+    for (const el of $$("[data-tip],[data-tiptext]", root)) {
+      if (!textOf(el) || el.hasAttribute("data-title")) continue;
+      // The title is the no-script fallback; the box replaces it once this runs.
+      el.setAttribute("data-title", el.getAttribute("title") || "");
+      el.removeAttribute("title");
+      if (!el.hasAttribute("tabindex") && el.tagName !== "BUTTON" && el.tagName !== "A") el.tabIndex = 0;
+    }
+  }
+  tips();
+  function show(el) {
+    const text = textOf(el);
+    if (!text) return;
+    box.textContent = text;
+    box.hidden = false;
+    const r = el.getBoundingClientRect();
+    const w = box.offsetWidth, h = box.offsetHeight;
+    let x = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8);
+    let y = r.bottom + 8;
+    if (y + h > window.innerHeight - 8) y = Math.max(8, r.top - h - 8);
+    box.style.left = x + "px"; box.style.top = y + "px";
+  }
+  function hide() { if (!pinned) box.hidden = true; }
+  document.addEventListener("mouseover", (e) => { const el = e.target.closest("[data-tip],[data-tiptext]"); if (el && !pinned) show(el); });
+  document.addEventListener("mouseout", (e) => { if (e.target.closest("[data-tip],[data-tiptext]")) hide(); });
+  document.addEventListener("focusin", (e) => { const el = e.target.closest("[data-tip],[data-tiptext]"); if (el) show(el); });
+  document.addEventListener("focusout", hide);
+  document.addEventListener("click", (e) => {
+    const el = e.target.closest(".tip,.term");
+    if (el) {
+      e.preventDefault(); e.stopPropagation();
+      if (pinned === el) { pinned = null; box.hidden = true; return; }
+      pinned = el; show(el); return;
+    }
+    if (pinned) { pinned = null; box.hidden = true; }
+  }, true);
+  window.addEventListener("scroll", () => { if (pinned) { pinned = null; box.hidden = true; } }, { passive: true });
+  // A tap anywhere else closes a pinned one: iOS sends no click for a tap on plain text,
+  // but it does send the pointer. Escape closes it too.
+  document.addEventListener("pointerdown", (e) => {
+    if (pinned && !pinned.contains(e.target)) { pinned = null; box.hidden = true; }
+  }, true);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !box.hidden) { pinned = null; box.hidden = true; }
+  });
+
+  // --- the pipeline: a dot, a stage, a pass, a link or the address opens a step ----
+  // Every section starts closed, so going anywhere on the page first opens
+  // whatever it sits in, and the section itself when the place is one.
+  function reveal(el) {
+    for (let d = el.closest("details"); d; d = d.parentElement.closest("details")) d.open = true;
+    const fold = el.matches(".fold") ? $(":scope > details", el) : null;
+    if (fold) fold.open = true;
+    const tabPanel = el.closest('[role="tabpanel"]');
+    if (tabPanel) msgTab(document.getElementById(tabPanel.getAttribute("aria-labelledby")));
+  }
+
+  // --- Incoming / Outgoing: their message and the reply, a tab each -------------
+  const tabsNow = () => $$('#msgTabs [role="tab"]');
+  function msgTab(tab, focus) {
+    const tabs = tabsNow();
+    if (!tab || !tabs.includes(tab)) return;
+    for (const t of tabs) {
+      const on = t === tab;
+      t.setAttribute("aria-selected", String(on));
+      t.tabIndex = on ? 0 : -1;
+      const p = document.getElementById(t.getAttribute("aria-controls"));
+      if (p) p.hidden = !on;
+    }
+    if (focus) tab.focus();
+  }
+  document.addEventListener("click", (e) => {
+    const t = e.target.closest('#msgTabs [role="tab"]');
+    if (t) msgTab(t);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!e.target.closest || !e.target.closest("#msgTabs")) return;
+    const tabs = tabsNow();
+    const at = tabs.indexOf(document.activeElement);
+    const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: tabs.length - 1 }[e.key];
+    if (at < 0 || to === undefined) return;
+    e.preventDefault();
+    msgTab(tabs[(to + tabs.length) % tabs.length], true);
+  });
+  if (tabsNow().length) msgTab(tabsNow()[0]);
+  window.caseMsgTab = (id) => msgTab(document.getElementById(id) || tabsNow()[0]);
+
+  // --- Ask and Fix: the bubble at the bottom right, and its panel ------------------
+  // Either button opens its section as the panel, the other switches it, and the
+  // close button or Escape puts it away. Every link to #ask or #fix, or to
+  // anything inside them, opens the panel there instead of scrolling.
+  const hPanel = $("#helperPanel"), hScroll = $("#helperScroll");
+  const hButtons = $$(".hp-btn");
+  let helperOn = "";
+  function helperOf(el) { const sec = el && el.closest("[data-helper]"); return sec ? sec.dataset.helper : ""; }
+  function helperOpen(name, how = {}) {
+    const sec = document.getElementById(name);
+    if (!hPanel || !sec || sec.dataset.helper !== name) return false;
+    const switching = helperOn !== name;
+    helperOn = name;
+    hPanel.hidden = false;
+    $$(".hp-sec", hPanel).forEach((x) => { x.hidden = x !== sec; });
+    hPanel.setAttribute("aria-labelledby", sec.getAttribute("aria-labelledby"));
+    hPanel.removeAttribute("aria-label");
+    hButtons.forEach((b) => b.setAttribute("aria-expanded", String(b.dataset.helperGo === name)));
+    if (how.at && how.at !== sec) {
+      reveal(how.at);
+      requestAnimationFrame(() => how.at.scrollIntoView({ block: "start" }));
+    } else if (switching) hScroll.scrollTop = 0;
+    if (how.focus !== false) $(".hp-title", sec).focus({ preventScroll: true });
+    if (how.hash) history.replaceState(null, "", "#" + how.hash);
+    return true;
+  }
+  function helperClose(back = true) {
+    if (!hPanel || hPanel.hidden) return;
+    const was = helperOn;
+    hPanel.hidden = true; helperOn = "";
+    hButtons.forEach((b) => b.setAttribute("aria-expanded", "false"));
+    const at = location.hash.length > 1 && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (at && helperOf(at)) history.replaceState(null, "", location.pathname + location.search);
+    if (back) { const b = hButtons.find((x) => x.dataset.helperGo === was); if (b) b.focus(); }
+  }
+  hButtons.forEach((b) => b.addEventListener("click", () => {
+    if (helperOn === b.dataset.helperGo) helperClose();
+    else helperOpen(b.dataset.helperGo, { hash: b.dataset.helperGo });
+  }));
+  if (hPanel) $("#helperClose").addEventListener("click", () => helperClose());
+  // First in line, so Escape closes the request viewer alone when that is open.
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !helperOn || !$("#viewer").hidden) return;
+    e.preventDefault();
+    helperClose(hPanel.contains(document.activeElement));
+  }, true);
+  window.caseHelperOpen = () => helperOn;
+  // Read again whenever the chart is drawn again while Rouh works (`pipelineDrawn`).
+  let panel, scroller, cards, dots;
+  function pipelineParts() {
+    panel = $("#steps"); scroller = $("#flowScroll");
+    cards = panel ? $$(":scope > .step", panel) : [];
+    dots = $$(".flow-plot .dot");
+  }
+  pipelineParts();
+  // A decision's own step is part of its ask's card: its id selects that card.
+  const isStep = (id) => {
+    if (!id || !panel) return null;
+    const c = document.getElementById(id);
+    return c && c.parentElement === panel ? c : panel.querySelector(`:scope > [data-also="${CSS.escape(id)}"]`);
+  };
+  // Brings a dot into the scrolled chart, or the right end, where the case is now.
+  function showInChart(id) {
+    if (!scroller || !scroller.clientWidth) return;
+    const dot = document.getElementById("dot-" + id) || document.getElementById("bell-" + id) ||
+      $(`.pass-head[data-open="${CSS.escape(id)}"]`);
+    const names = $(".lane-names", scroller).offsetWidth;
+    if (!dot) { scroller.scrollLeft = scroller.scrollWidth; return; }
+    const x = dot.offsetLeft + $(".flow-plot", scroller).offsetLeft;
+    const view = scroller.clientWidth - names;
+    if (x - names < scroller.scrollLeft || x - names > scroller.scrollLeft + view - 20)
+      scroller.scrollLeft = Math.max(0, x - names - view / 2);
+  }
+  // Selects one step: its dot ringed, its card the one open under the chart.
+  function select(id, how = {}) {
+    const card = isStep(id);
+    if (!card) return false;
+    id = card.id;
+    if (how.reveal !== false) reveal(card);
+    cards.forEach((c) => c.classList.toggle("sel", c === card));
+    dots.forEach((d) => {
+      const on = d.dataset.open === id;
+      d.classList.toggle("sel", on);
+      d.setAttribute("aria-pressed", String(on));
+      d.tabIndex = on ? 0 : -1;
+    });
+    $$(".flow-plot .bell").forEach((b) => b.classList.toggle("sel", b.dataset.open === id));
+    $$(".pass-head").forEach((h) => h.classList.toggle("sel", h.dataset.open === id));
+    $$(".lane-name").forEach((l) => l.classList.toggle("sel", l.dataset.open === id));
+    if (!dots.some((d) => d.dataset.open === id) && dots.length) {
+      // A pass's own start has no dot: the first dot after it takes the Tab stop.
+      const head = $(`.pass-head[data-open="${CSS.escape(id)}"], .pass-head[data-start="${CSS.escape(id)}"]`);
+      const after = (head && dots.find((d) => +d.dataset.pass >= +head.dataset.pass)) || dots[dots.length - 1];
+      after.tabIndex = 0;
+    }
+    showInChart(id);
+    if (how.hash) history.replaceState(null, "", "#" + id);
+    if (how.scroll === "chart") $("#pipeline").scrollIntoView({ block: "start" });
+    else if (how.scroll === "card") {
+      const r = card.getBoundingClientRect();
+      if (r.top > window.innerHeight - 80 || r.top < 0) card.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    return true;
+  }
+  window.caseSelect = select;
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("[data-open]");
+    if (!a) return;
+    e.preventDefault();
+    const inChart = !!a.closest("#flowScroll");
+    const fromHelper = !!a.closest("#helperPanel");
+    if (select(a.dataset.open, { hash: true, scroll: inChart ? "card" : "chart" })) {
+      if (fromHelper) helperClose(false);
+    } else {
+      const el = document.getElementById(a.dataset.open);
+      if (el && helperOf(el)) helperOpen(helperOf(el), { at: el, hash: a.dataset.open });
+      else if (el) { if (fromHelper) helperClose(false); reveal(el); el.scrollIntoView({ block: "start" }); }
+    }
+  });
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest('a[href^="#"]:not([data-open])');
+    const id = a && a.hash.length > 1 && decodeURIComponent(a.hash.slice(1));
+    if (!id) return;
+    const fromHelper = !!a.closest("#helperPanel");
+    if (isStep(id)) {
+      e.preventDefault();
+      if (fromHelper) helperClose(false);
+      select(id, { hash: true, scroll: "chart" });
+      return;
+    }
+    const el = document.getElementById(id);
+    if (el && helperOf(el)) { e.preventDefault(); helperOpen(helperOf(el), { at: el, hash: id }); return; }
+    if (el) { if (fromHelper) helperClose(false); reveal(el); }
+  });
+  window.addEventListener("hashchange", () => {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const el = document.getElementById(id);
+    if (isStep(id)) select(id, { scroll: "chart" });
+    else if (el && helperOf(el)) helperOpen(helperOf(el), { at: el });
+    else if (el) { reveal(el); el.scrollIntoView({ block: "start" }); }
+  });
+  // Arrow keys walk the dots in time order; Home and End go to the first and last.
+  document.addEventListener("keydown", (e) => {
+    if (!scroller || !scroller.contains(e.target)) return;
+    const at = dots.indexOf(document.activeElement);
+    if (at < 0) return;
+    const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: dots.length - 1 }[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    const dot = dots[Math.max(0, Math.min(dots.length - 1, to))];
+    select(dot.dataset.open, { hash: true });
+    dot.focus();
+  });
+  // The ten-second redraw while Rouh works keeps what was open (below).
+  try {
+    const kept = JSON.parse(sessionStorage.getItem("caseOpen:" + location.pathname) || "null");
+    sessionStorage.removeItem("caseOpen:" + location.pathname);
+    if (kept) for (const id of kept) {
+      if (id.startsWith("helper:")) { helperOpen(id.slice(7), { focus: false }); continue; }
+      const d = document.getElementById(id); if (d) (d.tagName === "DETAILS" ? d : $(":scope > details", d) || d).open = true;
+    }
+  } catch (e) {}
+  window.caseKeepOpen = () => {
+    const ids = $$("details[open]").map((d) => d.id || (d.parentElement.matches(".fold") && d.parentElement.id)).filter(Boolean);
+    if (helperOn) ids.push("helper:" + helperOn);
+    try { sessionStorage.setItem("caseOpen:" + location.pathname, JSON.stringify(ids)); } catch (e) {}
+  };
+  // By default the panel shows where the case is now: the step waiting on
+  // you, or else the latest. An address naming a step selects that one.
+  const wanted = location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : "";
+  // A closed chart has no width yet: bring the selection in once it opens.
+  // It opens at the right end, where the case is now, unless the address
+  // asked for a step further back.
+  const bring = () => {
+    if (!scroller) return;
+    const id = (cards.find((c) => c.classList.contains("sel")) || {}).id;
+    if (isStep(wanted) && isStep(wanted).id === id) showInChart(id);
+    else scroller.scrollLeft = scroller.scrollWidth;
+  };
+  document.addEventListener("toggle", (e) => {
+    if (e.target.matches && e.target.matches("#pipeline > details") && e.target.open) bring();
+  }, true);
+  // Tools the turn called, in bold among those it was offered.
+  function boldCalled() {
+    for (const step of cards) {
+      const called = new Set($$(".tool.called", step).map((t) => t.textContent.trim()));
+      $$("[data-tool]", step).forEach((t) => { if (called.has(t.dataset.tool)) t.classList.add("called"); });
+    }
+  }
+  if (panel) {
+    document.documentElement.classList.add("js");
+    const fold = $("#pipeline > details");
+    if (isStep(wanted)) {
+      select(wanted);
+      setTimeout(() => $("#pipeline").scrollIntoView({ block: "start" }), 30);
+    } else {
+      // The section still starts closed, like every other.
+      select(panel.dataset.current || (cards[cards.length - 1] || {}).id, { reveal: false });
+    }
+    if (fold.open) bring();
+  }
+  // The chart drawn again while Rouh works: the step that was selected stays
+  // selected while it is there, and the chart keeps where it was scrolled to,
+  // or follows the case to its right end when it was there already.
+  window.pipelineDrawn = (was) => {
+    pipelineParts();
+    boldCalled();
+    copyButtons();
+    if (!panel) return;
+    const keep = was && was.selected && isStep(was.selected) && !was.followed ? was.selected
+      : panel.dataset.current || (cards[cards.length - 1] || {}).id;
+    select(keep, { reveal: false });
+    if (scroller && was) scroller.scrollLeft = was.atEnd ? scroller.scrollWidth : was.left;
+  };
+  window.pipelineNow = () => ({
+    selected: (cards.find((c) => c.classList.contains("sel")) || {}).id || "",
+    followed: !!panel && (cards.find((c) => c.classList.contains("sel")) || {}).id === (panel.dataset.current || (cards[cards.length - 1] || {}).id),
+    left: scroller ? scroller.scrollLeft : 0,
+    atEnd: !!scroller && scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 4,
+  });
+  window.caseTips = tips;
+  if (wanted && !isStep(wanted)) {
+    const el = document.getElementById(wanted);
+    if (el && helperOf(el)) helperOpen(helperOf(el), { at: el });
+    else if (el) { reveal(el); setTimeout(() => el.scrollIntoView({ block: "start" }), 30); }
+  }
+
+  boldCalled();
+
+  // --- copying -------------------------------------------------------------------
+  async function copy(text, btn) {
+    try { await navigator.clipboard.writeText(text); }
+    catch (e) { const t = document.createElement("textarea"); t.value = text; document.body.append(t); t.select(); document.execCommand("copy"); t.remove(); }
+    if (btn) { const was = btn.textContent; btn.textContent = "Copied"; setTimeout(() => btn.textContent = was, 1400); }
+  }
+  function copyButtons() {
+    for (const btn of $$("[data-copy]")) {
+      btn.hidden = false;
+      btn.onclick = () => copy(document.getElementById(btn.dataset.copy).value, btn);
+    }
+  }
+  copyButtons();
+
+  // --- the prompts, whole, on demand -----------------------------------------------
+  const viewer = $("#viewer"), vBody = $("#vBody");
+  let shown = null, tab = "system";
+  const textBlocks = (content) => typeof content === "string" ? [{ type: "text", text: content }] : (content || []);
+  function el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function pre(text) { const p = el("pre", "", text); return p; }
+  function blockView(b) {
+    const wrap = el("div");
+    if (b.type === "text") wrap.append(pre(b.text || ""));
+    else if (b.type === "thinking") wrap.append(el("div", "k", "Reasoning"), pre(b.thinking || ""));
+    else if (b.type === "tool_use" || b.type === "server_tool_use") wrap.append(el("div", "k", "Calls " + b.name), pre(JSON.stringify(b.input, null, 2)));
+    else if (b.type === "tool_result") {
+      const parts = typeof b.content === "string" ? b.content : (b.content || []).map((c) => c.text || JSON.stringify(c)).join("\n");
+      wrap.append(el("div", "k", "Tool result" + (b.is_error ? " (error)" : "")), pre(parts));
+    } else wrap.append(el("div", "k", b.type || "block"), pre(JSON.stringify(b, null, 2)));
+    return wrap;
+  }
+  function render() {
+    vBody.textContent = "";
+    $$("[data-vtab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.vtab === tab)));
+    if (!shown) return;
+    const req = shown.request || {};
+    if (tab === "system") {
+      const sys = textBlocks(req.system);
+      if (!sys.length) vBody.append(el("p", "muted", "No system prompt."));
+      sys.forEach((b) => vBody.append(pre(b.text || JSON.stringify(b))));
+    } else if (tab === "messages") {
+      (req.messages || []).forEach((m, i) => {
+        const box = el("div", "msg");
+        box.append(el("div", "role " + m.role, `${i + 1}. ${m.role}`));
+        textBlocks(m.content).forEach((b) => box.append(blockView(b)));
+        vBody.append(box);
+      });
+    } else if (tab === "tools") {
+      (req.tools || []).forEach((t) => {
+        const d = el("details", "panel"); d.style.marginBottom = "6px";
+        const s = el("summary"); s.append(el("span", "tool", t.name || t.type || "tool"));
+        if (t.description) s.append(el("span", "hint", t.description.slice(0, 90)));
+        d.append(s);
+        const body = el("div", "panel-body"); body.append(pre(JSON.stringify(t, null, 2))); d.append(body);
+        vBody.append(d);
+      });
+    } else if (tab === "answer") {
+      const resp = shown.response || {};
+      (resp.content || []).forEach((b) => vBody.append(blockView(b)));
+      if (!(resp.content || []).length) vBody.append(pre(shown.text || "(no answer kept)"));
+    } else {
+      vBody.append(pre(JSON.stringify({ request: req, response: shown.response }, null, 2)));
+    }
+    find();
+  }
+  function find() {
+    const q = $("#vFind").value.trim();
+    for (const p of $$("pre", vBody)) {
+      const raw = p.dataset.raw ?? p.textContent;
+      p.dataset.raw = raw;
+      if (!q) { p.textContent = raw; continue; }
+      const parts = raw.split(new RegExp("(" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "i"));
+      p.textContent = "";
+      parts.forEach((part, i) => p.append(i % 2 ? el("mark", "", part) : document.createTextNode(part)));
+    }
+    const first = $("mark", vBody); if (first) first.scrollIntoView({ block: "center" });
+  }
+  $("#vFind").addEventListener("input", find);
+  async function openRequest(id, wanted) {
+    viewer.hidden = false; document.body.style.overflow = "hidden";
+    $("#vTitle").textContent = "Request " + id; $("#vMeta").textContent = "Loading..."; vBody.textContent = "";
+    tab = wanted || "system"; shown = null;
+    try {
+      const r = await fetch(`${casePath}/request/${id}`, { credentials: "same-origin" });
+      const got = await r.json();
+      if (!r.ok) throw new Error(got.error || r.status);
+      shown = got;
+      $("#vMeta").textContent = `${got.model} · ${got.when} · ${got.status} · in ${got.input_tokens}, cached ${got.cache_read_tokens}, out ${got.output_tokens} · $${(got.cost || 0).toFixed(4)}`;
+      render();
+    } catch (e) { $("#vMeta").textContent = "Could not load it: " + e.message; }
+  }
+  function closeViewer() { viewer.hidden = true; document.body.style.overflow = ""; }
+  document.addEventListener("click", (e) => { const b = e.target.closest("[data-request]"); if (b) openRequest(b.dataset.request, b.dataset.tab); });
+  $$("[data-vtab]").forEach((b) => b.onclick = () => { tab = b.dataset.vtab; render(); });
+  $("#vClose").onclick = closeViewer;
+  viewer.addEventListener("click", (e) => { if (e.target === viewer) closeViewer(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !viewer.hidden) closeViewer(); });
+  $("#vCopy").onclick = (e) => copy(Array.from(vBody.querySelectorAll("pre")).map((p) => p.dataset.raw ?? p.textContent).join("\n\n"), e.target);
+
+  // --- asking ----------------------------------------------------------------------
+  const form = $("#askForm"), qa = $("#qa"), text = $("#askText");
+  form.hidden = false;
+  $$("[data-q]").forEach((b) => b.onclick = () => { text.value = b.dataset.q; text.focus(); });
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const question = text.value.trim();
+    if (!question) return;
+    const go = $("#askGo"); go.disabled = true;
+    qa.append(el("div", "q", question));
+    const answer = el("div", "a busy", "Reading the trace...");
+    qa.append(answer); answer.scrollIntoView({ block: "nearest" });
+    text.value = "";
+    try {
+      const r = await fetch(`${casePath}/ask`, { method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+        body: JSON.stringify({ question, step: (location.hash || "").slice(1) }) });
+      const got = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(got.error || ("it answered " + r.status));
+      answer.classList.remove("busy"); answer.textContent = got.answer;
+    } catch (err) { answer.classList.remove("busy"); answer.textContent = "No answer: " + err.message; text.value = question; }
+    go.disabled = false;
+  });
+  // The inbox question: This thread is for this email only, so it cannot be
+  // picked with Always, and the senders box shows only for A sender or label.
+  // The server refuses the same (`CaseDesk._decide_inbox`).
+  const inboxSync = () => {
+    const inboxQ = $("#inboxQuestion");
+    if (!inboxQ) return;
+    const always = inboxQ.querySelector('input[name=how_long][value=always]').checked;
+    const no = inboxQ.querySelector('input[name=how_long][value=no]').checked;
+    $$("input[name=how_far]", inboxQ).forEach((r) => {
+      r.disabled = no || (always && r.hasAttribute("data-once-only"));
+      if (r.disabled && r.checked) {
+        const next = $$("input[name=how_far]", inboxQ).find((x) => !x.hasAttribute("data-once-only"));
+        if (next && !no) next.checked = true;
+      }
+    });
+    const which = $(".inbox-which", inboxQ);
+    if (which) which.hidden = no || !inboxQ.querySelector('input[name=how_far][value=senders]').checked;
+    $("#inboxAnswer").textContent = no ? "Decline" : "Answer";
+  };
+  document.addEventListener("change", (e) => { if (e.target.closest && e.target.closest("#inboxQuestion")) inboxSync(); });
+  inboxSync();
+  // The decision drawn again while the page is open (`caseLive` below).
+  window.caseDecideDrawn = () => { inboxSync(); if (window.replyFilesSync) window.replyFilesSync(); };
+  // Redo is one press: the button stays down while the page goes, and the
+  // server refuses a second attempt from the same page anyway (`CaseDesk.redo`).
+  document.addEventListener("submit", (e) => {
+    if (e.target.id !== "redoForm") return;
+    const go = $("#redoGo");
+    if (go.disabled) { e.preventDefault(); return; }
+    setTimeout(() => { go.disabled = true; go.textContent = "Starting again…"; }, 0);
+  });
+})();
+// The files under the reply: what is ticked goes, and the button says how many
+// (`CaseDesk._decide_approval` takes the rest off the reply).
+(() => {
+  const sync = () => {
+    const box = document.getElementById("replyFiles");
+    const button = document.getElementById("approve");
+    if (!box || !button) return;
+    const ticks = [...box.querySelectorAll('input[name="keep"]')];
+    const on = ticks.filter((t) => t.checked).length;
+    ticks.forEach((t) => t.closest("li").classList.toggle("off", !t.checked));
+    button.textContent = on ? `Approve and send with ${on} attachment${on === 1 ? "" : "s"}`
+      : button.dataset.labelNone;
+    const none = document.getElementById("noFileLeft");
+    if (none) none.hidden = on > 0;
+  };
+  document.addEventListener("change", (e) => { if (e.target.closest && e.target.closest("#replyFiles")) sync(); });
+  window.replyFilesSync = sync;
+  sync();
+})();
+</script>
+<script>
+// The runs fixing the checks behind steps marked false alarms (`rouh/case_fixes.py`): while
+// one goes, its panel at the top and its line at the step are drawn again every few seconds,
+// with no reload, and the asking stops once nothing is going any more.
+(() => {
+  const casePath = "{{ path|escapejs }}";
+  const live = () => { const p = document.getElementById("fixPanel"); return p && p.dataset.live; };
+  // Undo is one press, like Redo: the button stays down while the page goes.
+  document.addEventListener("submit", (e) => {
+    const f = e.target.closest("form[data-once]");
+    if (!f) return;
+    const b = f.querySelector("button");
+    if (b.disabled) { e.preventDefault(); return; }
+    setTimeout(() => { b.disabled = true; b.textContent = "Undoing…"; }, 0);
+  });
+  // Fix's one form: the button says what pressing it does.
+  const tell = document.getElementById("markForm");
+  if (tell) {
+    const go = document.getElementById("markGo");
+    const sync = () => { go.textContent = tell.querySelector("input[value=real_problem]").checked ? "Keep it" : "Fix it"; };
+    tell.addEventListener("change", sync); sync();
+    tell.addEventListener("submit", () => setTimeout(() => { go.disabled = true; }, 0));
+  }
+  let wait = 3000;
+  async function again() {
+    if (!live()) return;
+    if (document.hidden) return setTimeout(again, wait);
+    try {
+      const r = await fetch(`${casePath}/fixes`, { credentials: "same-origin", cache: "no-store" });
+      if (r.ok) {
+        const got = await r.json();
+        const panel = document.getElementById("fixPanel");
+        if (panel && !panel.contains(document.activeElement)) {
+          const open = [...panel.querySelectorAll("details[open]")].map((d) => (d.closest("[id]") || {}).id);
+          panel.outerHTML = got.top;
+          for (const id of open) {
+            const el = id && document.getElementById(id);
+            const d = el && (el.tagName === "DETAILS" ? el : el.querySelector("details"));
+            if (d) d.open = true;
+          }
+        }
+        const pill = document.getElementById("followState");
+        if (pill && got.pill) { pill.textContent = got.pill.text; pill.className = "pill " + (got.pill.tone || ""); }
+        const lines = document.getElementById("fixLines");
+        if (lines) lines.innerHTML = got.lines || "";
+        for (const slot of document.querySelectorAll("[data-fix-step]")) {
+          slot.innerHTML = got.steps[slot.dataset.fixStep] || got.steps[slot.dataset.fixAlso] || "";
+        }
+      }
+    } catch (e) {}
+    if (live()) setTimeout(again, wait);
+  }
+  if (live()) setTimeout(again, wait);
+})();
+</script>
+<script>
+// Petar, 11 October 2026: "It reload the page every 1,2 seconds... that is no means to do its
+// sync calls, not reload." The page never loads itself again for news. Every few seconds it
+// asks for a short stamp of what it draws (`/state`, `CaseDesk.page_stamp`); when the stamp
+// moves, it reads the page in the background and puts in only the parts that changed. A part
+// somebody is typing in, has changed a field of, or is waiting on a choice in is left alone
+// until they are done with it; what was open stays open, and the scroll stays where it was.
+(() => {
+  const main = document.getElementById("caseMain");
+  if (!main) return;
+  const casePath = "{{ path|escapejs }}";
+  const drawn = window.caseDrawn || {};
+  const parts = window.caseParts || [];
+  // A form's token is new on every drawing, and means nothing to what is shown.
+  const norm = (html) => (html || "").replace(/(name="csrfmiddlewaretoken" value=")[^"]*"/g, '$1"');
+  for (const id of Object.keys(drawn)) drawn[id] = norm(drawn[id]);
+  let stamp = main.dataset.stamp || "";
+  let behind = false;
+
+  // Somebody is in the middle of something in it: typing, a field changed and not sent, a
+  // choice being carried out, or a failure still to be read.
+  function busy(el) {
+    if (!el) return false;
+    if (el.querySelector("[data-busy], [data-sticky]")) return true;
+    const a = document.activeElement;
+    if (a && el.contains(a) && /^(TEXTAREA|INPUT|SELECT)$/.test(a.tagName)) return true;
+    for (const f of el.querySelectorAll("textarea, input, select")) {
+      if (f.type === "hidden") continue;
+      if (f.type === "checkbox" || f.type === "radio") { if (f.checked !== f.defaultChecked) return true; }
+      else if (f.tagName === "SELECT") { if ([...f.options].some((o) => o.selected !== o.defaultSelected)) return true; }
+      else if (f.value !== f.defaultValue) return true;
+    }
+    return false;
+  }
+  // Which folds are open, by the nearest element with an id and their place under it.
+  function folds(el) {
+    const out = new Map();
+    const all = [el, ...el.querySelectorAll("details")].filter((d) => d.tagName === "DETAILS");
+    const count = new Map();
+    for (const d of all) {
+      const at = (d.id && d) || d.parentElement.closest("[id]") || el;
+      const n = count.get(at.id) || 0;
+      count.set(at.id, n + 1);
+      out.set(d.id ? "#" + d.id : at.id + ":" + n, d);
+    }
+    return out;
+  }
+  function keepFolds(from, to) {
+    const was = folds(from);
+    for (const [key, d] of folds(to)) { const old = was.get(key); if (old) d.open = old.open; }
+  }
+  // What is at the top of the screen now, to keep it there.
+  function anchor() {
+    for (const el of main.querySelectorAll("[id]")) {
+      const r = el.getBoundingClientRect();
+      if (r.height && r.top >= 0) return { id: el.id, el, top: r.top };
+    }
+    return null;
+  }
+  // One part put in place of the old, or where it now belongs, or taken out.
+  function place(id, fresh, doc) {
+    const old = document.getElementById(id);
+    if (!fresh) { if (old && !busy(old)) { old.remove(); delete drawn[id]; return true; } return !old; }
+    const html = norm(fresh.outerHTML);
+    if (old && drawn[id] === html) return true;
+    if (old && busy(old)) return false;
+    const el = document.importNode(fresh, true);
+    if (old) {
+      keepFolds(old, el);
+      if (old.classList.contains("hp-sec")) el.hidden = old.hidden;
+      old.replaceWith(el);
+    } else {
+      let before = fresh.previousElementSibling;
+      while (before && !(before.id && document.getElementById(before.id))) before = before.previousElementSibling;
+      if (before) document.getElementById(before.id).after(el);
+      else {
+        let after = fresh.nextElementSibling;
+        while (after && !(after.id && document.getElementById(after.id))) after = after.nextElementSibling;
+        if (after) document.getElementById(after.id).before(el);
+        else main.append(el);
+      }
+    }
+    drawn[id] = html;
+    if (window.caseTips) window.caseTips(el);
+    return true;
+  }
+  async function redraw() {
+    const r = await fetch("{{ framed|escapejs }}", { credentials: "same-origin", cache: "no-store" });
+    if (!r.ok) throw new Error(String(r.status));
+    const doc = new DOMParser().parseFromString(await r.text(), "text/html");
+    const at = anchor();
+    const pipe = window.pipelineNow ? window.pipelineNow() : null;
+    const tab = (document.querySelector('#msgTabs [aria-selected="true"]') || {}).id;
+    let all = true;
+    for (const id of parts) {
+      const was = document.getElementById(id);
+      const before = was && drawn[id];
+      const ok = place(id, doc.getElementById(id), doc);
+      all = all && ok;
+      if (!ok || !document.getElementById(id) || before === drawn[id]) continue;
+      if (id === "pipeline" && window.pipelineDrawn) window.pipelineDrawn(pipe);
+      if (id === "decide" && window.caseDecideDrawn) window.caseDecideDrawn();
+      if (id === "messages" && window.caseMsgTab) window.caseMsgTab(tab);
+    }
+    if (at) {
+      const now = document.getElementById(at.id);
+      if (now) window.scrollBy(0, now.getBoundingClientRect().top - at.top);
+    }
+    const next = doc.getElementById("caseMain");
+    return all ? (next && next.dataset.stamp) || "" : "";
+  }
+  let wait = 3000;
+  async function ask() {
+    if (document.hidden) return;
+    try {
+      const r = await fetch(`${casePath}/state`, { credentials: "same-origin", cache: "no-store" });
+      if (!r.ok) return;
+      const got = await r.json();
+      wait = got.live ? 3000 : 15000;
+      if (got.stamp !== stamp || behind) {
+        const now = await redraw();
+        // A part left alone because somebody was in it is drawn on a later ask.
+        behind = !now;
+        stamp = now || got.stamp;
+      }
+    } catch (e) {}
+  }
+  async function loop() { await ask(); setTimeout(loop, wait); }
+  setTimeout(loop, wait);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) ask(); });
+  window.caseLive = { drawn, norm, busy, keepFolds };
+})();
+</script>
+<script>
+// Rouh around the frame (`approvalspage.js`, Petar, 15 October 2026, fr_65ed87c8685b): this
+// page is the case at /mail/case/<key>, shown inside Rouh with the orb. A link to anywhere
+// else in Rouh goes there through Rouh itself, so the app is never drawn inside the frame
+// and never loaded again; Escape with nothing of the page's own open closes the layer; and
+// the tab is named for whoever sent it. Opened on its own, with no Rouh around it, links
+// are plain links.
+(() => {
+  const casePath = "{{ path|escapejs }}";
+  let rouh = null;
+  try { if (window.parent !== window && window.parent.RouhApprovalsHost) rouh = window.parent.RouhApprovalsHost; } catch (e) {}
+  const go = (href) => { if (rouh && rouh.go) rouh.go(href); else window.top.location.href = href; };
+  window.caseHost = { go };
+  if (!rouh) return;
+  const main = document.getElementById("caseMain");
+  if (main && rouh.titled) rouh.titled(main.dataset.name || "");
+  document.addEventListener("click", (e) => {
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target.closest && e.target.closest("a[href]");
+    if (!a || (a.target && a.target !== "_self") || a.hasAttribute("download")) return;
+    const u = new URL(a.href, location.href);
+    // The page's own places, and the case's own files and requests, stay in the frame.
+    if (u.origin === location.origin && (u.pathname === location.pathname || u.pathname.startsWith(casePath + "/"))) return;
+    e.preventDefault();
+    if (u.origin !== location.origin) { window.open(u.href, "_blank", "noopener"); return; }
+    go(u.pathname + u.search + u.hash);
+  });
+  // Looked at before the page's own handlers take theirs down, so one Escape does one thing.
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !rouh.close) return;
+    const open = (id) => { const el = document.getElementById(id); return el && !el.hidden; };
+    if (open("tipBox") || open("viewer") || open("helperPanel")) return;
+    const t = e.target;
+    if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+    rouh.close();
+  }, true);
+})();
+</script>
+{# Its presses are JSON writes, which carry the CSRF token the way Rouh's own page's do. #}
+<script defer src="{% asset "csrf.js" %}"></script>
+<script defer src="{% asset "mailcasepage.js" %}"></script>
+</body>
+</html>

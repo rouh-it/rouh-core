@@ -1,0 +1,36 @@
+/* Labels: one look for every list Rouh filters with labels, the task browser's
+   (`taskbrowser.js`) and the Incubator's (`incubatorpage.js`), drawn by
+   `labels.js`. Petar, 3 November 2026: "make the filters and labels the same
+   as in the task browser ... we have to have the same kind of setup."
+
+   A label is one pill in up to three parts: the eye in front, which hides what
+   carries the label from the list, the button, which filters by it and holds
+   its count, and whatever the page puts at its end (the task browser's cross).
+
+   These rules were the task browser's own until that day, moved here without
+   a change. The task browser's page is in a frame with its own colour names
+   (`--copy`, `--border`, `--subtle`); Rouh's page has others (`--text`,
+   `--line`, `--dim`), so each colour names the task browser's first and Rouh's
+   after it, and both pages read the same pixels. */
+.rl-chip{font-size:12.5px;color:var(--muted,var(--dim));background:var(--panel);border:1px solid var(--border,var(--line));
+border-radius:8px;padding:5px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;
+line-height:1.15;transition:transform .12s,background .12s,border-color .12s,opacity .12s;font-family:inherit}
+.rl-chip:hover{border-color:var(--cc,var(--copy,var(--text)));color:var(--copy,var(--text))}
+.rl-dot{width:8px;height:8px;border-radius:50%;background:var(--cc);flex:none;display:inline-block}
+.rl-chip .c{font-family:var(--mono);font-size:10.5px;color:var(--subtle,var(--dim))}
+.rl-chip.on{background:var(--cc,var(--copy,var(--text)));border-color:var(--cc,var(--copy,var(--text)));
+color:var(--cc-on,var(--on-fg,var(--accent-ink)))}
+.rl-chip.on .c{color:inherit;opacity:.8}
+.rl-chip.on .rl-dot{background:var(--cc-on,var(--on-fg,var(--accent-ink)))}
+.rl-chip.zero{opacity:.4}
+.rl-lab{display:inline-flex;align-items:stretch}
+.rl-eye{display:grid;place-items:center;padding:0 4px 0 7px;border:1px solid var(--border,var(--line));border-right:0;
+border-radius:8px 0 0 8px;background:var(--panel);color:var(--subtle,var(--dim));cursor:pointer;transition:color .12s}
+.rl-eye .ic{width:14px;height:14px}
+.rl-eye .slash{display:none}
+.rl-eye:hover{color:var(--copy,var(--text))}
+.rl-eye[aria-pressed="true"]{color:var(--cat-rose)}
+.rl-eye[aria-pressed="true"] .slash{display:inline}
+.rl-lab:has(> .rl-eye) > .rl-chip{border-top-left-radius:0;border-bottom-left-radius:0}
+.rl-lab.hid > .rl-chip{opacity:.5}
+.rl-lab.hid > .rl-chip .lbl{text-decoration:line-through;text-decoration-thickness:1px}

@@ -1,0 +1,51 @@
+{
+  "id": "n18-owed-to-you",
+  "name": "Owed to you",
+  "title": "Owed to you: what somebody said in one of your meetings they would do by a date that has passed, in the morning brief, with what it was about behind a toggle, a follow-up drafted only when you ask, It came and Dismiss",
+  "aliases": [
+    "owed to me",
+    "overdue from others",
+    "action items owed",
+    "chase",
+    "follow up",
+    "promised in a meeting"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<path d=\"M3.5 13.5h4l1.5 3h6l1.5-3h4\"/><path d=\"M3.5 13.5l2.5-7.5h12l2.5 7.5v5a1.5 1.5 0 0 1-1.5 1.5h-14a1.5 1.5 0 0 1-1.5-1.5z\"/><path d=\"M12 3.5v7M9.5 8l2.5 2.5L14.5 8\"/>",
+  "attaches_to": [
+    "meeting"
+  ],
+  "maturity": "lab",
+  "switch": "owed_to_you",
+  "signals": {
+    "events": {
+      "context": "You opened What was this about on something owed to you from a meeting",
+      "drafted": "You pressed Draft a follow-up on something owed to you from a meeting",
+      "chased": "You pressed Send on a follow-up to somebody who owes you something from a meeting",
+      "came": "You pressed It came on something owed to you from a meeting",
+      "dismissed": "You pressed Dismiss on something owed to you from a meeting, to ignore it"
+    },
+    "runs": {
+      "shown": "Rouh put something owed to you from a meeting, past its date, in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the action items, people, summary and transcript of your own meetings in your Master, from the meeting library, over the last sixty days",
+      "sends a follow-up from Rouh's own inbox to the person who owes it, only when you press Send"
+    ],
+    "accounts": [
+      "Rouh's own Google inbox, to send a follow-up you press Send on"
+    ],
+    "tables": [
+      "user_settings"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch owed_to_you off on its row in Evolution, Mutations, and the section is gone; to remove it for good revert night 18's commit (rouh/owed_to_you.py, the brief_owed route and its line in rouh/web/brief.py and rouh/project/urls.py, drawOwed, owedAbout, owedDraft and their helpers in briefpage.js, this manifest) and delete the user setting owed_to_you."
+  }
+}

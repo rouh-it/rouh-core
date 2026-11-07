@@ -1,0 +1,67 @@
+{
+  "id": "synapse",
+  "name": "Synapse",
+  "title": "Synapse: the new memory, its datasets and its debugger",
+  "aliases": [
+    "memory",
+    "datasets",
+    "knowledge",
+    "recall",
+    "brain",
+    "master",
+    "dreams",
+    "benchmark",
+    "lab"
+  ],
+  "group": "memory",
+  "route": "/synapse",
+  "icon": "<circle cx=\"6\" cy=\"7\" r=\"2.4\"/><circle cx=\"18\" cy=\"6\" r=\"2.4\"/><circle cx=\"12\" cy=\"18\" r=\"2.4\"/><path d=\"M8.2 8.1l2.6 7.6M15.9 7.6l-2.7 8.1M8.4 7l7.2-.8\"/>",
+  "attaches_to": [
+    "person",
+    "meeting",
+    "email"
+  ],
+  "maturity": "lab",
+  "nav": {
+    "place": "list",
+    "order": 40,
+    "opens": "own",
+    "row": "synapseRow",
+    "controls": "synapseView"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [
+      "Voyage (vectors)",
+      "Anthropic and OpenAI (through the LLM service)",
+      "Gmail and Calendar (sync)",
+      "the meeting library (webhook)"
+    ],
+    "tables": [
+      "synapse.dataset",
+      "synapse.item",
+      "synapse.item_version",
+      "synapse.link",
+      "synapse.passage",
+      "synapse.identity",
+      "synapse.attempt",
+      "synapse.dream"
+    ],
+    "jobs": [
+      "the nightly Synapse run (synapse_nightly)",
+      "the nightly dream at 04:00 (synapse_dream)",
+      "Gmail and Calendar sync into Master"
+    ],
+    "remove": "Pause its Clockwork rows, then remove rouh/synapse/, rouh/web/synapse.py, synapse.js/.css and this manifest; the synapse schema can be dropped whole."
+  },
+  "uses": {
+    "tools": [
+      "synapse_improvements",
+      "meeting_search",
+      "meeting_read"
+    ],
+    "jobs": [
+      "synapse_nightly"
+    ]
+  }
+}

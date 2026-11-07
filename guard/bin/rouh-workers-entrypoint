@@ -1,0 +1,213 @@
+#!/bin/bash
+#
+# The workers container's start, on the base image (deploy/container/Dockerfile.base),
+# as the `rouh` user, never root. The one program is Rouh's own code, in the
+# code volume, mounted read-only here: /code.
+#
+#   0. Refuse to start, with one plain sentence, when its home volume is not
+#      its own to write: a worker-home made by an older stack as another user
+#      would otherwise end in a cascade of git errors and a Python traceback.
+#      The stack's worker-perms service gives the volume to 10001 before this
+#      container starts (compose.yml), so this is only ever seen without it.
+#   1. On the first start only, install Claude Code with Anthropic's own
+#      installer, into this container's home volume. It is never in the image
+#      (Anthropic's terms); the person signs it in on Rouh's own page,
+#      /setup/claude, which asks this program to run Claude Code's sign-in
+#      (one/claude_signin.py), or gives Rouh an API key the key proxy adds.
+#      A start with no way out yet (no proxy, no internet) carries on without
+#      it and tries again on the next start.
+#   2. Make the workspace the runs work in, on the first start, and make it
+#      whole again on any start that finds it half made: a git repository
+#      with its own `main` to land on, in this volume. Git's identity is set
+#      in the volume when it has none, never taken from the image's home. (The core's
+#      workspace is another one; keeping the two level is not built yet.)
+#   3. Start the one program, as one.service does on the server.
+#   4. Pair Rouh with it once, so the core can reach it on the shared socket:
+#      the device token is written beside the socket, where the core reads it.
+#
+# The worker holds no key: its environment has none, the keys volume is not
+# mounted here, and its only way out is the key proxy (HTTPS_PROXY).
+set -uo pipefail
+
+fail() { echo "worker: $*" >&2; exit 1; }
+
+cd "${ROUH_APP_DIR:-/code}" 2>/dev/null && [ -d one ] \
+  || fail "cannot start: ${ROUH_APP_DIR:-/code} holds no Rouh code. The stack's code-init fills it on the first start; its log says why it did not."
+
+probe="$HOME/.rouh-write-check.$$"
+if ! { : > "$probe"; } 2>/dev/null; then
+  fail "cannot start: its home, $HOME, belongs to $(stat -c %u:%g "$HOME" 2>/dev/null || echo 'nobody it can read'), not to this container's user $(id -u):$(id -g), so it cannot write there. The stack's worker-perms service gives it to $(id -u) before the worker starts: start the whole stack again with its current compose file (docker compose up -d)."
+fi
+rm -f "$probe"
+mkdir -p "$ONE_DATA" "$ONE_RUNS_DIR" "$ONE_SCRATCH_DIR" "$ONE_SPACES_DIR" "$ONE_FOLDERS_DIR" \
+  || fail "cannot start: could not make its folders under $HOME"
+[ -w "$(dirname "$ONE_SOCKET")" ] \
+  || fail "cannot start: $(dirname "$ONE_SOCKET") belongs to $(stat -c %u:%g "$(dirname "$ONE_SOCKET")"), not to $(id -u):$(id -g), so the one program cannot open its socket there"
+
+if [ ! -x "$HOME/.local/bin/claude" ]; then
+  echo "worker: installing Claude Code with Anthropic's installer, first start only"
+  if curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh \
+     && bash /tmp/claude-install.sh; then
+    echo "worker: Claude Code $("$HOME/.local/bin/claude" --version 2>/dev/null) is installed."
+    echo "worker: sign it in on Rouh's page, /setup/claude"
+  else
+    echo "worker: Claude Code could not be installed now; it is tried again on the next start" >&2
+  fi
+  rm -f /tmp/claude-install.sh
+fi
+
+# Git's own settings. A worker-home made before this image (by an older stack,
+# or as another user) hides the image's /home/rouh, and with it the
+# .gitconfig baked there, so nothing here relies on it: whatever is missing is
+# written into the volume's own ~/.gitconfig, and what the person set is kept.
+git config --global --get user.name >/dev/null 2>&1 || git config --global user.name "Rouh worker" \
+  || fail "cannot start: could not write git's settings in $HOME/.gitconfig"
+git config --global --get user.email >/dev/null 2>&1 || git config --global user.email "worker@localhost"
+git config --global --get init.defaultBranch >/dev/null 2>&1 || git config --global init.defaultBranch main
+
+# ssh, for a run's work on the owner's own servers and git over ssh: out through the key proxy
+# (rouh-connect), which lets through only the servers the owner lists in the settings file
+# (ROUH_KEYPROXY_ALLOW) and GitHub's ssh on port 443. Written once, beside what the person set.
+mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+if ! grep -q 'rouh-connect' "$HOME/.ssh/config" 2>/dev/null; then
+  cat >> "$HOME/.ssh/config" <<'SSH'
+# Written by the worker's start (guard/bin/rouh-workers-entrypoint): every ssh goes out through
+# the key proxy, which lets through only the servers listed in ROUH_KEYPROXY_ALLOW. A key for one
+# of them: rouh-ssh-key NAME. GitHub's ssh answers on port 443, which the proxy lets through.
+Host github.com
+  HostName ssh.github.com
+  Port 443
+Host *
+  ProxyCommand /opt/rouh-guard/bin/rouh-connect %h %p
+SSH
+  chmod 600 "$HOME/.ssh/config"
+fi
+
+# The runs' workspace and the bare repository holding its main. Checked on
+# every start, not only the first: a workspace is whole when its main has a
+# commit and the workspace is a checkout of it with a commit of its own. One
+# that is not (an earlier start failed half way, leaving an empty main or a
+# clone with nothing in it, and the one program then cannot follow main) is
+# made whole again. What is made is made in a folder of its own and moved into
+# place only once every step worked, and nothing found in the way is deleted:
+# it is moved aside, beside itself, with the time in its name.
+ORIGIN="$HOME/origin/workspace.git"
+# In the stack the workspace's main is the core's, read here (ONE_WORKSPACE_ORIGIN): the core makes
+# it on its first start, so it is waited for, never made here, and the runs' work reaches it
+# through the core (bin/rouh-land). Without it, as before, a main of the worker's own.
+shared=""
+if [ -n "${ONE_WORKSPACE_ORIGIN:-}" ]; then
+  ORIGIN="$ONE_WORKSPACE_ORIGIN" shared=yes
+  for i in $(seq 1 180); do
+    git -c safe.directory='*' --git-dir="$ORIGIN" rev-parse -q --verify refs/heads/main >/dev/null 2>&1 && break
+    [ "$i" = 1 ] && echo "worker: waiting for the core to make the workspace's main"
+    [ "$i" = 180 ] && fail "cannot start: the workspace's main ($ORIGIN) was not made by the core in fifteen minutes; its log says why"
+    sleep 5
+  done
+fi
+
+has_main() { git --git-dir="$ORIGIN" rev-parse -q --verify refs/heads/main >/dev/null 2>&1; }
+has_commit() { git -C "$ONE_WORKSPACE" rev-parse -q --verify HEAD >/dev/null 2>&1; }
+follows_origin() { [ "$(git -C "$ONE_WORKSPACE" remote get-url origin 2>/dev/null)" = "$ORIGIN" ]; }
+set_aside() {                         # set_aside PATH: moves it out of the way
+  [ -e "$1" ] || return 0
+  local to="$1.unfinished-$(date -u +%Y%m%dT%H%M%SZ)"
+  mv "$1" "$to" || return 1
+  echo "worker: an unfinished $1 was moved aside to $to"
+}
+
+make_workspace() {
+  local tmp made=""
+  tmp="$(mktemp -d "$HOME/.workspace-new.XXXXXX")" || return 1
+  if ! has_main && [ -z "$shared" ]; then
+    git init -q --bare -b main "$tmp/origin.git" || return 1
+    if [ -d "$ONE_WORKSPACE/.git" ] && has_commit; then
+      # The workspace has work and its main was lost: its work becomes main.
+      echo "worker: the runs' workspace has no main to land on; making one from the workspace's own work"
+      git -C "$ONE_WORKSPACE" push -q "$tmp/origin.git" HEAD:refs/heads/main || return 1
+    else
+      echo "worker: making the runs' workspace, first start only"
+      made=yes
+      git init -q -b main "$tmp/seed" \
+        && git -C "$tmp/seed" remote add origin "$tmp/origin.git" \
+        && printf '# Workspace\n\nWhat Rouh'"'"'s runs make lands here.\n' > "$tmp/seed/README.md" \
+        && git -C "$tmp/seed" add -A \
+        && git -C "$tmp/seed" commit -q -m "A new workspace" \
+        && git -C "$tmp/seed" push -q origin HEAD:refs/heads/main \
+        || return 1
+    fi
+    mkdir -p "$(dirname "$ORIGIN")" && set_aside "$ORIGIN" && mv "$tmp/origin.git" "$ORIGIN" || return 1
+  fi
+  if [ -d "$ONE_WORKSPACE/.git" ] && has_commit; then
+    follows_origin || git -C "$ONE_WORKSPACE" remote set-url origin "$ORIGIN" 2>/dev/null \
+      || git -C "$ONE_WORKSPACE" remote add origin "$ORIGIN" || return 1
+    git -C "$ONE_WORKSPACE" fetch -q origin || return 1
+    if [ -n "$shared" ] && ! git -C "$ONE_WORKSPACE" merge-base HEAD origin/main >/dev/null 2>&1; then
+      # A workspace of the worker's own, from before it shared the core's: kept aside, never
+      # deleted, and the runs' workspace made again from the core's main.
+      git clone -q "$ORIGIN" "$tmp/workspace" && set_aside "$ONE_WORKSPACE" \
+        && mv "$tmp/workspace" "$ONE_WORKSPACE" || return 1
+    fi
+  else
+    if [ -e "$ONE_WORKSPACE" ]; then
+      echo "worker: the runs' workspace has nothing in it; making it again from its main"
+    elif [ -z "$made" ]; then
+      echo "worker: the runs' workspace is missing; making it again from its main"
+    fi
+    git clone -q "$ORIGIN" "$tmp/workspace" && set_aside "$ONE_WORKSPACE" \
+      && mv "$tmp/workspace" "$ONE_WORKSPACE" || return 1
+  fi
+  rm -rf "$tmp"
+  has_main && has_commit
+}
+
+if ! has_main || ! [ -d "$ONE_WORKSPACE/.git" ] || ! has_commit || ! follows_origin; then
+  make_workspace || { rm -rf "$HOME"/.workspace-new.*; fail "cannot start: the runs' workspace could not be made whole in $ONE_WORKSPACE (see above); nothing half made was left in its place, and the next start tries again"; }
+fi
+
+# The space a run that changes Rouh's own code works in: a clone of /code, whose work goes to the
+# protected core as a proposal (bin/rouh-land, rouh-propose), never pushed anywhere.
+if [ -n "$shared" ] && [ ! -d "$ONE_SPACES_DIR/rouh/.git" ] && [ -d "${ROUH_APP_DIR:-/code}/.git" ]; then
+  git -c safe.directory='*' clone -q "${ROUH_APP_DIR:-/code}" "$ONE_SPACES_DIR/rouh" \
+    && echo "worker: made the space for changes to Rouh's own code"
+fi
+
+# With a protected core beside it, the worker runs only the undo point the guard has put in
+# place (the core's start asks it), and starts again when the guard puts other code there.
+guard_dir="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+signal_file="${ROUH_GUARD_SIGNAL:-/run/guard-signal}/state.json"
+if [ -f "$signal_file" ]; then
+  for i in $(seq 1 360); do
+    want="$(python -c 'import json,sys; print(json.load(open(sys.argv[1])).get("commit",""))' "$signal_file" 2>/dev/null)"
+    have="$(git -c safe.directory='*' -C "${ROUH_APP_DIR:-/code}" rev-parse HEAD 2>/dev/null)"
+    [ -n "$want" ] && [ "$want" = "$have" ] && break
+    [ "$i" = 1 ] && echo "worker: waiting for the protected core to put the code that runs in place"
+    sleep 5
+  done
+  python -I "$guard_dir/bin/rouh-guard-run" worker -- python -m one.program &
+else
+  python -m one.program &
+fi
+program=$!
+trap 'kill -TERM "$program" 2>/dev/null; wait "$program"; exit 0' TERM INT
+
+for i in $(seq 1 60); do
+  [ -S "$ONE_SOCKET" ] && break
+  kill -0 "$program" 2>/dev/null || { wait "$program"; exit $?; }
+  sleep 1
+done
+
+token="$(dirname "$ONE_SOCKET")/voice.json"
+if [ -S "$ONE_SOCKET" ] && [ ! -s "$token" ]; then
+  python -m one.cli pair voice --name Rouh --save "$token" \
+    && echo "worker: paired Rouh with the one program"
+fi
+# Rouh's page, as a browser of the one program's: Rouh passes the program's pages and socket on
+# to a person signed in to Rouh, with this device (rouh/onebridge.py), so nobody types a code.
+browser="$(dirname "$ONE_SOCKET")/browser.json"
+if [ -S "$ONE_SOCKET" ] && [ ! -s "$browser" ]; then
+  python -m one.cli pair browser --name "Rouh's page" --save "$browser" \
+    && echo "worker: paired Rouh's page with the one program"
+fi
+
+wait "$program"

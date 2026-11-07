@@ -1,0 +1,44 @@
+{
+  "id": "n30-share-meeting",
+  "name": "With a meeting's guests",
+  "title": "With a meeting's guests: the Share panel offers the guests of a meeting about this page or task, from three days ago to a week ahead, shared with in one press",
+  "aliases": [
+    "share with a meeting's guests",
+    "share with the meeting",
+    "share with everyone in the call",
+    "share with attendees"
+  ],
+  "group": "work",
+  "route": null,
+  "icon": "<rect x=\"4\" y=\"6\" width=\"16\" height=\"14\" rx=\"2\"/><path d=\"M4 10h16M9 3v4M15 3v4\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "lab",
+  "switch": "share_meeting",
+  "signals": {
+    "events": {
+      "shared": "You pressed Share with them under With a meeting's guests in the Share panel, and the page went to a meeting's guests"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "press",
+    "press": "shareBtn"
+  },
+  "touches": {
+    "permissions": [
+      "reads the events of your own calendars in your Synapse Master, three days back and a week ahead, with their guests",
+      "shares the page or task with each guest of the meeting you pressed, and sends each the same letter Send sends, only when you press Share with them"
+    ],
+    "accounts": [],
+    "tables": [
+      "synapse.item",
+      "page_guests",
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch share_meeting off on its row in Evolution, Mutations: the Share panel has no such line and the route refuses. To remove it for good revert night 30's share_meeting commit (rouh/share_meeting.py, the meetings route and its lines in rouh/web/guests.py and rouh/project/urls.py, shareMeetings in rouh/static/app/runs.js, the shareMeetings box in index.html and its rules in app.css, this manifest)."
+  }
+}

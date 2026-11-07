@@ -1,0 +1,5 @@
+services:
+  peek:
+    image: busybox
+    network_mode: none
+    label_file: ["@TMP@/host/secret.env"]

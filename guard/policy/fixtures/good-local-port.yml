@@ -1,0 +1,5 @@
+services:
+  adminer:
+    image: adminer:5
+    networks: [db]
+    ports: ["127.0.0.1:8081:8080"]

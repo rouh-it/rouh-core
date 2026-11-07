@@ -1,0 +1,918 @@
+/* The morning brief (`briefpage.js`, `rouh/morning_brief.py`).
+
+   Rouh's own tokens and nothing new. One column, no wider than a line is
+   comfortable to read, because it is read top to bottom once, in the morning:
+   the weather first, then the calendar with its accent border, then each
+   other section as a card of the same shape, its source named quietly at the
+   right of its heading. Printed, it is the whole brief on paper colours, on
+   as many pages as it takes (the end of this file). */
+
+.brief-view:focus { outline: none; }
+.brief-wrap { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
+.brief-body {
+  flex: 1 1 auto; min-width: 0; overflow: auto; scrollbar-width: thin;
+  padding: 2px 2px 40px;
+}
+.bf-page { max-width: 720px; display: grid; gap: 14px; }
+.brief-view a { color: inherit; }
+.brief-view :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+/* The date in the heading breaks between its words and never inside one: a
+   phone's heading row is narrow beside Print, Update and the X, and
+   app.css's `overflow-wrap: anywhere` for every heading had it read
+   "Wednesda / y, 30 Sept". */
+#briefTitle { overflow-wrap: normal; }
+.bf-day-short { display: none; }
+@media screen and (max-width: 399px) {
+  .bf-day-long { display: none; }
+  .bf-day-short { display: inline; }
+}
+
+.bf-hello { padding: 4px 2px 2px; }
+.bf-greet { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+
+.bf-sec {
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel);
+  padding: 14px 16px;
+}
+.bf-h {
+  margin: 0 0 10px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  font-size: 14px; font-weight: 600;
+}
+.bf-h-sub { font-weight: 400; color: var(--dim); font-size: 13px; }
+/* Each section's icon before its name (`SECTION_ICONS`): one size, one colour, its own box,
+   so the name beside it never moves. */
+.bf-h-ic { flex: none; width: 16px; height: 16px; align-self: center; margin-right: -4px; color: var(--dim); }
+.bf-src { margin-left: auto; font-weight: 400; font-size: 11px; color: var(--dimmer); }
+.bf-h5 {
+  margin: 14px 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--dim);
+}
+.bf-note { margin: 6px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--dimmer); }
+.bf-empty { margin: 0; font-size: 13.5px; color: var(--dim); }
+.bf-say { margin: 0 0 12px; padding: 10px 12px; border-radius: var(--radius-s); font-size: 13px; }
+.bf-say.bad { background: rgba(255, 122, 112, 0.1); border: 1px solid rgba(255, 122, 112, 0.35); color: #ffc9c4; }
+.bf-dot { color: var(--dimmer); margin: 0 6px; }
+
+/* Before today's brief is made, the newest one there is stands in its place,
+   and says whose day it is; after an Update, a line says what changed, and
+   each section that did says Updated beside its name (fr_e7c51081dc50). */
+.bf-older, .bf-updated {
+  margin: 0; padding: 10px 12px; border-radius: var(--radius-s); font-size: 13px; line-height: 1.45;
+  color: var(--dim); background: color-mix(in srgb, var(--text) 4%, transparent);
+  border: 1px solid var(--line);
+}
+.bf-older strong { color: var(--text); font-weight: 600; }
+.bf-h-new {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 7px;
+  align-self: center;
+}
+.bf-none .bf-note { font-size: 13px; }
+
+/* The calendar: today and tomorrow side by side on one grid of hours, as
+   Google Calendar's two-day view draws them (fr_c997039d8d22). */
+.bf-calendar { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.bf-calendar > .bf-h { font-size: 16px; }
+.bf-grid { --bf-gutter: 44px; font-variant-numeric: tabular-nums; }
+.bf-grid.two-clocks { --bf-gutter: 50px; }
+.bf-grid-row {
+  display: grid; grid-template-columns: var(--bf-gutter) minmax(0, 1fr) minmax(0, 1fr);
+}
+.bf-grid-head { padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.bf-grid-day { display: grid; justify-items: center; gap: 1px; padding: 0 4px; }
+.bf-grid-dayword {
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--dim);
+}
+.bf-grid-date { font-size: 18px; font-weight: 500; color: var(--text); }
+.bf-grid-day-today .bf-grid-dayword { color: var(--accent); }
+.bf-grid-day-today .bf-grid-date {
+  color: var(--accent-ink, #fff); background: var(--accent); border-radius: 999px; padding: 1px 10px;
+}
+.bf-grid-gutter { font-size: 11px; color: var(--dim); }
+.bf-grid-allday { border-bottom: 1px solid var(--line); padding: 4px 0; }
+.bf-grid-allday > .bf-grid-gutter { align-self: center; line-height: 1.15; padding-right: 4px; }
+.bf-grid-cell { display: grid; gap: 2px; align-content: start; padding: 0 2px; min-width: 0; }
+.bf-grid-cell + .bf-grid-cell { border-left: 1px solid var(--line); }
+.bf-grid-body { height: calc(var(--bf-hours) * var(--bf-hour)); }
+.bf-grid-hours { position: relative; }
+.bf-grid-hour {
+  position: absolute; left: 0; right: 6px; display: grid; justify-items: end;
+  transform: translateY(-0.6em); line-height: 1.15;
+}
+.bf-grid-here { font-size: 11px; color: var(--dim); }
+.bf-grid .bf-second { font-size: 10px; font-weight: 500; color: var(--accent); white-space: nowrap; }
+.bf-grid-col {
+  position: relative; border-left: 1px solid var(--line);
+  background-image: linear-gradient(var(--line) 1px, transparent 1px);
+  background-size: 100% var(--bf-hour);
+}
+.bf-grid-free {
+  margin: 0; padding: 8px 6px; font-size: 12.5px; color: var(--dim); text-align: center;
+}
+/* One event: its height is how long it is. */
+.bf-gb {
+  position: absolute; display: flex; flex-direction: column; align-items: stretch; gap: 1px;
+  overflow: hidden; min-width: 0; padding: 3px 5px; margin: 0; text-align: left;
+  font: inherit; font-size: 12px; line-height: 1.2; cursor: pointer;
+  color: var(--text); background: color-mix(in srgb, var(--accent) 22%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-left: 3px solid var(--accent); border-radius: 5px;
+}
+.bf-gb:hover { background: color-mix(in srgb, var(--accent) 32%, var(--panel)); }
+.bf-gb:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; z-index: 2; }
+.bf-gb-title { font-weight: 600; overflow-wrap: anywhere; }
+.bf-gb-time, .bf-gb-where { color: var(--dim); font-size: 11px; overflow-wrap: anywhere; }
+.bf-gb.short { flex-direction: row; flex-wrap: wrap; column-gap: 5px; padding-top: 1px; padding-bottom: 1px; }
+.bf-gb.short .bf-gb-where { display: none; }
+/* Not answered yet, or Maybe: outlined, as Google draws an invitation. */
+.bf-gb.ask, .bf-gb.maybe { background: var(--panel); border-style: dashed; border-left-style: solid; }
+.bf-gb.over { box-shadow: 0 0 0 1px var(--panel); }
+.bf-gb.past { opacity: 0.5; }
+.bf-gb.now { box-shadow: 0 0 0 1px var(--accent); }
+.bf-gb-allday { position: static; padding: 2px 6px; }
+.bf-grid-now {
+  position: absolute; left: 0; right: 0; height: 0; z-index: 3; pointer-events: none;
+  border-top: 2px solid var(--bad);
+}
+.bf-grid-now::before {
+  content: ""; position: absolute; left: -5px; top: -6px; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--bad);
+}
+/* The time on the second clock picked in Settings. */
+.bf-alt { color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bf-no { color: var(--bad); }
+.bf-ev-main { min-width: 0; }
+.bf-ev-sub { margin: 2px 0 0; font-size: 12px; color: var(--dim); overflow-wrap: anywhere; }
+.bf-ev-sub:empty { display: none; }
+.bf-ev-sub .bf-silo { margin-left: 6px; font-size: 11px; line-height: 16px; padding: 0 7px 0 6px; vertical-align: 1px; }
+.brief-view a.bf-inlink { color: var(--accent); text-decoration: none; }
+.brief-view a.bf-inlink:hover { text-decoration: underline; }
+.bf-ask { color: var(--warn); }
+.bf-join { color: var(--accent) !important; text-decoration: none; }
+.bf-join:hover { text-decoration: underline; }
+/* While the calendar is read again, in its top right corner. */
+.bf-spin {
+  margin-left: auto; align-self: center; flex: none; width: 14px; height: 14px;
+  border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-top-color: var(--accent); animation: bf-spin 0.8s linear infinite;
+}
+@keyframes bf-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .bf-spin { animation-duration: 2.4s; } }
+
+/* The weather: a picture and the day's high and low, then the rest in a line. */
+.bf-wx { display: flex; align-items: center; gap: 14px; }
+.bf-wx-pic { font-size: 36px; line-height: 1; }
+.bf-wx-big { margin: 0; font-variant-numeric: tabular-nums; }
+.bf-hi { font-size: 26px; font-weight: 600; }
+.bf-lo { font-size: 18px; color: var(--dim); }
+.bf-wx-words { margin: 2px 0 0; font-size: 13px; color: var(--text); }
+.bf-wx-more {
+  margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: var(--dim);
+  display: flex; flex-wrap: wrap; align-items: baseline;
+}
+.bf-wx-more > span { white-space: nowrap; }
+
+/* The news and the links. */
+.bf-top {
+  display: block; font-size: 15.5px; font-weight: 600; line-height: 1.35;
+  text-decoration: none;
+}
+.bf-top:hover { text-decoration: underline; }
+.bf-sum { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--dim); }
+/* Three world stories, or a few AI items, each a headline and a summary. */
+.bf-stories { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.bf-story + .bf-story { padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.bf-item { margin: 0; font-size: 14.5px; font-weight: 600; line-height: 1.35; }
+.bf-from-video { margin: 6px 0 0; font-size: 12px; color: var(--dim); overflow-wrap: anywhere; }
+.bf-chan { font-weight: 600; color: var(--text); }
+.bf-watch { text-decoration: none; }
+.bf-watch:hover { text-decoration: underline; }
+.bf-vids { margin-top: 2px; }
+.bf-note + .bf-vids { margin-top: 10px; }
+.bf-stories + .bf-h5 { margin-top: 16px; }
+.bf-links { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.bf-link { font-size: 13.5px; line-height: 1.4; text-decoration: none; overflow-wrap: anywhere; }
+.bf-link:hover { text-decoration: underline; }
+.bf-link-sub { margin: 1px 0 0; font-size: 11.5px; color: var(--dimmer); }
+.bf-link-sub a { text-decoration: none; }
+.bf-link-sub a:hover { text-decoration: underline; color: var(--dim); }
+.bf-from-name { font-size: 13px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Today in history: the year beside Wikipedia's words for what happened. */
+.bf-past { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.bf-past-row {
+  display: grid; grid-template-columns: 3.4em minmax(0, 1fr); gap: 12px; align-items: baseline;
+}
+.bf-year {
+  font-size: 13px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums;
+  text-align: right; white-space: nowrap;
+}
+.bf-past-text { font-size: 13.5px; line-height: 1.45; color: var(--text); text-decoration: none; }
+a.bf-past-text:hover { text-decoration: underline; }
+.bf-past-by { margin-top: 12px; }
+.bf-past-what { min-width: 0; display: grid; gap: 2px; }
+.bf-past-topic { font-size: 11.5px; color: var(--dimmer); }
+
+/* The gear at the right of Today in history's heading opens its topics in
+   the same box (fr_a1b47c17f8cf): a toggle a topic, then the person's own. */
+.bf-gear {
+  align-self: center; display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; margin: -6px -8px -6px auto; padding: 0; border: 0; border-radius: 50%;
+  background: none; color: var(--dim); cursor: pointer;
+}
+.bf-src + .bf-gear { margin-left: 0; }
+.bf-gear:hover, .bf-gear[aria-expanded="true"] { color: var(--text); background: var(--accent-soft); }
+.bf-gear .menu-ic { color: inherit; width: 17px; height: 17px; }
+.bf-gear .menu-name { display: none; }
+.bf-topics { display: flex; flex-wrap: wrap; gap: 6px; }
+.bf-topic {
+  font: inherit; font-size: 13px; line-height: 1.3; text-align: left; padding: 6px 11px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--dim);
+  cursor: pointer; overflow-wrap: anywhere;
+}
+.bf-topic:hover:not(:disabled) { border-color: var(--dim); color: var(--text); }
+.bf-topic[aria-pressed="true"] {
+  color: var(--text); background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+}
+.bf-topic[aria-pressed="true"]::before { content: "✓"; margin-right: 6px; color: var(--accent); font-weight: 600; }
+.bf-topic:disabled { cursor: default; opacity: 0.6; }
+.bf-topic-mine { display: inline-flex; align-items: center; gap: 4px; cursor: default; padding-right: 4px; }
+.bf-topic-x {
+  font: inherit; font-size: 15px; line-height: 1; width: 22px; height: 22px; padding: 0;
+  border: 0; border-radius: 50%; background: none; color: var(--dim); cursor: pointer;
+}
+.bf-topic-x:hover:not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent); }
+.bf-topics-mine { margin-bottom: 8px; }
+.bf-topic-add { display: flex; gap: 8px; }
+.bf-topic-add .bf-pick-input { flex: 1 1 auto; min-width: 0; }
+.bf-topic-eg { margin: 8px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 12.5px; }
+.bf-topic-eg-word { color: var(--dimmer); }
+.bf-topic-eg-one {
+  font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer;
+}
+.bf-topic-eg-one:hover:not(:disabled) { text-decoration: underline; }
+.bf-topic-said { margin: 12px 0 0; }
+
+.bf-foot { padding: 2px 2px 0; font-size: 12px; line-height: 1.5; color: var(--dimmer); }
+.bf-settings {
+  font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer;
+}
+.bf-settings:hover { text-decoration: underline; }
+/* `.brief-view a` would make the footer's links the footer's grey. */
+.brief-view a.bf-settings { color: var(--accent); text-decoration: none; }
+.brief-view a.bf-settings:hover { text-decoration: underline; }
+/* All past briefs, under the footer's line (fr_5fb00def9d2d). */
+.bf-foot-links { margin: 8px 0 0; font-size: 13px; }
+
+/* Every brief kept, newest first, at /brief/past: one row a day, the whole
+   row the link to that day's brief as it was made. */
+.bf-kept-list { list-style: none; margin: 0; padding: 0; }
+.bf-kept-list li + li { border-top: 1px solid var(--line-soft); }
+.bf-kept-row {
+  display: flex; align-items: baseline; gap: 10px; padding: 11px 4px; color: var(--text);
+  text-decoration: none; border-radius: var(--radius-s);
+}
+.bf-kept-row:hover .bf-kept-day { text-decoration: underline; }
+.bf-kept-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bf-kept-day { font-size: 14.5px; font-weight: 600; }
+.bf-kept-today {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.02em; color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); border-radius: 999px;
+  padding: 1px 7px;
+}
+.bf-kept-made {
+  margin-left: auto; font-size: 12px; color: var(--dimmer); font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The Settings card's one tick box. */
+.brief-check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.brief-check input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+.setting-form input[type="time"] {
+  padding: 7px 10px; border-radius: var(--radius-s); border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); font-size: 13px; font-family: inherit;
+  color-scheme: dark; width: 10em;
+}
+
+@media (max-width: 560px) {
+  /* Room at the end for the orb in the corner, so the footer is not under it. */
+  .brief-body { padding-bottom: 110px; }
+  .bf-sec { padding: 12px; }
+  .bf-greet { font-size: 20px; }
+}
+
+/* The one thing (`rouh/one_thing.py`): first, and set apart from the rest by
+   its accent edge, because it is the one line of the brief the person wrote. */
+.bf-one {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: linear-gradient(0deg, var(--panel), color-mix(in srgb, var(--accent) 7%, var(--panel)));
+  margin-bottom: 10px;
+}
+.bf-one > .bf-h { font-size: 16px; }
+.bf-one-name { margin: 0; font-size: 19px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.bf-one-ctx { margin: 4px 0 0; font-size: 12.5px; color: var(--dim); }
+.bf-one-ctx:empty { display: none; }
+.bf-pick-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.bf-btn {
+  font: inherit; font-size: 13px; padding: 6px 12px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); cursor: pointer;
+}
+.bf-btn:hover:not(:disabled) { border-color: var(--dim); }
+/* One that takes you somewhere is a link (`goLink`), drawn as the button. */
+a.bf-btn { display: inline-block; text-decoration: none; }
+.bf-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.bf-btn:disabled { opacity: 0.5; cursor: default; }
+.bf-pick-steps {
+  list-style: none; margin: 0 0 10px; padding: 0; display: flex; gap: 14px; flex-wrap: wrap;
+  font-size: 11.5px; color: var(--dimmer);
+}
+.bf-pick-steps .on { color: var(--accent); font-weight: 600; }
+.bf-pick-so { margin: 0 0 10px; font-size: 13px; color: var(--text); overflow-wrap: anywhere; }
+.bf-pick-label { display: block; margin: 0 0 6px; font-size: 12.5px; color: var(--dim); }
+.bf-pick-input {
+  width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+  font: inherit; font-size: 13.5px;
+}
+.bf-pick-input:focus { outline: none; border-color: var(--accent); }
+.bf-pick-list {
+  list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 2px;
+  max-height: 280px; overflow: auto; scrollbar-width: thin;
+}
+.bf-pick-item {
+  width: 100%; display: flex; align-items: baseline; gap: 10px; text-align: left;
+  font: inherit; font-size: 13.5px; color: var(--text); background: none; border: 0;
+  padding: 6px 8px; border-radius: var(--radius-s); cursor: pointer;
+}
+.bf-pick-item:hover:not(:disabled) { background: var(--accent-soft); }
+.bf-pick-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.bf-pick-hint { flex: none; font-size: 11.5px; color: var(--dimmer); }
+.bf-pick-add {
+  margin-top: 8px; font: inherit; font-size: 13px; color: var(--accent); background: none;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: var(--radius-s); padding: 6px 10px; cursor: pointer; text-align: left;
+  overflow-wrap: anywhere;
+}
+.bf-pick-add[hidden] { display: none; }
+.bf-pick .bf-say { margin: 10px 0 0; }
+
+/* Birthdays and Reminders (`dayGroup`): yesterday, today and tomorrow, each
+   its own group. Today is the big one, on a card of its own with the accent
+   edge; yesterday and tomorrow sit indented either side of it behind a quiet
+   rule, on a darker ground in quieter words. */
+.bf-three-day { margin: 0; }
+.bf-three-day + .bf-three-day { margin-top: 10px; }
+.bf-three-yesterday, .bf-three-tomorrow {
+  margin-left: 18px; padding: 8px 12px; border-left: 2px solid var(--line);
+  border-radius: 0 var(--radius-s) var(--radius-s) 0;
+  background: color-mix(in srgb, var(--bg) 60%, var(--panel));
+}
+.bf-three-when { margin: 0 0 4px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.bf-three-word {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--dimmer);
+}
+.bf-three-date { font-size: 11.5px; color: var(--dimmer); }
+.bf-three-none { margin: 0; font-size: 12.5px; color: var(--dimmer); }
+.bf-three-today + .bf-three-day { margin-top: 14px; }
+.bf-three-today {
+  margin-top: 14px !important; padding: 14px 16px; border-radius: var(--radius-s);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: linear-gradient(0deg, var(--panel), color-mix(in srgb, var(--accent) 10%, var(--panel)));
+}
+.bf-three-today .bf-three-when { margin-bottom: 8px; }
+.bf-three-today .bf-three-word { font-size: 13px; color: var(--accent); }
+.bf-three-today .bf-three-date { font-size: 13px; color: var(--dim); }
+.bf-three-today .bf-three-none { font-size: 14px; color: var(--dim); }
+
+.bf-bd-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.bf-bd-row { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.bf-bd-main { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; }
+.bf-bd-name { font-size: 13.5px; font-weight: 500; color: var(--dim); overflow-wrap: anywhere; }
+.bf-bd-sub { font-size: 12px; color: var(--dimmer); overflow-wrap: anywhere; }
+.bf-bd-company { color: inherit; }
+/* A calendar's own words for a birthday nobody is linked to yet. */
+.bf-bd-event { font-size: 13.5px; font-style: italic; color: var(--dim); overflow-wrap: anywhere; }
+.bf-bd-link { flex: none; font-size: 12px; padding: 4px 10px; }
+.bf-bd-change {
+  flex: none; font: inherit; font-size: 11.5px; color: var(--dimmer); background: none; border: 0;
+  padding: 2px 0; cursor: pointer;
+}
+.bf-bd-change:hover { color: var(--accent); text-decoration: underline; }
+.bf-three-today .bf-bd-list { gap: 10px; }
+.bf-three-today .bf-bd-main { flex-direction: column; align-items: flex-start; row-gap: 2px; }
+.bf-three-today .bf-bd-name { font-size: 18px; font-weight: 600; line-height: 1.3; color: var(--text); }
+.bf-three-today .bf-bd-event { font-size: 16px; color: var(--text); }
+.bf-three-today .bf-bd-sub { font-size: 13px; color: var(--dim); }
+
+/* A reminder: its time, then its words with what kind it is under them. */
+.bf-rm-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.bf-rm-row { display: flex; align-items: baseline; gap: 12px; }
+.bf-rm-row.past { opacity: 0.5; }
+.bf-rm-time {
+  flex: none; min-width: 3.2em; font-size: 12.5px; font-weight: 500; color: var(--dimmer);
+  font-variant-numeric: tabular-nums;
+}
+.bf-rm-main { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; }
+.bf-rm-what { font-size: 13.5px; font-weight: 500; color: var(--dim); overflow-wrap: anywhere; }
+.bf-rm-sub { font-size: 12px; color: var(--dimmer); overflow-wrap: anywhere; }
+.bf-three-today .bf-rm-list { gap: 10px; }
+.bf-three-today .bf-rm-time { font-size: 15px; font-weight: 600; color: var(--accent); }
+.bf-three-today .bf-rm-main { flex-direction: column; align-items: flex-start; row-gap: 2px; }
+.bf-three-today .bf-rm-what { font-size: 17px; font-weight: 600; line-height: 1.3; color: var(--text); }
+.bf-three-today .bf-rm-sub { font-size: 13px; color: var(--dim); }
+
+/* The Report: last night's Synapse attempt on a card with the accent edge, its
+   outcome as a word in its colour, and what else ran listed as reminders are. */
+.bf-rp-night {
+  padding: 12px 14px; border-radius: var(--radius-s, 10px);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: linear-gradient(0deg, var(--panel), color-mix(in srgb, var(--accent) 7%, var(--panel)));
+}
+.bf-rp-head { margin: 0 0 6px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.bf-rp-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.bf-rp-outcome { font-size: 12px; font-weight: 600; letter-spacing: 0.01em; }
+.bf-rp-outcome.good { color: var(--good); }
+.bf-rp-outcome.bad { color: var(--bad); }
+.bf-rp-outcome.warn { color: var(--warn); }
+.bf-rp-outcome.info { color: var(--accent); }
+.bf-rp-outcome.quiet { color: var(--dim); }
+.bf-rp-text { margin: 0; font-size: 14px; line-height: 1.55; color: var(--text); overflow-wrap: anywhere; }
+.bf-rp-decide { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.bf-rp-q { margin: 0 0 4px; font-size: 13.5px; font-weight: 600; color: var(--warn); }
+.bf-rp-opts { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--dim); }
+.bf-rp-opts strong { color: var(--text); font-weight: 600; }
+.bf-rp-see { margin-top: 10px; font-size: 13px; }
+.bf-rp-sub { margin: 14px 0 6px; font-size: 12.5px; color: var(--dimmer); }
+.bf-rp-ran .bf-rm-what { color: var(--text); }
+/* The buttons and their line under a night's refactors (`refactorPart`). */
+.bf-gene-picks { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
+.bf-gene-pick {
+  font: inherit; font-size: 13px; color: var(--text); background: var(--panel-2, var(--panel));
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer;
+  text-align: left; max-width: 100%;
+}
+.bf-gene-pick:hover:not(:disabled) { border-color: var(--accent); }
+.bf-gene-pick:disabled { cursor: default; opacity: 0.75; }
+.bf-gene-said { margin: 2px 0 0; font-size: 13px; color: var(--dim); }
+.bf-gene-said:empty { display: none; }
+/* The night's feature question, Accept or Reject and undo, under its line. */
+.bf-rp-dq { flex: 1 0 100%; margin: 8px 0 4px; min-width: 0; }
+/* Last night's refactoring under its line: what it did, and Undo (`refactorPart`). */
+.bf-rf { flex: 1 0 100%; margin: 6px 0 2px; min-width: 0; }
+.bf-rf-items { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--text); }
+.bf-rf-result { color: var(--dim); }
+
+/* The contact picker a calendar birthday is linked with (`linkOpen`). */
+.bf-link-what { margin: 0 0 6px; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; }
+.bf-link-what .bf-bd-event { font-size: 15px; color: var(--text); }
+.bf-link-how { margin: 0 0 14px; }
+.bf-link-list { min-height: 60px; }
+.bf-link-item.on { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.bf-link-name { display: block; }
+.bf-link-co { display: block; font-size: 12px; color: var(--dim); }
+.bf-link-wide { margin: 0 0 4px; padding: 0 8px; }
+.bf-link-said:empty { display: none; }
+.bf-link-said.bad { color: var(--bad); }
+.bf-link-un { margin-right: auto; }
+
+/* The dad joke, after the doodle: the setup, then its punchline under it,
+   both the post's own words, line breaks kept. */
+.bf-joke-setup, .bf-joke-punch { margin: 0; font-size: 15px; line-height: 1.45; white-space: pre-line;
+  overflow-wrap: anywhere; }
+.bf-joke-setup { font-weight: 600; }
+.bf-joke-punch { margin-top: 6px; color: var(--dim); }
+.brief-view a.bf-joke-src { color: var(--dimmer); text-decoration: none; }
+.brief-view a.bf-joke-src:hover { text-decoration: underline; color: var(--dim); }
+
+/* The daily doodle (`briefdoodle.js`): the last section, a sketch of today in
+   ink and a few washes of Rouh's own colours, as if drawn in the margin. */
+.bf-doodle-art { margin: 0 -4px; }
+.dd-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.dd-svg path, .dd-svg ellipse { vector-effect: non-scaling-stroke; }
+.dd-ink, .dd-soft, .dd-trail, .dd-rain, .dd-bolt {
+  fill: none; stroke-linecap: round; stroke-linejoin: round;
+}
+.dd-ink { stroke: var(--text); stroke-width: 1.5; opacity: 0.88; }
+.dd-soft { stroke: var(--dim); stroke-width: 1.3; }
+.dd-trail { stroke: var(--dim); stroke-width: 1.4; stroke-dasharray: 2 7; }
+.dd-rain { stroke: var(--accent); stroke-width: 1.4; }
+.dd-bolt { stroke: var(--warn); stroke-width: 1.8; }
+.dd-wash { stroke: none; opacity: 0.32; }
+.dd-wash.a { fill: var(--accent); }
+.dd-wash.b { fill: #b69cff; }
+.dd-wash.y { fill: var(--warn); opacity: 0.45; }
+.dd-wash.r { fill: #ff7a70; }
+.dd-wash.g { fill: #6fd39a; }
+.dd-wash.c { fill: var(--dim); opacity: 0.22; }
+.dd-label, .dd-note, .dd-more {
+  /* A hand where the device has one; otherwise the page's own letters, never
+     the serif a bare "cursive" turns into on a machine without one. */
+  font-family: "Segoe Print", "Bradley Hand", "Chalkboard SE", "Comic Neue", "Comic Sans MS", var(--sans);
+}
+.dd-label { fill: var(--text); font-size: 13px; }
+.dd-note { fill: var(--dim); font-size: 11.5px; }
+.dd-more { fill: var(--accent); font-size: 22px; font-weight: 600; }
+@media (max-width: 560px) {
+  /* The drawing is scaled to about two thirds on a phone; its words are not. */
+  .dd-label { font-size: 15px; }
+  .dd-note { font-size: 13.5px; }
+}
+
+/* Mail, one section per mailbox (`rouh/ghosts.py`, fr_dfce915c2c6d): its
+   address as the heading, then the unread mail in it since yesterday, then
+   Waiting on others (task 71), each email who and when, its subject the
+   button that opens it here, and what can be done about it. */
+.bf-inbox-head { align-items: center; }
+.bf-inbox-addr { font-size: 16px; overflow-wrap: anywhere; }
+.bf-inbox-part { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.bf-inbox-head + .bf-inbox-part, .bf-ghost-said + .bf-inbox-part { margin-top: 4px; }
+.bf-inbox-count { font-weight: 400; letter-spacing: 0; text-transform: none; font-size: 12px; color: var(--dimmer); }
+.bf-inbox-busy { margin: 0 2px; }
+.bf-open {
+  font: inherit; color: var(--text); background: none; border: 0; padding: 0; margin: 0;
+  text-align: left; cursor: pointer;
+}
+.bf-open.bf-link { font-size: 13.5px; font-weight: 400; }
+.bf-open:hover { text-decoration: underline; }
+/* A press anywhere on an email's line opens it (`wholeRow`). */
+.bf-row-opens { cursor: pointer; }
+.bf-row-opens.open, .bf-row-opens .bf-read, .bf-row-opens .bf-nudge { cursor: auto; }
+.bf-unread + .bf-unread { padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.bf-unread-when { margin-left: auto; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bf-unread-snip {
+  margin: 3px 0 0; font-size: 13px; line-height: 1.45; color: var(--dim); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.bf-ghost-list + .bf-h5 { margin-top: 18px; }
+/* An email open under its own line, the rest of the list where it was. */
+.bf-read { margin-top: 10px; }
+.bf-ghost-hid.open { flex-wrap: wrap; }
+.bf-ghost-hid.open > .bf-read { flex: 1 0 100%; margin-top: 4px; }
+.bf-read-heads {
+  margin: 0 0 12px; display: grid; grid-template-columns: max-content minmax(0, 1fr);
+  gap: 3px 12px; font-size: 13px;
+}
+.bf-read-heads dt { color: var(--dim); }
+.bf-read-heads dd { margin: 0; overflow-wrap: anywhere; }
+.bf-read-text {
+  white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.55;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-s);
+  background: var(--bg); max-height: 70vh; overflow: auto;
+}
+.bf-read-frame {
+  display: block; width: 100%; height: 60vh; border: 1px solid var(--line);
+  border-radius: var(--radius-s); background: #fff;
+}
+.bf-read-acts { margin-top: 12px; align-items: center; }
+.bf-read-mark { font-size: 12.5px; color: var(--dim); margin-right: 4px; }
+.bf-ghost-ro { font-size: 11px; font-weight: 500; color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; line-height: 17px; }
+.bf-ghost-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.bf-ghost + .bf-ghost { padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.bf-ghost-head { margin: 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; font-size: 13px; }
+.bf-ghost-who { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.bf-ghost-more { color: var(--dim); }
+.bf-slack-where { color: var(--dim); overflow-wrap: anywhere; }
+/* The x that dismisses a line of Needs you in Slack: a finger's target, drawn small, taking no
+   height from the line. */
+.bf-slack-x {
+  flex: none; align-self: center; display: inline-grid; place-items: center;
+  width: 28px; height: 28px; margin: -7px -8px -7px -2px; padding: 0;
+  border: 0; border-radius: 999px; background: transparent; color: var(--dimmer); cursor: pointer;
+}
+.bf-slack-x:hover, .bf-slack-x:focus-visible { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
+.bf-ghost-days { margin-left: auto; font-size: 12px; color: var(--warn); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bf-ghost-subject { display: block; margin-top: 2px; font-size: 14.5px; font-weight: 600; line-height: 1.35; text-decoration: none; overflow-wrap: anywhere; }
+.bf-ghost-subject:hover { text-decoration: underline; }
+/* New comments on your documents (`rouh/new_comments.py`): the words a comment is on, then what
+   it says, whole. */
+.bf-newcomment-on { margin: 5px 0 0; font-style: italic; overflow-wrap: anywhere; }
+.bf-newcomment-words { margin: 4px 0 0; font-size: 14px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+/* The deck for your talk (`rouh/talk_deck.py`): the slides with no notes, then each open comment,
+   indented under the deck. */
+.bf-talkdeck-notes { margin: 6px 0 0; font-size: 14px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+.bf-talkdeck-notes a.bf-link, .bf-talkdeck-cmt a.bf-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.bf-talkdeck-notes a.bf-link { white-space: nowrap; }
+.bf-talkdeck-cmts { list-style: none; margin: 4px 0 0; padding: 0 0 0 12px; border-left: 2px solid color-mix(in srgb, var(--text) 12%, transparent); display: grid; gap: 8px; }
+.bf-talkdeck-who { margin: 0; font-size: 12.5px; font-weight: 600; color: var(--dim); }
+.bf-taskdate.is-passed .bf-ghost-who { color: var(--bad); }
+.bf-taskdate-line { margin: 6px 0 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.bf-nothanded-task { margin: 4px 0 0; font-size: 13px; font-weight: 600; color: var(--dim); overflow-wrap: anywhere; }
+.bf-talkdeck-cmt .bf-link { display: inline-block; margin-top: 3px; font-size: 13px; }
+.bf-ghost-ask { margin: 5px 0 0; font-size: 13px; line-height: 1.45; color: var(--dim); font-style: italic; overflow-wrap: anywhere; }
+.bf-ghost .bf-ev-sub { margin-top: 4px; }
+.bf-ghost-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.bf-ghost-acts .bf-btn, .bf-nudge .bf-btn { font-size: 12.5px; padding: 5px 10px; text-decoration: none; }
+/* /brief?gmailtest=1: other ways to ask the Gmail app for an email, numbered,
+   on their own lines under its buttons, each saying what it tries. */
+.bf-gmail-try { flex: 1 0 100%; margin: 4px 0 0; padding-left: 22px; display: grid; gap: 8px; font-size: 13px; color: var(--dim); }
+.bf-gmail-try a { color: var(--accent); text-decoration: underline; }
+.bf-gmail-try code { display: block; font-size: 11px; overflow-wrap: anywhere; color: var(--dim); }
+.bf-ghost-said { margin: 0 0 10px; color: var(--dim); }
+.bf-note.bad { color: var(--bad); }
+.bf-ghost-toggle { display: block; margin-top: 12px; font-size: 12.5px; }
+.bf-ghost-hidden { margin-top: 8px; }
+.bf-ghost-hid { display: flex; align-items: center; gap: 10px; }
+.bf-ghost-hid .bf-ev-main { flex: 1 1 auto; }
+.bf-nudge { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg); }
+.bf-nudge-label { display: block; margin: 0 0 6px; font-size: 12px; color: var(--dim); }
+.bf-nudge-text {
+  width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  font: inherit; font-size: 13px; line-height: 1.45; resize: vertical;
+}
+.bf-nudge-text:focus { outline: none; border-color: var(--accent); }
+.bf-nudge .bf-pick-row { margin-top: 8px; }
+.bf-nudge-said { margin: 0; }
+
+/* Incoming and Ghosts, the two tabs of a mailbox (fr_1da7cddc045b). */
+.bf-tabs {
+  display: flex; gap: 4px; margin: 2px 0 12px; border-bottom: 1px solid var(--line);
+}
+.bf-tab {
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--dim); background: none;
+  border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  padding: 7px 10px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+}
+.bf-tab:hover { color: var(--text); }
+.bf-tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.bf-tab-n {
+  font-size: 11px; font-weight: 600; min-width: 18px; padding: 0 5px; line-height: 17px;
+  border-radius: 999px; text-align: center; background: var(--panel-2);
+  border: 1px solid var(--line); color: var(--dim); font-variant-numeric: tabular-nums;
+}
+.bf-tab[aria-selected="true"] .bf-tab-n { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.bf-tabpanel[hidden] { display: none; }
+.bf-tab-about {
+  margin: 0 0 10px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  font-size: 12.5px; color: var(--dim);
+}
+.bf-print-only { display: none; }
+
+/* One event, open over the brief (`eventOpen`). */
+.bf-dlg {
+  width: min(560px, calc(100vw - 24px)); max-height: min(86vh, 900px); padding: 0;
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45); overflow: auto; scrollbar-width: thin;
+}
+.bf-dlg::backdrop { background: rgba(5, 7, 10, 0.6); }
+.bf-dlg:focus-visible { outline: none; }
+.bf-dlg-box { padding: 16px 18px 18px; }
+.bf-dlg-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.bf-dlg-title {
+  flex: 1 1 auto; min-width: 0; margin: 0; font-size: 18px; font-weight: 600;
+  line-height: 1.3; overflow-wrap: anywhere;
+}
+.bf-dlg-x { height: 28px; }
+.bf-dlg-facts { margin-bottom: 14px; }
+.bf-dlg-facts .bf-join { overflow-wrap: anywhere; }
+.bf-dlg-answer {
+  margin: 0 0 6px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-s);
+  background: var(--bg);
+}
+.bf-dlg-answer .bf-pick-row { margin-top: 10px; }
+.bf-dlg-answer .bf-note { margin-top: 8px; }
+.bf-dlg-now { margin: 0; display: flex; align-items: baseline; gap: 10px; font-size: 13px; }
+.bf-dlg-label { color: var(--dim); }
+.bf-dlg-state { font-weight: 600; }
+.bf-dlg-state.accepted { color: var(--good); }
+.bf-dlg-state.declined { color: var(--bad); }
+.bf-dlg-state.tentative, .bf-dlg-state.needsAction { color: var(--warn); }
+.bf-dlg-desc {
+  white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13.5px; line-height: 1.55;
+  color: var(--text); max-height: 40vh; overflow: auto; scrollbar-width: thin;
+}
+.bf-guests { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.bf-guest {
+  display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 8px; align-items: baseline;
+  font-size: 13px;
+}
+.bf-guest-mark { font-weight: 700; text-align: center; color: var(--dimmer); }
+.bf-guest.accepted .bf-guest-mark { color: var(--good); }
+.bf-guest.declined .bf-guest-mark { color: var(--bad); }
+.bf-guest.tentative .bf-guest-mark { color: var(--warn); }
+.bf-guest-who { min-width: 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.bf-guest-name { overflow-wrap: anywhere; }
+.bf-guest-mail { font-size: 12px; color: var(--dimmer); overflow-wrap: anywhere; }
+.bf-guest-said { font-size: 12px; color: var(--dim); white-space: nowrap; }
+.bf-dlg-acts { margin-top: 16px; justify-content: flex-end; }
+/* Before you meet (`prepDraw`, `rouh/meeting_prep.py`): each guest from
+   outside, who they are, and the last emails with them. */
+.bf-prep {
+  margin: 6px 0 2px; padding: 12px; border-radius: var(--radius-s);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+}
+.bf-prep > .bf-h5 { margin-top: 0; }
+.bf-prep-people { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.bf-prep-person { min-width: 0; }
+.bf-prep-person + .bf-prep-person { padding-top: 12px; border-top: 1px solid var(--line); }
+.bf-prep-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.bf-prep-name { font-size: 14.5px; font-weight: 600; overflow-wrap: anywhere; }
+.bf-prep-org { font-size: 13px; color: var(--dim); overflow-wrap: anywhere; }
+.bf-prep-sub { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 2px; }
+.bf-prep-tag {
+  font-size: 11px; color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border-radius: 999px; padding: 0 7px; line-height: 17px;
+}
+.bf-prep-line { margin: 6px 0 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.bf-prep-research { color: var(--dim); }
+.bf-prep-mails { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.bf-prep-mail { min-width: 0; padding-left: 10px; border-left: 2px solid var(--line); }
+.bf-prep-mail-top { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.bf-prep-when {
+  flex: none; font-size: 12px; color: var(--dimmer); font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bf-prep-subj {
+  min-width: 0; font-size: 13.5px; font-weight: 500; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+a.bf-prep-subj { text-decoration: none; }
+a.bf-prep-subj:hover { text-decoration: underline; }
+.bf-prep-from { font-size: 12px; color: var(--dim); margin-top: 1px; overflow-wrap: anywhere; }
+.bf-prep-snip {
+  font-size: 12.5px; line-height: 1.45; color: var(--dimmer); margin-top: 2px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+/* What to raise (`raiseDraw`, `rouh/meeting_brief.py`): the reading of the
+   mail with a meeting's guests from outside, and the emails it was read from. */
+.bf-raise {
+  margin: 6px 0 2px; padding: 12px; border-radius: var(--radius-s);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+}
+.bf-raise-top { display: flex; align-items: flex-start; gap: 10px; }
+.bf-raise-top > .bf-h5 { flex: 1 1 auto; min-width: 0; margin-top: 0; }
+.bf-raise-edit { flex: none; margin: -4px -4px 0 0; font-size: 12.5px; padding: 3px 10px; }
+/* Correcting it (`fixDraw`): what is wrong, in his words, right under the heading. */
+.bf-raise-fix {
+  margin: 8px 0 10px; padding: 10px 12px; border: 1px solid var(--line);
+  border-radius: var(--radius-s); background: var(--panel);
+}
+.bf-raise-fix .bf-nudge-text { background: var(--bg); }
+.bf-raise-fix .bf-pick-row { margin-top: 8px; }
+.bf-raise-fix .bf-btn { font-size: 12.5px; padding: 5px 10px; }
+.bf-raise-busy { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--dim); }
+.bf-raise-busy .bf-spin { margin-left: 0; }
+.bf-raise.busy > :not(.bf-raise-top):not(.bf-raise-fix) { opacity: 0.45; transition: opacity 0.2s; }
+.bf-raise-fixed { margin: 2px 0 0; color: var(--good); }
+.bf-raise-standing { margin: 6px 0 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.bf-raise-points { margin: 4px 0 0; padding-left: 22px; display: grid; gap: 8px; }
+.bf-raise-point { font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.bf-raise-point::marker { color: var(--accent); font-weight: 600; }
+.bf-raise-what { display: block; font-weight: 600; }
+.bf-raise-why { display: block; font-size: 13px; color: var(--dim); margin-top: 1px; }
+.bf-raise-label {
+  margin: 12px 0 0; font-size: 11.5px; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--dimmer);
+}
+.bf-raise-open { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.bf-raise-open li { font-size: 13.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.bf-raise-owed { color: var(--dimmer); font-size: 12.5px; }
+.bf-raise-line { margin: 10px 0 0; font-size: 13.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.bf-raise-careful { color: var(--warn); }
+.bf-raise-careful .bf-dlg-label { color: inherit; }
+.bf-raise-read { margin-top: 12px; }
+.bf-raise-read > summary {
+  cursor: pointer; font-size: 12.5px; color: var(--dim); width: fit-content;
+}
+.bf-raise-mails { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.bf-raise-mail {
+  display: grid; grid-template-columns: 4.2em minmax(0, 1fr); gap: 0 10px; align-items: baseline;
+  padding-left: 10px; border-left: 2px solid var(--line); min-width: 0;
+}
+.bf-raise-from { grid-column: 2; font-size: 12px; color: var(--dim); overflow-wrap: anywhere; }
+/* What he told it before (`raise_memory`): his own words, whole, never cut to a line. */
+.bf-raise-told .bf-prep-subj { white-space: normal; font-weight: 400; overflow-wrap: anywhere; }
+/* A Slack message it read is said whole, as his own words are: it has no subject to stand for it. */
+.bf-raise-slackread .bf-prep-subj { white-space: normal; overflow-wrap: anywhere; }
+/* An attached document it read (`raise_attached`): no date to stand before it, so its name takes
+   the whole row, and why one was not read sits under it. */
+.bf-raise-attachedrow { grid-template-columns: minmax(0, 1fr); }
+.bf-raise-attachedrow .bf-prep-subj { white-space: normal; overflow-wrap: anywhere; }
+.bf-raise-attachedrow .bf-raise-from { grid-column: 1; }
+/* Last said in Slack (`slackDraw`, `rouh/meeting_slack.py`): a guest each, each line with
+   the date and place of its message, which opens it in Slack. */
+.bf-slack { margin-top: 10px; }
+.bf-slack > .bf-h5 { margin-top: 0; }
+.bf-slack > .bf-raise-label:first-of-type { margin-top: 6px; }
+.bf-slack-lines { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 6px; }
+.bf-slack-line { font-size: 13.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.bf-slack-said { display: block; }
+.bf-slack-link { display: inline-block; font-size: 12px; color: var(--dim); margin-top: 1px; }
+.bf-slack-link:hover { color: var(--accent); }
+@media (max-width: 560px) {
+  .bf-raise { padding: 10px; }
+  .bf-prep { padding: 10px; }
+  .bf-dlg-box { padding: 14px; }
+  .bf-guest { grid-template-columns: 16px minmax(0, 1fr); }
+  .bf-guest-said { grid-column: 2; white-space: normal; }
+}
+
+/* Printing, or saving as a PDF (fr_1da7cddc045b: "I can neither print nor
+   screenshot the entire thing as a PDF"). On screen the brief is a layer
+   over the app that scrolls inside itself, in a page that never scrolls, so
+   a printer got one screenful of it and nothing more. A sheet of paper is
+   narrower than 900 pixels, too, so the phone's layout applies, which pins the
+   body in place (`position: fixed`), and Chrome prints a pinned box on one
+   page whatever its length. Printed while it is
+   open, everything but the brief is left out, every box it sits in lets it
+   run its whole length, and it is set in dark ink on white, so it goes on
+   over as many pages as it takes. Both mail tabs are printed, each named. */
+@media print {
+  html:has(#briefView:not([hidden])),
+  html:has(#briefView:not([hidden])) body {
+    display: block !important; position: static !important; inset: auto !important;
+    width: auto !important; height: auto !important; min-height: 0 !important;
+    max-height: none !important; overflow: visible !important; padding: 0 !important;
+    background: #fff !important;
+  }
+  body:has(#briefView:not([hidden])) *:not(:has(#briefView)):not(#briefView):not(#briefView *) {
+    display: none !important;
+  }
+  body:has(#briefView:not([hidden])) *:has(#briefView) {
+    display: block !important; position: static !important; inset: auto !important;
+    overflow: visible !important; height: auto !important; min-height: 0 !important;
+    max-height: none !important; width: auto !important; max-width: none !important;
+    transform: none !important; contain: none !important; margin: 0 !important;
+    padding: 0 !important; border: 0 !important; box-shadow: none !important;
+    background: none !important; filter: none !important; opacity: 1 !important;
+    visibility: visible !important;
+  }
+  #briefView.brief-view {
+    --bg: #fff; --bg-2: #fff; --panel: #fff; --panel-2: #f3f4f6; --void: #fff;
+    --line: #c9ced6; --line-soft: #e2e5ea; --text: #111418; --dim: #3d4450;
+    --dimmer: #5f6773; --accent: #0b5f8f; --accent-soft: rgba(11, 95, 143, 0.08);
+    --good: #1b7a4b; --warn: #8a5600; --bad: #b3261e;
+    position: static !important; display: block !important; overflow: visible !important;
+    height: auto !important; inset: auto !important; padding: 0 !important;
+    background: #fff !important; color: var(--text); color-scheme: light;
+  }
+  #briefView .brief-wrap, #briefView .brief-body {
+    display: block !important; overflow: visible !important; height: auto !important;
+    max-height: none !important; flex: none !important; padding: 0 !important;
+  }
+  #briefView .bf-page { max-width: none; display: block; }
+  #briefView .bf-page > * + * { margin-top: 12px; }
+  #briefView .run-head { display: block; margin: 0 0 8px; }
+  #briefView .run-head button, #briefView .bf-pick-row, #briefView .bf-ghost-acts,
+  #briefView .bf-read-acts, #briefView .bf-ghost-toggle, #briefView .bf-tabs,
+  #briefView .bf-foot button, #briefView .bf-foot-links, #briefView .bf-inbox-busy,
+  #briefView .bf-updated, #briefView .bf-h-new, #briefView .bf-gear, #briefView .bf-slack-x { display: none !important; }
+  #briefView .bf-tabpanel[hidden] { display: block !important; }
+  #briefView .bf-bd-link, #briefView .bf-bd-change { display: none !important; }
+  #briefView .bf-tabpanel + .bf-tabpanel { margin-top: 14px; }
+  #briefView .bf-print-only { display: block; }
+  #briefView .bf-sec { break-inside: auto; background: #fff; }
+  #briefView .bf-h, #briefView .bf-h5 { break-after: avoid; }
+  #briefView .bf-grid, #briefView .bf-story, #briefView .bf-unread, #briefView .bf-ghost,
+  #briefView .bf-past-row, #briefView .bf-wx, #briefView .bf-one,
+  #briefView .bf-doodle, #briefView .bf-joke { break-inside: avoid; }
+  #briefView .bf-gb.past { opacity: 0.6; }
+  #briefView .bf-read-text, #briefView .bf-unread-snip {
+    max-height: none; overflow: visible; -webkit-line-clamp: unset; display: block;
+  }
+  #briefView .bf-read-frame { height: 50vh; }
+  #briefView a { text-decoration: none; }
+  .bf-dlg { display: none !important; }
+}
+.bf-dlg a.bf-btn, .bf-ghost-acts a.bf-btn { text-decoration: none; }
+
+/* Owed to you (rouh/owed_to_you.py): the line under what is owed sits close to it. */
+.bf-owed-line .bf-ghost-subject { margin-bottom: 0; }
+.bf-owed-line .bf-owed-from { margin: 3px 0 0; }
+/* What was this about (version 2): the meeting's people, whom it was promised to, its summary and
+   the turns where it was said, each turn whole. */
+.bf-owed-about { margin-top: 8px; }
+.bf-owed-about-body > .bf-raise-line:first-child { margin-top: 6px; }
+.bf-owed-turn .bf-prep-subj { white-space: normal; font-weight: 400; overflow-wrap: anywhere; }
+
+/* Meetings with no notes (night 19, rouh/notes_missing.py): room between the library button and the list. */
+.bf-ghost-acts.bf-nonotes-acts { margin: 8px 0 14px; }
+
+/* Changed by others (`rouh/others_changed.py`): what the newest changes to a page did. */
+.bf-others-what { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: var(--text); }
+.bf-others-what li { margin: 2px 0; overflow-wrap: anywhere; }
+.bf-others-what .bf-others-more { list-style: none; margin-left: -18px; color: var(--dim); }
+
+/* Shared with you (`rouh/shared_with_you.py`): what kind it is, and who shared it when. */
+.bf-usual-when { margin-left: auto; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bf-usual-said { margin: 4px 0 0; font-size: 14px; color: var(--text); overflow-wrap: anywhere; }
+.bf-shared-title { color: inherit; text-decoration: none; overflow-wrap: anywhere; }
+.bf-shared-title:hover { color: var(--accent, inherit); text-decoration: underline; }
+.bf-shared-pick { font: inherit; font-size: 13px; max-width: 100%; min-width: 0; color: var(--text);
+  background: transparent; border: 1px solid var(--line, rgba(127,127,127,.35)); border-radius: 8px; padding: 6px 8px; }
+
+/* Who lets the note-taker in (`rouh/host_admits.py`): room between the lead and the first call. */
+.bf-hostadmits-lead { margin-bottom: 12px; }
+.bf-flight-lead { margin-bottom: 12px; }
+.bf-flight-clash { margin-top: 4px; }
+.bf-flight-done { margin-top: 8px; color: var(--good); }
+.bf-invite-lead { margin-bottom: 12px; }
+.bf-invite-done { margin-top: 8px; color: var(--good); }
+.bf-noplace-lead { margin-bottom: 12px; }
+.bf-noplace-done { margin-top: 8px; color: var(--good); }

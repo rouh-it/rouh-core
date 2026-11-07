@@ -1,0 +1,47 @@
+{
+  "id": "n33b-no-place",
+  "name": "Meetings with nowhere to meet",
+  "title": "Meetings with nowhere to meet: your meetings with guests and no place or call link, in the morning brief, with one press to add a Meet link",
+  "aliases": [
+    "meetings with nowhere to meet",
+    "meeting with no place",
+    "meeting with no link",
+    "no call link",
+    "add a meet link"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<path d=\"M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z\"/><path d=\"M10.2 8.6a1.9 1.9 0 1 1 2.6 1.8c-.5.2-.8.6-.8 1.1v.4\"/><path d=\"M12 13.9v.1\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "switch": "no_place",
+  "signals": {
+    "events": {
+      "added": "You pressed Add a Meet link on a meeting with nowhere to meet in the morning brief",
+      "put": "You pressed Not needed on a meeting with nowhere to meet in the morning brief"
+    },
+    "runs": {
+      "shown": "Rouh put a meeting of yours with guests and no place or call link in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads your main calendar's meetings of the next three days each time the morning brief opens",
+      "adds a Google Meet link to one of your meetings only when you press Add a Meet link; Google tells its guests of the change",
+      "keeps the meetings you put away or gave a link in your own settings"
+    ],
+    "accounts": [
+      "Google Calendar"
+    ],
+    "tables": [
+      "user_settings",
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch no_place off on its row in Evolution, Mutations, and the section is gone and the route refuses; to remove it for good revert night 33's second run's commit for it (rouh/no_place.py, the brief_no_place route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawNoPlace and its helpers in briefpage.js and its rules in briefpage.css, Calendar.add_video, this manifest) and delete the user setting no_place. rouh/meet_link.py's has_place is shared with Booked with a call link."
+  }
+}

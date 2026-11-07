@@ -1,0 +1,3 @@
+services:
+  worker:
+    security_opt: ["no-new-privileges:true", "seccomp:unconfined"]

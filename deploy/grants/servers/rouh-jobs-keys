@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+# rouh-jobs-keys: one of Rouh's jobs' keys on this server, for some hours at a time, in root's keys
+# or in one named account's. It runs on the server, as root: sent there by rouh-open on the owner's
+# Mac (the relay), or run by rouh-grant (the host itself) (deploy/grants/README.md, "The owner's own
+# servers"). Nobody needs to install it by hand: `open` puts it in place.
+#
+#   rouh-jobs-keys open NAME HOURS FROM KEYTYPE KEYBODY [COMMENT]     (HOURS, or @END in epoch seconds)
+#                              the jobs' key for NAME in root's authorized_keys (or, with
+#                              ROUH_JOBS_KEYS_USER=USER, in that account's), with
+#                              expiry-time="<now + HOURS>Z" and from="FROM", in place of any
+#                              earlier line of that key; and the prune timer, if it is not there
+#   rouh-jobs-keys status      each jobs' key this server knows: open until when, or closed
+#   rouh-jobs-keys until NAME  that key's end in seconds since 1970, 0 when it is closed
+#   rouh-jobs-keys close NAME  that key's line taken out now, and its open sessions ended
+#   rouh-jobs-keys prune       what the timer runs every 5 minutes: every jobs' key line whose
+#                              time has passed, or that has no end at all, taken out
+#
+# Only a line holding one of the jobs' own keys (kept in /etc/rouh-jobs-keys/NAME.pub, and the
+# account it is for in NAME.user) is ever written or taken out; every other line of that
+# authorized_keys is kept exactly as it was, and the file is put back untouched if that ever were
+# not so. sshd itself refuses the key after its expiry-time (OpenSSH 7.7 and later); the timer is
+# the second lock, and ends sessions still open. When a key opens, the SSH, sudo, user and cron
+# files are fingerprinted; when it is closed or pruned they are compared, and any that changed
+# while the jobs were in are named under a WARNING line.
+set -euo pipefail
+AK_ROOT=${ROUH_JOBS_KEYS_AK:-/root/.ssh/authorized_keys}
+AK=$AK_ROOT                            # the file being written: set per key by use_key
+CONF=${ROUH_JOBS_KEYS_CONF:-/etc/rouh-jobs-keys}
+TEST=${ROUH_JOBS_KEYS_TEST:-}          # set only by a check of this file: no chown, systemd or kill
+SELF=${ROUH_JOBS_KEYS_SELF:-/usr/local/sbin/rouh-jobs-keys}
+UNITS=${ROUH_JOBS_KEYS_UNITS:-/etc/systemd/system}
+MAX_HOURS=72
+
+say() { printf '%s\n' "$*"; [ -n "$TEST" ] || logger -t rouh-jobs-keys -- "$*" 2>/dev/null || true; }
+die() { say "$*"; exit 2; }
+names() { local f; for f in "$CONF"/*.pub; do [ -f "$f" ] && basename "$f" .pub; done; return 0; }
+body_of() { awk '{print $2}' "$CONF/$1.pub"; }
+user_of() { local u; u=$(cat "$CONF/$1.user" 2>/dev/null || true); printf '%s' "${u:-root}"; }
+ak_for_user() {  # an account -> its authorized_keys (root's is AK_ROOT; a test keeps every one there)
+  local u=$1 home
+  if [ "$u" = root ] || [ -n "$TEST" ]; then printf '%s' "$AK_ROOT"; return 0; fi
+  home=$(getent passwd "$u" | cut -d: -f6)
+  [ -n "$home" ] && [ -d "$home" ] || { echo "There is no account $u with a home on this server." >&2; exit 2; }
+  printf '%s/.ssh/authorized_keys' "$home"
+}
+use_key() { AK=$(ak_for_user "$(user_of "$1")"); OWNER_USER=$(user_of "$1"); }
+OWNER_USER=root
+now_utc() { date -u +%Y%m%d%H%M; }
+when() {  # YYYYMMDDHHMM (UTC) -> words
+  local t=$1 iso
+  iso="${t:0:4}-${t:4:2}-${t:6:2} ${t:8:2}:${t:10:2}"
+  printf '%s UTC (%s Sofia time)' "$iso" "$(TZ=Europe/Sofia date -d "$iso UTC" '+%H:%M' 2>/dev/null || echo '?')"
+}
+others_sum() {  # every line that is not one of the jobs' keys, so a write can prove it kept them
+  local pats; pats=$(mktemp)
+  names | while read -r n; do body_of "$n"; done > "$pats"
+  if [ -s "$pats" ]; then { grep -vF -f "$pats" "$AK" 2>/dev/null || true; } | sha256sum
+  else { cat "$AK" 2>/dev/null || true; } | sha256sum; fi
+  rm -f "$pats"
+}
+write_ak() {  # stdin -> root's authorized_keys, all at once; refused if any other line changed
+  local before tmp keep
+  before=$(others_sum)
+  keep=$(mktemp)
+  [ -f "$AK" ] && cp -p "$AK" "$keep"
+  [ -f "$AK.before-rouh-open" ] || { [ -f "$AK" ] && cp -p "$AK" "$AK.before-rouh-open"; } || true
+  mkdir -p "$(dirname "$AK")"; chmod 700 "$(dirname "$AK")"
+  [ -n "$TEST" ] || chown "$OWNER_USER:" "$(dirname "$AK")"
+  tmp=$(mktemp "$AK.new.XXXXXX")
+  cat > "$tmp"
+  [ -n "$TEST" ] || chown "$OWNER_USER:" "$tmp"
+  chmod 600 "$tmp"; mv -f "$tmp" "$AK"
+  if [ "$(others_sum)" != "$before" ]; then
+    if [ -s "$keep" ]; then cp -p "$keep" "$AK"; fi
+    rm -f "$keep"
+    die "Stopped: writing would have changed a key that is not the jobs'. $OWNER_USER's keys are as they were."
+  fi
+  rm -f "$keep"
+}
+# Files someone with root could change to keep a way in, fingerprinted when a key opens and
+# compared when it is closed or pruned, as rouh.land's own lock does. An authorized_keys file is
+# fingerprinted without the jobs' own lines, which open and close change on purpose.
+watched() {
+  local f
+  if [ -n "$TEST" ]; then printf '%s\n' "$AK_ROOT" ${ROUH_JOBS_KEYS_WATCH:-}; return 0; fi
+  for f in /etc/ssh/sshd_config /etc/ssh/sshd_config.d/* /root/.ssh/authorized_keys* \
+    /home/*/.ssh/authorized_keys* /etc/sudoers /etc/sudoers.d/* /etc/passwd /etc/group /etc/shadow \
+    /etc/crontab /etc/cron.d/* /var/spool/cron/crontabs/* "$SELF" "$UNITS"/rouh-jobs-keys-prune.*; do
+    [ -f "$f" ] && printf '%s\n' "$f"
+  done
+  for f in $(names); do [ -f "$(ak_for_user "$(user_of "$f")")" ] && ak_for_user "$(user_of "$f")" && echo; done
+  return 0
+}
+fingerprints() {
+  local f pats; pats=$(mktemp)
+  names | while read -r n; do body_of "$n"; done > "$pats"
+  watched | sort -u | while read -r f; do
+    [ -f "$f" ] || continue
+    # The same way for every file, with or without a jobs' line in it, so open and close agree.
+    printf '%s  %s\n' "$({ grep -vF -f "$pats" "$f" 2>/dev/null || true; } | sha256sum | awk '{print $1}')" "$f"
+  done
+  rm -f "$pats"
+}
+snapshot() { [ -f "$CONF/$1.before" ] || fingerprints > "$CONF/$1.before"; chmod 600 "$CONF/$1.before"; }
+compare() {  # NAME: what changed since its key opened, then the snapshot is gone
+  [ -f "$CONF/$1.before" ] || return 0
+  local now; now=$(mktemp); fingerprints > "$now"
+  if diff -q "$CONF/$1.before" "$now" >/dev/null; then
+    say "Checked: no SSH, sudo, user or cron file changed while the $1 key was in."
+  else
+    say "WARNING: these files changed while the $1 key was in (- before, + now). Look at them:"
+    diff "$CONF/$1.before" "$now" | grep '^[<>]' | sed 's/^</ -/; s/^>/ +/' | while IFS= read -r l; do say "$l"; done || true
+  fi
+  rm -f "$now" "$CONF/$1.before"
+}
+expiry_of() { sed -n 's/.*expiry-time="\([0-9]\{12\}\)Z\{0,1\}".*/\1/p' <<<"$1"; }
+end_sessions() {  # the open ssh sessions that logged in with this key (sshd's log names its fingerprint)
+  local name=$1 fp ip port pid n=0
+  [ -n "$TEST" ] && { say "(check: would end ${name}'s open sessions)"; return 0; }
+  fp=$(ssh-keygen -lf "$CONF/$name.pub" 2>/dev/null | awk '{print $2}') || return 0
+  [ -n "$fp" ] || return 0
+  while read -r ip port; do
+    for pid in $(ss -Htnp state established dst "$ip:$port" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u); do
+      kill "$pid" 2>/dev/null && n=$((n+1))
+    done
+  done < <(journalctl -t sshd -t sshd-session -o cat --since "-$((MAX_HOURS + 24)) hours" 2>/dev/null \
+             | grep -F "$fp" | sed -n 's/^Accepted publickey for [^ ]* from \([^ ]*\) port \([0-9]*\) .*/\1 \2/p' | sort -u)
+  [ "$n" -eq 0 ] || say "Ended $n open session(s) of the $name key."
+}
+install_self() {
+  local src=$0 changed=""
+  if [ "$src" != "$SELF" ] && ! cmp -s "$src" "$SELF" 2>/dev/null; then
+    install -m 0755 "$src" "$SELF"
+  fi
+  local svc="[Unit]
+Description=Rouh's jobs' keys: take out the ones whose time is up
+[Service]
+Type=oneshot
+ExecStart=$SELF prune"
+  local tmr="[Unit]
+Description=Rouh's jobs' keys: take out the ones whose time is up, every 5 minutes
+[Timer]
+OnBootSec=1min
+OnCalendar=*:0/5
+Persistent=true
+[Install]
+WantedBy=timers.target"
+  if [ "$(cat "$UNITS/rouh-jobs-keys-prune.service" 2>/dev/null)" != "$svc" ]; then
+    printf '%s\n' "$svc" > "$UNITS/rouh-jobs-keys-prune.service"; changed=yes
+  fi
+  if [ "$(cat "$UNITS/rouh-jobs-keys-prune.timer" 2>/dev/null)" != "$tmr" ]; then
+    printf '%s\n' "$tmr" > "$UNITS/rouh-jobs-keys-prune.timer"; changed=yes
+  fi
+  [ -n "$TEST" ] && return 0
+  [ -z "$changed" ] || systemctl daemon-reload
+  systemctl is-enabled --quiet rouh-jobs-keys-prune.timer 2>/dev/null && systemctl is-active --quiet rouh-jobs-keys-prune.timer \
+    || systemctl enable --now rouh-jobs-keys-prune.timer >/dev/null 2>&1 \
+    || say "Note: the 5-minute prune timer did not start; sshd still refuses the key at its end."
+}
+
+cmd=${1:-status}
+case "$cmd" in
+  open)
+    [ $# -ge 6 ] || die "open NAME HOURS FROM KEYTYPE KEYBODY [COMMENT]"
+    name=$2 hours=$3 from=$4 ktype=$5 kbody=$6 comment=${7:-rouh-jobs-$2}
+    [[ "$name" =~ ^[a-z0-9][a-z0-9.-]*$ ]] || die "Not a name: $name"
+    if [[ "$hours" =~ ^@[0-9]+$ ]]; then  # an end time instead, in seconds since 1970 (rouh-open add)
+      [ "${hours#@}" -gt "$(date +%s)" ] && [ "${hours#@}" -le $(( $(date +%s) + MAX_HOURS * 3600 )) ] \
+        || die "Give an end within the next $MAX_HOURS hours."
+    else
+      [[ "$hours" =~ ^[0-9]+$ ]] && [ "$hours" -ge 1 ] && [ "$hours" -le "$MAX_HOURS" ] \
+        || die "Give a whole number of hours from 1 to $MAX_HOURS."
+    fi
+    [[ "$from" =~ ^[0-9a-fA-F:.,/]+$ ]] || die "Not a list of addresses: $from"
+    [[ "$ktype" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ecdsa-sha2-nistp521)$ ]] || die "Not a key type: $ktype"
+    [[ "$kbody" =~ ^[A-Za-z0-9+/]+=*$ ]] || die "Not a key: $kbody"
+    [[ "$comment" =~ ^[A-Za-z0-9@._-]+$ ]] || die "Not a key comment: $comment"
+    user=${ROUH_JOBS_KEYS_USER:-root}
+    [[ "$user" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "Not an account: $user"
+    for n in $(names); do
+      [ "$n" = "$name" ] || [ "$(body_of "$n")" != "$kbody" ] || die "That key is already kept as $n."
+    done
+    if [ -f "$CONF/$name.user" ] && [ "$(user_of "$name")" != "$user" ]; then
+      die "The $name key is kept for $(user_of "$name"), not $user: close it first."
+    fi
+    newak=$(ak_for_user "$user")
+    mkdir -p "$CONF"; chmod 755 "$CONF"
+    # The snapshot is taken before this key is first written in, while it is closed.
+    grep -qF "$kbody" "$newak" 2>/dev/null || snapshot "$name"
+    printf '%s %s %s\n' "$ktype" "$kbody" "$comment" > "$CONF/$name.pub"
+    if [ "$user" = root ]; then rm -f "$CONF/$name.user"; else printf '%s\n' "$user" > "$CONF/$name.user"; fi
+    use_key "$name"
+    if [ "${hours#@}" != "$hours" ]; then until=$(date -u -d "@${hours#@}" +%Y%m%d%H%M)
+    else until=$(date -u -d "+$hours hours" +%Y%m%d%H%M); fi
+    { grep -vF "$kbody" "$AK" 2>/dev/null || true
+      printf 'expiry-time="%sZ",from="%s",no-agent-forwarding,no-X11-forwarding %s %s %s\n' \
+        "$until" "$from" "$ktype" "$kbody" "$comment"; } | write_ak
+    install_self
+    say "The $name key may log in as $user from $from until $(when "$until")."
+    ;;
+  status)
+    found=""
+    for n in $(names); do
+      found=yes; use_key "$n"
+      line=$(grep -F "$(body_of "$n")" "$AK" 2>/dev/null | tail -1 || true)
+      t=$(expiry_of "$line")
+      if [ -z "$line" ]; then say "The $n key is closed: it is not in $OWNER_USER's keys."
+      elif [ -z "$t" ]; then say "The $n key is in $OWNER_USER's keys with no end; the prune takes it out within 5 minutes."
+      elif [ "$t" -le "$(now_utc)" ]; then say "The $n key ended at $(when "$t"); the prune takes its line out within 5 minutes."
+      else say "The $n key is open until $(when "$t")."
+      fi
+    done
+    [ -n "$found" ] || say "No jobs' key has been opened on this server yet."
+    ;;
+  until)  # for rouh-open status: the end of NAME's key in seconds since 1970, or 0 when closed
+    name=${2:-}; t=""
+    if [ -n "$name" ] && [ -f "$CONF/$name.pub" ]; then
+      use_key "$name"
+      t=$(expiry_of "$(grep -F "$(body_of "$name")" "$AK" 2>/dev/null | tail -1 || true)")
+    fi
+    if [ -n "$t" ]; then date -u -d "${t:0:8} ${t:8:2}:${t:10:2}" +%s; else echo 0; fi
+    ;;
+  close)
+    name=${2:-}
+    [ -n "$name" ] && [ -f "$CONF/$name.pub" ] || { say "The ${name:-?} key was never opened here; nothing to close."; exit 0; }
+    kbody=$(body_of "$name"); use_key "$name"
+    if grep -qF "$kbody" "$AK" 2>/dev/null; then
+      { grep -vF "$kbody" "$AK" || true; } | write_ak
+      say "Closed: the $name key is out of $OWNER_USER's keys."
+    else
+      say "The $name key was already closed."
+    fi
+    end_sessions "$name"
+    compare "$name"
+    ;;
+  prune)
+    now=$(now_utc)
+    pats=$(mktemp); names | while read -r n; do body_of "$n"; done > "$pats"
+    for owner in $( { echo root; for n in $(names); do user_of "$n"; echo; done; } | sort -u); do
+    OWNER_USER=$owner; AK=$(ak_for_user "$owner") || continue
+    [ -f "$AK" ] || continue
+    out=$(mktemp); dropped=""
+    while IFS= read -r line || [ -n "$line" ]; do
+      if [ -s "$pats" ] && grep -qF -f "$pats" <<<"$line"; then
+        t=$(expiry_of "$line")
+        if [ -z "$t" ] || [ "$t" -le "$now" ]; then
+          for n in $(names); do grep -qF "$(body_of "$n")" <<<"$line" && dropped="$dropped $n"; done
+          continue
+        fi
+      fi
+      printf '%s\n' "$line" >> "$out"
+    done < "$AK"
+    if [ -n "$dropped" ]; then
+      write_ak < "$out"
+      # shellcheck disable=SC2086  # one name a word
+      for n in $(printf '%s\n' $dropped | sort -u); do say "Pruned: the $n key's time was up."; end_sessions "$n"; compare "$n"; done
+    fi
+    rm -f "$out"
+    done
+    rm -f "$pats"
+    ;;
+  *) sed -n '7,18p' "$0" | sed 's/^# //'; exit 2 ;;
+esac

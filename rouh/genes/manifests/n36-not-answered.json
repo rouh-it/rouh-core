@@ -1,0 +1,47 @@
+{
+  "id": "n36-not-answered",
+  "name": "Invitations you have not answered",
+  "title": "Invitations you have not answered: meetings somebody else invited you to, today and tomorrow, that you never answered, in the morning brief with Yes, Maybe and No",
+  "aliases": [
+    "invitations you have not answered",
+    "not answered",
+    "answer the invitation",
+    "rsvp",
+    "who is waiting on my answer"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<rect x=\"2.5\" y=\"6\" width=\"13\" height=\"11\" rx=\"2\"/><path d=\"M2.5 8l6.5 4.5L15.5 8\"/><path d=\"M18 7.4a2.2 2.2 0 1 1 3.2 2c-.6.3-.9.7-.9 1.3v.4\"/><path d=\"M20.3 14v.1\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "switch": "not_answered",
+  "signals": {
+    "events": {
+      "answered": "You pressed Yes, Maybe or No on an invitation you had not answered, in the morning brief",
+      "put": "You pressed Not now on an invitation you had not answered, in the morning brief"
+    },
+    "runs": {
+      "shown": "Rouh put an invitation of somebody else's that you had not answered in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads your main calendar's meetings from now to the end of tomorrow, and your own answer to each, each time the morning brief opens",
+      "answers an invitation in your calendar only when you press Yes, Maybe or No, and Google then tells its organiser",
+      "keeps the invitations you put away or answered from the brief in your own settings"
+    ],
+    "accounts": [
+      "Google Calendar"
+    ],
+    "tables": [
+      "user_settings",
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch not_answered off on its row in Evolution, Mutations, and the section is gone and the route refuses; to remove it for good revert night 36's commit for it (rouh/not_answered.py, the brief_not_answered route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawNotAnswered and its helpers in briefpage.js, this manifest) and delete the user setting not_answered."
+  }
+}

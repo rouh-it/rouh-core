@@ -1,0 +1,70 @@
+{
+  "id": "trials",
+  "name": "Trials",
+  "title": "Trials: made-up testers try each change on their phone before it ships, a job at a time, and every problem they hit is kept, discussed and decided",
+  "aliases": [
+    "trial",
+    "usability testing",
+    "usability test",
+    "user testing",
+    "persona testing",
+    "personas",
+    "vesela",
+    "boris",
+    "problems",
+    "confusing",
+    "try it out",
+    "testers",
+    "tester",
+    "jobs",
+    "try"
+  ],
+  "group": "evolution",
+  "route": "/evolution/trials",
+  "icon": "<circle cx=\"9\" cy=\"7.5\" r=\"3\"/><path d=\"M3.5 19c.6-3.4 2.8-5.5 5.5-5.5 1.3 0 2.5.5 3.4 1.3\"/><circle cx=\"16.5\" cy=\"15.5\" r=\"3\"/><path d=\"M18.7 17.7L21 20\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "nav": {
+    "place": "list",
+    "order": 28,
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "after a run of gene therapy proves a change that a person sees, has a made-up person (a tester, the person's default unless another is asked for by name) try it in that run's own test world, through a headless browser at a phone's size, seeing only the screen, its words and what can be pressed",
+      "asks the model on \"Trials tester\" what the persona sees, thinks and does at each step, and the model on \"Trials: the same problem again\" whether a problem found is one already on the list",
+      "keeps each trial's steps, screenshots and ending, and one list of problems, each counted again when seen again and closed only when a later trial gets past it",
+      "puts the owner's own confusions on the same list: a term they ask the meaning of in a chat, or saying something in Rouh is confusing",
+      "starts a run that only runs a trial when the person asks for one (\"trial this page with Boris\", or Run this trial again), which stands up a test world and changes no code",
+      "after a third try that still fails, posts one notice saying the change shipped anyway",
+      "lets Rouh and every agent (rouh-trial) run a trial, read trials and problems, put a problem on the list by hand, add a sighting, open a closed one again, read the personas and set who tries every change",
+      "keeps the person's testers (`trial_testers`): adds, changes and removes (archives) them from the Testers page, and writes a whole profile from one sentence with the model on \"Trials: writing a new tester\"",
+      "pauses and resumes a tester, or all testing at once (`trials_paused`), from the Testers page, a tester's page or the trials tool: a paused tester starts no new try of any kind, and a build that meets the pause skips its trial (`SKIPPED: skipped: tester paused`, exit 0) without failing",
+      "keeps every try in a job (`trial_jobs`), what is being tested",
+      "keeps a discussion on each problem (`trial_notes`), where the model on \"Trials: talking a problem over\" answers the owner with the problem, its screenshot and its try, and the owner's verdict: not a problem, won't fix, decided how to fix it, or sent as feedback to Gene therapy, filling and sending its drawer with the report and screenshot"
+    ],
+    "accounts": [],
+    "tables": [
+      "trials",
+      "trial_steps",
+      "trial_problems",
+      "trial_sightings",
+      "trial_testers",
+      "trial_jobs",
+      "trial_notes"
+    ],
+    "jobs": [],
+    "remove": "Delete this manifest, rouh/trials/ (the code and its personas), rouh/models/trials.py and its import, rouh/web/trials.py and its addresses in urls.py, trialspage.js and trialspage.css and their lines in index.html, its page in evolutionpage.js, app/runs.js and app/address.js, bin/rouh-trial, the trials tool in tools.py and toolsearch.py, the Trials section in agent_instructions.py, the trial stage in starting.py, the owner's confusions in brain.py, its four uses in modeldefaults.py and model_standard.json, `window.RouhGeneTherapy` in app/gene_therapy.js, the screenshots under the data folder's trials/, and drop the tables trials, trial_steps, trial_problems, trial_sightings, trial_testers, trial_jobs and trial_notes with a migration."
+  },
+  "uses": {
+    "tools": [
+      "trials"
+    ],
+    "purposes": [
+      "trial_tester",
+      "trial_matcher",
+      "trial_writer",
+      "trial_discuss"
+    ]
+  }
+}

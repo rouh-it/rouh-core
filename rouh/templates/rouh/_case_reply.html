@@ -1,0 +1,31 @@
+{% comment %}The reply Petar may change before he approves, and the files it carries
+   (`rouh/case_files.py`), drawn inside the part of the decision that is the reply
+   (`mail_cases.decision_parts`), or on its own where no part is.{% endcomment %}
+      <div class="field">
+        <label class="k" for="reply">{{ reply_label }}</label>
+        <textarea id="reply" name="reply">{{ proposed_reply }}</textarea>
+      </div>
+      {% comment %}Petar, 2 October 2026: the approval covers exactly the files the reply
+         carries (`rouh/case_files.py`). Petar, 8 October 2026: they are named, plainly, in
+         the reply's own fold, each one to open or to untick, and nothing else about
+         attachments is in the decision.{% endcomment %}
+      {% if approval_files %}
+      <div class="out-files" id="replyFiles">
+        <input type="hidden" name="files_shown" value="1">
+        <span class="k">Goes with {% if approval_files|length == 1 %}this file{% else %}these {{ approval_files|length }} files{% endif %} - untick one to take it off</span>
+        {% if prepared.state == "asked" %}<p class="muted small" style="margin:0 0 6px" id="madeFirst">Rouh made {% if approval_files|length == 1 %}it{% else %}them{% endif %} before asking you, so you see the finished thing. Nothing has been sent.</p>{% endif %}
+        {% if not claim %}<p class="note small" style="margin:0 0 6px" id="filesUnmentioned">The reply does not mention {% if approval_files|length == 1 %}this file{% else %}these files{% endif %}, but {% if approval_files|length == 1 %}it goes{% else %}they go{% endif %} with it.</p>{% endif %}
+        <ul>
+          {% for f in approval_files %}
+          <li data-file="{{ f.id }}"><label><input type="checkbox" name="keep" value="{{ f.id }}" checked>{% if f.missing or f.changed %}<span class="fname">{{ f.name }}</span>{% else %}<a class="fname" href="{{ f.url }}" target="_blank" rel="noopener">{{ f.name }}</a>{% endif %}</label>
+            {% if f.missing %}<span class="bad-text small">- not there any more, so it cannot go.</span>
+            {% elif f.changed %}<span class="bad-text small">- changed after Rouh asked you: approving does not send it, and you are shown it as it is now.</span>{% endif %}</li>
+          {% endfor %}
+        </ul>
+        <p class="note small" id="noFileLeft" hidden>No file goes now.{% if claim %} The reply still says something is attached, so it cannot be approved like this: change the reply, or keep a file.{% endif %}</p>
+      </div>
+      {% elif claim and claim_stops %}
+      <p class="bad-text small" id="claimNoFile">The reply says something is attached ("{{ claim }}"), and no file goes with it. It cannot be approved as it stands: change the reply, or tell Rouh to make the file.</p>
+      {% elif claim %}
+      <p class="muted small" id="claimLater">The reply says something is attached ("{{ claim }}"). Rouh makes it first, and you see it before anything goes.</p>
+      {% endif %}

@@ -1,0 +1,7 @@
+services:
+  worker:
+    volumes: [host-root:/host]
+volumes:
+  host-root:
+    driver: local
+    driver_opts: {type: none, o: bind, device: /}

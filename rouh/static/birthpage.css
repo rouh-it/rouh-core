@@ -1,0 +1,58 @@
+/* Anatomy, Rouh Land Account, Rouh profile (`birthpage.js`, `rouh/birth.py`).
+
+   The cards of the Heartbeat page (`heartbeatpage.css`) with a few of its own: the Rouh's name
+   large, the two ways to be born side by side, and the twelve recovery words with their QR. */
+
+.bd-name { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 680; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.bd-sub { margin: 4px 0 0; color: var(--dim); font-size: 13.5px; }
+.bd-second { margin: 8px 0 0; font-size: 13.5px; line-height: 1.45; }
+.bd-second-name { font-weight: 640; }
+.bd-lead { margin: 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.bd-warn { margin: 0; font-size: 13px; line-height: 1.45; color: var(--warn); overflow-wrap: anywhere; }
+.bd-alert { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.bd-words-wait { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+
+.bd-ways { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.bd-way { display: grid; gap: 6px; align-content: start; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: var(--radius-s); min-width: 0; }
+.bd-way .ctl { justify-self: start; text-decoration: none; }
+.bd-way-h { margin: 0; font-size: 14px; }
+.hb-actions a.ctl { text-decoration: none; }
+
+.bd-words-row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+.bd-wordlist {
+  flex: 1 1 280px; min-width: 0; margin: 0; padding: 0; list-style: none; counter-reset: bdw;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;
+}
+.bd-word {
+  counter-increment: bdw; padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--radius-s);
+  font-family: var(--mono); font-size: 14px; background: var(--bg); min-width: 0; overflow-wrap: anywhere;
+}
+.bd-word::before { content: counter(bdw) ". "; color: var(--dim); font-size: 12px; }
+.bd-qr { flex: none; width: 172px; padding: 6px; background: #fff; border-radius: var(--radius-s); line-height: 0; }
+.bd-qr svg { width: 100%; height: auto; }
+
+.bd-check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.bd-since { flex: 0 1 180px; }
+.bd-mono { font-family: var(--mono); font-size: 12.5px; }
+.bd-dl { grid-template-columns: 96px minmax(0, 1fr); }
+.bd-more { display: grid; gap: 8px; }
+.bd-keys .brown-toggle, .bd-reg .brown-toggle, .bd-incoming .brown-toggle, .bd-how .brown-toggle { margin-top: 8px; }
+/* The sentence under the nickname: across the whole form, under the box it is about. */
+.hb-form .bd-nick-help { flex: 1 1 100%; margin: -2px 0 0; }
+/* A link inside a sentence (Your profile, from the rouh.land card). */
+.bd-inline { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+/* Keys and recovery: one closed section at the bottom, its cards inside it. */
+.bd-keys-section { margin-top: 4px; }
+.bd-keys-section > .brown-toggle-body { display: grid; gap: 12px; }
+.bd-keys-section > .brown-toggle-body > .settings-help:first-child { margin: 0; }
+.hb-form textarea {
+  font: inherit; font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+  border-radius: var(--radius-s); padding: 7px 9px; width: 100%; min-width: 0; resize: vertical;
+}
+
+@media (max-width: 560px) {
+  .bd-ways { grid-template-columns: minmax(0, 1fr); }
+  .bd-wordlist { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bd-qr { width: 150px; }
+  .bd-name { font-size: 24px; }
+}

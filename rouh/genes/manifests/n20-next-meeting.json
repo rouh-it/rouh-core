@@ -1,0 +1,47 @@
+{
+  "id": "n20-next-meeting",
+  "name": "Agreed, not booked",
+  "title": "Agreed, not booked: a next meeting agreed in one of your meetings that is not in your calendar, in the morning brief, with Book it",
+  "aliases": [
+    "next meeting",
+    "follow-up meeting",
+    "not booked",
+    "agreed meeting",
+    "book the next meeting"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<rect x=\"4\" y=\"5\" width=\"16\" height=\"15\" rx=\"2\"/><path d=\"M4 9.5h16M8.5 3v4M15.5 3v4\"/><path d=\"M12 12.5v5M9.5 15h5\"/>",
+  "attaches_to": [
+    "meeting"
+  ],
+  "maturity": "lab",
+  "switch": "next_meeting",
+  "signals": {
+    "events": {
+      "booked": "You pressed Book it on a next meeting the morning brief said was agreed and not in your calendar",
+      "not_needed": "You pressed Not needed on a next meeting the morning brief said was agreed and not in your calendar"
+    },
+    "runs": {
+      "shown": "Rouh put next meetings that were agreed and not in your calendar in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the meetings from the meeting library and the events of your own calendars in your Master, over the last six weeks",
+      "puts an event on your usual calendar, inviting the guests of the meeting it was agreed in, only when you press Book it"
+    ],
+    "accounts": [
+      "Google Calendar"
+    ],
+    "tables": [
+      "user_settings"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch next_meeting off on its row in Evolution, Mutations, and the section is gone; to remove it for good revert night 20's commit (rouh/next_meeting.py, the brief_next_meeting route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawNextMeeting and its helpers in briefpage.js, this manifest) and delete the user setting next_meeting. Events already booked stay in the calendar."
+  }
+}

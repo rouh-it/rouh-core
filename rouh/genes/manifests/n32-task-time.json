@@ -1,0 +1,45 @@
+{
+  "id": "n32-task-time",
+  "name": "Time before its date",
+  "title": "Time before its date: a task whose notes say it is due soon says how much free time is left before that date on your calendar, and puts focus time there in one press",
+  "aliases": [
+    "time before its date",
+    "make time for this task",
+    "block time for the task",
+    "focus time for a deadline",
+    "how much time is left"
+  ],
+  "group": "work",
+  "route": "/tasks",
+  "icon": "<circle cx=\"12\" cy=\"13\" r=\"8\"/><path d=\"M12 9v4l2.5 2.5M9 2.5h6\"/>",
+  "attaches_to": [
+    "task"
+  ],
+  "maturity": "lab",
+  "switch": "task_time",
+  "signals": {
+    "events": {
+      "found": "You pressed Find time on a task due soon, and saw the free time left before its date",
+      "blocked": "You pressed Block it, and focus time for the task went on your calendar"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the task's notes for a date something is due by in the next three weeks",
+      "reads your main calendar from now to that date, only when you press Find time",
+      "puts Google's own focus time on your main calendar only when you press Block it; Google declines new invitations then and sets Chat to do not disturb"
+    ],
+    "accounts": [
+      "Google Calendar"
+    ],
+    "tables": [
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch task_time off on its row in Evolution, Mutations: no section is drawn and the route refuses. To remove it for good revert night 32's task_time commit (rouh/task_time.py, rouh/web/task_time.py and its route in rouh/project/urls.py, its line in rouh/objectindex.py, the task_time relay in rouh/static/app/cards.js, its handler in rouh/static/taskpage.js and rules in taskbrowser.css, this manifest)."
+  }
+}

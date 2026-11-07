@@ -1,0 +1,45 @@
+{
+  "id": "hue",
+  "name": "Philips Hue",
+  "title": "Philips Hue: the lights at home through the Hue cloud, by name, colour and scene",
+  "aliases": [
+    "hue",
+    "philips hue",
+    "lights",
+    "lamps",
+    "home lights",
+    "scenes"
+  ],
+  "group": "machine",
+  "route": "/anatomy/connections/hue",
+  "anatomy": {
+    "order": 35
+  },
+  "icon": "<path d=\"M9 17.5h6\"/><path d=\"M10 20.5h4\"/><path d=\"M12 3.5a5.5 5.5 0 0 0-3.2 10c.7.5 1.2 1.3 1.2 2.2V17.5h4v-1.8c0-.9.5-1.7 1.2-2.2A5.5 5.5 0 0 0 12 3.5z\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "turns the person's Philips Hue lights, rooms and zones on and off and changes their brightness, colour and colour temperature, and activates their scenes, through the Hue cloud, when they ask in a conversation",
+      "presses the person's Hue bridge's link button through the cloud once, when they connect, to get Rouh's own application key; when the cloud cannot reach the bridge, asks them to press the bridge's own button and Try again"
+    ],
+    "accounts": [
+      "Philips Hue"
+    ],
+    "tables": [
+      "hue_apps",
+      "hue_connections"
+    ],
+    "jobs": [],
+    "remove": "the Anatomy section in rouh/templates/rouh/index.html, huepage.js/.css and their entry in settingsPages (app/runs.js), rouh/hue.py, rouh/web/hue.py and its routes, the hue tool in rouh/tools.py and its area in rouh/toolsearch.py, _hue in rouh/anatomy.py, rouh/models/hue.py, rouh/testing/fake_hue.py and its place in rouh/testing/browser.py and tests/e2e/serve.py, and this manifest; drop hue_apps and hue_connections with a migration."
+  },
+  "uses": {
+    "tools": [
+      "hue"
+    ]
+  }
+}

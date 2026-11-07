@@ -1,0 +1,6 @@
+# What rouh-guard (guard/Dockerfile) is built from: the protected core's own
+# files and nothing else, an allow-list. No Rouh code.
+*
+!guard/
+guard/**/__pycache__
+guard/README.md

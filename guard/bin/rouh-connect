@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""rouh-connect HOST PORT: a run's SSH, through the key proxy, to one of the owner's own servers.
+
+The worker reaches nothing outside but through the key proxy (guard/rouh_guard/keyproxy.py),
+which tunnels only https and http, and the host:port pairs the owner lists in the settings file
+(ROUH_KEYPROXY_ALLOW, such as git.example.com:22). ssh in the worker is told to go this way for
+every host (the worker's start writes it into ~/.ssh/config), so `ssh deploy@git.example.com`
+and `git push git@github.com:...` (sent to ssh.github.com on 443) work, and a server that is not
+listed is refused by the proxy. Part of the protected core, so no run can change where it goes.
+
+    ProxyCommand rouh-connect %h %p
+
+Standard library only.
+"""
+from __future__ import annotations
+
+import os
+import selectors
+import socket
+import sys
+from urllib.parse import urlsplit
+
+
+def main() -> int:
+    if len(sys.argv) != 3:
+        print("rouh-connect: give a host and a port", file=sys.stderr)
+        return 2
+    host, port = sys.argv[1], sys.argv[2]
+    proxy = urlsplit(os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or "http://keyproxy:8080")
+    try:
+        conn = socket.create_connection((proxy.hostname or "keyproxy", proxy.port or 8080), timeout=20)
+    except OSError as exc:
+        print(f"rouh-connect: the key proxy could not be reached ({exc})", file=sys.stderr)
+        return 1
+    conn.sendall(f"CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n\r\n".encode())
+    head = b""
+    while b"\r\n\r\n" not in head:
+        piece = conn.recv(4096)
+        if not piece:
+            break
+        head += piece
+    first, _, rest = head.partition(b"\r\n\r\n")
+    status = first.split(b"\r\n", 1)[0].decode("latin-1", "replace")
+    if " 200 " not in status + " ":
+        why = rest.decode("utf-8", "replace").strip() or status
+        print(f"rouh-connect: the key proxy refused {host}:{port}: {why}. "
+              "The owner lists the servers runs may reach in the settings file, ROUH_KEYPROXY_ALLOW, "
+              "or opens more for some hours with rouh-open or rouh-proxy-grant on their own machine.",
+              file=sys.stderr)
+        return 1
+    conn.settimeout(None)
+    out = sys.stdout.buffer
+    if rest:
+        out.write(rest)
+        out.flush()
+    sel = selectors.DefaultSelector()
+    stdin = sys.stdin.buffer.fileno()
+    sel.register(stdin, selectors.EVENT_READ)
+    sel.register(conn, selectors.EVENT_READ)
+    open_in = True
+    while True:
+        for key, _ in sel.select():
+            if key.fileobj == stdin:
+                data = os.read(stdin, 65536)
+                if not data:
+                    sel.unregister(stdin)
+                    open_in = False
+                    try:
+                        conn.shutdown(socket.SHUT_WR)
+                    except OSError:
+                        pass
+                else:
+                    conn.sendall(data)
+            else:
+                data = conn.recv(65536)
+                if not data:
+                    return 0
+                out.write(data)
+                out.flush()
+        if not open_in and not sel.get_map():
+            return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

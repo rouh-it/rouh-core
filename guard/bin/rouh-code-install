@@ -1,0 +1,274 @@
+#!/usr/bin/env python3
+"""rouh-code-install: a Rouh's first start. The newest tested Rouh, from rouh.land, into /code.
+
+Part of the protected core (guard/README.md). The stack's one-shot ``code-install`` runs it on
+every start, as root in the base image, with the protected core's files at /opt/rouh-guard; it
+replaces code-init and the rouh-code image (task 98, step 98-23, 24 October 2026).
+
+  - /code already holds a git repository: it is this Rouh's own code, changed by its genes and by
+    the Rouh itself. It is left exactly as it is, and nothing is fetched.
+  - /code is empty, or holds only an earlier install that never finished: the newest commit of
+    Rouh's main branch that passed its tests is fetched through rouh.land, which hands it only to a
+    person signed up as a tester there (the install code in the settings file,
+    ``ROUH_INSTALL_CODE``, made on https://rouh.land/registry/birth/account/). Release tools that a
+    Rouh never runs are left out (``LEFT_OUT``). The libraries main needs and this base does not
+    have are installed into /extra, held to the base's own pins. Then it is committed as the
+    repository's first commit, "Rouh <commit> as installed", with the commit it came from kept in
+    .git/rouh-installed.json.
+  - /code holds anything else: refused, with one plain sentence, and nothing is changed.
+
+An install is made safe to stop half way: a marker file is written first and removed last, and
+.git is moved in only after everything else, so a repository in /code is always a whole one.
+
+    rouh-code-install --extra-only DIR   only the libraries DIR's code needs and the base lacks, into /extra
+
+Settings: ROUH_INSTALL_CODE, ROUH_INSTALL_URL (https://rouh.land/mac/code/install),
+ROUH_RELEASE_COMMIT (the commit the signed release names; said beside the one installed).
+"""
+from __future__ import annotations
+
+import io
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tarfile
+import tomllib
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+CODE = Path(os.environ.get("ROUH_APP_DIR", "/code"))
+EXTRA = Path(os.environ.get("ROUH_EXTRA", "/extra"))
+MARK = CODE / ".rouh-filling"
+WORK = CODE / ".rouh-fill"
+URL = os.environ.get("ROUH_INSTALL_URL", "https://rouh.land/mac/code/install")
+ACCOUNT = "https://rouh.land/registry/birth/account/"
+UA = "rouh-code-install/1"
+#: Release tools a Rouh never runs: the makers', kept in the repository and out of a Rouh's code.
+LEFT_OUT = ("guard", "mac", ".github", "deploy/container")
+MOST = 400 * 1024 * 1024
+ROUH = ["setpriv", "--reuid=10001", "--regid=10001", "--init-groups", "--"]
+
+
+def say(text: str) -> None:
+    print(f"code-install: {text}", flush=True)
+
+
+def fail(text: str) -> None:
+    print(f"code-install: {text}", file=sys.stderr, flush=True)
+    sys.exit(1)
+
+
+def as_rouh(*cmd: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
+    pre = ROUH if os.getuid() == 0 else []
+    return subprocess.run([*pre, *cmd], cwd=cwd, capture_output=True, text=True)
+
+
+def _post(url: str, body: dict) -> dict:
+    req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "User-Agent": UA,
+                                          "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        try:
+            why = json.loads(e.read()).get("error") or f"it answered {e.code}"
+        except ValueError:
+            why = f"it answered {e.code}"
+        fail(f"rouh.land did not hand out Rouh's code: {why}. Nothing was changed.")
+    except (urllib.error.URLError, OSError) as e:
+        fail(f"rouh.land could not be reached ({getattr(e, 'reason', e)}). Nothing was changed; "
+             "Rouh tries again on its next start.")
+
+
+def _download(url: str) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    try:
+        with urllib.request.urlopen(req, timeout=300) as r:
+            data = r.read(MOST + 1)
+    except (urllib.error.URLError, OSError) as e:
+        fail(f"Rouh's code could not be downloaded ({getattr(e, 'reason', e)}). Nothing was changed.")
+    if len(data) > MOST:
+        fail("Rouh's code is larger than an install takes. Nothing was changed.")
+    return data
+
+
+def _unpack(data: bytes, into: Path) -> None:
+    """GitHub's tarball of one commit, its top folder taken off; nothing outside `into`, no links out."""
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as tar:
+        members = []
+        for m in tar.getmembers():
+            parts = m.name.split("/", 1)
+            if len(parts) < 2 or not parts[1]:
+                continue
+            rel = parts[1]
+            if rel.startswith("/") or ".." in rel.split("/"):
+                fail(f"the code download holds a path that climbs out ({rel[:80]}). Nothing was changed.")
+            if m.issym() or m.islnk():
+                target = os.path.normpath(os.path.join(os.path.dirname(rel), m.linkname))
+                if m.linkname.startswith("/") or target.startswith(".."):
+                    fail(f"the code download holds a link that points out ({rel[:80]}). Nothing was changed.")
+            elif not (m.isfile() or m.isdir()):
+                continue
+            m.name = rel
+            members.append(m)
+        tar.extractall(into, members=members, filter="tar")
+
+
+def _needed(code: Path) -> dict[str, str]:
+    """What main runs with: its lock's packages reachable from Rouh's own dependencies, and the one
+    program's run pins, by name, with their versions."""
+    out: dict[str, str] = {}
+    lock = code / "uv.lock"
+    if lock.is_file():
+        doc = tomllib.loads(lock.read_text())
+        pkgs = {p["name"].lower(): p for p in doc.get("package", [])}
+        root = pkgs.get("rouh")
+        todo = [d for d in (root or {}).get("dependencies", [])]
+        while todo:
+            dep = todo.pop()
+            if not _applies(str(dep.get("marker") or "")):
+                continue
+            name = dep["name"].lower()
+            if name in out or name not in pkgs:
+                continue
+            out[name] = str(pkgs[name].get("version") or "")
+            todo += pkgs[name].get("dependencies", [])
+    reqs = code / "one" / "requirements.txt"
+    if reqs.is_file():
+        for line in reqs.read_text().splitlines():
+            if line.startswith("# Only for the tests"):
+                break
+            line = line.split("#", 1)[0].strip()
+            if "==" in line:
+                name, version = line.split("==", 1)
+                out.setdefault(name.split("[", 1)[0].strip().lower(), version.strip())
+    return {k: v for k, v in out.items() if v}
+
+
+def _have() -> dict[str, str]:
+    """What the base's Python has installed, /extra's included, by name: read from the
+    environment itself rather than from its list, which can say more than is there."""
+    r = subprocess.run(["/opt/venv/bin/python", "-c", "import importlib.metadata as m, json; print(json.dumps("
+                        "{(d.metadata['Name'] or '').lower().replace('_', '-'): d.version for d in m.distributions()}))"],
+                       capture_output=True, text=True)
+    try:
+        return json.loads(r.stdout)
+    except ValueError:
+        fail("the base's own libraries could not be listed. Nothing was changed.")
+
+
+def _applies(marker: str) -> bool:
+    """Whether a lock entry's marker holds here (pip's own packaging reads it)."""
+    if not marker:
+        return True
+    try:
+        from pip._vendor.packaging.markers import Marker
+
+        return bool(Marker(marker).evaluate())
+    except Exception:  # noqa: BLE001 - a marker that cannot be read is taken as holding
+        return True
+
+
+def _extra(code: Path) -> None:
+    have = _have()
+    missing = sorted(f"{n}=={v}" for n, v in _needed(code).items() if n.replace("_", "-") not in have)
+    newer = sorted(f"{n} {have[n.replace('_', '-')]} (main has {v})" for n, v in _needed(code).items()
+                   if n.replace("_", "-") in have and have[n.replace("_", "-")] != v)
+    if newer:
+        say("the base keeps its own version of: " + "; ".join(newer[:12]) + ("; ..." if len(newer) > 12 else ""))
+    if not missing:
+        say("every library this code needs is in the base")
+        return
+    say(f"installing what the base does not have into {EXTRA}: {', '.join(missing)}")
+    py = f"python{sys.version_info[0]}.{sys.version_info[1]}"
+    prefix = EXTRA / py
+    prefix.mkdir(parents=True, exist_ok=True)
+    os.chown(EXTRA, 10001, 10001)
+    for d in [EXTRA, *EXTRA.rglob("*")]:
+        os.chown(d, 10001, 10001)
+    r = as_rouh("/opt/venv/bin/python", "-m", "pip", "install", "--quiet", "--prefix", str(prefix),
+                "--constraint", "/opt/rouh-base/constraints.txt", *missing)
+    if r.returncode:
+        fail("the libraries this code needs could not be installed: "
+             + (r.stderr.strip().splitlines() or ["pip failed"])[-1][:300] + ". Nothing was changed.")
+
+
+def main() -> int:
+    if sys.argv[1:2] == ["--extra-only"] and len(sys.argv) == 3:
+        # What a check of a checkout needs beside the base (the tests on main, .github/workflows/
+        # main-tests.yml): the libraries its lock has and the base does not, into /extra.
+        _extra(Path(sys.argv[2]))
+        return 0
+    if not CODE.is_dir():
+        fail(f"there is no {CODE} to fill; the stack mounts the code volume there")
+    if os.getuid() == 0 and not (CODE / ".git").is_dir():
+        os.chown(CODE, 10001, 10001)
+    if (CODE / ".git").is_dir() and not MARK.exists():
+        head = as_rouh("git", "-C", str(CODE), "log", "-1", "--format=%h %s").stdout.strip() or "no commit yet"
+        say(f"{CODE} is this Rouh's own code (at {head}); left exactly as it is")
+        return 0
+    if MARK.exists():
+        say(f"an earlier install into {CODE} did not finish; starting it again")
+        for p in CODE.iterdir():
+            if p.name != MARK.name:
+                shutil.rmtree(p) if p.is_dir() and not p.is_symlink() else p.unlink()
+    elif any(CODE.iterdir()):
+        fail(f"{CODE} holds files but no git repository, so it is not Rouh's code and nothing was changed. "
+             "Move them out of the code volume, or put Rouh's code there as a git repository, and start Rouh again.")
+
+    code = os.environ.get("ROUH_INSTALL_CODE", "").strip()
+    if not code:
+        fail(f"this Rouh has no code yet, and no install code to fetch it with. Sign in at {ACCOUNT}, "
+             "press Make an install code, put it in the settings file as ROUH_INSTALL_CODE, and start Rouh again.")
+    got = _post(URL, {"code": code})
+    commit, tarball = str(got.get("commit") or ""), str(got.get("tarball") or "")
+    if len(commit) != 40 or not tarball.startswith("https://"):
+        fail("rouh.land's answer did not name a commit and where to download it. Nothing was changed.")
+    release = os.environ.get("ROUH_RELEASE_COMMIT", "").strip()
+    say(f"installing Rouh {commit[:12]}, the newest that passed its tests"
+        + (f" (the release names {release[:12]})" if release and release != commit else ""))
+
+    MARK.touch()
+    if WORK.exists():
+        shutil.rmtree(WORK)
+    WORK.mkdir()
+    _unpack(_download(tarball), WORK)
+    if not (WORK / "manage.py").is_file() or not (WORK / "rouh").is_dir():
+        fail("the download holds no Rouh code. Nothing was changed.")
+    for rel in LEFT_OUT:
+        p = WORK / rel
+        if p.is_dir():
+            shutil.rmtree(p)
+        elif p.exists():
+            p.unlink()
+    _extra(WORK)
+    subprocess.run(["chown", "-R", "10001:10001", str(WORK), str(MARK)], check=True)
+    for cmd in (["git", "init", "-q", "-b", "main"], ["git", "add", "-A"],
+                ["git", "-c", "user.name=Rouh", "-c", "user.email=rouh@localhost", "commit", "-q",
+                 "-m", f"Rouh {commit[:12]} as installed",
+                 "-m", f"Commit {commit} of Rouh's main branch, the newest that passed its tests, from rouh.land, "
+                       "on this Rouh's first start (rouh-code-install). From here on only this Rouh and its genes change it."]):
+        r = as_rouh(*cmd, cwd=WORK)
+        if r.returncode:
+            fail(f"git could not make the first commit: {(r.stderr or r.stdout).strip()[-300:]}")
+    (WORK / ".git" / "info" / "exclude").write_text("__pycache__/\n*.pyc\n")
+    (WORK / ".git" / "rouh-installed.json").write_text(json.dumps(
+        {"commit": commit, "release_commit": release, "from": URL}, indent=1) + "\n")
+    subprocess.run(["chown", "-R", "10001:10001", str(WORK / ".git")], check=True)
+    for p in WORK.iterdir():
+        if p.name != ".git":
+            p.rename(CODE / p.name)
+    (WORK / ".git").rename(CODE / ".git")
+    WORK.rmdir()
+    MARK.unlink()
+    head = as_rouh("git", "-C", str(CODE), "log", "-1", "--format=%h %s").stdout.strip()
+    say(f"{CODE} is now this Rouh's own code: {head}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,38 @@
+{
+  "id": "offline",
+  "name": "Offline",
+  "title": "What this device keeps for when there is no connection, and what it did offline",
+  "aliases": [
+    "no connection",
+    "outbox",
+    "sync",
+    "this device",
+    "cache"
+  ],
+  "group": "machine",
+  "route": "/anatomy/behaviour/offline",
+  "anatomy": {
+    "order": 80
+  },
+  "icon": "<path d=\"M7 18h10a4 4 0 0 0 .7-7.9A6 6 0 0 0 6.2 9.3 4.4 4.4 0 0 0 7 18z\"/><path d=\"M12 10.5v5M9.8 13.4 12 15.6l2.2-2.2\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "offline_actions"
+    ],
+    "jobs": [],
+    "remove": "Delete rouh/offline.py, rouh/offline_merge.py, app/offline.js, app/offlineview.js, sw.js's copy and this manifest."
+  },
+  "uses": {
+    "places": [
+      "offline"
+    ]
+  }
+}

@@ -1,0 +1,137 @@
+{
+  "about": "Every file of Rouh's code, the one program and bin/ that names the old server's layout, with how many lines do and why that is right in the containers too (rouh/hostguard.py). A new mention fails the check until it is looked at.",
+  "files": {
+    "bin/rouh-trial": {
+      "lines": 1,
+      "why": "tries the containers' /opt/venv first, then the server's venv"
+    },
+    "one/briefs.py": {
+      "lines": 3,
+      "why": "machine_words: the server's sentence where the run has sudo, and the containers' sentence (no systemd, /code read-only, no database) where it does not"
+    },
+    "one/cli.py": {
+      "lines": 1,
+      "why": "the message when the program is not running says the server's way and the containers' way"
+    },
+    "rouh/base_patches.py": {
+      "lines": 2,
+      "why": "a server's default path, which the containers' image overrides with its own environment (deploy/container/Dockerfile.base: ROUH_APP_DIR, ROUH_DATA_DIR, ROUH_TELEGRAM_FILE, ROUH_BREVO_FILE, ROUH_ONE_TOKEN ...)"
+    },
+    "rouh/case_fixes.py": {
+      "lines": 4,
+      "why": "the server's command lines, used only when in_containers() is false; in the containers the brief carries the whole trace and the notes instead"
+    },
+    "rouh/config.py": {
+      "lines": 12,
+      "why": "a server's default path, which the containers' image overrides with its own environment (deploy/container/Dockerfile.base: ROUH_APP_DIR, ROUH_DATA_DIR, ROUH_TELEGRAM_FILE, ROUH_BREVO_FILE, ROUH_ONE_TOKEN ...)"
+    },
+    "rouh/crew.py": {
+      "lines": 2,
+      "why": "the server's background jobs (crew), off in the containers (ROUH_DELEGATE=0), where runs are the one program's"
+    },
+    "rouh/encryption.py": {
+      "lines": 1,
+      "why": "documentation of how it runs on a server; nothing runs it"
+    },
+    "rouh/linkedin.py": {
+      "lines": 1,
+      "why": "documentation of how it runs on a server; nothing runs it"
+    },
+    "rouh/mailer.py": {
+      "lines": 1,
+      "why": "a server's default path, which the containers' image overrides with its own environment (deploy/container/Dockerfile.base: ROUH_APP_DIR, ROUH_DATA_DIR, ROUH_TELEGRAM_FILE, ROUH_BREVO_FILE, ROUH_ONE_TOKEN ...); with no file, ROUH_BREVO_API_KEY from the settings file"
+    },
+    "rouh/management/commands/apple.py": {
+      "lines": 3,
+      "why": "documentation of how it runs on a server; nothing runs it"
+    },
+    "rouh/management/commands/case_follow_up.py": {
+      "lines": 3,
+      "why": "documentation of how it runs on a server; nothing runs it; the containers' way (docker compose exec core) is beside it"
+    },
+    "rouh/management/commands/export_rouh.py": {
+      "lines": 2,
+      "why": "documentation of how it runs on a server; nothing runs it"
+    },
+    "rouh/management/commands/owner_profile.py": {
+      "lines": 2,
+      "why": "documentation of how it runs on a server; nothing runs it"
+    },
+    "rouh/management/commands/predeploy.py": {
+      "lines": 3,
+      "why": "the server's deploy stops the systemd service; the containers deploy through the protected core and never run it"
+    },
+    "rouh/management/commands/read_doc.py": {
+      "lines": 3,
+      "why": "documentation of how it runs on a server; nothing runs it"
+    },
+    "rouh/management/commands/synapse_attempt.py": {
+      "lines": 2,
+      "why": "documentation of how it runs on a server; nothing runs it; the containers' way is beside it"
+    },
+    "rouh/management/commands/synapse_benchmark.py": {
+      "lines": 2,
+      "why": "documentation of how it runs on a server; nothing runs it; the containers' way is beside it"
+    },
+    "rouh/management/commands/synapse_dream.py": {
+      "lines": 2,
+      "why": "documentation of how it runs on a server; nothing runs it; the containers' way is beside it"
+    },
+    "rouh/management/commands/synapse_nightly.py": {
+      "lines": 2,
+      "why": "documentation of how it runs on a server; nothing runs it; the containers' way is beside it"
+    },
+    "rouh/management/commands/synapse_vectors.py": {
+      "lines": 1,
+      "why": "documentation of how it runs on a server; nothing runs it"
+    },
+    "rouh/one_client.py": {
+      "lines": 1,
+      "why": "a server's default path, which the containers' image overrides with its own environment (deploy/container/Dockerfile.base: ROUH_APP_DIR, ROUH_DATA_DIR, ROUH_TELEGRAM_FILE, ROUH_BREVO_FILE, ROUH_ONE_TOKEN ...)"
+    },
+    "rouh/one_version.py": {
+      "lines": 1,
+      "why": "documentation of how it runs on a server; nothing runs it"
+    },
+    "rouh/protected.py": {
+      "lines": 2,
+      "why": "words a brief is matched against to see it is about Rouh itself, not a path anything uses"
+    },
+    "rouh/rouh_version.py": {
+      "lines": 2,
+      "why": "documentation of how it runs on a server; nothing runs it"
+    },
+    "rouh/runs.py": {
+      "lines": 1,
+      "why": "the old paths of Rouh's code, matched to name a run's kind, not used as a path"
+    },
+    "rouh/sentlog.py": {
+      "lines": 2,
+      "why": "documentation of how it runs on a server; nothing runs it"
+    },
+    "rouh/synapse/lab/nightly.py": {
+      "lines": 2,
+      "why": "cannot_measure(): in the containers the night is written down as failed with the reason and no worker starts"
+    },
+    "rouh/synapse/nightly_brief.md": {
+      "lines": 4,
+      "why": "the server's way in, with the containers' paragraph above it saying there is none yet (Decision 422)"
+    },
+    "rouh/telegram.py": {
+      "lines": 2,
+      "why": "a server's default path, which the containers' image overrides with its own environment (deploy/container/Dockerfile.base: ROUH_APP_DIR, ROUH_DATA_DIR, ROUH_TELEGRAM_FILE, ROUH_BREVO_FILE, ROUH_ONE_TOKEN ...); with no file, ROUH_TELEGRAM_BOT_TOKEN and ROUH_TELEGRAM_CHAT_ID from the settings file"
+    },
+    "rouh/tools.py": {
+      "lines": 9,
+      "why": "run_command's read-only verbs and its server defaults; in the containers commands run in the worker (ROUH_SHELL=worker), and its description says both log folders"
+    },
+    "rouh/versions.py": {
+      "lines": 1,
+      "why": "documentation of how it runs on a server; nothing runs it"
+    },
+    "rouh/workspace_repo.py": {
+      "lines": 1,
+      "why": "documentation of how it runs on a server; nothing runs it"
+    }
+  }
+}

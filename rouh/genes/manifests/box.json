@@ -1,0 +1,51 @@
+{
+  "id": "box",
+  "name": "Boxes",
+  "title": "Boxes: what you keep from Rouh's model, numbered, a secret for an env file or an idea held back",
+  "aliases": [
+    "give me a box",
+    "box",
+    "new box",
+    "open box",
+    "boxes",
+    "secret",
+    "secrets",
+    "password",
+    "env",
+    "hidden",
+    "private",
+    "held back"
+  ],
+  "group": "memory",
+  "route": "/box",
+  "icon": "<path d=\"M3.5 7.8 12 3.6l8.5 4.2v8.4L12 20.4l-8.5-4.2z\"/><path d=\"M3.5 7.8 12 12l8.5-4.2M12 12v8.4\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "nav": {
+    "place": "list",
+    "order": 60,
+    "opens": "own",
+    "row": "boxRow",
+    "controls": "boxView"
+  },
+  "touches": {
+    "permissions": [
+      "keeps what you put in a box sealed with this Rouh's key, and opens it only on your own page",
+      "gives Rouh's model what is in a box only when you name it by its number in your own words (\"open box 3\")",
+      "hands a job a box you named, by number or name, as a file in its own folder that no model reads, shredded when the job ends"
+    ],
+    "accounts": [],
+    "tables": [
+      "boxes",
+      "box_handovers"
+    ],
+    "jobs": [],
+    "remove": "Delete rouh/boxes.py, rouh/web/boxes.py, boxpage.js and boxpage.css, the Box layer in index.html, runs.js, cards.js and address.js, new_box and open_box in tools.py, the catch in runtime.py and this manifest; drop the table boxes with a migration."
+  },
+  "uses": {
+    "tools": [
+      "new_box",
+      "open_box"
+    ]
+  }
+}

@@ -1,0 +1,2126 @@
+/* The task browser at /workspace/: every task in two columns, one per
+   top-level project, with the projects inside them as colours. Drawn by
+   taskbrowser.js from the data objectindex.py puts in the page.
+
+   This is the workspace's own index page, rebuilt on the object rows. It was
+   retired with the separate workspace on 21 September 2026 and the page that
+   replaced it had none of what made it worth using: the two columns, the
+   category buttons, the search and the keyboard. Those are back, and what they
+   read and write is the object database rather than `_categories.json`.
+
+   Dark only, in Rouh's own colours, because the page is drawn in a frame on
+   Rouh's canvas and a warm-grey panel on a blue-black canvas reads as a seam.
+   The spacing, the shapes and the category colours are the old page's. */
+:root{color-scheme:dark;
+--bg:#0a0c10;--surface:#12161c;--panel:#12161c;--border:#232a34;--border-strong:#384252;
+--copy:#e7ecf3;--muted:#b3bdcc;--subtle:#8d9aac;--primary:#5ec2ff;--on-fg:#04121c;--chip:#171c24;
+--warn-bg:#241c10;--warn-line:#5a4526;
+--cat-blue:#72a6f7;--cat-amber:#e2b04d;--cat-teal:#4cc4b0;--cat-rose:#f07ea2;
+--cat-violet:#ab8ff3;--cat-green:#7ec86c;--cat-slate:#a3adbb;--cat-none:#5c5c63;
+--shadow:0 12px 32px rgba(0,0,0,.55);
+/* The rule a branch hangs from: a chat's forks under it on a task's page,
+   and a task's steps under it, and their steps under them, in the browser. */
+--branch-rule:2px solid color-mix(in srgb,var(--cat-teal) 35%,transparent);
+/* How many steps a task or a step has, after its number: a soft amber, apart
+   from the grey number and the white name, and quieter than the pin's. */
+--count:#cfae6c;
+--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,ui-sans-serif,sans-serif;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--copy);font-family:var(--sans);
+padding-inline:20px;padding-block:20px 80px;line-height:1.5;-webkit-text-size-adjust:100%}
+button{font-family:inherit}
+code{font-family:var(--mono);font-size:.9em}
+kbd{font-family:var(--mono);font-size:10px;color:var(--subtle);border:1px solid var(--border);
+border-radius:4px;padding:1px 5px;background:var(--chip);white-space:nowrap}
+
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;
+color:var(--subtle)}
+h1{font-size:24px;margin:2px 0 0;font-weight:660;letter-spacing:-.02em;line-height:1.2}
+.readonly{margin:0 0 10px;font-size:13px;color:var(--subtle)}
+
+/* The search and the buttons scroll away with the list: held at the top of
+   a phone they took half its screen (Petar, 1 October 2026,
+   fr_0bfea6b4153f). */
+.search{padding:0 0 12px}
+.field{display:flex;align-items:center;gap:10px;border:1px solid var(--border);background:var(--surface);
+border-radius:10px;padding:0 12px;cursor:text}
+.field:focus-within{border-color:var(--primary)}
+.field svg{width:15px;height:15px;flex:none;color:var(--subtle)}
+#q{flex:1;min-width:0;background:none;border:0;outline:none;color:var(--copy);font-family:var(--sans);
+font-size:15px;padding:10px 0}
+#q::placeholder{color:var(--subtle)}
+.status{display:flex;justify-content:space-between;align-items:center;gap:6px 12px;flex-wrap:wrap;
+font-family:var(--mono);font-size:10.5px;color:var(--subtle);margin-top:8px}
+.hint{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+/* The search, and on its line what is not a filter: Save view, Manage
+   projects, and [?] for the keyboard's line, which is hidden until pressed
+   (fr_d2222b1e45af). */
+.searchline{display:flex;align-items:stretch;gap:8px}
+.searchline .field{flex:1 1 auto;min-width:0}
+.tool{font-size:12.5px;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:10px;
+padding:0 12px;cursor:pointer;white-space:nowrap;flex:none;transition:border-color .12s,color .12s,opacity .12s}
+.tool:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
+.tool:disabled{opacity:.45;cursor:default}
+.tool.manage{border-style:dashed}
+.tool.keys{width:40px;padding:0;font-family:var(--mono);font-size:13px;font-weight:700}
+.tool.keys[aria-expanded="true"]{color:var(--bg);background:var(--copy);border-color:var(--copy)}
+.tool.keys[aria-expanded="true"]:hover{color:var(--bg)}
+
+/* A line each: the filters, then each column with its projects. A line too
+   long for the screen is swiped sideways rather than wrapped, out to the
+   edges of the page so a cut-off button says there is more. */
+.bar{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.bar .line{display:flex;align-items:center;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;
+scrollbar-width:none;margin-inline:-20px;padding:1px 20px}
+.bar .line::-webkit-scrollbar{display:none}
+.bar .line>*{flex:none}
+.bar .grp .side{min-width:92px}
+.side{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+color:var(--subtle);background:none;border:1px solid transparent;border-radius:7px;padding:5px 7px;
+cursor:pointer;display:inline-flex;gap:6px;align-items:center;font-weight:600}
+.side .c{font-weight:400;letter-spacing:0}
+.side:hover{color:var(--copy);border-color:var(--border)}
+.side.on{color:var(--bg);background:var(--copy);border-color:var(--copy)}
+/* A chip's own look, and a label's eye, are the one every list with labels has (`labels.css`, put in
+   this page ahead of this sheet): every chip here is also `rl-chip`. What follows is this page's own. */
+.dot{width:8px;height:8px;border-radius:50%;background:var(--cc);flex:none;display:inline-block}
+.chip.all.on{background:var(--copy);border-color:var(--copy);color:var(--bg)}
+.chip.on .dot{background:var(--cc-on,var(--on-fg))}
+.chip.editing{cursor:text;border-color:var(--cc)}
+.chip.editing input{font:inherit;border:0;outline:none;background:none;color:var(--copy);padding:0;min-width:6ch}
+body.dragging .chip[data-cat]{border-style:dashed;border-color:var(--cc);
+background:color-mix(in srgb,var(--cc) 9%,var(--panel))}
+body.dragging .chip[data-cat].over{background:var(--cc);color:var(--cc-on,var(--on-fg));transform:scale(1.08);border-style:solid}
+body.dragging .chip[data-cat].over .c{color:inherit}
+body.dragging .chip[data-cat].from{opacity:.35}
+/* A label: the eye in front, which hides its tasks, the button, and the cross
+   at its end while it is the filter pressed, which a task is dropped on to take
+   it off the label (`lab` in taskbrowser.js). One pill, in three parts. */
+.lab.xed > .chip{border-top-right-radius:0;border-bottom-right-radius:0}
+.unlab{display:grid;place-items:center;padding:0 6px;border:1px solid var(--cc,var(--copy));
+border-left-color:color-mix(in srgb,var(--bg) 40%,var(--cc,var(--copy)));border-radius:0 8px 8px 0;
+background:var(--cc,var(--copy));color:var(--cc-on,var(--bg));cursor:pointer;transition:transform .12s,background .12s}
+.unlab .ic{width:12px;height:12px}
+.unlab:hover{background:color-mix(in srgb,var(--bg) 18%,var(--cc,var(--copy)))}
+body.dragging .unlab{background:color-mix(in srgb,#e5484d 70%,var(--cc,var(--copy)));border-color:#e5484d;color:#fff}
+body.dragging .unlab.over{background:#e5484d;transform:scale(1.18)}
+.droptip{position:fixed;z-index:50;background:#e5484d;color:#fff;font-size:12px;font-weight:600;padding:5px 9px;
+border-radius:7px;pointer-events:none;box-shadow:var(--shadow);white-space:nowrap}
+body.dragging .chip[data-others]:not(.on),body.dragging .chip[data-rouh]:not(.on){border-style:dashed;
+border-color:var(--copy);background:color-mix(in srgb,var(--copy) 7%,var(--panel))}
+body.dragging .chip[data-others].over,body.dragging .chip[data-rouh].over{background:var(--copy);color:var(--bg);
+transform:scale(1.08);border-style:solid}
+body.dragging .chip[data-others].over .c,body.dragging .chip[data-rouh].over .c{color:inherit}
+.sidepick{display:inline-flex;gap:3px}
+.sidepick button{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;
+border:1px solid var(--border);background:none;color:var(--subtle);border-radius:6px;padding:3px 6px;cursor:pointer}
+.sidepick button[aria-pressed="true"]{color:var(--copy);border-color:var(--copy)}
+
+.notice{border:1px solid var(--warn-line);background:var(--warn-bg);border-radius:10px;padding:10px 14px;
+font-size:13.5px;margin:0 0 12px}
+
+/* Two columns, one per top-level project. A task filed under no project of its
+   own sits in a full-width panel above them. */
+.board{display:grid;grid-template-columns:repeat(var(--cols,2),minmax(0,1fr));gap:16px;align-items:start}
+/* A column with no projects in it yet: the whole width, above the others, with
+   its heading and its one line side by side. */
+.col.bare{grid-column:1 / -1;display:flex;align-items:center;gap:14px;padding:8px 16px}
+.col.bare .colhead{border:0;margin:0;padding:0;min-width:110px}
+.col.bare .none{margin:0;padding:0}
+.col{min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 8px 8px}
+/* The name, the count, and on the not-sorted panel its note: one line and only
+   ever one, so the two panels sitting side by side start their task rows level
+   however many projects are in either. There is no colour key here: the filter
+   bar above the board already names every project in its own colour, and until
+   22 September 2026 this head repeated all of it a second time. */
+.colhead{display:grid;grid-template-columns:auto auto 1fr;align-items:center;
+gap:8px;padding:0 8px 9px;margin-bottom:6px;
+border-bottom:1px solid var(--border);min-width:0}
+.sidebtn{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+color:var(--muted);background:none;border:0;padding:0;font-weight:600}
+.sidebtn{cursor:pointer}
+.sidebtn:hover{color:var(--primary)}
+.colhead .c{font-family:var(--mono);font-size:10.5px;color:var(--subtle)}
+.area{margin-top:22px}
+.divider{display:flex;align-items:center;gap:12px;margin:0 0 10px;font-family:var(--mono);font-size:10.5px;
+letter-spacing:.16em;text-transform:uppercase;color:var(--subtle)}
+.divider:after{content:"";flex:1;height:1px;background:var(--border)}
+.rows{display:flex;flex-direction:column;gap:1px}
+
+/* One line per task. Its arrow opens the task in place: every step, and every
+   other page of a step, under the task, without leaving the page. */
+.row{position:relative;display:grid;grid-template-columns:18px auto minmax(0,1fr) auto auto;
+align-items:center;column-gap:12px;row-gap:0;padding:5px 8px 5px 12px;border-radius:7px;min-height:34px;
+cursor:grab;scroll-margin-top:200px;transition:opacity .15s,filter .15s}
+.row:before{content:"";position:absolute;left:5px;top:7px;bottom:7px;width:3px;
+border-radius:2px;background:var(--cc,var(--cat-none))}
+.row.open:before{bottom:auto;height:20px}
+.row:hover{background:var(--chip)}
+.row.open:hover{background:none}
+.row.on{background:var(--chip);box-shadow:inset 0 0 0 1px var(--primary)}
+.row.ghost,.sline.ghost{opacity:.3}
+/* A subtask held over the list (`dragStep` in taskbrowser.js): every task it
+   can go into is outlined, and the one under it is filled. */
+body.dragstep .row.can{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--primary) 45%,transparent)}
+body.dragstep .row.can.over{background:color-mix(in srgb,var(--primary) 12%,var(--panel));
+box-shadow:inset 0 0 0 2px var(--primary)}
+.sline{position:relative}
+/* The six dots a task or a subtask is dragged by (`GRIP` in taskbrowser.js),
+   in the margin at the start of the line the pointer is on: over the bar in
+   the project's colour at the start of a task's row, which steps aside for
+   it, and over the rule a subtask hangs from. Not on a touch screen, where
+   there is no pointer to rest on a line and the three dots move it. */
+.grip{position:absolute;top:50%;width:14px;height:22px;margin-top:-11px;display:grid;place-items:center;
+border-radius:4px;color:var(--subtle);background:var(--panel);cursor:grab;opacity:0;
+transition:opacity .12s,color .12s;z-index:1}
+.grip svg{width:8px;height:14px;fill:currentColor}
+.grip:hover{color:var(--copy);background:var(--chip)}
+.grip:active{cursor:grabbing}
+.row > .grip{left:-1px;top:17px}
+.sline > .grip{left:-19px}
+.row:hover:not(:has(.subs:hover)) > .grip,.row.on > .grip,.sline:hover > .grip{opacity:1}
+.row:hover:not(:has(.subs:hover)):before,.row.on:before{opacity:0}
+body.dragging .grip,body.dragstep .grip{opacity:0}
+@media (hover:none){.grip{display:none}}
+.readonly .grip{display:none}
+/* The number a task or a subtask had before it was moved, beside its name,
+   when that is what the search found it by. */
+.was{flex:none;margin-left:8px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;
+color:var(--subtle);white-space:nowrap}
+.tw{width:18px;height:18px;display:grid;place-items:center;border:0;background:none;padding:0;
+border-radius:5px;color:var(--subtle);cursor:pointer;margin-left:2px}
+.tw svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;
+stroke-linejoin:round;transition:transform .15s ease}
+.tw:hover{background:var(--chip);color:var(--copy)}
+.row.open .tw svg{transform:rotate(90deg)}
+span.tw{cursor:default}
+/* The number, the name and its status, in a track that may be narrower than
+   all three: the name gives way with an ellipsis and the other two keep their
+   size, rather than the whole line running on over the step count beside it,
+   which is what "Capitalising the ipWaiting2 steps" was. */
+.tl{display:flex;align-items:baseline;gap:8px;min-width:0;overflow:hidden;text-decoration:none;color:var(--copy)}
+.tl .task-status{flex:none}
+.num{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--muted);background:var(--chip);
+padding:.12em .45em;border-radius:5px;letter-spacing:.02em;flex:none}
+/* A task's number, how many steps it has, and its name, as three columns
+   down the list: the number's slot is as wide as the widest number in the
+   column (`--numw`, characters, set by alignColumns) and the count's as its
+   biggest count (`--cntw`), so every name starts at the same x. Both are
+   left aligned in their slots, as a step's number is under them, so a
+   step's "98-1" and "98-12" keep their "98-" in line. */
+.nslot{flex:none;font-family:var(--mono);font-size:11.5px;font-weight:600;letter-spacing:.02em;
+width:calc(var(--numw,3) * (1ch + .02em) + .9em)}
+.scount{flex:none;font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--count);
+width:calc(var(--cntw,1) * 1ch);cursor:pointer}
+.scount:not([data-n]){cursor:inherit}
+.scount[data-n]:hover{color:var(--copy)}
+/* The page's own tip (`showTip` in taskbrowser.js): what an element with
+   `data-tip` says, shown the moment the pointer is on it, over everything,
+   with a point at the middle of what it is about. */
+.tip{position:fixed;left:0;top:0;z-index:60;max-width:min(320px,calc(100vw - 12px));padding:5px 9px;
+border-radius:7px;background:#232b37;border:1px solid var(--border-strong);color:var(--copy);
+font-family:var(--sans);font-size:12px;font-weight:550;line-height:1.35;letter-spacing:0;white-space:normal;
+overflow-wrap:anywhere;box-shadow:0 6px 18px rgba(0,0,0,.5);pointer-events:none;
+opacity:0;visibility:hidden;transform:translateY(2px);transition:opacity .08s,transform .08s,visibility 0s .08s}
+.tip.below{transform:translateY(-2px)}
+.tip.on{opacity:1;visibility:visible;transform:none;transition:opacity .08s,transform .08s}
+.tip:after{content:"";position:absolute;left:var(--arrow,50%);top:100%;width:8px;height:8px;margin:-4px 0 0 -4px;
+background:inherit;border:solid var(--border-strong);border-width:0 1px 1px 0;transform:rotate(45deg)}
+.tip.below:after{top:0;border-width:1px 0 0 1px}
+.row:hover .num,.row.on .num{background:var(--bg)}
+.tname{font-weight:600;font-size:14px;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.tl:hover .tname{color:var(--primary)}
+/* The name and its marks on one line, and who made it on the line under it
+   (`sourceLine`), so the mark never takes the name's room. */
+.tmain{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.tline{display:flex;align-items:baseline;gap:8px;min-width:0}
+.tsrc{display:flex;min-width:0;margin-top:3px}
+.tsrc .forchip{margin-left:0}
+/* A task's name being renamed, from its menu. */
+.tl.renaming{overflow:visible;align-items:center}
+.tren{font:inherit;font-weight:600;font-size:14px;color:var(--copy);background:var(--bg);border:1px solid var(--primary);
+border-radius:6px;padding:2px 7px;min-width:12em;width:100%;outline:none}
+.latest{min-width:0;display:flex;gap:6px;align-items:baseline;text-decoration:none;color:var(--subtle);
+font-size:12.5px;white-space:nowrap;overflow:hidden}
+.row.open .latest{visibility:hidden}
+.cat{font-size:11.5px;color:var(--subtle);background:none;border:1px solid transparent;border-radius:6px;
+padding:2px 7px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.row:hover .cat,.cat:focus-visible{color:var(--cc,var(--copy));
+border-color:color-mix(in srgb,var(--cc,var(--subtle)) 45%,transparent)}
+.cat:hover{background:color-mix(in srgb,var(--cc,var(--subtle)) 12%,transparent)}
+/* Archive, at the end of a task's line: a box, there on the line the pointer
+   is on or the keyboard is at, and always on a screen with no pointer to
+   rest. On an archived task it is the box with the arrow out, which brings
+   it back. */
+.arch{width:26px;height:26px;display:grid;place-items:center;border:1px solid transparent;border-radius:6px;
+background:none;color:var(--subtle);padding:0;cursor:pointer;opacity:0;transition:opacity .12s,color .12s}
+.arch .ic{width:15px;height:15px}
+.row:hover .arch,.row.on .arch,.arch:focus-visible{opacity:1}
+.arch:hover{color:var(--copy);border-color:var(--border-strong);background:var(--bg)}
+.arch[data-out="true"]{opacity:.75}
+.arch[data-out="true"]:hover{color:var(--primary);border-color:color-mix(in srgb,var(--primary) 50%,var(--border))}
+/* The pin and the three dots share the last place on a task's line. */
+.racts{display:inline-flex;align-items:center;gap:2px}
+/* The three dots, opening the task's menu (`rowMenu`): there on the line the
+   pointer or the keyboard is on, as the pin is. */
+.dots{width:26px;height:26px;display:grid;place-items:center;border:1px solid transparent;border-radius:6px;
+background:none;color:var(--subtle);padding:0;cursor:pointer;opacity:0;transition:opacity .12s,color .12s;flex:none}
+.dots .ic{width:16px;height:16px}
+.row:hover > .racts .dots,.row.on > .racts .dots,.dots:focus-visible{opacity:1}
+.dots:hover{color:var(--copy);border-color:var(--border-strong);background:var(--bg)}
+@media (hover:none){.dots{opacity:.7}}
+/* The pin (`pinButton`): on a task's line and on each step's. Amber, with its
+   head filled, and always there on one that is pinned; on the others only on
+   the line the pointer or the keyboard is on, as the archive box is. */
+.pin{width:26px;height:26px;display:grid;place-items:center;border:1px solid transparent;border-radius:6px;
+background:none;color:var(--subtle);padding:0;cursor:pointer;opacity:0;transition:opacity .12s,color .12s;flex:none}
+.pin .ic{width:15px;height:15px}
+.row:hover > .racts .pin,.row.on > .racts .pin,.sline:hover > .pin,
+.pin:focus-visible{opacity:1}
+.pin:hover{color:var(--copy);border-color:var(--border-strong);background:var(--bg)}
+.pin[aria-pressed="true"]{opacity:1;color:var(--cat-amber)}
+.pin[aria-pressed="true"] .pin-head{fill:currentColor}
+.pin[aria-pressed="true"]:hover{color:var(--cat-amber);border-color:color-mix(in srgb,var(--cat-amber) 50%,var(--border))}
+/* A step's line, and under it its own steps (`lines` in taskbrowser.js). */
+li.br{display:block;min-width:0}
+.sline{display:flex;align-items:center;gap:2px;min-width:0}
+.sline:hover > .arch,.sline:hover > .dots,.sline > .dots:focus-visible{opacity:1}
+.sline > .sub,.sline > .pg{flex:1 1 auto;min-width:0}
+@media (hover:none){.pin{opacity:.7}}
+.readonly .pin{display:none}
+@media (hover:none){.arch{opacity:.7}}
+.readonly .arch{display:none}
+/* The Archive's button, last in the bar and apart from the projects, and the
+   line over the list while it is showing. */
+.chip.archive{--cc:var(--copy)}
+.chip.archive .ic{width:14px;height:14px;flex:none}
+.chip.archive.on{background:var(--copy);border-color:var(--copy);color:var(--bg)}
+body.dragging:not(.shelf) .chip.archive{border-style:dashed;border-color:var(--copy);
+background:color-mix(in srgb,var(--copy) 7%,var(--panel))}
+body.dragging:not(.shelf) .chip.archive.over{background:var(--copy);color:var(--bg);transform:scale(1.08);border-style:solid}
+body.dragging:not(.shelf) .chip.archive.over .c{color:inherit}
+.shelfhead{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:2px 0 12px;padding:10px 12px 10px 14px;
+border:1px dashed var(--border-strong);border-radius:10px;background:var(--chip);font-size:14px}
+.shelfhead[hidden]{display:none}
+.shelfhead .ic{width:17px;height:17px;flex:none;color:var(--muted)}
+.shelfhead .c{font-family:var(--mono);font-size:11px;color:var(--subtle)}
+.shelfhead .note{color:var(--muted);font-size:12.5px}
+.shelfhead .back{margin-left:auto;font-size:12px;color:var(--copy);background:var(--panel);border:1px solid var(--border);
+border-radius:7px;padding:5px 10px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.shelfhead .back:hover{border-color:var(--copy)}
+.shelf .col{background:color-mix(in srgb,var(--chip) 55%,var(--panel))}
+/* The Archive at the very bottom of a task's own page: its archived subtasks,
+   closed until its rule is pressed (`objectindex._archive_section`). */
+.oarchived>summary{cursor:pointer;list-style:none;user-select:none}
+.oarchived>summary::-webkit-details-marker{display:none}
+.oarchived>summary:before{content:"";width:6px;height:6px;margin:0 -4px 0 2px;border:solid currentColor;
+border-width:0 1.5px 1.5px 0;transform:rotate(-45deg);transition:transform .15s}
+.oarchived[open]>summary:before{transform:rotate(45deg) translate(-1px,-1px)}
+.oarchived>summary:hover,.oarchived>summary:focus-visible{color:var(--copy)}
+.oarchived .srow{background:color-mix(in srgb,var(--chip) 60%,transparent)}
+/* A task's silos beside its name (rouh/silos.py): app.css's chip, in this page's colours. */
+.silo-chips{display:inline-flex;flex-wrap:wrap;gap:4px;vertical-align:middle;margin-left:8px}
+.silo-chip{--silo:#a3adbb;display:inline-flex;align-items:center;gap:5px;padding:2px 8px 2px 7px;border-radius:999px;
+font-family:var(--sans);font-size:11px;font-weight:600;line-height:1.2;color:var(--copy);white-space:nowrap;
+background:color-mix(in srgb,var(--silo) 16%,transparent);border:1px solid color-mix(in srgb,var(--silo) 42%,transparent)}
+.silo-dot{width:7px;height:7px;border-radius:50%;background:var(--silo);flex:none}
+.task-status[data-status="archived"]{--st:var(--muted);background:none;border-color:var(--border-strong)}
+/* The subtasks hang from the task's arrow: their line runs straight down
+   from under it (the row's 12px, the arrow's 2px and half its 18px, less
+   half the line), and they sit just right of it rather than a column in.
+   Petar, 1 October 2026 (fr_a669ec406006): "Sub task should have the
+   vertical lign go down from where the chevron is. Currently it is too
+   indented." The line is the task's colour, the colour of the bar at the
+   start of its row (`--cc`, its project's): Petar, 22 October 2026
+   (fr_092ef8f8682b), "the line that goes down from the chevron should be
+   the color of the task". Its steps' own steps hang from the same colour. */
+.subs{grid-column:1 / -1;list-style:none;margin:3px 0 4px 10px;padding:0 0 0 4px;
+--branch-rule:2px solid color-mix(in srgb,var(--cc,var(--cat-none)) 70%,transparent);
+border-left:var(--branch-rule);cursor:default}
+/* A step's own steps hang from its arrow the same way, one level further in
+   each time, with the rule a chat's forks hang by (`.orow[data-kind=fork]`).
+   Every line keeps the arrow's width, arrow or not, so the numbers and the
+   names line up at every depth. */
+.stw{width:18px;height:18px;flex:none;display:grid;place-items:center;border:0;background:none;padding:0;
+border-radius:5px;color:var(--subtle);cursor:pointer}
+.stw svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;
+stroke-linejoin:round;transition:transform .15s ease}
+.stw:hover{background:var(--chip);color:var(--copy)}
+li.br.has:not(.shut) > .sline > .stw svg{transform:rotate(90deg)}
+span.stw{cursor:default}
+ol.kids{list-style:none;margin:1px 0 3px 8px;padding:0 0 0 4px;border-left:var(--branch-rule);min-width:0}
+/* The step worked on last, however deep: a dot after its name. */
+.snew{width:7px;height:7px;border-radius:50%;background:var(--primary);flex:none;align-self:center}
+.sub,.pg{display:grid;grid-template-columns:max-content max-content minmax(0,1fr);gap:10px;align-items:baseline;
+font-size:13px;padding:3px 8px;border-radius:6px;text-decoration:none;color:var(--copy);scroll-margin-top:200px}
+.sub:hover,.sub.on,.pg:hover,.pg.on{background:var(--chip)}
+.sub.on,.pg.on{box-shadow:inset 0 0 0 1px var(--primary)}
+.sub:hover .stitle,.pg:hover .stitle{color:var(--primary)}
+.sub .snum,.pg .snum{font-family:var(--mono);font-size:10.5px;color:var(--muted);white-space:nowrap}
+/* A list of steps lines up the same way: its number and count slots as wide
+   as its widest number and biggest count (`--snw`, `--scw`, `slotWidths`). */
+.sub .snum{width:calc(var(--snw,4) * 1ch)}
+.sub .scount{font-size:10.5px;width:calc(var(--scw,1) * 1ch)}
+.sub .stitle,.pg .stitle{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.sub .sname,.pg .sname{display:flex;align-items:baseline;min-width:0}
+.sub.newest,.pg.newest{grid-template-columns:max-content max-content minmax(0,max-content) auto}
+.sub.newest .stitle,.pg.newest .stitle{color:var(--copy);font-weight:560}
+/* A step's mark saying who made it, on the same line after its name. */
+.sub:has(> .forchip){grid-template-columns:max-content max-content minmax(0,1fr) auto}
+.sub.newest:has(> .forchip){grid-template-columns:max-content max-content minmax(0,max-content) auto auto}
+ol.kids .sub,ol.kids .pg{font-size:12.5px}
+/* How far along a task is, from its row: a pill beside its name. Its own
+   class, because .status is already the line under the search box. */
+.task-status{--st:var(--muted);font-family:var(--sans);font-size:10.5px;font-weight:600;line-height:1;
+padding:3px 7px;border-radius:999px;white-space:nowrap;flex:none;align-self:center;color:var(--st);
+border:1px solid transparent;background:color-mix(in srgb,var(--st) 13%,transparent)}
+.task-status[data-status="open"]{--st:var(--subtle);background:none;border-color:var(--border-strong)}
+.task-status[data-status="waiting"]{--st:var(--cat-amber)}
+.task-status[data-status="answered"]{--st:var(--cat-teal)}
+.task-status[data-status="done"]{--st:var(--cat-green)}
+.task-status[data-status="hollow"]{--st:var(--cat-amber)}
+.task-status[data-status="yours"]{--st:var(--cat-amber)}
+/* With no connection, a task this device does not keep whole (`offChip`): listed as it is, and
+   saying so, its name a step quieter. */
+.offchip{font-family:var(--sans);font-size:10.5px;font-weight:600;line-height:1;padding:3px 7px;border-radius:999px;
+white-space:nowrap;flex:none;align-self:center;color:var(--muted);border:1px solid var(--border-strong);margin-left:4px}
+.tl:has(.offchip) .tname{color:var(--muted)}
+/* Others' tasks (`rouh/task_origin.py`): the button beside the Archive, worn as the Archive
+   wears its own because it is the same kind of thing (fr_e06a8342488e), and the mark on a task
+   or a step made for somebody else, saying who. The mark is violet, the colour a person's own
+   mark wears elsewhere on these pages. */
+.chip.others{--cc:var(--copy)}
+.chip.others .ic{width:14px;height:14px;flex:none}
+.chip.others.on{background:var(--copy);border-color:var(--copy);color:var(--bg)}
+.othersside .col{background:color-mix(in srgb,var(--chip) 55%,var(--panel))}
+.forchip{display:inline-flex;align-items:center;gap:4px;font-family:var(--sans);font-size:10.5px;font-weight:600;
+line-height:1;padding:3px 7px;border-radius:999px;white-space:nowrap;flex:none;align-self:center;margin-left:4px;
+color:var(--cat-violet);background:color-mix(in srgb,var(--cat-violet) 13%,transparent);max-width:16em;overflow:hidden}
+.forchip span{overflow:hidden;text-overflow:ellipsis}
+.forchip .ic{width:12px;height:12px;flex:none}
+/* Made by Rouh (`rouh/task_origin.py`): the same kind of button and mark, saying which of
+   Rouh's processes made it, in teal, Rouh's own colour on these pages. On its side the
+   line over the list has a button for each process that made some, which narrows the list
+   to that one. */
+.chip.byrouh .ic{width:14px;height:14px;flex:none}
+.bychip{color:var(--cat-teal);background:color-mix(in srgb,var(--cat-teal) 14%,transparent)}
+.shelfhead .procs{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 100%;order:5}
+.shelfhead .chip.proc{font-size:12px;padding:4px 10px}
+.shelfhead .chip.proc .c{color:inherit;opacity:.7}
+.shelfhead .chip.proc.on{background:var(--copy);border-color:var(--copy);color:var(--bg)}
+/* A task's tag, beside its status: Goal, for a task that is one of the
+   person's goals (`rouh/goals.py`). Square-ish, so it reads as a label rather
+   than as another state. */
+.task-tag{--tg:var(--cat-amber);font-family:var(--sans);font-size:10.5px;font-weight:600;line-height:1;
+padding:3px 7px;border-radius:5px;white-space:nowrap;flex:none;align-self:center;color:var(--tg);
+background:color-mix(in srgb,var(--tg) 13%,transparent)}
+.tl .task-tag{flex:none}
+.srow .task-tag{flex:none;position:relative;top:-1px}
+/* Goal and Waiting on you, beside the name, as icons rather than words
+   (`markIcon`). The goal wears its own colours; the hourglass is the amber
+   the Waiting on you button is. */
+.tmark{display:inline-grid;place-items:center;flex:none;align-self:center;width:18px;height:18px}
+.tmark .ic{width:16px;height:16px}
+.tmark[data-mark="waiting"]{color:var(--cat-amber)}
+.tmark .sand,.chip.wait .sand{fill:currentColor;stroke:none}
+.chip.wait .ic,.chip.goals .ic{width:14px;height:14px;flex:none}
+.chip.goals.on .ic circle{stroke:currentColor}
+.chip.goals.on .ic circle[stroke="none"]{fill:currentColor;stroke:none}
+/* Not `.none`'s padding: in a column squeezed to nothing that padding is what
+   drew "No page yet" over the step count beside it. */
+.latest.none{font-style:italic;padding:0;display:block;text-overflow:ellipsis}
+/* Waiting on you, first in the bar, in the colour of the Waiting pill. */
+.chip.wait{--cc:var(--cat-amber);color:var(--cat-amber);border-color:color-mix(in srgb,var(--cat-amber) 45%,var(--border))}
+.chip.wait.on{color:var(--on-fg)}
+.chip.goals{--cc:var(--cat-amber)}
+.readonly .cat{cursor:default}
+.readonly .cat:hover{background:none}
+.fold{font-size:12px;color:var(--subtle);background:none;border:0;border-top:1px dashed var(--border);
+width:100%;text-align:left;padding:8px 16px 2px;margin-top:4px;cursor:pointer}
+.fold:hover{color:var(--primary)}
+.none{color:var(--subtle);font-size:12.5px;padding:8px 16px;margin:0}
+.flash{animation:flash 1.6s ease-out}
+@keyframes flash{0%,25%{background:color-mix(in srgb,var(--cc,var(--subtle)) 26%,transparent)}100%{background:transparent}}
+.peeking .row:not(.lit){opacity:.2;filter:saturate(.2)}
+
+/* One project, one column, Goals or Waiting chosen: one panel the full width,
+   of the same lines as the columns, each task open or closed as it was. */
+.col.focus .colhead{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;font-size:15px}
+.col.focus .colhead .c{font-size:11px}
+.col.focus .back{margin-left:auto;font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);
+border-radius:7px;padding:4px 9px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.col.focus .back:hover{border-color:var(--copy);color:var(--copy)}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px;min-width:0}
+/* One object's own page, where its list is the whole content rather than a
+   detail under a task, so its lines are read at full size. */
+.said{color:var(--subtle);font-size:12.5px;margin:0 0 12px}
+.said a{color:var(--primary)}
+.col > .steps{padding:2px 0}
+.steps .steps{padding-left:14px;margin-top:1px}
+#empty{border:1px dashed var(--border);border-radius:10px;padding:26px 18px;text-align:center;
+color:var(--subtle);font-size:13.5px;margin-top:8px}
+
+/* The menu on a project, and the list of projects to move a task to. Both are
+   the one menu every three dots in Rouh open (menu.css, put into this page
+   ahead of this sheet); this is only where it goes, and the colour a project
+   wears where another menu has an icon. */
+#menu{position:fixed;z-index:30;min-width:230px}
+#menu .dot{width:8px;height:8px;margin:0 4px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:40;background:var(--copy);
+color:var(--bg);border-radius:10px;padding:9px 16px;font-size:13px;display:flex;gap:14px;
+align-items:center;box-shadow:var(--shadow);max-width:calc(100vw - 32px)}
+.toast.bad{background:#a3321a;color:#fff}
+.toast .times{font-variant-numeric:tabular-nums;font-weight:700;opacity:.85}
+.fallback{line-height:1.9;padding-left:18px}
+
+/* Manage projects: one list to rename, move between the two columns, add and
+   delete. Every change is saved as it is made. */
+.mgr-overlay{position:fixed;inset:0;z-index:35;background:rgba(0,0,0,.55);display:grid;
+place-items:start center;padding:8vh 16px 16px;overflow:auto}
+.mgr{width:min(1000px,100%);background:var(--surface);border:1px solid var(--border-strong);
+border-radius:14px;box-shadow:var(--shadow);padding:18px 20px 14px}
+.mgr-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 16px;align-items:start;margin-bottom:6px}
+.mgr-head h2{margin:0;font-size:18px;font-weight:650;letter-spacing:-.01em}
+.mgr-head p{grid-column:1;margin:0;color:var(--muted);font-size:13px}
+.mgr-x{grid-column:2;grid-row:1 / span 2;font-size:20px;line-height:1;color:var(--subtle);background:none;
+border:0;border-radius:7px;width:32px;height:32px;cursor:pointer}
+.mgr-x:hover{background:var(--chip);color:var(--copy)}
+.mgr-cols,.mgr-row,.mgr-add{display:grid;grid-template-columns:30px minmax(0,1.6fr) var(--pickw,150px) 90px 80px;
+gap:8px 10px;align-items:center;padding:6px}
+.mgr-head .mgr-why{grid-column:1;color:var(--subtle);font-size:12.5px;margin-top:4px}
+.mgr-cols{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--subtle);
+padding-bottom:0;margin-top:10px}
+.mgr-group{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+color:var(--muted);margin:12px 6px 2px;font-weight:600}
+.mgr-row{border-radius:9px}
+.mgr-row.saved{animation:saved 1.2s ease-out}
+@keyframes saved{0%,30%{background:color-mix(in srgb,var(--cc) 16%,transparent)}100%{background:transparent}}
+.mgr input,.mgr textarea{font:inherit;font-size:13.5px;color:var(--copy);background:var(--panel);
+border:1px solid var(--border);border-radius:7px;padding:6px 9px;min-width:0;width:100%}
+.mgr input:focus,.mgr textarea:focus{outline:none;border-color:var(--primary)}
+.mgr input.nm{font-weight:600}
+.mgr input::placeholder,.mgr textarea::placeholder{color:var(--subtle);font-weight:400}
+/* What belongs in the project, under its name and across the rest of the row:
+   it is a sentence or two, and it is read by the model that files a new task,
+   so it is given the width of one rather than the width of a column. */
+.ds-wrap{grid-column:2 / -1;display:grid;gap:3px;margin-top:2px}
+.ds-wrap>span{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+color:var(--subtle)}
+.mgr textarea.ds{resize:vertical;min-height:46px;line-height:1.45}
+.mgr .sidepick button{font-size:10.5px;padding:5px 9px}
+.sw{width:28px;height:28px;border-radius:7px;border:1px solid var(--border);background:var(--panel);
+display:grid;place-items:center;padding:0}
+.sw .dot{width:13px;height:13px}
+button.sw{cursor:pointer;transition:border-color .12s}
+button.sw:hover,button.sw[aria-expanded="true"]{border-color:var(--cc)}
+/* A project's colours, under its row when its dot is pressed: Default, the
+   page's seven, and any colour at all, picked or typed. The one it has now is
+   ringed. */
+.cpick{grid-column:1 / -1;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;
+padding:10px 12px;background:var(--panel);border:1px solid var(--border);border-radius:9px}
+.cp-sw{position:relative;width:24px;height:24px;border-radius:50%;border:0;padding:0;cursor:pointer;
+background:var(--cc);flex:none;display:inline-block}
+.cp-sw[aria-pressed="true"]{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--copy)}
+.cp-sw:focus-visible,.cp-custom:focus-within .cp-any{outline:2px solid var(--primary);outline-offset:4px}
+.cp-any:not([style]){background:conic-gradient(#f07e7e,#e2b04d,#7ec86c,#4cc4b0,#72a6f7,#ab8ff3,#f07ea2,#f07e7e)}
+.cp-any input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+.cp-custom{display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;color:var(--muted);
+margin-left:4px}
+.cp-def{font-size:11.5px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:7px;
+padding:4px 9px;cursor:pointer}
+.cp-def:hover{color:var(--copy);border-color:var(--border-strong)}
+.cp-def[aria-pressed="true"]{color:var(--bg);background:var(--copy);border-color:var(--copy)}
+.mgr input.cp-hex{width:10ch;font-family:var(--mono);font-size:12.5px;padding:4px 8px}
+.cp-why{flex-basis:100%;margin:0;font-size:12px;color:var(--cat-amber)}
+.cp-save{font-size:12px;font-weight:600;background:var(--primary);color:var(--on-fg);border:0;border-radius:7px;
+padding:5px 12px;cursor:pointer}
+.cp-save:disabled{opacity:.35;cursor:default}
+.mgr-row .n{font-family:var(--mono);font-size:11px;color:var(--subtle);white-space:nowrap}
+.del{font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:7px;
+padding:5px 9px;cursor:pointer}
+.del:hover:not([disabled]){border-color:var(--cat-rose);color:var(--cat-rose)}
+.del[disabled]{opacity:.45;cursor:not-allowed}
+.mgr-add{margin-top:10px;border-top:1px dashed var(--border);padding-top:14px}
+.mgr-add .sw{visibility:hidden}
+.mgr-add .go{font-size:12.5px;background:var(--primary);color:var(--on-fg);border:0;border-radius:7px;padding:6px 12px;cursor:pointer}
+.mgr-add .go[disabled]{opacity:.4;cursor:not-allowed}
+.mgr-add .why{grid-column:2 / -1;margin:0;font-size:12px;color:var(--primary)}
+.mgr-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;
+font-size:12px;color:var(--subtle)}
+.mgr-foot .done{font-size:13px;background:var(--copy);color:var(--bg);border:0;border-radius:8px;padding:7px 16px;cursor:pointer}
+@media (max-width:760px){
+.mgr-overlay{padding:12px 10px}
+.mgr{padding:14px}
+.mgr-cols{display:none}
+.mgr-row,.mgr-add{grid-template-columns:30px minmax(0,1fr) auto}
+.mgr-row .n,.mgr-add .n{grid-column:2}
+.ds-wrap{grid-column:1 / -1}
+}
+
+@media (max-width:760px){
+body{padding-inline:14px}
+.hint,.status{display:none}
+/* The search the whole width, and Save view and Manage projects sharing the
+   line under it; no [?], since there is no keyboard line to show. */
+.searchline{flex-wrap:wrap}
+.searchline .field{flex:1 1 100%}
+.tool{flex:1 1 0;padding:7px 10px}
+.tool.keys{display:none}
+.bar{margin-top:8px}
+.bar .line{margin-inline:-14px;padding-inline:14px}
+.board{grid-template-columns:minmax(0,1fr)!important}
+/* No room for a project's name on a phone, and its colour is the bar at the
+   line's left, so the line is the arrow, the name and the two buttons. The
+   dot that stood for the name went on 1 October 2026 (fr_a669ec406006);
+   a task is moved from its own page's menu here. */
+.row{grid-template-columns:18px minmax(0,1fr) auto;column-gap:8px}
+.shelfhead .note{display:none}
+.row .latest{display:none}
+.row .cat{display:none}
+.tname{white-space:normal;overflow-wrap:anywhere}
+/* The name keeps room for a word or two and the status pill goes under it,
+   rather than the pill holding its width and the name spelt out a letter to
+   a line beside it, which three columns on a 1280px desktop still did. The
+   narrow column below does the same. */
+.tl{flex-wrap:wrap;row-gap:2px}
+.tl .tname{flex:1 1 8em}
+.tl .tline{flex-wrap:wrap;row-gap:2px}
+.tl .tmain{flex:1 1 8em}
+.colhead .note{display:none}
+}
+/* One column, the columns stacked in their own order, whenever three side
+   by side would leave each too narrow for a task's name: an iPad either way
+   up, any touch screen short of a big monitor, and a narrow desktop window.
+   Three columns on an 834px iPad were 236px each and spelt names out a
+   letter to a line (Petar, 30 September 2026, fr_299367d0ac5c). */
+@media (max-width:960px),(pointer:coarse) and (max-width:1400px){
+.board{grid-template-columns:minmax(0,1fr)!important}
+}
+/* The keyboard line only where there is a keyboard to press it with: a
+   precise pointer that can hover. Width alone let a phone held sideways or a
+   tablet through as a desk (fr_8de93212a52d), so a touch screen of any size
+   goes without it, and the page is otherwise the same. */
+@media (hover:none),(pointer:coarse){.hint,.status,.tool.keys{display:none}}
+/* A column narrower than a row needs - three of them side by side once Rouh
+   became a column beside Work and Personal - lays its rows out the way a phone
+   does, rather than squeezing the task's name down to its first letter. */
+.col{container-type:inline-size}
+@container (max-width:480px){
+.row{grid-template-columns:18px minmax(0,1fr) auto;column-gap:8px}
+.row .latest{display:none}
+.row .cat{display:none}
+.tname{white-space:normal;overflow-wrap:anywhere}
+.tl{flex-wrap:wrap;row-gap:2px}
+.tl .tname{flex:1 1 8em}
+.tl .tline{flex-wrap:wrap;row-gap:2px}
+.tl .tmain{flex:1 1 8em}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- one object's own page ----------
+
+   A project holds chats, runs and what has been drawn as well as tasks, and
+   until 22 September 2026 its page was a name in bold over one flat list of
+   folders, so none of the rest of it was anywhere. This is the page it is
+   instead: a header that says what the object is, what is in it counted, and
+   one section per kind, each line a link to that thing's own address.
+
+   Rouh's own colours, because the page is drawn in a frame on Rouh's canvas
+   and reads as part of it. Dark only, like everything else here. */
+.ohead{margin:2px 0 22px}
+.oname-big{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;
+font-size:26px;margin:4px 0 0;font-weight:660;letter-spacing:-.02em;line-height:1.2}
+.oname-big .num{font-size:13px;position:relative;top:-1px}
+/* A task's and a subtask's name, and the date it last changed at the right of
+   the same line: the path and the counts that were under it went on 24
+   September 2026, and the date was the one thing of them Petar kept. The name
+   wraps under itself and the date stays on its first line. */
+.otitle{display:flex;align-items:flex-start;gap:4px 18px}
+.otitle .oname-big{flex:1 1 auto;min-width:0}
+/* The number and the name are one run of words, so a name too long for the
+   line wraps under the number rather than leaving it alone on a line of its
+   own; the pills after it still sit beside a name short enough for them. */
+.otname{min-width:0}
+.otname .num{margin-right:12px;vertical-align:4px;top:0}
+.otname:has(.oname-edit){display:flex;align-items:center;gap:12px;flex:1 1 auto}
+.otname:has(.oname-edit) .num{margin-right:0;vertical-align:baseline}
+.owhen{flex:none;margin:15px 0 0 auto;font-family:var(--mono);font-size:11.5px;
+letter-spacing:.04em;color:var(--subtle);white-space:nowrap}
+.ocounts{display:flex;flex-wrap:wrap;gap:4px 14px;margin:10px 0 0;
+font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--subtle)}
+.ocounts span:not(:last-child):after{content:"";}
+/* Start chat, the one chat button on a task's or a step's page: the project
+   page's floating New, with a bubble where New has its plus (`taskpage.js`). */
+.tknew svg{width:17px;height:17px}
+.olinks{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}
+.obtn{font-size:12.5px;color:var(--muted);background:var(--panel);
+border:1px solid var(--border);border-radius:8px;padding:6px 12px;text-decoration:none}
+.obtn:hover{border-color:var(--primary);color:var(--primary)}
+
+.oset{margin:0 0 26px}
+.oset .divider{margin-bottom:8px}
+.oset .divider .c{font-family:var(--mono);font-size:10.5px;color:var(--subtle);
+background:var(--chip);border-radius:5px;padding:.12em .45em;letter-spacing:0}
+.osaid{margin:-2px 0 10px;font-size:12.5px;color:var(--subtle);max-width:70ch}
+.omore{margin:8px 0 0;font-size:12.5px;color:var(--subtle)}
+
+/* One line, whatever it is: a mark saying which kind, the name, and the one
+   fact worth reading at a glance on the right. */
+.orow{display:grid;grid-template-columns:18px auto minmax(0,1fr) auto auto;
+align-items:center;gap:0 12px;padding:7px 10px;border-radius:8px;
+text-decoration:none;color:var(--copy);font-size:14px;
+border:1px solid transparent}
+.orow:hover{background:var(--chip);border-color:var(--border)}
+.orow .omark{font-size:12px;color:var(--subtle);line-height:1}
+.orow .snum{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.orow .oname{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+font-weight:560}
+.orow:hover .oname{color:var(--primary)}
+.orow .ochip{justify-self:end;display:inline-flex}
+.orow .ometa-cell{font-family:var(--mono);font-size:10.5px;color:var(--subtle);
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:32ch;
+justify-self:end;min-width:5em;text-align:right}
+.orow[data-kind="chat"] .omark{color:var(--cat-teal)}
+/* A note a subtask's chat sent up to this task: the subtask and when on the
+   first line, and what was decided under it, whole, because it is the point
+   of the line (`rouh/subtasknotes.py`). */
+.orow.onote{align-items:baseline;row-gap:4px}
+.orow.onote .omark{color:var(--primary);font-weight:700}
+.orow.onote .oname{font-weight:500;color:var(--muted)}
+.orow.onote .otext{grid-column:3/-1;white-space:pre-wrap;overflow-wrap:anywhere;
+font-size:14px;line-height:1.5;color:var(--copy);display:-webkit-box;-webkit-box-orient:vertical;
+-webkit-line-clamp:6;line-clamp:6;overflow:hidden}
+/* A fork of the chat above it, indented under it with a rule down its left,
+   one step further in for a fork of a fork (`objectindex._fork_rows`). */
+.orow[data-kind="fork"]{margin-left:calc(18px * var(--fork-depth,1));
+border-left:var(--branch-rule);
+border-radius:0 8px 8px 0;font-size:13.5px}
+.orow[data-kind="fork"][data-depth="2"]{--fork-depth:2}
+.orow[data-kind="fork"][data-depth="3"]{--fork-depth:3}
+.orow[data-kind="fork"][data-depth="4"]{--fork-depth:4}
+.orow[data-kind="fork"] .omark{color:var(--cat-teal)}
+.orow[data-kind="fork"] .oname{font-weight:500}
+.orow[data-kind="run"] .omark{color:var(--cat-violet)}
+.orow[data-kind="artifact"] .omark,.orow[data-kind="card"] .omark{color:var(--cat-amber)}
+.orow[data-kind="project"] .omark{color:var(--cat-blue)}
+/* A page, among the files, cards and notes of a task: the globe
+   (`objectindex.KIND_MARKS`), a tint of its own and a heavier name, so a
+   list is scanned to its pages first. Petar, 1 October 2026
+   (fr_c72cbb0c4149): "HTML pages are more important and should be more
+   visible". */
+.orow[data-kind="page"]{background:color-mix(in srgb,var(--cat-blue) 7%,transparent);
+border-color:color-mix(in srgb,var(--cat-blue) 22%,transparent)}
+.orow[data-kind="page"]:hover{background:color-mix(in srgb,var(--cat-blue) 12%,var(--chip));
+border-color:color-mix(in srgb,var(--cat-blue) 40%,var(--border))}
+.orow[data-kind="page"] .omark{font-size:14px}
+.orow[data-kind="page"] .oname{font-weight:650}
+
+/* What kind a line is, in one word, because one list holds several: a
+   page, a Markdown file, a folder, a chat, a card. ".md" is a name and keeps
+   its case (`.lc`); Petar asked for it in place of "notes" on 24 September
+   2026. */
+.okind{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+color:var(--muted);background:var(--chip);border:1px solid var(--border);border-radius:5px;
+padding:2px 6px;line-height:1.2;white-space:nowrap}
+.okind.lc,.eyebrow .lc{text-transform:none;letter-spacing:.03em}
+.orow[data-kind="page"] .okind{color:var(--cat-blue);border-color:color-mix(in srgb,var(--cat-blue) 40%,var(--border))}
+.orow[data-kind="md"] .okind{color:var(--cat-green);border-color:color-mix(in srgb,var(--cat-green) 40%,var(--border))}
+.orow[data-kind="folder"] .okind{color:var(--cat-amber);border-color:color-mix(in srgb,var(--cat-amber) 40%,var(--border))}
+.orow[data-kind="file"] .okind{color:var(--cat-slate)}
+.orow[data-kind="chat"] .okind{color:var(--cat-teal);border-color:color-mix(in srgb,var(--cat-teal) 40%,var(--border))}
+.orow[data-kind="run"] .okind{color:var(--cat-violet);border-color:color-mix(in srgb,var(--cat-violet) 40%,var(--border))}
+.orow[data-kind="card"] .okind{color:var(--cat-amber);border-color:color-mix(in srgb,var(--cat-amber) 40%,var(--border))}
+.oname-big .okind{font-size:10.5px;position:relative;top:1px;color:var(--cat-green);
+border-color:color-mix(in srgb,var(--cat-green) 40%,var(--border))}
+.oname-big .okind[data-kind="folder"]{color:var(--cat-amber);
+border-color:color-mix(in srgb,var(--cat-amber) 40%,var(--border))}
+.oname-big .okind[data-kind="file"]{color:var(--cat-slate);border-color:var(--border)}
+/* A project's Documents and a folder opened from a page: their kinds in one
+   column. */
+.odocs .orow .ometa-cell,.olist .orow .ometa-cell{width:24ch;min-width:0}
+/* A phone has no room for the file's name beside the title and the pill, and
+   the title is what is read. */
+@media (max-width:560px){
+  .odocs .orow,.olist .orow{grid-template-columns:18px auto minmax(0,1fr) auto}
+  .odocs .orow .ometa-cell,.olist .orow .ometa-cell{display:none}
+}
+
+/* ---------- what a task built ----------
+
+   The pages a task and its steps built, above everything else on its page:
+   they are what the work was for, and Petar found task 58's explainer listed
+   nowhere on it at all. Each is a panel of its own, larger than any other
+   line here, with the step's number and name, the one line its task says
+   about it, and the words that say what a press does. One page alone is the
+   whole width and larger again, because then it is the answer. */
+.opages .rows{gap:8px}
+.prow{display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;
+gap:4px 14px;padding:12px 14px;border-radius:12px;text-decoration:none;color:var(--copy);
+background:var(--panel);border:1px solid var(--border)}
+.prow:hover{border-color:color-mix(in srgb,var(--primary) 55%,var(--border));
+background:color-mix(in srgb,var(--primary) 6%,var(--panel))}
+.prow:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.prow .omark{font-size:16px;line-height:1}
+.ptext{display:grid;gap:3px;min-width:0}
+.phead{display:flex;align-items:baseline;gap:10px;min-width:0}
+.prow .snum{font-family:var(--mono);font-size:11px;color:var(--muted);flex:none}
+.prow .oname{font-size:16px;font-weight:620;min-width:0;overflow:hidden;
+text-overflow:ellipsis;white-space:nowrap}
+.prow:hover .oname{color:var(--primary)}
+.pabout{font-size:13px;color:var(--subtle);overflow:hidden;text-overflow:ellipsis;
+white-space:nowrap}
+.pgo{font-size:12.5px;color:var(--primary);white-space:nowrap;border-radius:999px;
+border:1px solid color-mix(in srgb,var(--primary) 40%,var(--border));padding:5px 12px}
+.prow:hover .pgo{background:var(--primary);color:var(--on-fg);border-color:var(--primary)}
+.opages.one .prow{grid-template-columns:30px minmax(0,1fr) auto;gap:6px 18px;
+padding:22px 24px;border-radius:14px;
+border-color:color-mix(in srgb,var(--primary) 35%,var(--border));
+background:linear-gradient(180deg,color-mix(in srgb,var(--primary) 9%,var(--panel)),var(--panel))}
+.opages.one .omark{font-size:24px;align-self:start;margin-top:2px}
+.opages.one .ptext{gap:6px}
+.opages.one .snum{font-size:12px}
+.opages.one .oname{font-size:22px;white-space:normal;letter-spacing:-.01em;line-height:1.25}
+/* Rename, from the page's own dots: the field holds the name at the name's own size, and
+   starts where the name starts rather than over the number in front of it. */
+.prow .oname-edit{font-size:16px;font-weight:620;margin:-3px 0;padding:2px 8px}
+.opages.one .oname-edit{font-size:22px;letter-spacing:-.01em;line-height:1.25}
+.opages.one .pabout{font-size:14.5px;white-space:normal;color:var(--muted);line-height:1.5}
+.opages.one .pgo{font-size:14px;font-weight:600;padding:9px 16px;background:var(--primary);
+color:var(--on-fg);border-color:var(--primary)}
+.opages.one .prow:hover .pgo{background:color-mix(in srgb,var(--primary) 85%,#fff)}
+@media (max-width:560px){
+  .prow,.opages.one .prow{grid-template-columns:22px minmax(0,1fr)}
+  .opages.one .prow{padding:16px}
+  .opages.one .omark{font-size:18px}
+  .opages.one .oname{font-size:19px}
+  .pabout{white-space:normal}
+  .pgo{grid-column:2;justify-self:start;margin-top:6px}
+}
+
+/* ---------- one level of a task ----------
+
+   A task's page and a subtask's are the same shape (`objectindex._level`):
+   its own page when it built one, its subtasks, and what is directly in it.
+   A subtask is one panel, whatever it holds - its number and name, the line
+   its task says about it, what is in it in words - and the whole panel opens
+   its own page, like a folder. The page it built is a button of its own on
+   the right, over the panel's link, so it is one press away. */
+.osubs .rows{gap:6px}
+.srow{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto auto;
+align-items:center;gap:6px 14px;padding:11px 10px 11px 14px;border-radius:10px;
+background:var(--panel);border:1px solid var(--border)}
+.srow:hover{border-color:color-mix(in srgb,var(--primary) 55%,var(--border));
+background:color-mix(in srgb,var(--primary) 5%,var(--panel))}
+.srow:has(.oname:focus-visible){outline:2px solid var(--primary);outline-offset:2px}
+.stext{grid-column:1;display:grid;gap:3px;min-width:0}
+.shead{display:flex;align-items:baseline;gap:10px;min-width:0}
+.srow .snum{font-family:var(--mono);font-size:11px;color:var(--muted);flex:none}
+.srow .oname{font-size:15px;font-weight:620;line-height:1.35;color:var(--copy);
+text-decoration:none;min-width:0;overflow-wrap:anywhere}
+.srow .oname:focus-visible{outline:none}
+/* The panel's link covers the whole panel, so anywhere on it opens it. */
+.srow a.oname:after{content:"";position:absolute;inset:0;border-radius:inherit}
+.srow:hover .oname{color:var(--primary)}
+.srow .task-status{flex:none;position:relative;top:-1px}
+.sabout{font-size:13px;line-height:1.45;color:var(--subtle);overflow:hidden;
+display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.sholds{font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;color:var(--subtle)}
+.sgo{grid-column:2;position:relative;z-index:1;font-size:12.5px;color:var(--primary);
+white-space:nowrap;border-radius:999px;border:1px solid color-mix(in srgb,var(--primary) 40%,var(--border));
+padding:6px 13px;text-decoration:none;background:var(--panel)}
+.sgo:hover{background:var(--primary);color:var(--on-fg);border-color:var(--primary)}
+.sgo:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.schev{grid-column:3;font-size:22px;line-height:1;color:var(--subtle);padding:0 2px 2px}
+.srow:hover .schev{color:var(--primary)}
+/* A subtask's own subtasks, under it, one step further in for each level,
+   hanging from the rule a chat's forks hang from (`.orow[data-kind=fork]`,
+   `objectindex._subtask_row`). */
+.srow[data-depth]{margin-left:calc(18px * var(--sub-depth,1));border-left:var(--branch-rule);
+border-radius:0 10px 10px 0;padding-top:8px;padding-bottom:8px}
+.srow[data-depth="2"]{--sub-depth:2}
+.srow[data-depth="3"]{--sub-depth:3}
+.srow[data-depth="4"]{--sub-depth:4}
+.srow[data-depth] .oname{font-size:14px}
+/* What is directly in this level, in one list: its kinds in one column and
+   the date or what a folder holds in the next, whichever line it is. Its
+   chats, at the top of the page, keep the same columns, with how many cards
+   each drew where the kind would be, so the two lists line up. */
+.oown .orow,.ochats .orow{grid-template-columns:18px minmax(0,1fr) 8ch 16ch}
+.oown .orow .snum,.ochats .orow .snum{display:none}
+.oown .orow .ochip,.ochats .orow .ochip{justify-self:start}
+.oown .orow .ometa-cell,.ochats .orow .ometa-cell{width:auto;max-width:none;min-width:0}
+.ocards{font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;white-space:nowrap;
+color:color-mix(in srgb,var(--cat-amber) 80%,var(--muted))}
+@media (max-width:560px){
+  .srow{grid-template-columns:minmax(0,1fr) auto;padding:11px 8px 11px 12px}
+  .stext{grid-row:1}
+  .sgo{grid-column:1;grid-row:2;justify-self:start}
+  .schev{grid-column:2;grid-row:1 / span 2}
+  .oown .orow,.ochats .orow{grid-template-columns:18px minmax(0,1fr) auto}
+  .oown .orow .ometa-cell,.ochats .orow .ometa-cell{display:none}
+}
+
+/* ---------- what a waiting task needs ----------
+
+   A task whose next move is the person's asks it in its page's Decision,
+   under its chats and its page (`objectindex._waiting_panel`): what has
+   stopped, the question, the answers it offers as rows to press, a field for
+   their own words, and what answering does. Since 24 September 2026 it is answered
+   right there (`taskpage.js`); until then it was the notes' passage and one
+   button that put the question in Rouh's box.
+
+   Amber while it waits on the person. Slate when the task is done and the
+   question is optional, because nothing is waiting on it. Teal once it is
+   answered, because the task is moving again, and that is the change the
+   person is meant to see. */
+/* A step of a goal: what the step is, on its own page, first
+   (`objectindex._goal_step_panel`). Who does it is named in the colours the
+   Goals page gives it, with what that asks of the person said under it. */
+.ogs{--og:var(--cat-slate);padding:14px 18px 16px;border-radius:14px;
+border:1px solid color-mix(in srgb,var(--og) 40%,var(--border));
+background:linear-gradient(180deg,color-mix(in srgb,var(--og) 7%,var(--panel)),var(--panel));
+display:grid;gap:10px}
+.ogs.w-rouh{--og:var(--primary)}
+.ogs.w-owner,.ogs.w-petar{--og:var(--cat-violet)}
+.ogs.w-together{--og:var(--cat-green)}
+.ogs.w-quest{--og:var(--cat-teal)}
+.ogs p{margin:0;max-width:78ch}
+.ogs-goal{font-size:13.5px;color:var(--muted)}
+.ogs-goal a{color:var(--primary)}
+.ogs-who{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.ogs-chip{font-size:12.5px;font-weight:620;line-height:1;padding:5px 10px;border-radius:999px;
+color:var(--og);background:color-mix(in srgb,var(--og) 15%,transparent)}
+.ogs-status{font-size:12.5px;color:var(--subtle)}
+.ogs-status[data-status="done"]{color:var(--cat-green)}
+.ogs-status[data-status="in-progress"]{color:var(--primary)}
+.ogs-status[data-status="waiting"]{color:var(--cat-amber)}
+.ogs-status[data-status="hollow"]{color:var(--cat-amber)}
+.ogs-means{font-size:14px;color:var(--copy);line-height:1.45}
+.ogs-how{font-size:14px;color:var(--muted);line-height:1.5}
+.ogs-left{font-size:14px;color:var(--muted);line-height:1.5}
+.ogs-left strong{color:var(--cat-amber);font-weight:620}
+.ogs-hard{margin:0;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 12px;
+padding:9px 12px;border-radius:10px;background:var(--bg);border-left:2px solid var(--cat-amber);max-width:78ch}
+.ogs-hard dt{font-size:12px;font-weight:620;padding-top:1px}
+.ogs-hard dt.h-hard{color:var(--cat-amber)}
+.ogs-hard dt.h-fix{color:var(--cat-green)}
+.ogs-hard dd{margin:0;font-size:13.5px;line-height:1.45;color:var(--copy);overflow-wrap:anywhere}
+.ogs-run{font-size:13px;color:var(--primary)}
+.ogs-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:2px}
+.ogs-acts[hidden]{display:none}
+.ogs-btn{font:inherit;font-size:13px;font-weight:600;color:var(--muted);background:var(--panel);
+border:1px solid var(--border-strong);border-radius:999px;padding:7px 14px;cursor:pointer;
+text-decoration:none;line-height:1.2}
+.ogs-btn:hover{border-color:var(--primary);color:var(--primary)}
+.ogs-btn.primary{background:var(--primary);border-color:var(--primary);color:var(--on-fg)}
+.ogs-btn.primary:hover{filter:brightness(1.08);color:var(--on-fg)}
+.ogs-btn:disabled{opacity:.55;cursor:default}
+.ogs-said{font-size:13.5px;color:var(--muted)}
+.ogs-btn.small{font-size:12.5px;padding:5px 12px}
+
+/* A goal's roadmap, on the goal's own page (`taskpage.js`, `goalMap`).
+   Petar, 27 September 2026 (fr_b7586f638301): the goal lives on its task, and
+   the roadmap the Goals page drew belongs there - "a customized masterplan
+   html of all the sub steps and progress in that task". The same path the
+   Goals page had, carried over: a numbered node per step on one line, who does
+   it and its status beside the title, the hard part and what to do about it
+   under that, and a step's own parts one level in, on a thinner line. Above
+   it, how far along the goal is, what is left and whose, and when it is due. */
+.gm{display:grid;gap:14px;max-width:880px}
+.gm p{margin:0}
+.goal-tag{padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:620;letter-spacing:.02em;
+color:var(--cat-amber);background:color-mix(in srgb,var(--cat-amber) 14%,transparent)}
+.gm-due{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:13.5px;color:var(--copy)}
+.gm-due-k{font-size:11px;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--subtle)}
+.gm-due-left{color:var(--muted)}
+.gm-due-left.late{color:var(--cat-rose)}
+.gm-due input,.goal-pick input,.goal-pick select{padding:6px 8px;border-radius:8px;border:1px solid var(--border-strong);
+background:var(--bg);color:var(--copy);font:inherit;font-size:13px;color-scheme:dark;min-width:0;max-width:100%}
+.gm-link{font:inherit;font-size:12.5px;background:none;border:0;padding:0;color:var(--primary);cursor:pointer;
+text-decoration:underline;text-underline-offset:3px}
+.gm-link:hover{color:var(--copy)}
+.gm-say{font-size:13.5px;color:var(--muted);padding:8px 12px;border-radius:10px;background:var(--bg);
+border:1px solid var(--border)}
+.gm-say.good{color:var(--cat-green);border-color:color-mix(in srgb,var(--cat-green) 35%,var(--border))}
+.gm-say-do{color:var(--primary)}
+.gp-delegates{font-size:13px;color:var(--muted);padding:8px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--border);margin:0 0 10px}
+.gp-delegates>summary{cursor:pointer;color:var(--copy);font-weight:600}
+.gp-delegates-n{font-weight:400;color:var(--muted)}
+.gp-delegates-said{margin:6px 0 0}
+.gp-delegates-list{margin:6px 0 0;padding-left:18px;display:grid;gap:3px}
+.gp-delegates-words{font-style:italic}
+.gp-delegates-for_owner,.gp-delegates-for_petar{color:var(--cat-amber)}
+.goal-asking{padding:10px 14px;border-radius:10px;background:var(--bg);border:1px solid var(--border)}
+.goal-asking{display:grid;gap:10px;justify-items:start;border-color:color-mix(in srgb,var(--primary) 40%,var(--border))}
+.goal-asking p{font-size:14px;line-height:1.5}
+.goal-about summary{cursor:pointer;font-size:13px;color:var(--muted);width:max-content;max-width:100%}
+.goal-about summary:hover{color:var(--copy)}
+.goal-about p{margin:8px 0 0;font-size:13.5px;line-height:1.55;color:var(--muted);white-space:pre-line;
+overflow-wrap:anywhere;max-height:320px;overflow:auto}
+.goal-path{list-style:none;margin:0;padding:0;display:grid}
+.goal-step{position:relative;display:grid;grid-template-columns:30px minmax(0,1fr);gap:0 14px;padding-bottom:20px}
+.goal-step:last-child{padding-bottom:0}
+.goal-step:not(:last-child):before{content:"";position:absolute;left:14.5px;top:30px;bottom:0;width:1px;
+background:var(--border-strong)}
+.goal-step.s-done:not(:last-child):before{background:color-mix(in srgb,var(--cat-green) 55%,var(--border))}
+.goal-node{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:640;
+font-variant-numeric:tabular-nums;background:var(--bg);border:1.5px solid var(--border-strong);color:var(--muted)}
+.goal-step.w-rouh>.goal-node{border-color:color-mix(in srgb,var(--primary) 70%,var(--border));color:var(--primary)}
+.goal-step.s-in-progress>.goal-node{background:var(--primary);border-color:var(--primary);color:var(--on-fg);
+animation:goal-going 1.6s ease-out infinite}
+@keyframes goal-going{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--primary) 55%,transparent)}
+100%{box-shadow:0 0 0 7px transparent}}
+@media (prefers-reduced-motion:reduce){.goal-step.s-in-progress>.goal-node{animation:none}}
+.goal-step.s-waiting>.goal-node{border-color:var(--cat-amber);color:var(--cat-amber)}
+.goal-step.s-done>.goal-node{background:var(--cat-green);border-color:var(--cat-green);color:var(--bg)}
+.goal-step.s-hollow>.goal-node{border-color:var(--cat-amber);color:var(--cat-amber)}
+/* Rouh's part done, the step's outcome not yet: half filled, never the green of complete. */
+.goal-step.rouh-done>.goal-node{color:var(--cat-amber);
+background:linear-gradient(90deg,color-mix(in srgb,var(--cat-amber) 22%,var(--bg)) 50%,var(--bg) 50%)}
+.goal-step-body{min-width:0;display:grid;gap:8px;padding-top:4px}
+.goal-step-top{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}
+.goal-step-title{font-size:15px;font-weight:620;line-height:1.35;overflow-wrap:anywhere;margin-right:2px}
+.goal-step.s-done>.goal-step-body>.goal-step-top .goal-step-title{color:var(--muted);text-decoration:line-through;
+text-decoration-color:var(--subtle)}
+.goal-who{padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:620;color:var(--muted);
+background:color-mix(in srgb,var(--border) 70%,transparent)}
+.goal-who.w-rouh{color:var(--primary);background:color-mix(in srgb,var(--primary) 15%,transparent)}
+.goal-who.w-owner,.goal-who.w-petar{color:var(--cat-violet);background:color-mix(in srgb,var(--cat-violet) 14%,transparent)}
+.goal-who.w-together{color:var(--cat-green);background:color-mix(in srgb,var(--cat-green) 14%,transparent)}
+.goal-who.w-quest{color:var(--cat-teal);background:color-mix(in srgb,var(--cat-teal) 14%,transparent)}
+.goal-status{font-size:12px;color:var(--subtle)}
+.goal-step.s-in-progress>.goal-step-body>.goal-step-top .goal-status{color:var(--primary)}
+.goal-step.s-waiting>.goal-step-body>.goal-step-top .goal-status{color:var(--cat-amber)}
+.goal-step.s-done>.goal-step-body>.goal-step-top .goal-status{color:var(--cat-green)}
+.goal-step.s-hollow>.goal-step-body>.goal-step-top .goal-status{color:var(--cat-amber)}
+.goal-left{font-size:13.5px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere;max-width:78ch}
+.goal-left strong{color:var(--copy);font-weight:620;margin-right:2px}
+.goal-step.rouh-done>.goal-step-body>.goal-left strong{color:var(--cat-amber)}
+.goal-yours{padding:1px 8px;border-radius:999px;font-size:11.5px;color:var(--cat-violet);
+border:1px solid color-mix(in srgb,var(--cat-violet) 40%,transparent)}
+.goal-how-text{font-size:14px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere;max-width:78ch}
+.goal-hard{margin:0;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 12px;padding:9px 12px;
+border-radius:10px;background:var(--bg);border-left:2px solid var(--cat-amber);max-width:78ch}
+.goal-hard dt{font-size:12px;font-weight:620;padding-top:1px}
+.goal-hard dt.h-hard{color:var(--cat-amber)}
+.goal-hard dt.h-fix{color:var(--cat-green)}
+.goal-hard dd{margin:0;font-size:13.5px;line-height:1.45;color:var(--copy);overflow-wrap:anywhere}
+.goal-run{font-size:13px;color:var(--primary)}
+.goal-run:before{content:"\21BB";margin-right:6px}
+.goal-run.r-now:before{content:"\25CF";animation:gm-pulse 1.2s ease-in-out infinite}
+@keyframes gm-pulse{50%{opacity:.35}}
+.goal-step-acts{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.gm-open{margin-left:4px;font-size:12.5px;color:var(--primary)}
+.goal-pick{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.goal-pick select{flex:1 1 200px}
+.gm-due input:focus,.goal-pick input:focus,.goal-pick select:focus,.gm-field input:focus,.gm-field textarea:focus{
+outline:2px solid var(--primary);outline-offset:1px}
+.goal-edit{display:grid;gap:10px;padding:12px;border-radius:10px;background:var(--bg);
+border:1px solid color-mix(in srgb,var(--primary) 45%,var(--border))}
+.goal-edit-head{font-size:13.5px;font-weight:620}
+.gm-field{display:grid;gap:5px;font-size:12px;color:var(--muted);min-width:0}
+.gm-field input,.gm-field textarea{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border-strong);
+background:var(--panel);color:var(--copy);font:inherit;font-size:13.5px;color-scheme:dark}
+.gm-field textarea{resize:vertical;line-height:1.45;min-height:44px;field-sizing:content;max-height:320px}
+.gm-field input:disabled,.gm-field textarea:disabled{opacity:.6}
+.goal-edit-kind{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.goal-edit-kind-l{flex:1 1 100%}
+.goal-edit-kind-o{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:4px 12px;border-radius:999px;
+border:1px solid var(--border-strong);background:var(--panel);color:var(--copy);font-size:13px;cursor:pointer}
+.goal-edit-kind-o.on{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 14%,var(--panel))}
+.goal-edit-kind-o input{margin:0;accent-color:var(--primary)}
+.goal-edit-kind-o:focus-within{outline:2px solid var(--primary);outline-offset:1px}
+.goal-edit-steer{display:grid;gap:6px;padding-top:10px;border-top:1px solid var(--border)}
+.goal-edit-ask{display:flex;gap:6px;min-width:0}
+.goal-edit-ask input{flex:1 1 auto;min-width:0}
+.goal-edit-note{font-size:12.5px;color:var(--muted)}
+.goal-edit-note.good{color:var(--cat-green)}
+.goal-edit-note.bad{color:var(--cat-rose)}
+.goal-path.parts{margin-top:4px}
+.goal-path.parts .goal-step{grid-template-columns:22px minmax(0,1fr);gap:0 10px;padding-bottom:14px}
+.goal-path.parts .goal-step:last-child{padding-bottom:0}
+.goal-path.parts .goal-step:not(:last-child):before{left:10.5px;top:22px}
+.goal-path.parts .goal-node{width:22px;height:22px;font-size:11px}
+.goal-path.parts .goal-step-title{font-size:13.5px;font-weight:540}
+.goal-path.parts .goal-step-body{padding-top:1px;gap:6px}
+@media (hover:hover){
+.goal-step:not(:hover):not(:focus-within)>.goal-step-body>.goal-step-acts .ogs-btn:not(.primary){opacity:.7}}
+
+.owait{--ow:var(--cat-amber);margin:0;padding:0 18px;border-radius:14px;
+border:1px solid color-mix(in srgb,var(--ow) 45%,var(--border));
+background:linear-gradient(180deg,color-mix(in srgb,var(--ow) 8%,var(--panel)),var(--panel));
+transition:border-color .12s}
+.owait[open]{padding-bottom:16px}
+.owait.is-done{--ow:var(--cat-slate)}
+.owait.is-answered,.owait.is-sent{--ow:var(--cat-teal)}
+
+/* Folded, the box is its first line and nothing else: a compact card that says
+   what kind of decision it is, its pill, and what it asks, with a chevron
+   (`objectindex._decision_top`). The line is the whole width and height of
+   the card, so a press anywhere on it opens the box in place, and a press on
+   the same line folds it again. Open, the question is said in full under it,
+   so the line keeps only the kind, the pill and the chevron turned over. */
+.owait-top{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;
+margin:0 -18px;padding:12px 14px 12px 18px;border-radius:13px;cursor:pointer;list-style:none;
+-webkit-user-select:none;user-select:none}
+.owait-top::-webkit-details-marker{display:none}
+.owait-top:focus-visible{outline:2px solid var(--ow);outline-offset:2px}
+.owait:not([open]):has(>.owait-top:hover){border-color:color-mix(in srgb,var(--ow) 75%,var(--border))}
+.owait[open]>.owait-top{padding-bottom:6px;margin-bottom:6px}
+.owait-chev{margin-left:auto;display:grid;place-items:center;width:28px;height:28px;border-radius:8px;
+color:var(--muted);transition:transform .16s,color .12s,background .12s}
+.owait-chev svg{width:18px;height:18px}
+.owait-top:hover .owait-chev{color:var(--ow);background:color-mix(in srgb,var(--ow) 12%,transparent)}
+.owait[open] .owait-chev{transform:rotate(180deg)}
+.owait-sums{flex:1 0 100%;display:flex;flex-direction:column;gap:3px;min-width:0;padding-right:28px}
+.owait-sum{font-size:15.5px;font-weight:620;line-height:1.4;color:var(--copy);
+display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.owait-sum-said{font-size:13.5px;color:var(--muted);line-height:1.45;
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.owait[open] .owait-sums{display:none}
+.odecide .owait-gone{margin:0}
+.owait-h{margin:0;font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;
+text-transform:uppercase;color:var(--ow);font-weight:600}
+.owait-pill{font-size:11.5px;font-weight:600;line-height:1;padding:4px 9px;border-radius:999px;
+color:var(--ow);background:color-mix(in srgb,var(--ow) 13%,transparent);
+border:1px solid color-mix(in srgb,var(--ow) 40%,transparent)}
+.owait-now{margin:0 0 12px;font-size:14px;color:var(--muted);max-width:78ch}
+.owait-now strong{color:var(--copy);font-weight:620}
+.owait-now a,.owait-then a{color:var(--primary)}
+.owait-q{margin:0 0 14px;font-size:18px;font-weight:620;line-height:1.35;color:var(--copy);
+letter-spacing:-.005em;max-width:72ch}
+.owait-said{font-size:15px;margin:0 0 14px}
+.owait-said>*:last-child{margin-bottom:0}
+.owait-none{margin:0 0 14px;color:var(--muted);font-size:14.5px}
+
+/* The answers: one row each, the way a question with choices is asked in a
+   terminal - a number, the answer, a line under it - and the whole row is
+   the button. */
+.owait-opts{display:grid;gap:8px}
+.owait-opt{display:grid;grid-template-columns:26px minmax(0,1fr) 22px;align-items:start;gap:12px;
+width:100%;text-align:left;padding:11px 12px 11px 12px;border-radius:11px;cursor:pointer;
+border:1px solid var(--border-strong);background:var(--surface);color:var(--copy);font:inherit;
+transition:border-color .12s,background .12s}
+.owait-opt:hover{border-color:color-mix(in srgb,var(--ow) 70%,var(--border));
+background:color-mix(in srgb,var(--ow) 6%,var(--surface))}
+.owait-opt:focus-visible{outline:2px solid var(--ow);outline-offset:2px}
+.owait-opt:disabled{cursor:default;opacity:.55}
+.owait-k{display:grid;place-items:center;width:26px;height:26px;border-radius:7px;
+font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--chip);border:1px solid var(--border)}
+.owait-ow{display:flex;flex-direction:column;gap:2px;min-width:0;padding-top:2px}
+.owait-ol{font-size:15px;font-weight:600;line-height:1.35}
+.owait-od{font-size:13px;color:var(--muted);line-height:1.45}
+.owait-mark{align-self:center;display:grid;place-items:center;width:22px;height:22px;color:var(--ow);
+opacity:0;transition:opacity .12s}
+.owait-mark svg{width:17px;height:17px}
+.owait-opt:hover .owait-mark,.owait-opt:focus-visible .owait-mark{opacity:1}
+/* Where several may be picked, a press marks a row rather than sending it. */
+.owait-opt[aria-pressed] .owait-mark{opacity:1;width:18px;height:18px;border-radius:5px;
+border:1.6px solid var(--border-strong)}
+.owait-opt[aria-pressed="true"]{border-color:var(--ow);background:color-mix(in srgb,var(--ow) 10%,var(--surface))}
+.owait-opt[aria-pressed="true"] .owait-k{background:var(--ow);border-color:var(--ow);color:#1a1204}
+.owait-opt[aria-pressed="true"] .owait-mark{background:var(--ow);border-color:var(--ow)}
+.owait-opt[aria-pressed="true"] .owait-mark:after{content:"";width:5px;height:9px;margin-top:-2px;
+border-right:2px solid #1a1204;border-bottom:2px solid #1a1204;transform:rotate(45deg)}
+.owait-picked{margin:10px 0 0}
+.owait-sendpicked{font-family:var(--sans);font-size:14px;font-weight:600;border:0;border-radius:999px;
+padding:8px 18px;cursor:pointer;background:var(--ow);color:#1a1204}
+.owait-sendpicked:hover{filter:brightness(1.08)}
+.owait-sendpicked:disabled{cursor:default;filter:none;background:var(--chip);color:var(--subtle);
+border:1px solid var(--border)}
+.owait-sendpicked:focus-visible{outline:2px solid var(--ow);outline-offset:3px}
+
+/* Their own words, last, under the answers. */
+.owait-own{margin:14px 0 0}
+.owait-ownh{display:block;margin:0 0 6px;font-size:12.5px;color:var(--subtle)}
+.owait-field{display:flex;align-items:flex-end;gap:8px;padding:5px 5px 5px 12px;border-radius:12px;
+border:1px solid var(--border-strong);background:var(--bg)}
+.owait-field:focus-within{border-color:var(--ow)}
+.owait-field textarea{flex:1;min-width:0;min-height:24px;resize:none;border:0;outline:none;
+background:none;color:var(--copy);font:15px/22px var(--sans);padding:6px 0}
+.owait-field textarea::placeholder{color:var(--subtle)}
+.owait-send{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;
+border:0;cursor:pointer;background:var(--ow);color:#1a1204}
+.owait-send svg{width:18px;height:18px}
+.owait-send:hover{filter:brightness(1.08)}
+.owait-send:disabled{cursor:default;filter:none;opacity:.5}
+.owait-send:focus-visible{outline:2px solid var(--ow);outline-offset:2px}
+
+.owait-then{margin:14px 0 0;padding-top:12px;font-size:13.5px;color:var(--muted);max-width:78ch;
+border-top:1px dashed color-mix(in srgb,var(--ow) 32%,var(--border))}
+.owait-then strong{color:var(--copy);font-weight:620}
+.owait-foot{display:flex;align-items:center;flex-wrap:wrap;gap:10px 18px;margin:12px 0 0}
+.owait-notes{font-size:13px;color:var(--muted);text-decoration:none}
+.owait-notes:hover{color:var(--primary)}
+.owait-again{font-family:var(--sans);font-size:13px;font-weight:600;padding:6px 14px;border-radius:999px;
+cursor:pointer;background:none;color:var(--copy);border:1px solid var(--border-strong)}
+.owait-again:hover{border-color:var(--ow)}
+.owait-again:focus-visible{outline:2px solid var(--ow);outline-offset:2px}
+
+/* Answered: what it asked, small, and what they said, as a quote. */
+.owait-wk{display:block;margin:0 0 3px;font-family:var(--mono);font-size:10px;letter-spacing:.12em;
+text-transform:uppercase;color:var(--subtle)}
+.owait-was{margin:0 0 10px;font-size:13.5px;color:var(--muted);max-width:78ch}
+.owait-mine{margin:0 0 4px;padding:9px 14px 10px;border-left:3px solid var(--ow);
+border-radius:0 10px 10px 0;background:color-mix(in srgb,var(--ow) 8%,transparent);
+font-size:15px;color:var(--copy);white-space:pre-wrap;max-width:78ch}
+.owait.is-answered .owait-form{margin-top:14px}
+
+/* Dismiss, at the right of the heading, and the one line the box folds to
+   once it is dismissed, with the way back to it (`_dismissed_line`). The line
+   is quiet on purpose: it is what is left of something the person closed. */
+.owait-x{margin-left:auto;display:inline-flex;align-items:center;gap:5px;padding:4px 8px 4px 10px;
+border-radius:8px;border:1px solid transparent;background:none;color:var(--subtle);cursor:pointer;
+font-family:var(--sans);font-size:12.5px;font-weight:600}
+.owait-x svg{width:14px;height:14px}
+.owait-x:hover{color:var(--copy);border-color:var(--border-strong);background:var(--chip)}
+.owait-x:focus-visible{outline:2px solid var(--ow);outline-offset:2px}
+.owait-gone{display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px;margin:0 0 22px;
+padding:10px 14px;border-radius:12px;border:1px dashed var(--border-strong);background:var(--panel);
+font-size:13.5px;color:var(--muted)}
+.owait-gone p{margin:0;flex:1 1 30ch;min-width:0;max-width:86ch}
+.owait-gone strong{color:var(--copy);font-weight:620}
+.owait-gone a{color:var(--primary)}
+.owait-back{flex:none;font-family:var(--sans);font-size:13px;font-weight:600;padding:6px 14px;
+border-radius:999px;cursor:pointer;background:none;color:var(--copy);border:1px solid var(--border-strong)}
+.owait-back:hover{border-color:var(--primary)}
+.owait-back:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
+/* Sent from here, before the page is loaded again: the box says so at once,
+   in place of what it asked. */
+.owait.is-sent>.owait-now,.owait.is-sent>.owait-ask,.owait.is-sent>.owait-form,
+.owait.is-sent>.owait-then,.owait.is-sent>.owait-was,.owait.is-sent>.owait-mine{display:none}
+.owait-sent .owait-now{margin-bottom:10px}
+
+/* ---------- one note, read ----------
+
+   A task's Markdown, drawn on its own page (`rouh/docview.py`), with the way
+   back to the task above it. Set for reading: a measure of about seventy
+   characters, the headings a step apart, and a table that scrolls on its own
+   rather than widening the page. */
+.oback{margin:0 0 14px;font-size:13px}
+.oback a{color:var(--muted);text-decoration:none;border:1px solid var(--border);
+border-radius:8px;padding:5px 10px;background:var(--panel);display:inline-flex;gap:6px}
+.oback a:hover{color:var(--primary);border-color:var(--primary)}
+/* A file's Download, under its name (`objectindex._download`). */
+.oget{margin:14px 0 0}
+.odl{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:8px;
+background:var(--primary);color:var(--on-fg);font-size:13.5px;font-weight:600;text-decoration:none}
+.odl:hover{filter:brightness(1.08)}
+.odl:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+/* And at the end of a file's line in a list (`objectindex._file_line`). The
+   line is a link, so the button sits over its end rather than inside it, and
+   every line of a list that has one leaves that room, so the columns still
+   line up. */
+.oline{position:relative}
+.rows:has(>.oline)>.orow,.rows:has(>.oline)>.oline>.orow{padding-right:44px}
+.orow-dl{position:absolute;right:6px;top:50%;transform:translateY(-50%);
+display:grid;place-items:center;width:30px;height:28px;border-radius:7px;
+color:var(--muted);border:1px solid var(--border);background:var(--panel);text-decoration:none}
+.orow-dl:hover{color:var(--primary);border-color:var(--primary)}
+.orow-dl:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+/* An item's own three dots, at the end of its line where a file has its
+   Download (`objectindex._item_line`), and its menu: PDF of that item alone
+   today, and whatever else an item can have done to it later. Drawn hidden and
+   shown by `taskpage.js` where Rouh is around the page; the menu is fixed to
+   the frame and placed against the dots by `RouhMenu.place`. */
+.orow-dots{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:30px;height:28px;
+border-radius:7px}
+.orow-dots[hidden]{display:none}
+.oitem>.prow:has(~.orow-dots:not([hidden])){padding-right:52px}
+.oitem>.prow~.orow-dots{right:10px}
+.imenu{position:fixed;z-index:40;min-width:180px}
+/* Check sources, at the end of a page's line under Sources, before its dots
+   (`objectindex._sources_section`): nothing is checked until it is pressed. */
+.ocheck{position:absolute;right:44px;top:50%;transform:translateY(-50%);
+font:inherit;font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer;
+color:var(--primary);background:var(--panel);border-radius:999px;padding:5px 12px;
+border:1px solid color-mix(in srgb,var(--primary) 45%,var(--border))}
+.ocheck:hover{background:var(--primary);color:var(--on-fg);border-color:var(--primary)}
+.ocheck:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.ocheck:disabled{cursor:default;opacity:.7}
+.ocheck[hidden]{display:none}
+.ochecks:not(:has(>.orow-dots:not([hidden])))>.ocheck{right:6px}
+.rows:has(>.ochecks>.ocheck:not([hidden]))>.oline>.orow{padding-right:160px}
+/* On a phone the line keeps its width for the page's name, and the button
+   goes under it. */
+@media (max-width:560px){
+  .rows:has(>.ochecks>.ocheck:not([hidden]))>.oline>.orow{padding-right:44px}
+  .ochecks>.ocheck{position:static;transform:none;display:inline-block;margin:0 0 8px 40px}
+  .ochecks>.orow-dots{top:5px;transform:none}
+}
+/* A subtask's own three dots, between its Open page and its arrow
+   (`objectindex._subtask_dots`): over the panel's link, like Open page, so a
+   press opens the menu and not the subtask. */
+.srow.sdotted{grid-template-columns:minmax(0,1fr) auto auto auto}
+.srow.sdotted .sdots{grid-column:3;position:relative;z-index:1;display:flex}
+/* Its menu open, over the lines below it: they lift their own Open page and
+   dots by the same one, and painted later, they covered the menu. */
+.srow.sdotted .sdots:has(>.imenu:not([hidden])){z-index:41}
+.srow.sdotted .schev{grid-column:4}
+.srow-dots[hidden]{display:none}
+@media (max-width:560px){
+  .srow.sdotted{grid-template-columns:minmax(0,1fr) auto auto}
+  .srow.sdotted .sdots{grid-column:2;grid-row:1 / span 2}
+  .srow.sdotted .schev{grid-column:3;grid-row:1 / span 2}
+}
+.odoc{max-width:72ch;font-size:15px;line-height:1.65;color:var(--copy)}
+.odoc>*:first-child{margin-top:0}
+.odoc h2{font-size:21px;margin:28px 0 10px;letter-spacing:-.01em;line-height:1.3}
+.odoc h3{font-size:17px;margin:24px 0 8px}
+.odoc h4,.odoc h5,.odoc h6{font-size:15px;margin:20px 0 6px;color:var(--muted)}
+.odoc p{margin:0 0 12px}
+.odoc ul,.odoc ol{margin:0 0 12px;padding-left:22px}
+.odoc li{margin:3px 0}
+.odoc a{color:var(--primary)}
+.odoc strong{font-weight:640}
+.odoc code{background:var(--chip);border:1px solid var(--border);border-radius:4px;padding:0 4px}
+.odoc pre{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+padding:12px 14px;overflow-x:auto;margin:0 0 14px;font-size:13px;line-height:1.5}
+.odoc pre code{background:none;border:0;padding:0}
+.odoc blockquote{margin:0 0 12px;padding:2px 0 2px 14px;border-left:3px solid var(--border-strong);
+color:var(--muted)}
+.odoc hr{border:0;border-top:1px solid var(--border);margin:22px 0}
+.odoc .dtable{overflow-x:auto;margin:0 0 14px;border:1px solid var(--border);border-radius:10px}
+.odoc table{border-collapse:collapse;width:100%;font-size:13.5px}
+.odoc th,.odoc td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.odoc th{font-weight:600;color:var(--muted);background:var(--panel)}
+.odoc tr:last-child td{border-bottom:0}
+.odoc .dstat{display:grid;gap:2px;border:1px solid var(--border);border-radius:10px;
+padding:10px 14px;margin:0 0 12px;background:var(--panel);max-width:32ch}
+.odoc .dlabel{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--subtle)}
+.odoc .dvalue{font-size:22px;font-weight:640}
+.odoc .dhint{font-size:12.5px;color:var(--subtle)}
+.odoc .dnote{font-size:13px;color:var(--subtle);font-style:italic}
+/* A filed card's footnotes and the list they point at (docview._sources_html). */
+.odoc sup.dcite{font-size:10.5px;line-height:0;margin-left:1px}
+.odoc sup.dcite a{text-decoration:none;font-weight:600}
+.odoc .dsources li{overflow-wrap:anywhere}
+.odoc .dsources li:target{background:var(--chip);border-radius:6px}
+.odoc .dwhere{font-family:var(--mono);font-size:11.5px;color:var(--subtle)}
+/* A step's own markup, whole, in a frame of its own that says how tall it is,
+   and the whole width for it: it was written as a page, not as a paragraph. */
+.odoc:has(iframe.dhtml){max-width:none}
+.odoc iframe.dhtml{display:block;width:100%;height:480px;border:1px solid var(--border);
+border-radius:10px;background:transparent;margin:0 0 14px;color-scheme:dark}
+/* A step's working folder, listed, and a file in it that is not notes, shown
+   as the text it is: code is read at its own width, not a paragraph's. */
+.odoc.ofile{max-width:none}
+.odoc pre.otext{font-size:12.5px;line-height:1.55;tab-size:4}
+.oback{display:flex;flex-wrap:wrap;gap:8px}
+
+/* ---------- a project's own page ----------
+
+   Everything below here is only ever on a project, never on a task, and is
+   drawn by `projectpage.js`. The shape is the one the person asked for on 23
+   September 2026 with Claude's own project screen beside ours: the name, what
+   the project is for under it, the box that starts a chat at the very top, two
+   pills, and a floating button that starts one with nothing typed. */
+
+/* For a label that is read out but not drawn: the box at the top has its own
+   placeholder and does not need the words above it as well. */
+.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+
+.ohead.pj{position:relative}
+/* The three dots sit level with the name, at the right edge, where Claude's
+   are and where the eye already goes for "what else can I do to this". */
+.pjbar{position:absolute;top:18px;right:0;z-index:12}
+.odots{width:32px;height:32px;border-radius:9px;border:1px solid transparent;
+background:none;color:var(--muted);font-size:17px;line-height:1;cursor:pointer;
+display:flex;align-items:center;justify-content:center}
+.odots:hover{background:var(--chip);border-color:var(--border);color:var(--copy)}
+.odots[aria-expanded="true"]{background:var(--chip);border-color:var(--border-strong);color:var(--copy)}
+/* The one menu every three dots in Rouh open (menu.css), hung from them. */
+.pjmenu{position:absolute;right:0;top:36px}
+
+/* A task's and a subtask's three dots: Rename and Delete (`_task_dots`), level
+   with the name at the right of it, after the date it last changed. */
+.obar{position:relative;flex:none;margin:6px -6px 0 -8px;z-index:12;display:flex;align-items:center;gap:4px}
+/* The pin before the dots (`_pin_button`): Pin, or Pinned in amber with its
+   head filled, on every task and subtask page. One press either way. */
+.opin{height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 10px 0 8px;border-radius:9px;
+border:1px solid var(--border);background:none;color:var(--muted);font:inherit;font-size:12.5px;
+font-weight:560;cursor:pointer;white-space:nowrap}
+.opin .ic{width:16px;height:16px;flex:none}
+.opin:hover{background:var(--chip);border-color:var(--border-strong);color:var(--copy)}
+.opin[aria-pressed="true"]{color:var(--cat-amber);border-color:color-mix(in srgb,var(--cat-amber) 45%,var(--border));
+background:color-mix(in srgb,var(--cat-amber) 10%,transparent)}
+.opin[aria-pressed="true"] .pin-head{fill:currentColor}
+.opin[aria-pressed="true"]:hover{background:color-mix(in srgb,var(--cat-amber) 16%,transparent)}
+.opin:disabled{cursor:progress}
+.opin:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.tkmenu{position:absolute;right:0;top:36px;min-width:168px}
+/* On a phone the name has the whole first line, and the date and the buttons
+   are a line of their own under it, the date at the left: beside them the
+   name was a column a word or two wide. */
+@media (max-width:560px){
+  .otitle{flex-wrap:wrap;row-gap:10px}
+  .otitle .oname-big{flex-basis:100%}
+  .otitle .owhen{margin:0 auto 0 0;align-self:center}
+  .otitle .obar{margin:0 -6px 0 auto}
+}
+/* Rename, in place: the name becomes a field the same size, holding the same
+   words, selected, and Enter keeps it. */
+.oname-edit{font:inherit;letter-spacing:inherit;color:var(--copy);background:var(--panel);
+border:1px solid var(--primary);border-radius:8px;padding:0 8px;margin:-2px -9px;
+min-width:0;flex:1 1 auto;width:100%;outline:none}
+
+/* What the project is for, under its name, in the person's own words. */
+.odesc{margin:10px 0 0;font-size:14px;color:var(--muted);max-width:74ch;
+white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* The box that starts a chat. At the very top of the project, because that is
+   where the person asked for it: "the new chat is directly the input box at
+   the very top and once you hit enter it opens that chat on a New screen". */
+.pjsay{display:flex;align-items:flex-end;gap:8px;margin:16px 0 0;padding:8px 8px 8px 14px;
+border:1px solid var(--border-strong);border-radius:14px;background:var(--surface);
+max-width:74ch}
+.pjsay:focus-within{border-color:var(--primary)}
+.pjsay textarea{flex:1;min-width:0;background:none;border:0;outline:none;resize:none;
+color:var(--copy);font-family:var(--sans);font-size:15px;line-height:22px;
+padding:7px 0}
+.pjsay textarea::placeholder{color:var(--subtle)}
+
+/* The two boxes on these pages that a chat is started from, this one and the
+   own words under a waiting task's question, keep the chat standard
+   (`workspace/.claude/skills/bb-chat-interface`): a line at a time, with no
+   scrollbar, up to fifteen lines, and only then a scrollbar, in the box's own
+   colours rather than the browser's grey. `fitLines` in projectpage.js and
+   taskpage.js sets the height, and `.scrolls` once there is more than fits.
+   The lines are a whole number of pixels, so a box exactly as tall as its
+   words has no fraction of one left over to scroll. */
+.pjsay textarea,.owait-field textarea{overflow-y:hidden;scrollbar-width:thin;
+scrollbar-color:var(--border-strong) transparent}
+.pjsay textarea.scrolls,.owait-field textarea.scrolls{overflow-y:auto}
+.pjsay textarea::-webkit-scrollbar,.owait-field textarea::-webkit-scrollbar{width:8px}
+.pjsay textarea::-webkit-scrollbar-track,.owait-field textarea::-webkit-scrollbar-track{background:transparent}
+.pjsay textarea::-webkit-scrollbar-thumb,.owait-field textarea::-webkit-scrollbar-thumb{
+background:var(--border-strong);border-radius:999px;border:2px solid transparent;background-clip:padding-box}
+.pjgo{flex:none;width:34px;height:34px;border-radius:50%;border:0;cursor:pointer;
+background:var(--primary);color:var(--on-fg);display:flex;align-items:center;justify-content:center}
+.pjgo svg{width:16px;height:16px}
+.pjgo:hover{filter:brightness(1.08)}
+
+/* The dot on the Instructions pill when there are some. */
+.obtn .dot{display:inline-block;width:5px;height:5px;border-radius:50%;
+background:var(--primary);margin-left:7px;vertical-align:middle}
+.obtn[disabled]{opacity:.55;cursor:default}
+
+/* One file on the project. The same row as everything else, with two cells
+   instead of five, and a cross at the end that takes it off again. */
+.frow{grid-template-columns:18px minmax(0,1fr) auto auto}
+.frow .oname{text-decoration:none;color:var(--copy)}
+.frow:hover .oname{color:var(--primary)}
+.fdrop{justify-self:end;width:24px;height:24px;border-radius:6px;border:1px solid transparent;
+background:none;color:var(--subtle);font-size:15px;line-height:1;cursor:pointer;
+display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .12s}
+.frow:hover .fdrop,.fdrop:focus-visible{opacity:1}
+.fdrop:hover{border-color:var(--border);background:var(--chip);color:#f07ea2}
+/* A screen with no hover never shows what only a hover reveals. */
+@media (hover:none){.fdrop{opacity:1}}
+
+/* A task's files (`_task_files_section`, taskpage.js): one still going up,
+   with a turning ring where the clip is and its name quiet, and one that did
+   not go, in red, saying why, with a cross that clears it. */
+.frow.is-up .oname{color:var(--muted)}
+.frow.is-up .ometa-cell{color:var(--primary)}
+.fgap{width:24px}
+.fspin{width:12px;height:12px;border-radius:50%;border:2px solid var(--border-strong);
+border-top-color:var(--primary);animation:fspin .8s linear infinite;align-self:center}
+@keyframes fspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.fspin{animation-duration:2.4s}}
+.frow.is-bad .omark{color:#f07ea2;font-weight:700;font-family:var(--mono)}
+.frow.is-bad .oname{color:var(--copy)}
+.frow.is-bad .fwhy{color:#f07ea2}
+.frow.is-bad .ometa-cell{color:#f07ea2}
+.frow.is-bad .fdrop{opacity:1}
+.frow.is-bad .fbad{display:flex;align-items:center;gap:8px}
+/* A failed line says the whole name and the whole reason, wrapped, never cut. */
+.frow.is-bad .oname{white-space:normal;overflow-wrap:anywhere;text-overflow:clip}
+.fretry{height:24px;padding:0 9px;border-radius:6px;border:1px solid color-mix(in srgb,#f07ea2 45%,var(--border));
+background:none;color:var(--copy);font-family:var(--sans);font-size:12px;line-height:1;cursor:pointer}
+.fretry:hover{background:var(--chip)}
+/* Upload, while anything it was given is still going up. */
+.opin.oup.is-busy{color:var(--primary);border-color:color-mix(in srgb,var(--primary) 45%,var(--border))}
+/* Files dragged over a task's page: the whole page is where they go. */
+body.tk-dropping{outline:2px dashed var(--primary);outline-offset:-6px;
+background:color-mix(in srgb,var(--primary) 5%,var(--bg, transparent))}
+
+/* One note Rouh was told to keep about this project. Four cells: the label it
+   was filed under, what it says, and when it last changed. Not a link, because
+   a note has no address of its own - it is read and changed on the Memory
+   page under the person's name. The label is quiet and the note itself is the
+   thing to read, the same way round as on that page. */
+.nrow{grid-template-columns:18px auto minmax(0,1fr) auto;cursor:default}
+.nrow:hover{background:none;border-color:transparent}
+.nrow .nkey{font-family:var(--mono);font-size:10.5px;color:var(--muted);
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:22ch}
+.nrow .nsaid{min-width:0;color:var(--copy);font-size:13px;line-height:1.5;
+overflow-wrap:anywhere}
+@media (max-width:640px){
+  .nrow{grid-template-columns:18px minmax(0,1fr)}
+  .nrow .nkey,.nrow .ometa-cell{display:none}
+}
+
+/* The floating New. Bottom right, above everything, exactly where Claude's is
+   and clear of the toast, which comes up in the middle. */
+.pjnew{position:fixed;right:22px;bottom:22px;z-index:30;display:flex;align-items:center;gap:8px;
+border:0;border-radius:999px;padding:12px 20px 12px 17px;cursor:pointer;
+background:var(--copy);color:var(--bg);font-family:var(--sans);font-size:14.5px;font-weight:600;
+box-shadow:var(--shadow)}
+.pjnew span{font-size:18px;line-height:1;position:relative;top:-1px}
+.pjnew:hover{filter:brightness(1.06)}
+
+/* Edit details, and Instructions. One shell for both: a cross that throws the
+   change away, what the panel is, and a tick that saves it. */
+.pjsheet{position:fixed;inset:0;z-index:50;background:rgba(4,7,12,.66);
+display:flex;align-items:flex-end;justify-content:center;padding:24px 16px 0}
+.pjbox{width:min(560px,100%);max-height:min(88vh,760px);overflow:auto;
+background:var(--surface);border:1px solid var(--border-strong);
+border-radius:20px 20px 0 0;padding:16px 20px 28px;box-shadow:var(--shadow)}
+.pjtop{display:flex;align-items:center;gap:12px;margin:0 0 18px}
+.pjtop h2{flex:1;margin:0;text-align:center;font-size:17px;font-weight:640;letter-spacing:-.01em}
+.pjx,.pjok{flex:none;width:38px;height:38px;border-radius:50%;cursor:pointer;
+display:flex;align-items:center;justify-content:center;font-size:19px;line-height:1}
+.pjx{border:1px solid var(--border);background:var(--chip);color:var(--muted)}
+.pjx:hover{color:var(--copy);border-color:var(--border-strong)}
+.pjok{border:0;background:var(--copy);color:var(--bg)}
+.pjok svg{width:17px;height:17px}
+.pjok:hover{filter:brightness(1.06)}
+.pjok[disabled]{opacity:.5;cursor:default}
+.pjlabel{display:block;margin:0 0 8px;font-size:13.5px;font-weight:560;color:var(--muted)}
+.pjfield{display:block;width:100%;margin:0 0 20px;background:var(--panel);color:var(--copy);
+border:1px solid var(--border);border-radius:12px;padding:12px 14px;
+font-family:var(--sans);font-size:15px;line-height:1.5;resize:vertical}
+.pjfield:focus{outline:none;border-color:var(--primary)}
+.pjfield::placeholder{color:var(--subtle)}
+.pjsaid{margin:-4px 0 16px;font-size:12.5px;color:var(--subtle);max-width:60ch}
+.pjread{margin:16px 0 0;font-size:12.5px;color:var(--subtle);max-width:70ch;
+border:1px solid var(--border);border-radius:10px;padding:10px 14px;background:var(--panel)}
+
+@media (max-width:640px){
+  .pjbar{top:14px}
+  .pjsay{max-width:none}
+  .pjnew{right:16px;bottom:16px}
+  .pjbox{border-radius:18px 18px 0 0}
+}
+
+/* The goal, as one line on its task's page: a panel like a page's, with a
+   target, where it stands, and how many streams wait on the person
+   (`objectindex._goal_row`). */
+.ogoalrow .prow{border-color:color-mix(in srgb,var(--cat-amber) 40%,var(--border));
+background:linear-gradient(180deg,color-mix(in srgb,var(--cat-amber) 8%,var(--panel)),var(--panel))}
+.ogoalrow .phead{flex-wrap:wrap;align-items:center}
+.ogoalrow .task-status{font-size:12px}
+
+/* A goal's own page (`goalpage.js`, fr_b083c37a634d): a map, one row per
+   stream down the left, its steps flowing left to right, and where each row
+   step it waits on the person for in amber. There is no column of row ends
+   at the right (fr_ddae0c0dac24): the amber step on the map says it. A step
+   opens under its row. On a phone a row is a column. */
+/* The top of a goal's page is what the person wrote and, at its right, when
+   it is due (fr_11a135ffd563): Rouh's bar above already names the task, says
+   it is the goal and leads back up, so nothing here says it again. */
+.gphead{margin-bottom:18px}
+.gp-top{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px 18px}
+.gp-about{flex:1 1 320px;min-width:0}
+.gp-about:empty{display:none}
+.gp-about .goal-about summary{font-size:14px;color:var(--copy);font-weight:560}
+.gp-about .goal-about summary:hover{color:var(--primary)}
+.gp-about .goal-about p{max-width:880px}
+.gphead .gm-due{flex:0 1 auto;justify-content:flex-end;margin-left:auto}
+.gphead .gm-due:empty{display:none}
+.gphead .gp-top:not(:has(:not(:empty))){display:none}
+.gp{display:grid;gap:22px;max-width:1400px}
+.gp p{margin:0}
+.gp .divider{flex-wrap:wrap}
+.gp .divider .ogs-btn{margin-left:4px;font-family:var(--sans);letter-spacing:0;text-transform:none}
+.gp-board{min-width:0}
+.gp-map{display:grid;gap:10px}
+.gp-row{display:grid;grid-template-columns:150px minmax(0,1fr);align-items:stretch;gap:0 16px;
+padding:12px 12px 12px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--border);
+border-left:3px solid var(--st,var(--border-strong));min-width:0}
+.gp-row.s-you{--st:var(--cat-amber)}
+.gp-row.s-going,.gp-row.s-rouh,.gp-row.s-set{--st:var(--primary)}
+.gp-row.s-done{--st:var(--cat-green)}
+.gp-row.over{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 6%,var(--panel))}
+.gp-row-head{display:grid;align-content:center;justify-items:start;gap:4px;min-width:0}
+.gp-row-head .ogs-btn{margin-top:4px}
+.gp-lane-name{font:inherit;font-size:14px;font-weight:660;color:var(--copy);background:none;border:0;padding:2px 4px;
+margin:-2px -4px;border-radius:6px;cursor:text;min-width:0;overflow-wrap:anywhere;text-align:left;line-height:1.3}
+button.gp-lane-name:hover{background:var(--chip)}
+.gp-rename{width:100%;min-width:0;font:inherit;font-size:13.5px;font-weight:600;padding:4px 8px;border-radius:8px;
+border:1px solid var(--primary);background:var(--bg);color:var(--copy)}
+.gp-lane-count{font-family:var(--mono);font-size:11px;color:var(--subtle)}
+.gp-lane-line{display:flex;align-items:center;gap:2px}
+.gp-lane-line .gp-lane-count{margin-right:6px}
+/* A whole stream up or down the map. */
+.gp-lane-move{width:24px;height:24px;display:grid;place-items:center;padding:0;border:0;border-radius:6px;
+background:none;color:var(--subtle);font-size:13px;line-height:1;cursor:pointer}
+.gp-lane-move:hover:not(:disabled),.gp-lane-move:focus-visible{color:var(--copy);background:var(--chip)}
+.gp-lane-move:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+.gp-lane-move:disabled{opacity:.3;cursor:default}
+/* Where the stream stands, and the chat it is worked in: several go on at once. */
+.gp-lane-state{font-size:12px;line-height:1.35;color:var(--muted)}
+.gp-row.s-going .gp-lane-state,.gp-row.s-set .gp-lane-state{color:var(--primary)}
+.gp-row.s-you .gp-lane-state{color:var(--cat-amber);font-weight:600}
+.gp-row.s-done .gp-lane-state{color:var(--cat-green)}
+.gp-lane-chat{font-size:12.5px;color:var(--primary)}
+/* The steps, one after another, joined by an arrow. */
+.gp-flow{list-style:none;margin:0;padding:2px 0 6px;display:flex;align-items:stretch;gap:26px;
+overflow-x:auto;min-width:0}
+.gp-card{position:relative;flex:0 0 180px;display:flex;flex-direction:column;gap:6px;padding:9px 11px;
+border-radius:12px;background:var(--bg);border:1px solid var(--border);min-width:0}
+.gp-card:not(:last-child):after{content:"\2192";position:absolute;right:-20px;top:50%;transform:translateY(-50%);
+font-size:14px;color:var(--subtle)}
+.gp-card.s-done:not(:last-child):after{color:var(--cat-green)}
+.gp-card.head{border-color:color-mix(in srgb,var(--st,var(--primary)) 55%,var(--border))}
+.gp-card.needs{border-color:var(--cat-amber);box-shadow:0 0 0 1px color-mix(in srgb,var(--cat-amber) 40%,transparent);
+background:color-mix(in srgb,var(--cat-amber) 7%,var(--bg))}
+.gp-card.needs .goal-status{color:var(--cat-amber);font-weight:620}
+.gp-card.open{outline:2px solid var(--primary);outline-offset:1px}
+/* A step opened in place: its card grows to hold it and the steps after it
+   make room (fr_fefce7acb58c). The row wraps round it: the steps before it
+   stay on their line, it takes the whole of its own, and the steps after it
+   go on underneath, the arrows into and out of it pointing down. */
+.gp-flow.has-open{flex-wrap:wrap;overflow:visible;align-items:flex-start}
+.gp-card.open{flex:1 1 100%;gap:8px}
+.gp-card.open>.gp-card-line{margin-top:0}
+@media (min-width:561px){.gp-flow.has-open>.gp-card:not(:last-child):after{top:13px;transform:none}}
+.gp-flow.has-open>.gp-card.open:not(:last-child):after,
+.gp-flow.has-open>.gp-card:has(+.gp-card.open):after{content:"\2193";right:auto;left:20px;top:auto;bottom:-21px}
+/* A tall row keeps its stream's name at the top, beside its first steps. */
+.gp-row:has(>.gp-flow.has-open)>.gp-row-head{align-content:start;padding-top:8px}
+.gp-card-top>.gp-x{margin-left:auto;width:26px;height:26px;font-size:16px}
+.gp-card>.gp-panel{margin:4px 0 0;padding:12px 0 2px;border:0;border-top:1px solid var(--border);border-radius:0;
+background:none}
+.gp-card>.gp-panel>.gp-need-title{font-size:15px}
+.gp-card.dragging{opacity:.4}
+.gp-card-top{display:flex;align-items:center;gap:6px}
+.gp-card .goal-node{width:24px;height:24px;font-size:11px}
+.gp-card-title{font:inherit;font-size:13.5px;font-weight:620;line-height:1.35;color:var(--copy);background:none;border:0;
+padding:0;text-align:left;cursor:pointer;overflow-wrap:anywhere;min-width:0}
+.gp-card-title:hover{color:var(--primary)}
+.gp-card-title:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:4px}
+.gp-card.s-done .gp-card-title{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--subtle)}
+.gp-card-line{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:auto}
+.gp-card .goal-run{font-size:11.5px}
+.gp-card .goal-status{font-size:11.5px}
+.gp-card.s-in-progress .goal-status{color:var(--primary)}
+.gp-card.s-waiting .goal-status,.gp-card.s-hollow .goal-status{color:var(--cat-amber)}
+.gp-card.s-done .goal-status{color:var(--cat-green)}
+.gp-parts{font-size:11.5px;color:var(--subtle)}
+.gp-card.s-in-progress>.gp-card-top>.goal-node{background:var(--primary);border-color:var(--primary);color:var(--on-fg);
+animation:goal-going 1.6s ease-out infinite}
+.gp-card.s-waiting>.gp-card-top>.goal-node{border-color:var(--cat-amber);color:var(--cat-amber)}
+/* A finished step's number stays as it was; the check beside it says it is done. */
+.gp-done-mark{width:24px;height:24px;border-radius:50%;box-sizing:border-box;display:grid;place-items:center;flex:none;
+font-size:12px;font-weight:700;line-height:1;background:var(--cat-green);border:1.5px solid var(--cat-green);color:var(--bg)}
+.gp-done-mark.hollow{background:none;border-color:var(--cat-amber);color:var(--cat-amber)}
+.gp-card.w-rouh:not(.s-in-progress)>.gp-card-top>.goal-node{border-color:color-mix(in srgb,var(--primary) 70%,var(--border));color:var(--primary)}
+.gp-card.rouh-done>.gp-card-top>.goal-node{color:var(--cat-amber);
+background:linear-gradient(90deg,color-mix(in srgb,var(--cat-amber) 22%,var(--bg)) 50%,var(--bg) 50%)}
+.gp-grip{width:16px;height:24px;display:grid;place-items:center;padding:0;border:0;border-radius:6px;background:none;
+color:var(--subtle);cursor:grab;touch-action:none;flex:none}
+.gp-grip svg{width:10px;height:14px;fill:currentColor}
+.gp-grip:hover,.gp-grip:focus-visible{color:var(--copy);background:var(--chip)}
+.gp-grip:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+.gp-drop{flex:0 0 3px;align-self:stretch;border-radius:2px;background:var(--primary);margin:0 -14px;list-style:none}
+.gp-drop.down{flex-basis:3px;height:3px;margin:-8px 0}
+.gp-ghost{position:fixed;z-index:60;pointer-events:none;padding:9px 12px;border-radius:12px;font-size:13.5px;
+font-weight:620;color:var(--copy);background:var(--surface);border:1px solid var(--primary);box-shadow:var(--shadow);
+overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* One step, opened under its row: what it needs and what is ready for it. */
+.gp-panel{grid-column:1/-1;display:grid;gap:12px;margin-top:12px;padding:16px 18px;border-radius:12px;min-width:0;
+background:var(--bg);border:1px solid var(--border-strong)}
+.gp-panel.k-decision,.gp-panel.k-action,.gp-panel.k-review,.gp-asking{border-color:color-mix(in srgb,var(--cat-amber) 55%,var(--border));
+background:linear-gradient(180deg,color-mix(in srgb,var(--cat-amber) 8%,var(--bg)),var(--bg) 70%)}
+.gp-asking{margin:0}
+.gp-need-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.gp-x{margin-left:auto;width:28px;height:28px;border-radius:50%;border:1px solid var(--border);background:var(--chip);
+color:var(--muted);font-size:17px;line-height:1;cursor:pointer}
+.gp-x:hover{color:var(--copy);border-color:var(--border-strong)}
+.gp-kind{padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:680;letter-spacing:.03em;
+text-transform:uppercase;color:var(--bg);background:var(--cat-amber)}
+.gp-need-title{margin:0;font-size:18px;font-weight:640;line-height:1.3;letter-spacing:-.01em;overflow-wrap:anywhere}
+.gp-need-title .snum{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--subtle);
+vertical-align:2px;margin-right:2px}
+.gp-need-words,.gp-need-when{font-size:14.5px;line-height:1.55;color:var(--copy);overflow-wrap:anywhere;max-width:90ch}
+.gp-need-words strong{color:var(--cat-amber);font-weight:640}
+.gp-need-when{font-size:13.5px;color:var(--muted)}
+.gp-need-when strong{color:var(--copy);font-weight:600}
+.gp-panel-top{display:flex;align-items:flex-start;gap:10px}
+.gp-panel-top .gp-need-title{flex:1;min-width:0;padding-top:2px}
+.gp-panel-top .gp-x{flex:none}
+/* Rouh's part and the person's, a row each (fr_e2dde690a576). */
+.gp-sides{display:grid;gap:8px;min-width:0}
+.gp-side{display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:start;gap:4px 12px;padding:11px 14px;
+border-radius:12px;background:var(--panel);border:1px solid var(--border);min-width:0}
+.gp-side.now{border-color:color-mix(in srgb,var(--cat-amber) 60%,var(--border));
+background:color-mix(in srgb,var(--cat-amber) 7%,var(--panel))}
+.gp-side>.gp-mark{margin-top:1px}
+.gp-side-main{display:grid;gap:4px;min-width:0}
+.gp-side-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.gp-side-who{font-size:13px;font-weight:680;color:var(--copy)}
+.gp-side.k-rouh .gp-side-who{color:var(--primary)}
+.gp-side-state{font-size:12px;font-weight:560;color:var(--muted)}
+.gp-side-state.s-done{color:var(--cat-green)}
+.gp-side-state.s-doing{color:var(--primary)}
+.gp-side-state.s-blocked{color:var(--cat-amber)}
+.gp-side.now .gp-side-state.s-todo{color:var(--cat-amber)}
+.gp-side.now .gp-mark.m-todo,.gx-you .gp-mark.m-todo{border-color:var(--cat-amber)}
+.gp-side-words,.gp-side-where{margin:0;font-size:14px;line-height:1.5;color:var(--copy);overflow-wrap:anywhere;max-width:80ch}
+.gp-side-where{font-size:13px;color:var(--muted)}
+.gp-options{margin:6px 0 0;padding-left:18px;font-size:13.5px;line-height:1.5;color:var(--copy);max-width:80ch}
+.gp-options li{overflow-wrap:anywhere}
+.gp-options li::marker{color:var(--cat-amber)}
+.gp-side-where strong{color:var(--copy);font-weight:600}
+.gp-steps-count.all{color:var(--cat-green)}
+.gp-side-go{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;align-self:center}
+.gp-go{display:inline-flex;align-items:center;min-height:28px;padding:3px 12px;border-radius:999px;font-size:12.5px;
+font-weight:600;white-space:nowrap;text-decoration:none;color:var(--primary);
+border:1px solid color-mix(in srgb,var(--primary) 40%,var(--border))}
+.gp-go:hover{background:color-mix(in srgb,var(--primary) 12%,transparent)}
+.gp-go.primary{color:var(--bg);background:var(--primary);border-color:var(--primary)}
+.gp-go.primary:hover{background:color-mix(in srgb,var(--primary) 85%,var(--copy))}
+.gp-go.small{min-height:22px;padding:1px 9px;font-size:11.5px}
+.gp-subs{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:5px}
+.gp-sub-row{display:grid;grid-template-columns:16px minmax(0,1fr) auto auto;align-items:center;gap:8px;font-size:13px}
+.gp-sub-row .gp-mark{width:14px;height:14px;font-size:9px;border-width:1.5px}
+.gp-sub-t{overflow-wrap:anywhere;color:var(--copy)}
+/* The icon for how a part stands: to do, doing, done, blocked. */
+.gp-mark{width:18px;height:18px;border-radius:50%;box-sizing:border-box;border:2px solid var(--border-strong);
+display:inline-grid;place-items:center;font-size:11px;font-weight:800;line-height:1;color:var(--bg);flex:none}
+.gp-mark.m-doing{border-color:var(--primary);
+background:conic-gradient(var(--primary) 0 50%,transparent 50% 100%)}
+.gp-mark.m-done{border-color:var(--cat-green);background:var(--cat-green)}
+.gp-mark.m-blocked{border-color:var(--cat-amber);background:var(--cat-amber)}
+/* Problem, Solution, Method: one line of small labels under a step's
+   title, each word's paragraph in a tooltip under it (fr_bb6210d0d47a).
+   The tooltip hangs from the line, as wide as the panel at most, so it
+   wraps and never leaves the screen. */
+.gp-more{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:4px 18px;margin:-4px 0 0}
+.gp-more-b{padding:2px 0;border:0;background:none;font:inherit;font-size:11px;font-weight:650;letter-spacing:.06em;
+text-transform:uppercase;color:var(--muted);cursor:help;text-decoration:underline dotted color-mix(in srgb,currentColor 55%,transparent);
+text-underline-offset:3px}
+.gp-more-w.k-hard .gp-more-b{color:var(--cat-amber)}
+.gp-more-w.k-fix .gp-more-b{color:var(--cat-green)}
+.gp-more-w.open .gp-more-b{text-decoration-style:solid}
+.gp-more-b:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:3px}
+.gp-more-pop{display:none;position:absolute;left:0;top:100%;z-index:20;margin-top:6px;box-sizing:border-box;
+width:max-content;max-width:min(76ch,100%);padding:11px 14px;border-radius:12px;font-size:13.5px;line-height:1.55;
+color:var(--copy);background:var(--panel);border:1px solid var(--border-strong);
+box-shadow:0 10px 30px rgba(0,0,0,.18);white-space:normal;overflow-wrap:anywhere;text-transform:none;letter-spacing:0}
+.gp-more-pop strong{margin-right:4px;font-weight:650;color:var(--muted)}
+.gp-more-w.k-hard .gp-more-pop strong{color:var(--cat-amber)}
+.gp-more-w.k-fix .gp-more-pop strong{color:var(--cat-green)}
+.gp-more-w.open .gp-more-pop,.gp-more-b:focus-visible+.gp-more-pop{display:block}
+@media (hover:hover){.gp-more-w:hover .gp-more-pop{display:block}}
+.gp-more-w.shut:not(.open) .gp-more-pop{display:none}
+/* Do it again's box, in place of the step's buttons. */
+.goal-again-box{display:grid;gap:8px;max-width:640px}
+/* A step's explainer (`objectindex.step_explainer`). */
+.gx{display:grid;gap:16px;max-width:920px}
+.gx-sec{display:grid;gap:10px;padding:16px 18px;border-radius:14px;background:var(--panel);border:1px solid var(--border);
+min-width:0}
+.gx-you{border-color:color-mix(in srgb,var(--cat-amber) 45%,var(--border))}
+.gx-h{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;font-size:18px;font-weight:650}
+.gx-h .gp-mark{margin-left:4px}
+.gx-state{font-size:12.5px;font-weight:600;color:var(--muted)}
+.gx-state.s-done{color:var(--cat-green)}
+.gx-state.s-doing{color:var(--primary)}
+.gx-state.s-blocked,.gx-you .gx-state.s-todo{color:var(--cat-amber)}
+.gx-sub{margin:6px 0 0;font-size:13px;font-weight:650;color:var(--muted)}
+.gx-p,.gx-where,.gx-when,.gx-none{margin:0;font-size:15px;line-height:1.6;color:var(--copy);overflow-wrap:anywhere;max-width:80ch}
+.gx-need{font-weight:560}
+.gx-where,.gx-when{font-size:14px}
+.gx-where strong,.gx-when strong{margin-right:6px;color:var(--muted);font-weight:600}
+.gx-where a,.gx-when a{color:var(--primary)}
+.gx-none{color:var(--muted);font-size:14px}
+.gx-doc{max-width:90ch;font-size:14.5px;line-height:1.6;overflow-wrap:anywhere}
+.gx-files{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.gx-files a{display:inline-block;font-size:12.5px;color:var(--primary);text-decoration:none;padding:4px 10px;
+border-radius:999px;border:1px solid color-mix(in srgb,var(--primary) 35%,var(--border));overflow-wrap:anywhere}
+.gx-parts{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.gx-parts li{display:grid;grid-template-columns:18px minmax(0,1fr) auto auto;align-items:center;gap:3px 10px;font-size:14px}
+.gx-part-t{overflow-wrap:anywhere}
+.gx-part-go{font-size:12.5px;color:var(--primary)}
+.gx-part-how{grid-column:2/-1;font-size:13px;color:var(--muted);line-height:1.5}
+.gx-hard{padding:12px 16px;background:var(--panel)}
+.gx-foot{margin:0;font-size:13px;color:var(--muted)}
+/* A step's How to do it page (`objectindex.step_yours`): his inputs. */
+.gy-mine .gx-h{font-size:16px}
+.gy-picks{margin:0;padding:0;border:0;display:grid;gap:6px;min-width:0}
+.gy-picks legend{padding:0 0 4px;font-size:13px;font-weight:650;color:var(--muted)}
+.gy-pick{display:flex;align-items:flex-start;gap:8px;font-size:14.5px;line-height:1.45;color:var(--copy);cursor:pointer}
+.gy-pick input{margin-top:3px;accent-color:var(--primary)}
+.gy-other{padding-left:24px}
+.gy-other textarea{width:100%;max-width:80ch;box-sizing:border-box;padding:8px 11px;border-radius:10px;border:1px solid var(--border-strong);
+background:var(--surface);color:var(--copy);font:inherit;font-size:14.5px;line-height:1.5;resize:vertical;min-height:60px}
+.gy-other textarea:focus{outline:2px solid var(--primary);outline-offset:0;border-color:var(--primary)}
+.gy-other textarea:disabled{opacity:.6}
+.gy-field{display:grid;gap:6px;font-size:13px;font-weight:650;color:var(--muted);max-width:80ch}
+.gy-field textarea{width:100%;box-sizing:border-box;padding:9px 11px;border-radius:10px;border:1px solid var(--border-strong);
+background:var(--surface);color:var(--copy);font:inherit;font-size:14.5px;font-weight:400;line-height:1.5;resize:vertical;min-height:84px}
+.gy-field textarea:focus{outline:2px solid var(--primary);outline-offset:0;border-color:var(--primary)}
+.gy-field textarea:disabled{opacity:.6}
+.gx-foot a{color:var(--primary)}
+/* His part as steps to tick (`objectindex._your_steps_html`): a ticked one
+   is struck through and dimmed, and the count and bar say how far he is. */
+.gy-steps-w{display:grid;gap:8px;max-width:80ch}
+.gy-steps-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:6px}
+.gy-steps-head .gx-sub{margin:0}
+.gy-count{font-size:12.5px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+.gy-steps-w.all-done .gy-count{color:var(--cat-green)}
+.gy-bar{height:4px;border-radius:999px;background:var(--border);overflow:hidden}
+.gy-bar span{display:block;height:100%;border-radius:inherit;background:var(--cat-green);transition:width .25s ease}
+.gy-steps{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:2px}
+.gy-step-l{display:grid;grid-template-columns:22px auto minmax(0,1fr);align-items:start;gap:0 8px;padding:7px 8px;
+margin:0 -8px;border-radius:9px;cursor:pointer;font-size:14.5px;line-height:1.5;color:var(--copy)}
+@media (hover:hover){.gy-step-l:hover{background:color-mix(in srgb,var(--copy) 5%,transparent)}}
+.gy-step-l input{appearance:none;-webkit-appearance:none;margin:1px 0 0;width:20px;height:20px;border-radius:6px;
+border:1.5px solid var(--border-strong);background:var(--surface);display:grid;place-content:center;cursor:pointer;
+transition:background .15s ease,border-color .15s ease}
+.gy-step-l input:before{content:"";width:10px;height:6px;border:solid #fff;border-width:0 0 2px 2px;
+transform:translateY(-1px) rotate(-45deg) scale(0);transition:transform .15s ease}
+.gy-step-l input:checked{background:var(--cat-green);border-color:var(--cat-green)}
+.gy-step-l input:checked:before{transform:translateY(-1px) rotate(-45deg) scale(1)}
+.gy-step-l input:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.gy-step-l input:disabled{cursor:default}
+.gy-step-l:has(input:disabled){cursor:default}
+.gy-step-n{color:var(--muted);font-variant-numeric:tabular-nums;min-width:1.4em;text-align:right}
+.gy-step-t{overflow-wrap:anywhere}
+.gy-step-t a{color:var(--primary)}
+.gy-step-t code{font-size:.9em;padding:1px 5px;border-radius:5px;background:color-mix(in srgb,var(--copy) 8%,transparent)}
+.gy-step.is-done .gy-step-n,.gy-step.is-done .gy-step-t{opacity:.5}
+.gy-step.is-done .gy-step-t{text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--copy) 45%,transparent)}
+@media (prefers-reduced-motion:reduce){.gy-bar span,.gy-step-l input,.gy-step-l input:before{transition:none}}
+/* Half a desk, beside the chat: the name over the row, its steps under it. */
+@media (max-width:980px){
+  .gp-row{grid-template-columns:minmax(0,1fr);gap:10px 14px}
+  .gp-row-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px}
+  .gp-row-head .gp-lane-name{margin-right:auto}
+  .gp-row-head .gp-lane-state{flex:1 1 calc(100% - 70px)}
+  .gp-row-head .ogs-btn{margin-top:0}
+  .gp-card{flex-basis:170px}
+}
+@media (max-width:560px){
+  .gp-row{grid-template-columns:minmax(0,1fr);gap:10px;padding:12px}
+  .gp-flow{flex-direction:column;gap:18px;overflow:visible;padding:0}
+  .gp-flow.has-open{flex-wrap:nowrap;align-items:stretch}
+  .gp-card{flex:none}
+  .gp-card:not(:last-child):after{content:"\2193";right:auto;left:20px;top:auto;bottom:-17px;transform:none}
+  .gp-drop{margin:-10px 0}
+  .gp-panel{margin-top:0;padding:14px}
+  .gp-need-title{font-size:17px}
+  .gp-side{grid-template-columns:22px minmax(0,1fr);padding:10px 12px}
+  .gp-side-go{grid-column:2;justify-content:flex-start}
+  .gp-sub-row{grid-template-columns:16px minmax(0,1fr) auto}
+  .gp-sub-row .gp-go{grid-column:2}
+  .gx-sec{padding:14px}
+  .gx-parts li{grid-template-columns:18px minmax(0,1fr) auto}
+  .gx-part-go{grid-column:2}
+}
+@media (prefers-reduced-motion:reduce){.gp-card.s-in-progress>.gp-card-top>.goal-node{animation:none}}
+/* A goal's Where it stands, above its map (`stands` in goalpage.js): its
+   state, progress, what comes next, what waits on him, Pause and Redirect,
+   and what Rouh may do for it, folded. */
+.gs{--gs:var(--primary);display:grid;gap:8px;padding:12px 16px;border-radius:12px;min-width:0;
+background:var(--bg);border:1px solid var(--border-strong);border-left:3px solid var(--gs)}
+.gs.st-you,.gs.st-asking{--gs:var(--cat-amber)}
+.gs.st-paused{--gs:var(--cat-slate);background:color-mix(in srgb,var(--cat-slate) 6%,var(--bg))}
+.gs.st-complete{--gs:var(--cat-green)}
+.gs.st-rouh,.gs.st-set{--gs:var(--cat-teal)}
+.gs-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;min-width:0}
+.gs-state{font-size:14.5px;font-weight:650;color:var(--gs)}
+.gs.st-paused .gs-state{color:var(--copy)}
+.gs-progress{font-size:13px;color:var(--muted)}
+.gs-acts{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.gs-line{font-size:13.5px;color:var(--copy);line-height:1.45;overflow-wrap:anywhere}
+.gs-k{display:inline-block;min-width:76px;margin-right:6px;font-size:11px;font-family:var(--mono);letter-spacing:.1em;
+text-transform:uppercase;color:var(--subtle)}
+.gs-step{font-size:13.5px;text-align:left;line-height:1.45;overflow-wrap:anywhere}
+.gs-need .gs-step,.gs.st-you .gs-step{color:var(--cat-amber)}
+.gs-more{font-size:12.5px;color:var(--muted);padding-left:82px}
+.gs-dir q{color:var(--copy);font-style:italic}
+.gs-steer{display:grid;gap:8px;padding-top:4px}
+.gs-hint{font-size:12px;color:var(--subtle)}
+.gs-may summary{font-size:12.5px;color:var(--muted);cursor:pointer;width:max-content;max-width:100%}
+.gs-may summary:hover{color:var(--copy)}
+.gs-rules{display:grid;grid-template-columns:max-content 1fr;gap:4px 12px;margin:8px 0 2px;font-size:13px}
+.gs-rules dt{font-weight:620;color:var(--copy)}
+.gs-rules dt.r-asks,.gs-rules dt.r-yours{color:var(--cat-amber)}
+.gs-rules dd{margin:0;color:var(--muted)}
+@media (max-width:640px){
+.gs-acts{margin-left:0;width:100%}
+.gs-k{display:block;min-width:0;margin:0 0 1px}
+.gs-more{padding-left:0}
+.gs-rules{grid-template-columns:1fr}
+.gs-rules dd{margin-bottom:6px}
+}
+/* A step that is the goal's quest's (`execBox` in goalpage.js, `rouh/questcheck.py`):
+   on its card, what its beats do next; opened, who does it, its last check, why it
+   waits, the earliest next check, and Check now. */
+.gp-card.has-exec .goal-status{font-weight:600}
+.gp-exec-label.x-ready,.gp-exec-label.x-quiet,.gp-exec-label.x-waiting{color:var(--cat-teal)}
+.gp-exec-label.x-blocked{color:var(--muted)}
+.gp-exec-label.x-queued,.gp-exec-label.x-checking{color:var(--primary)}
+.gp-exec-label.x-paused,.gp-exec-label.x-held,.gp-exec-label.x-budget,.gp-exec-label.x-cap,
+.gp-exec-label.x-ended{color:var(--cat-amber)}
+.gp-card.has-exec.x-ready,.gp-card.has-exec.x-quiet{border-color:color-mix(in srgb,var(--cat-teal) 55%,var(--border))}
+.gp-card.has-exec.x-checking>.gp-card-top>.goal-node{border-color:var(--primary);color:var(--primary);
+animation:goal-going 1.6s ease-out infinite}
+.gp-exec-line{font-size:11.5px;line-height:1.35;color:var(--muted);overflow-wrap:anywhere}
+.gp-exec-line.news{color:var(--cat-amber);font-weight:600}
+.gp-exec{display:grid;gap:10px;padding:12px 14px;border-radius:12px;min-width:0;background:var(--panel);
+border:1px solid var(--border);border-left:3px solid var(--cat-teal)}
+.gp-exec.x-blocked{border-left-color:var(--subtle)}
+.gp-exec.x-queued,.gp-exec.x-checking{border-left-color:var(--primary)}
+.gp-exec.x-paused,.gp-exec.x-held,.gp-exec.x-budget,.gp-exec.x-cap,.gp-exec.x-ended{border-left-color:var(--cat-amber)}
+.gp-exec-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
+.gp-exec-k{font-size:11px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--subtle)}
+.gp-exec-state{font-size:14px;font-weight:650;color:var(--cat-teal)}
+.gp-exec-state.x-blocked{color:var(--copy)}
+.gp-exec-state.x-queued,.gp-exec-state.x-checking{color:var(--primary)}
+.gp-exec-state.x-paused,.gp-exec-state.x-held,.gp-exec-state.x-budget,.gp-exec-state.x-cap,
+.gp-exec-state.x-ended{color:var(--cat-amber)}
+.gp-exec-facts{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 14px;margin:0;font-size:13.5px;
+line-height:1.5}
+.gp-exec-facts dt{font-weight:620;color:var(--muted)}
+.gp-exec-facts dd{margin:0;color:var(--copy);overflow-wrap:anywhere;min-width:0}
+.gp-exec-note{display:block;margin:4px 0;padding-left:10px;border-left:2px solid var(--border-strong);color:var(--muted);
+font-style:italic;white-space:pre-line;max-height:9.5em;overflow:auto}
+.gp-exec-note:before,.gp-exec-note:after{content:none}
+.gp-exec-url{display:inline-block;margin-right:10px;font-size:12.5px}
+.gp-exec-outdated{display:block;margin-top:4px;color:var(--cat-amber);font-weight:600}
+.gp-exec-why{margin:0;padding-left:18px}
+.gp-exec-why li{margin:0 0 2px}
+.gp-exec-small{display:block;font-size:12px;color:var(--subtle)}
+.gp-check{display:grid;gap:8px;padding-top:10px;border-top:1px solid var(--border)}
+.gp-check-row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px 12px}
+.gp-check-btn{flex:none}
+.gp-check-help{flex:1 1 260px;font-size:12.5px;line-height:1.45;color:var(--muted);min-width:0}
+.gp-check-once{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.45;color:var(--cat-amber)}
+.gp-check-once input{margin-top:3px;flex:none}
+.gp-check-no{margin:0;font-size:12.5px;color:var(--muted)}
+.gs-quest .gs-step{color:var(--cat-teal)}
+@media (max-width:640px){
+.gp-exec-facts{grid-template-columns:1fr}
+.gp-exec-facts dt{margin-top:4px}
+}
+@media (prefers-reduced-motion:reduce){.gp-card.has-exec.x-checking>.gp-card-top>.goal-node{animation:none}}
+.gp-exec-why li.k-deferred_outdated{color:var(--cat-amber)}
+
+/* A Slack channel linked to a task (`objectindex._slack_section`, taskpage.js):
+   one small line under the name, with Unlink at its end, and under it the
+   decisions written from it into the notes, closed until pressed, each with
+   a cross that takes it out of them. */
+.oslack{display:grid;gap:6px;margin:-8px 0 22px}
+.oslink-line{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;margin:0;
+font-size:13px;color:var(--muted)}
+.oslack-mark{flex:none;width:15px;height:15px;color:var(--cat-violet)}
+.oslink-w{flex:1 1 12em;min-width:0}
+.oslink-w a{color:var(--copy);text-decoration:none;font-weight:600}
+.oslink-w a:hover{color:var(--primary)}
+.oslink-x{flex:none;padding:3px 10px;font-size:12px}
+.osmade{margin:0 0 0 25px;font-size:13px;color:var(--muted)}
+.osmade summary{cursor:pointer;width:max-content;max-width:100%;color:var(--subtle);font-size:12.5px}
+.osmade summary:hover{color:var(--copy)}
+.osmade ul{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px}
+.osd{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-top:1px solid var(--border)}
+.osd-w{flex:1 1 auto;min-width:0;color:var(--copy);line-height:1.45;overflow-wrap:anywhere}
+.osd-day{color:var(--subtle)}
+.osd-w a{color:var(--primary);text-decoration:none;white-space:nowrap}
+.osd-w a:hover{text-decoration:underline}
+.osd .fdrop{flex:none;margin-top:-2px}
+.osd:hover .fdrop{opacity:1}
+
+/* A task's icon in front of its title, as a Notion page has one, and the
+   picker a press on it opens (`taskicon.js`, `rouh/taskicons.py`). The same
+   mark in the task browser's rows and steps and on a task's own page; a
+   picture is drawn the size an emoji is. */
+.ticon{flex:none;display:inline-grid;place-items:center;width:1.35em;height:1.35em;border-radius:5px;
+font-size:15px;line-height:1;align-self:center;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",var(--sans)}
+.ticon img{width:100%;height:100%;object-fit:cover;border-radius:4px;display:block}
+.ticon[data-task]{cursor:pointer;position:relative;z-index:1}
+.ticon[data-task]:hover{background:color-mix(in srgb,var(--copy) 12%,transparent)}
+.ticon[data-task]:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+.tline .ticon{position:relative;top:1px}
+.sub .ticon{font-size:13px;margin-right:4px}
+.sub .ticon{margin-left:2px}
+.hicon{font-size:28px;width:1.3em;height:1.3em;border-radius:8px;vertical-align:-6px;margin-right:10px}
+.otname .num + .hicon{margin-left:0}
+.shead .sicon{font-size:16px;align-self:center}
+.ticon-pick{position:fixed;z-index:70;width:352px;height:min(420px,calc(100vh - 16px));display:flex;flex-direction:column;
+background:var(--surface);border:1px solid var(--border-strong);border-radius:12px;box-shadow:var(--shadow);
+font-family:var(--sans);color:var(--copy);overflow:hidden}
+.ticon-pick.sheet{left:8px;right:8px;bottom:8px;top:auto;width:auto;height:60vh}
+.tip-top{display:flex;gap:8px;padding:10px 10px 8px;border-bottom:1px solid var(--border)}
+.tip-q{flex:1 1 auto;min-width:0;font:inherit;font-size:13.5px;color:var(--copy);background:var(--bg);
+border:1px solid var(--border);border-radius:8px;padding:6px 9px;outline:none}
+.tip-q:focus{border-color:var(--primary)}
+.tip-up{flex:none;font:inherit;font-size:12.5px;font-weight:600;color:var(--copy);background:var(--chip);
+border:1px solid var(--border-strong);border-radius:8px;padding:6px 10px;cursor:pointer;white-space:nowrap}
+.tip-up:hover{border-color:var(--primary);color:var(--primary)}
+.tip-said{margin:8px 12px 0;font-size:12.5px;color:var(--cat-amber)}
+.tip-list{position:relative;flex:1 1 auto;min-height:0;overflow-y:auto;padding:0 8px 10px;overscroll-behavior:contain}
+.tip-group{position:sticky;top:0;z-index:1;background:var(--surface);font-size:11px;font-weight:650;letter-spacing:.04em;
+text-transform:uppercase;color:var(--subtle);padding:10px 4px 4px}
+.tip-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(36px,1fr))}
+.tip-emoji{font-size:22px;line-height:1;height:38px;border:0;border-radius:7px;background:none;cursor:pointer;padding:0;
+font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",var(--sans)}
+.tip-emoji:hover,.tip-emoji:focus-visible{background:color-mix(in srgb,var(--copy) 12%,transparent);outline:none}
+.tip-none{font-size:12.5px;color:var(--subtle);margin:12px 4px}
+.tip-bar{flex:none;display:flex;gap:2px;padding:4px 6px;border-top:1px solid var(--border)}
+.tip-bar[hidden]{display:none}
+.tip-jump{flex:1 1 0;min-width:0;font-size:17px;line-height:1;height:30px;border:0;border-radius:6px;background:none;
+cursor:pointer;padding:0;opacity:.8;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",var(--sans)}
+.tip-jump:hover,.tip-jump:focus-visible{opacity:1;background:color-mix(in srgb,var(--copy) 12%,transparent);outline:none}
+
+/* The task's documents (`rouh/task_docs.py`, taskpage.js): each Google document its
+   notes link to on one line, with What changed at its end, and what changed shown
+   under the line, in place, wrapped and never cut. */
+.odoc{padding:8px 0;border-top:1px solid var(--border)}
+.odoc:first-child{border-top:0}
+.odoc-line{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;margin:0;font-size:14px}
+.odoc-name{flex:1 1 14em;min-width:0;color:var(--copy);text-decoration:none;font-weight:600;
+overflow-wrap:anywhere}
+.odoc-name:hover{color:var(--primary)}
+.odoc-kind{flex:none;font-size:12px;color:var(--subtle)}
+.odoc-what,.odoc-onpage,.odoc-cmts,.odoc-rehearse,.odoc-attach{flex:none;padding:3px 10px;font-size:12px}
+/* Attach to a meeting (night 31, `rouh/meeting_attach.py`): the meetings, one a line, under the
+   document's line, each with Attach or what became of it. */
+.odoc-said[data-by="attach"]{white-space:normal}
+.odoc-attach-head,.odoc-attach-said{margin:0 0 6px}
+.odoc-attach-said{margin:8px 0 0}
+.odoc-attach-said.bad,.odoc-attach-note.bad{color:var(--cat-rose)}
+.odoc-attach-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.odoc-attach-list li{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px}
+.odoc-attach-name{flex:1 1 12em;min-width:0;font-weight:600;overflow-wrap:anywhere}
+.odoc-attach-when,.odoc-attach-had{flex:none;font-size:12px;color:var(--subtle)}
+.odoc-attach-go{flex:none;padding:3px 12px;font-size:12px}
+.odoc-attach-note{flex:1 1 100%;font-size:12px}
+.odoc-said{margin:8px 0 0;padding:10px 12px;border-radius:8px;background:var(--panel);
+font-size:13px;line-height:1.5;color:var(--copy);white-space:pre-wrap;overflow-wrap:anywhere}
+/* Rehearse (night 27, `rouh/rehearse.py`): a deck over the whole page, one slide at a time. The
+   slide's picture and its notes side by side at a desk, the picture above the notes on a phone,
+   Previous and Next at the foot where a thumb reaches them. */
+.rh-on,.rh-on body{overflow:hidden}
+.rh{position:fixed;inset:0;z-index:60;display:grid;grid-template-rows:auto minmax(0,1fr) auto;
+background:var(--bg);color:var(--copy)}
+.rh-bar{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--border)}
+.rh-name{flex:1 1 12em;min-width:0;margin:0;font-weight:640;font-size:15px;overflow-wrap:anywhere}
+.rh-where{margin:0;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.rh-clock{margin:0;font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums;min-width:4.5ch;text-align:right}
+.rh-stop{padding:4px 12px;font-size:12.5px}
+.rh-close{width:34px;height:34px;border:0;border-radius:8px;background:none;color:var(--muted);font-size:22px;line-height:1;cursor:pointer}
+.rh-close:hover,.rh-close:focus-visible{background:var(--chip);color:var(--copy)}
+.rh-body{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;padding:18px 20px;min-height:0}
+.rh-pic{display:flex;align-items:flex-start;justify-content:center;min-height:0}
+.rh-pic img{max-width:100%;max-height:100%;border:1px solid var(--border);border-radius:8px;background:#fff}
+.rh-card{width:100%;aspect-ratio:16/9;padding:18px 20px;border:1px solid var(--border);border-radius:8px;background:var(--panel);overflow:hidden}
+.rh-card-title{margin:0 0 8px;font-weight:640;font-size:18px;overflow-wrap:anywhere}
+.rh-card-text{margin:0;font-size:13px;line-height:1.45;color:var(--muted);white-space:pre-line;overflow-wrap:anywhere}
+.rh-notes{min-height:0;overflow-y:auto;font-size:21px;line-height:1.55;overflow-wrap:anywhere}
+.rh-notes p{margin:0 0 14px}
+.rh-none{color:var(--subtle);font-style:italic;font-size:16px}
+.rh-foot{display:flex;align-items:center;gap:12px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--border)}
+.rh-prev,.rh-next{padding:10px 22px;font-size:15px;min-width:7em}
+.rh-next{margin-left:auto}
+.rh-open{font-size:13px;color:var(--primary);text-align:center;flex:1 1 auto}
+.rh-end{grid-column:1/-1;max-width:40em;font-size:16px;line-height:1.5}
+.rh-end p{margin:0 0 10px}
+.rh-end-head{font-size:22px;font-weight:640}
+.rh-end-sub{color:var(--muted);font-size:14px;margin-bottom:4px!important}
+.rh-end-list{margin:0 0 14px;padding-left:22px;font-size:15px}
+.rh-end-list a{color:var(--primary)}
+.rh-again{padding:8px 18px;font-size:14px}
+@media (max-width:700px){
+.rh-body{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr);gap:12px;padding:12px 16px}
+.rh-pic{max-height:30vh}
+.rh-pic img{max-height:30vh}
+.rh-card{max-height:30vh}
+.rh-notes{font-size:19px}
+.rh-open{font-size:12px}
+.rh-prev,.rh-next{min-width:6em;padding:12px 16px}
+}
+/* Add a document (night 23, `rouh/task_docs.py`): a link pasted under the list. */
+/* Comments on the task's documents (night 26, `rouh/task_comments.py`): the open comments under
+   a document's line, each with a link to it, and Have a job apply them. */
+.odoc-cmts-list{margin:8px 0 0;padding:10px 12px;border-radius:8px;background:var(--panel);font-size:13.5px}
+.odoc-cmts-list ol{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.odoc-cmt+.odoc-cmt{padding-top:12px;border-top:1px solid var(--border)}
+.odoc-cmt p{margin:0}
+.odoc-cmt-head{font-size:12.5px;color:var(--muted)}
+.odoc-cmt-head b{color:var(--copy);font-weight:600}
+.odoc-cmt-on{margin-top:4px!important;font-style:italic;color:var(--muted);overflow-wrap:anywhere}
+.odoc-cmt-words{margin-top:4px!important;color:var(--copy);line-height:1.45;overflow-wrap:anywhere;white-space:pre-line}
+.odoc-cmt-open{display:inline-block;margin-top:4px;font-size:12.5px;color:var(--primary)}
+.odoc-cmts-apply{margin-top:12px;padding:5px 12px;font-size:12.5px}
+.odoc-cmts-said{margin:8px 0 0;font-size:13px;color:var(--muted)}
+.odoc-cmts-said.bad{color:var(--cat-rose)}
+.odoc-add{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 0 2px;max-width:72ch;font-size:15px;
+border-top:1px solid var(--border)}
+.odocs .rows:empty+.odoc-add{border-top:0}
+.odoc-add-link{flex:1 1 16em;min-width:0;font:inherit;font-size:14px;color:var(--copy);
+background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:7px 10px}
+.odoc-add-link:focus{outline:none;border-color:var(--primary)}
+.odoc-add-go{flex:none;padding:6px 14px}
+.odoc-add-said{flex:1 0 100%;margin:0;font-size:13px;color:var(--muted)}
+.odoc-add-said.bad{color:var(--cat-rose)}
+
+/* To send from your mail (night 24, `rouh/to_send.py`, taskpage.js): a reply the task drafted
+   for the person to send themselves, with Write it in Gmail; let go, it is dimmed with Undo. */
+.oopen-note{margin:0 0 6px;font-size:12.5px;color:var(--subtle)}
+.oopen{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;padding:9px 0;border-top:1px solid var(--border)}
+.oopen:first-child{border-top:0}
+.oopen-what{margin:0;flex:1 1 280px;font-size:14px;color:var(--copy);overflow-wrap:anywhere}
+.oopen.closed .oopen-what{text-decoration:line-through;color:var(--subtle)}
+.oopen-acts{display:flex;align-items:center;gap:8px;margin:0}
+.oopen-said{font-size:12.5px;color:var(--subtle)}
+.otime-due{margin:0 0 8px;font-size:14px;color:var(--copy);overflow-wrap:anywhere}
+.otime-acts{margin:0 0 6px}
+.otime-line{margin:6px 0;font-size:13px;color:var(--copy)}
+.otime-line.bad{color:var(--cat-rose)}
+.otime-gaps{list-style:none;margin:6px 0 0;padding:0}
+.otime-gaps li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:7px 0;border-top:1px solid var(--border)}
+.otime-gaps li:first-child{border-top:0}
+.otime-when{flex:1 1 220px;font-size:13.5px;color:var(--copy)}
+.otime-gaps li .otime-line{flex-basis:100%;margin:0}
+.otime-done{font-size:12.5px;color:var(--subtle)}
+.otime-open{font-size:12.5px}
+.osend{padding:10px 0;border-top:1px solid var(--border)}
+.osend:first-child{border-top:0}
+.osend-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;margin:0;font-size:14px}
+.osend-what{font-weight:600;color:var(--copy);overflow-wrap:anywhere}
+.osend-about{font-size:12.5px;color:var(--subtle);overflow-wrap:anywhere}
+.osend-draft{margin:6px 0 0;font-size:13px}
+.osend-draft summary{cursor:pointer;color:var(--muted)}
+.osend-draft pre{margin:6px 0 0;padding:10px 12px;border-radius:8px;background:var(--panel);
+font:inherit;line-height:1.5;color:var(--copy);white-space:pre-wrap;overflow-wrap:anywhere}
+.osend-acts{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0 0}
+.osend-acts .obtn{display:inline-flex;align-items:center;box-sizing:border-box;min-height:32px;padding:0 12px;
+font-size:13px;line-height:1;text-decoration:none}
+.osend-said{font-size:12.5px;color:var(--muted)}
+.osend.let-go .osend-line,.osend.let-go .osend-draft,.osend.let-go .osend-write,
+.osend.let-go .osend-open{opacity:.45}
+
+/* Demo mode (`rouh/demo.py`): a purple dot beside a task or a step approved for the audience,
+   drawn only while demo mode or its preview is on, and Shown in demo, which lists them. */
+.demo-dot {
+  display: inline-block; flex: 0 0 auto; width: 7px; height: 7px; margin: 0 2px 1px 6px;
+  border-radius: 50%; background: #b57bff; vertical-align: middle;
+  box-shadow: 0 0 0 2px rgba(181, 123, 255, 0.22);
+}
+.chip.demo .demo-dot { margin: 0 6px 1px 0; }
+
+/* Demo mode's eye at the end of a task's line (`demoButton`): always there in demo mode, purple
+   while the task is shown. */
+.demo-eye{display:inline-grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:8px;
+  background:transparent;color:var(--dim, #8d9aac);cursor:pointer}
+.demo-eye .ic{width:17px;height:17px}
+.demo-eye:hover{background:rgba(181,123,255,.14);color:#e7ecf3}
+.demo-eye.on{color:#b57bff}

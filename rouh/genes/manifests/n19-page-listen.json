@@ -1,0 +1,44 @@
+{
+  "id": "n19-page-listen",
+  "name": "Listen to this page",
+  "title": "Listen to this page: a narration that walks you through the page showing, told in Rouh's voice from the first part while the rest is written, kept with its voice so it is never made twice, from the speaker in the page's floating control, with controls, and a press on any part to listen from there",
+  "aliases": [
+    "read aloud",
+    "read it to me",
+    "listen",
+    "text to speech",
+    "listen to page",
+    "narrate this page",
+    "walk me through this page"
+  ],
+  "group": "work",
+  "route": "/tasks",
+  "icon": "<path d=\"M4.5 9.5h3l4.5-4v13l-4.5-4h-3z\"/><path d=\"M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "lab",
+  "switch": "page_listen",
+  "signals": {
+    "events": {
+      "listened": "You pressed Listen in a page's floating control",
+      "jumped": "You pressed a part of a page while listening, to listen from there"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the words of the page of your workspace that is showing, as your browser draws it, when you press Listen on it",
+      "asks the model the Models page has for Narrating a page to write its narration, once for each page as it is",
+      "sends each part of the narration to ElevenLabs to be said in Rouh's voice, once: the sound is kept"
+    ],
+    "accounts": [],
+    "tables": [],
+    "jobs": [],
+    "remove": "Turn the switch page_listen off on its row in Evolution, Mutations, and the speaker is gone from every page's floating control; to remove it for good revert night 19's commit and mutation requests 6's and 7's (the on_text pieces in rouh/llm.py, rouh/page_listen.py, rouh/web/page_listen.py and its route in rouh/project/urls.py, rouh/static/askai/listen.js and listen.css, the listen flag in askai.drawer_head and views.py, the /api/listen line in cards.js's relay, the Listen button in comments.js's dock and comments.css, the use page_listen in rouh/modeldefaults.py and rouh/model_standard.json, the stand-in in rouh/testing/fake_model.py, this manifest); the kept narrations and their voice are files under the data folder's page_listen/."
+  }
+}

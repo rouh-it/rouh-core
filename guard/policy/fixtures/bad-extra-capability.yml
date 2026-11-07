@@ -1,0 +1,3 @@
+services:
+  worker:
+    cap_add: [SYS_ADMIN]

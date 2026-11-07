@@ -1,0 +1,287 @@
+/* One decision, the one way it is drawn everywhere (`decision.js`).
+
+   Put into Rouh's page and into the sandboxed task pages alike, so it reads
+   either page's tokens - Rouh's (`--line`, `--text`, `--accent`) or the task
+   pages' (`--border`, `--copy`, `--primary`) - and needs nothing else. The
+   rail on the left says how soon it matters; a risk it carries is named in
+   amber, and confirming one is the only red on it. */
+
+.dq {
+  --dq-bg: var(--panel, #12161c);
+  --dq-bg-2: var(--panel-2, var(--chip, #171c24));
+  --dq-line: var(--line, var(--border, #232a34));
+  --dq-text: var(--text, var(--copy, #e7ecf3));
+  --dq-dim: var(--dim, var(--subtle, #8d9aac));
+  --dq-accent: var(--accent, var(--primary, #5ec2ff));
+  --dq-ink: var(--accent-ink, var(--on-fg, #04121c));
+  --dq-good: var(--good, #57d9a3);
+  --dq-warn: var(--warn, #f2b45e);
+  --dq-bad: var(--bad, #ff7a70);
+  --dq-rail: var(--dq-line);
+  position: relative;
+  display: grid;
+  /* One track no wider than the card: an auto track grows to its widest unbreakable child
+     (the one-line context link), which ran every row past the card's edge on a phone. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px 18px 14px 20px;
+  border: 1px solid var(--dq-line);
+  border-radius: 14px;
+  background: var(--dq-bg);
+  color: var(--dq-text);
+  font-family: var(--sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  line-height: 1.45;
+  outline: none;
+  min-width: 0;
+}
+.dq::before {
+  content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--dq-rail);
+}
+.dq.dq-u-now { --dq-rail: var(--dq-bad); }
+.dq.dq-u-today { --dq-rail: var(--dq-warn); }
+.dq.dq-u-soon { --dq-rail: var(--dq-accent); }
+.dq:focus-visible, .dq.dq-focus { border-color: var(--dq-accent); box-shadow: 0 0 0 1px var(--dq-accent); }
+.dq.dq-busy { opacity: .85; }
+.dq.dq-context { padding: 14px 16px 12px 18px; }
+.dq :focus-visible { outline: 2px solid var(--dq-accent); outline-offset: 2px; }
+
+.dq-head { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--dq-dim); }
+/* Its number: what the person says to name it ("Decision 42"), first on the card. */
+.dq-number {
+  display: inline-flex; align-items: center; flex: none; padding: 1px 7px; border-radius: 6px;
+  font-size: 12.5px; font-weight: 700; line-height: 1.5; font-variant-numeric: tabular-nums;
+  color: var(--dq-text, var(--text, #e7ecf3));
+  background: var(--dq-bg-2, var(--panel-2, #171c24));
+  border: 1px solid var(--dq-line, var(--line, #232a34)); user-select: all;
+}
+.dq-line > .dq-number { margin-top: 1px; color: var(--dim, var(--subtle, #8d9aac)); font-weight: 600; }
+.dq-src { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--dq-text); }
+.dq-src svg { width: 16px; height: 16px; flex: none; color: var(--dq-accent); }
+.dq-ctx { color: var(--dq-dim); text-decoration: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46ch; }
+a.dq-ctx:hover { color: var(--dq-text); text-decoration: underline; }
+.dq-pills { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dq-pill { font-size: 11.5px; font-weight: 650; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--dq-line); white-space: nowrap; }
+.dq-pill-now { color: var(--dq-bad); border-color: color-mix(in srgb, var(--dq-bad) 45%, transparent); }
+.dq-pill-today { color: var(--dq-warn); border-color: color-mix(in srgb, var(--dq-warn) 45%, transparent); }
+.dq-pill-risk { color: var(--dq-warn); background: color-mix(in srgb, var(--dq-warn) 12%, transparent); border-color: color-mix(in srgb, var(--dq-warn) 40%, transparent); }
+.dq-age { font-size: 12px; }
+
+.dq-body { display: grid; gap: 6px; min-width: 0; }
+.dq-title { font-size: 13px; color: var(--dq-dim); font-weight: 600; }
+.dq-q { margin: 0; font-size: 17px; font-weight: 620; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.dq-context .dq-q { font-size: 16px; }
+.dq-why { margin: 0; color: var(--dq-dim); font-size: 14px; overflow-wrap: anywhere; }
+/* Decided by, or for, somebody Petar gave authority (`rouh/delegation.py`). */
+.dq-delegate { margin: 0; font-size: 13.5px; color: var(--dq-text, inherit); overflow-wrap: anywhere;
+  padding: 6px 10px; border-left: 3px solid var(--dq-accent, currentColor); border-radius: 4px;
+  background: color-mix(in srgb, var(--dq-accent, currentColor) 8%, transparent); }
+.dq-delegate-words { font-style: italic; color: var(--dq-dim); }
+.dq-delegate-why { color: var(--dq-dim); }
+
+/* What the sender already had, then what a yes does in the order it happens (a message's
+   A, B and C): each a fold of its own, closed, under the answers. */
+.dq-parts { display: grid; gap: 6px; font-size: 13.5px; min-width: 0; }
+.dq-part { border: 1px solid var(--dq-line); border-radius: 10px; background: var(--dq-bg-2); min-width: 0; }
+.dq-part-sum { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 9px; padding: 8px 12px; cursor: pointer; list-style: none; }
+.dq-part-sum::-webkit-details-marker { display: none; }
+.dq-part-sum::before { content: "›"; color: var(--dq-dim); width: 8px; font-size: 16px; line-height: 1; transition: transform .12s; }
+.dq-part[open] > .dq-part-sum::before { transform: rotate(90deg); }
+.dq-part-key {
+  display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex: none;
+  border-radius: 50%; font-size: 11.5px; font-weight: 700; color: var(--dq-text);
+  background: color-mix(in srgb, var(--dq-warn) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--dq-warn) 50%, var(--dq-line));
+}
+.dq-part-label { font-weight: 640; color: var(--dq-text); }
+.dq-part-hint { color: var(--dq-dim); font-size: 12.5px; min-width: 0; overflow-wrap: anywhere; }
+.dq-part-body, .dq-sent { padding: 0 12px 10px 29px; margin: 0; display: grid; gap: 4px; min-width: 0; }
+.dq-sent { list-style: none; gap: 10px; }
+.dq-part-when { display: block; color: var(--dq-dim); font-size: 12.5px; overflow-wrap: anywhere; }
+.dq-part-text { margin: 2px 0 0; color: var(--dq-text); overflow-wrap: anywhere; white-space: pre-wrap; }
+.dq-part-none { margin: 2px 0 0; color: var(--dq-dim); font-style: italic; }
+.dq-part-files { margin: 4px 0 0; color: var(--dq-dim); font-size: 12.5px; overflow-wrap: anywhere; }
+
+.dq-prep { border: 1px solid var(--dq-line); border-radius: 10px; background: var(--dq-bg-2); padding: 0 12px; font-size: 13.5px; }
+.dq-prep summary { cursor: pointer; padding: 8px 0; color: var(--dq-dim); font-weight: 600; }
+.dq-prep ul { margin: 0 0 10px; padding-left: 18px; display: grid; gap: 4px; }
+.dq-prep a { color: var(--dq-accent); }
+.dq-prep-text { margin: 4px 0 0; white-space: pre-wrap; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; color: var(--dq-dim); max-height: 220px; overflow: auto; }
+
+/* What he already said in a chat that answers it (`rouh/answered_in_chat.py`), above the answers. */
+.dq-said { display: grid; gap: 7px; padding: 10px 12px; border-radius: 10px; font-size: 13.5px; min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--dq-good) 34%, var(--dq-line));
+  background: color-mix(in srgb, var(--dq-good) 6%, var(--dq-bg-2)); }
+.dq-said-head { display: flex; align-items: center; gap: 7px; font-weight: 650; color: var(--dq-text); }
+.dq-said-i { width: 16px; height: 16px; flex: none; color: var(--dq-good); }
+.dq-said-where { margin: 0; color: var(--dq-dim); overflow-wrap: anywhere; }
+.dq-said-chat { color: var(--dq-text); text-decoration: none; border-bottom: 1px solid var(--dq-line); }
+.dq-said-chat:hover { border-bottom-color: currentColor; }
+.dq-said-quote { margin: 0; padding: 2px 0 2px 10px; border-left: 3px solid color-mix(in srgb, var(--dq-good) 55%, transparent);
+  color: var(--dq-text); white-space: pre-wrap; overflow-wrap: anywhere; font-style: italic; }
+.dq-said-gives, .dq-said-why { margin: 0; color: var(--dq-dim); overflow-wrap: anywhere; }
+.dq-said-gives strong { color: var(--dq-text); font-weight: 650; }
+.dq-said-why { font-size: 12.5px; }
+.dq-said-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 2px; }
+
+.dq-rec { margin: 0; display: flex; gap: 8px; align-items: flex-start; font-size: 14px; color: var(--dq-dim);
+  padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--dq-accent) 8%, transparent); }
+.dq-rec strong { color: var(--dq-text); font-weight: 650; }
+.dq-rec-i { width: 16px; height: 16px; flex: none; margin-top: 2px; color: var(--dq-accent); }
+
+.dq-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+.dq-opt {
+  display: grid; gap: 3px; align-content: start; text-align: left; min-height: 48px; padding: 10px 14px;
+  border: 1px solid var(--dq-line); border-radius: 11px; background: var(--dq-bg-2); color: var(--dq-text);
+  font: inherit; cursor: pointer; transition: border-color .12s, background .12s;
+}
+.dq-opt:hover:not(:disabled) { border-color: var(--dq-accent); background: color-mix(in srgb, var(--dq-accent) 7%, var(--dq-bg-2)); }
+.dq-opt:disabled { cursor: default; opacity: .6; }
+.dq-opt.dq-opt-rec { border-color: color-mix(in srgb, var(--dq-accent) 60%, var(--dq-line)); }
+.dq-opt[aria-pressed="true"] { border-color: var(--dq-accent); background: color-mix(in srgb, var(--dq-accent) 16%, var(--dq-bg-2)); }
+/* A link among the answers, such as a mail case's "Open the case": it opens, it answers nothing. */
+a.dq-opt.dq-opt-link { text-decoration: none; color: inherit; border-style: dashed; }
+a.dq-opt.dq-opt-link .dq-opt-label { color: var(--dq-accent); }
+.dq-opt-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dq-opt-label { font-weight: 640; font-size: 15px; overflow-wrap: anywhere; }
+.dq-opt-tag { margin-left: auto; font-size: 11px; font-weight: 650; color: var(--dq-accent); white-space: nowrap; }
+.dq-opt-detail { font-size: 13px; color: var(--dq-dim); overflow-wrap: anywhere; }
+/* An answer with more to read about it: its button, and the fold below it, as one tile. */
+.dq-optw { display: grid; align-content: start; min-width: 0; border: 1px solid var(--dq-line); border-radius: 11px;
+  background: var(--dq-bg-2); transition: border-color .12s; }
+.dq-optw:hover { border-color: color-mix(in srgb, var(--dq-accent) 55%, var(--dq-line)); }
+.dq-optw > .dq-opt { border: 0; border-radius: 11px 11px 0 0; background: transparent; }
+.dq-optw > .dq-opt:hover:not(:disabled) { background: color-mix(in srgb, var(--dq-accent) 7%, transparent); }
+.dq-more { border-top: 1px solid var(--dq-line); min-width: 0; }
+.dq-more-sum { display: flex; align-items: center; gap: 7px; padding: 8px 14px; cursor: pointer; list-style: none;
+  font-size: 12.5px; font-weight: 600; color: var(--dq-dim); }
+.dq-more-sum::-webkit-details-marker { display: none; }
+.dq-more-sum::before { content: "›"; width: 8px; font-size: 16px; line-height: 1; transition: transform .12s; }
+.dq-more[open] > .dq-more-sum::before { transform: rotate(90deg); }
+.dq-more-sum:hover { color: var(--dq-text); }
+.dq-more-body { display: grid; gap: 8px; padding: 0 14px 12px; min-width: 0; }
+.dq-more-photo { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; background: var(--dq-bg); }
+.dq-more-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 10px; margin: 0; font-size: 13px; }
+.dq-more-facts dt { color: var(--dq-dim); }
+.dq-more-facts dd { margin: 0; overflow-wrap: anywhere; }
+.dq-more-link { justify-self: start; font-size: 13px; color: var(--dq-accent); }
+.dq-key { font-family: var(--mono, ui-monospace, monospace); font-size: 10.5px; color: var(--dq-dim); border: 1px solid var(--dq-line); border-radius: 4px; padding: 0 5px; line-height: 16px; }
+.dq-send-picked { justify-self: start; }
+
+.dq-other { display: grid; gap: 6px; }
+.dq-other-open { justify-self: start; }
+.dq-other textarea {
+  width: 100%; box-sizing: border-box; min-height: 64px; resize: none; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--dq-line); background: var(--dq-bg-2); color: var(--dq-text); font: inherit; font-size: 15px;
+}
+.dq-other textarea:focus { outline: none; border-color: var(--dq-accent); }
+.dq-other-row { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.dq-hint { font-size: 12px; color: var(--dq-dim); margin-right: auto; }
+
+.dq-confirm {
+  display: grid; grid-template-columns: auto 1fr; gap: 8px 10px; align-items: start;
+  padding: 12px 14px; border-radius: 11px; border: 1px solid color-mix(in srgb, var(--dq-warn) 55%, transparent);
+  background: color-mix(in srgb, var(--dq-warn) 10%, var(--dq-bg));
+}
+.dq-confirm-i { width: 20px; height: 20px; color: var(--dq-warn); margin-top: 1px; }
+.dq-confirm-text { font-size: 14.5px; display: grid; gap: 2px; }
+.dq-confirm-which { color: var(--dq-dim); font-size: 13px; }
+.dq-confirm-row { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* The small ones it holds, one by one: a row each, its words on the left and its own
+   answers on the right (under it, on a phone). */
+.dq-items { border: 1px solid var(--dq-line); border-radius: 10px; background: var(--dq-bg-2); padding: 0 12px; min-width: 0; }
+.dq-items-sum { cursor: pointer; padding: 9px 0; color: var(--dq-dim); font-weight: 600; font-size: 13.5px; display: flex; gap: 8px; align-items: center; }
+.dq-items-n { font-size: 11.5px; font-weight: 650; padding: 0 7px; border-radius: 999px; border: 1px solid var(--dq-line); }
+.dq-item-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.dq-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: start; padding: 10px 0; border-top: 1px solid var(--dq-line); }
+.dq-item.dq-item-picked .dq-item-label { color: var(--dq-accent); }
+.dq-item-main { display: grid; gap: 3px; min-width: 0; }
+.dq-item-label { font-size: 14px; font-weight: 620; overflow-wrap: anywhere; }
+.dq-item-side, .dq-item-why, .dq-item-detail { margin: 0; font-size: 13px; color: var(--dq-dim); overflow-wrap: anywhere; min-width: 0; }
+.dq-item-side-l { font-weight: 600; color: var(--dq-text); margin-right: 6px; }
+a.dq-item-side-l { color: var(--dq-accent); text-decoration: none; }
+a.dq-item-side-l:hover { text-decoration: underline; }
+.dq-item-text { cursor: pointer; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; white-space: pre-line; }
+.dq-item-text.dq-item-whole { display: block; -webkit-line-clamp: unset; line-clamp: none; }
+.dq-item-picks { display: flex; gap: 6px; flex-wrap: wrap; }
+.dq-ipick[aria-pressed="true"] { border-color: var(--dq-accent); background: color-mix(in srgb, var(--dq-accent) 18%, var(--dq-bg-2)); color: var(--dq-text); }
+.dq-ipick-reject[aria-pressed="true"] { border-color: var(--dq-warn); background: color-mix(in srgb, var(--dq-warn) 16%, var(--dq-bg-2)); }
+.dq-items-more { margin: 4px 0 2px; }
+.dq-items-send { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 0 12px; border-top: 1px solid var(--dq-line); }
+.dq-items-hint { margin: 0; }
+.dq-pill-items { color: var(--dq-dim); }
+.dq-state-stale { color: var(--dq-dim); border: 1px dashed var(--dq-line); }
+.dq-state-partly { color: var(--dq-dim); }
+.dq-state-back { border: 1px solid color-mix(in srgb, var(--dq-accent) 40%, transparent); }
+
+.dq-then { margin: 0; font-size: 13px; color: var(--dq-dim); }
+.dq-then::before { content: "Then: "; font-weight: 650; color: var(--dq-text); }
+
+.dq-foot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; border-top: 1px solid var(--dq-line); padding-top: 10px; }
+.dq-later { position: relative; }
+.dq-later-menu {
+  position: absolute; z-index: 5; bottom: calc(100% + 6px); left: 0; display: grid; min-width: 180px; padding: 4px;
+  border: 1px solid var(--dq-line); border-radius: 10px; background: var(--dq-bg); box-shadow: 0 12px 30px rgba(0,0,0,.45);
+}
+.dq-later-item { justify-content: flex-start; border: 0; background: transparent; }
+.dq-go { margin-left: auto; }
+
+.dq-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 12px;
+  border-radius: 9px; border: 1px solid var(--dq-line); background: var(--dq-bg-2); color: var(--dq-text);
+  font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;
+}
+.dq-btn:hover:not(:disabled) { border-color: var(--dq-accent); }
+.dq-btn:disabled { opacity: .55; cursor: default; }
+.dq-btn.primary { background: var(--dq-accent); border-color: var(--dq-accent); color: var(--dq-ink); }
+.dq-btn.danger { background: var(--dq-warn); border-color: var(--dq-warn); color: #1d1405; }
+.dq-btn.ghost { background: transparent; border-color: transparent; color: var(--dq-dim); }
+.dq-btn.ghost:hover:not(:disabled) { color: var(--dq-text); border-color: var(--dq-line); }
+.dq-btn.small { min-height: 28px; padding: 3px 10px; font-size: 12.5px; }
+
+.dq-state { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; font-size: 14px; padding: 10px 12px;
+  border-radius: 10px; background: var(--dq-bg-2); }
+.dq-state .dq-btn { margin-left: auto; }
+.dq-state-answered, .dq-state-applying { border: 1px solid color-mix(in srgb, var(--dq-accent) 40%, transparent); }
+.dq-state-applied { border: 1px solid color-mix(in srgb, var(--dq-good) 40%, transparent); }
+.dq-state-applied strong { color: var(--dq-good); }
+.dq-state-failed { border: 1px solid color-mix(in srgb, var(--dq-bad) 45%, transparent); color: var(--dq-text); }
+.dq-state-snoozed { color: var(--dq-dim); }
+.dq-going, .dq-result { color: var(--dq-dim); }
+.dq-error { margin: 0; color: var(--dq-bad); font-size: 13.5px; }
+
+.dq.dq-applied, .dq.dq-dismissed, .dq.dq-withdrawn, .dq.dq-expired { --dq-rail: var(--dq-line); }
+
+/* The history: one line each. */
+.dq-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.dq-line { display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px; border-radius: 10px; }
+.dq-line:hover { background: color-mix(in srgb, var(--panel-2, #171c24) 70%, transparent); }
+.dq-line .dq-src svg { width: 16px; height: 16px; color: var(--dim, #8d9aac); margin-top: 2px; }
+.dq-line-main { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.dq-line-q { font-size: 14px; overflow-wrap: anywhere; }
+.dq-line-meta, .dq-line-result { font-size: 12.5px; color: var(--dim, var(--subtle, #8d9aac)); overflow-wrap: anywhere; }
+
+/* The number keys answer from a keyboard; a phone has none to press. */
+@media (pointer: coarse) { .dq-key { display: none; } }
+
+@media (max-width: 560px) {
+  .dq { padding: 14px 14px 12px 16px; gap: 10px; }
+  .dq-q { font-size: 16px; }
+  .dq-opts { grid-template-columns: 1fr; }
+  .dq-opt { min-height: 52px; }
+  .dq-btn { min-height: 44px; }
+  .dq-btn.small { min-height: 40px; }
+  .dq-ctx { max-width: 100%; }
+  .dq-go { margin-left: 0; }
+  .dq-other textarea { font-size: 16px; }
+  .dq-hint { display: none; }
+  .dq-items-hint { display: inline; }
+  .dq-item { grid-template-columns: minmax(0, 1fr); }
+  .dq-items { padding: 0 10px; }
+  /* A history line's buttons go under its words, so the words keep the width. */
+  .dq-line { flex-wrap: wrap; row-gap: 4px; }
+  .dq-line-main { flex: 1 1 calc(100% - 100px); }
+  .dq-line-main + .dq-btn { margin-left: auto; }
+}
+a.dq-btn { text-decoration: none; }

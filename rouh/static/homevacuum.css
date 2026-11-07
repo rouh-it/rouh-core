@@ -1,0 +1,59 @@
+/* Home, Vacuum (`homevacuum.js`): the robot vacuum's card, in the Home page's own components
+   (`homepage.css`: hm-head, hm-card, hm-top, hm-chip, hm-sub), tinted blue while it cleans or
+   heads home, amber while paused and red on an error. Its own: the battery, the rows of buttons
+   and of settings, and the error line. */
+
+.hv-card { max-width: 640px; gap: 10px; }
+.hv-icon { color: var(--dim); }
+.hv-card[data-on] .hv-icon { color: #0b1a26; }
+.hv-battery { flex: 0 0 auto; margin-left: auto; display: inline-flex; align-items: center; gap: 4px;
+  font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
+.hv-battery svg { color: var(--dim); }
+.hv-battery.low svg, .hv-battery.low { color: var(--warn); }
+.hv-error { margin: 0; color: var(--bad, #ff6b5f); font-size: 13.5px; line-height: 1.4; }
+.hv-card[data-kind="error"] .hv-error { color: var(--text); font-weight: 500; }
+.hv-notice { margin: 0; color: var(--dim); font-size: 13px; line-height: 1.4; }
+.hv-alert:empty, .hv-rooms:empty, .hv-settings:empty, .hv-acts:empty, .hv-line:empty, .hv-base:empty,
+.hv-parts:empty { display: none; }
+.hv-alert .hm-line { margin: 0; }
+
+.hv-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.hv-section .ctl.small.hv-act { min-height: 36px; padding: 0 16px; border-radius: 999px; font-size: 13px; color: var(--text);
+  background: var(--panel-2); border: 1px solid var(--line); }
+.hv-section .ctl.small.hv-act:hover:not(:disabled) { border-color: var(--dim); }
+.hv-section .ctl.small.hv-act:disabled { color: var(--dim); opacity: 0.5; }
+.hv-section .ctl.small.hv-act.primary { background: var(--text); border-color: var(--text); color: var(--bg); font-weight: 600; }
+.hv-section .ctl.small.hv-act[aria-busy="true"], .hv-chips .hm-chip[aria-busy="true"] { opacity: 1; cursor: progress;
+  animation: hv-pulse 1.1s ease-in-out infinite; }
+@keyframes hv-pulse { 50% { opacity: 0.55; } }
+
+.hv-rooms, .hv-settings { display: grid; gap: 8px; }
+.hv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.hv-chips .hm-chip:disabled { cursor: default; }
+.hv-setting { display: grid; grid-template-columns: 72px 1fr; align-items: center; gap: 8px; }
+.hv-label { font-size: 13px; color: var(--dim); }
+
+@media (pointer: coarse) {
+  .hv-section .ctl.small.hv-act { min-height: 42px; padding: 0 18px; }
+}
+@media (max-width: 480px) {
+  .hv-setting { grid-template-columns: 1fr; gap: 4px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hv-section .ctl.small.hv-act[aria-busy="true"], .hv-chips .hm-chip[aria-busy="true"] { animation: none; }
+}
+
+/* The base, and the brushes and filter, closed until pressed. */
+.hv-base { display: grid; gap: 8px; }
+.hv-facts { margin: 0; font-size: 13px; color: var(--text); line-height: 1.5; }
+.hv-warn { color: var(--warn); }
+.hv-more > summary { cursor: pointer; list-style-position: inside; min-height: 32px; display: flex; align-items: center; gap: 6px; }
+.hv-more > summary::-webkit-details-marker { display: none; }
+.hv-more > summary::before { content: ""; width: 7px; height: 7px; border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor; transform: rotate(-45deg); transition: transform 200ms ease; }
+.hv-more[open] > summary::before { transform: translateY(-2px) rotate(45deg); }
+.hv-more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+ul.hv-partlist { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; max-width: 360px; }
+ul.hv-partlist li { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.hv-left { color: var(--dim); font-variant-numeric: tabular-nums; }
+ul.hv-partlist li.hv-warn .hv-left { color: var(--warn); }

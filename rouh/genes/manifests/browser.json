@@ -1,0 +1,49 @@
+{
+  "id": "browser",
+  "name": "Live browser",
+  "title": "Watch the browser Rouh is using, and take it over",
+  "aliases": [
+    "browser",
+    "live browser",
+    "chrome",
+    "take over",
+    "web",
+    "errand"
+  ],
+  "group": "now",
+  "route": "/browser",
+  "icon": "<rect x=\"3\" y=\"4.5\" width=\"18\" height=\"15\" rx=\"2.5\"/><path d=\"M3 9h18\"/><circle cx=\"6.2\" cy=\"6.8\" r=\"0.6\"/><circle cx=\"8.6\" cy=\"6.8\" r=\"0.6\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 30,
+    "opens": "own",
+    "row": "webRow",
+    "while": "browser-open",
+    "marks": [
+      {
+        "id": "webRowWho",
+        "class": "sb-web-who"
+      }
+    ]
+  },
+  "touches": {
+    "permissions": [
+      "drives a real browser for errands; never types a password, a code or a card number, and never presses the button that books, sends or submits; presses the button that buys only for an order the person asked for in their own words, after checking the page's total against the card's caps and the delivery address against their shipping options, and at a shop that takes the card after its order button, presses it first and pays on the payment page the shop sends it to, telling them plainly of any order left unpaid (rouh/purchases.py)"
+    ],
+    "accounts": [
+      "whatever sites the person logs into in it"
+    ],
+    "tables": [
+      "browser_logins"
+    ],
+    "jobs": [],
+    "remove": "Remove the browser tool (rouh/browsing.py) from the tool registry, then this manifest; the row only shows while a browser is open."
+  },
+  "uses": {
+    "tools": [
+      "browser"
+    ]
+  }
+}

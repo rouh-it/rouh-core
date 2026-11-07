@@ -1,0 +1,8 @@
+{
+  "name": "rouh-typecheck",
+  "private": true,
+  "description": "The type checker for Rouh's page (rouh/static/app.js and rouh/static/app/). A tool for whoever changes the page, never installed on the server's runtime and never shipped to a browser: check.sh beside this file says how it is run.",
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

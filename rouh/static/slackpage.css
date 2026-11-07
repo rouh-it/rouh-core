@@ -1,0 +1,53 @@
+/* Settings, Connections, Slack (`slackpage.js`, `rouh/slack.py`).
+
+   The cards of the Heartbeat page (`heartbeatpage.css`), with three things of its own: the
+   numbered steps in Slack, each with an (i) that opens what it means in place; the three tokens,
+   each a line of its own once set; and the facts of the connection under its name. */
+
+.sk-fields { grid-template-columns: 112px minmax(0, 1fr); }
+.sk-fields dd { overflow-wrap: anywhere; }
+.sk-status .hb-actions { margin-top: 8px; }
+
+.sk-step-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }
+.sk-step { display: grid; gap: 6px; min-width: 0; }
+.sk-step-head { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.sk-step-n {
+  flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center;
+  justify-content: center; font-size: 12px; font-weight: 700; color: var(--dim);
+  border: 1px solid var(--line); margin-top: 1px;
+}
+.sk-step-what { flex: 1 1 auto; min-width: 0; line-height: 1.45; overflow-wrap: anywhere; }
+.sk-step > .ctl, .sk-step > .sk-guide, .sk-step > .sk-make-row { margin-left: 32px; justify-self: start; }
+.sk-make-row { margin-top: 0; flex-wrap: wrap; }
+.sk-make { text-decoration: none; }
+
+.sk-i {
+  appearance: none; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  width: 24px; height: 24px; margin: -2px 0 0; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--dim); cursor: pointer;
+}
+.sk-i svg { width: 16px; height: 16px; }
+.sk-i:hover, .sk-i[aria-expanded="true"] { color: var(--accent); }
+.sk-i:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sk-guide {
+  font-size: 13px; line-height: 1.45; color: var(--dim); padding: 8px 10px; border-radius: var(--radius-s);
+  border: 1px solid var(--line-soft); display: grid; gap: 6px; overflow-wrap: anywhere;
+}
+.sk-guide p { margin: 0; }
+
+.sk-form { display: grid; gap: 10px; }
+.sk-label { display: inline-flex; align-items: center; gap: 4px; }
+.sk-token {
+  display: grid; grid-template-columns: minmax(0, 140px) minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  min-height: 34px;
+}
+.sk-token-name { font-weight: 600; }
+.sk-token-set { font-family: var(--mono); font-size: 12.5px; color: var(--dim); overflow-wrap: anywhere; }
+
+@media (max-width: 480px) {
+  .sk-fields { grid-template-columns: minmax(0, 1fr); gap: 0 10px; }
+  .sk-fields dd { margin-bottom: 6px; }
+  .sk-token { grid-template-columns: minmax(0, 1fr) auto; }
+  .sk-token-set { grid-column: 1; grid-row: 2; }
+  .sk-token .ctl { grid-row: 1 / span 2; grid-column: 2; }
+}

@@ -1,0 +1,50 @@
+{
+  "id": "heartbeat",
+  "name": "Heartbeat",
+  "title": "Heartbeat: Rouh's own turn that nobody asked for, its duties and its beats",
+  "aliases": [
+    "beat",
+    "pulse",
+    "duties",
+    "autonomy",
+    "approval queue"
+  ],
+  "group": "machine",
+  "route": "/anatomy/behaviour/heartbeat",
+  "anatomy": {
+    "order": 40
+  },
+  "icon": "<path d=\"M3 12.5h4l2-5 3.5 10 2.5-6.5 1.5 1.5H21\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "takes turns nobody asked for, within its duties and approvals"
+    ],
+    "accounts": [],
+    "tables": [
+      "heartbeat_state",
+      "heartbeat_beats",
+      "heartbeat_approvals"
+    ],
+    "jobs": [
+      "the heartbeat's beats (rouh/heartbeat.py)"
+    ],
+    "remove": "Turn it off in its own settings; to remove it, delete rouh/heartbeat.py, heartbeatpage.js/.css, its loop in rouh/runtime.py and this manifest."
+  },
+  "uses": {
+    "tools": [
+      "heartbeat",
+      "heartbeat_end",
+      "heartbeat_ask",
+      "heartbeat_brief",
+      "heartbeat_ledger",
+      "heartbeat_next",
+      "heartbeat_thread"
+    ]
+  }
+}

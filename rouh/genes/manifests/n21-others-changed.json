@@ -1,0 +1,47 @@
+{
+  "id": "n21-others-changed",
+  "name": "Changed by others",
+  "title": "Changed by others: your pages somebody else changed since you last opened them, in the morning brief, with what the changes did",
+  "aliases": [
+    "changed by others",
+    "what did he change",
+    "guest edits",
+    "page changes",
+    "who changed my page"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<path d=\"M6 3.5h8l4 4v6\"/><path d=\"M6 3.5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h5\"/><path d=\"M8.5 9.5h6M8.5 13h4\"/><path d=\"M14 20.5l.6-2.6 5.2-5.2a1.4 1.4 0 0 1 2 2l-5.2 5.2z\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "lab",
+  "switch": "others_changed",
+  "signals": {
+    "events": {
+      "opened": "You pressed Open the page on a page the morning brief said somebody else changed",
+      "seen": "You pressed Seen on a page the morning brief said somebody else changed"
+    },
+    "runs": {
+      "shown": "Rouh put pages somebody else changed in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the changes made to your organisation's pages by other people (Ask AI's changes and typed changes) over the last week, and when you last opened each page"
+    ],
+    "accounts": [],
+    "tables": [
+      "askai_edits",
+      "analytics.event",
+      "user_settings"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch others_changed off on its row in Evolution, Mutations, and the section is gone; to remove it for good revert night 21's commit (rouh/others_changed.py, the brief_others_changed route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawOthersChanged and its helpers in briefpage.js and the .bf-others rules in briefpage.css, this manifest) and delete the user setting others_changed."
+  }
+}

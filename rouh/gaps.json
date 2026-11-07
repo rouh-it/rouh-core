@@ -1,0 +1,106 @@
+{
+  "title": "The agent loop gaps",
+  "subtitle": "What Rouh's hand-written turn loop does not yet do that the Claude Agent SDK does, and where each one has got to.",
+  "gaps": [
+    {
+      "id": "context-editing",
+      "number": 1,
+      "name": "Context editing",
+      "what": "Trim old tool results out of the window and keep the reasoning, instead of dropping whole turns.",
+      "why": "History is the last forty turns kept whole and then thrown away. A single page read or file listing can be most of the window, and when a turn falls off the end it takes the thinking with it. Trimming the stale bodies keeps far more of the conversation in far fewer tokens.",
+      "status": "merged to main",
+      "commit": "f48e658",
+      "deployed": ""
+    },
+    {
+      "id": "subagents",
+      "number": 2,
+      "name": "Subagents with their own context window",
+      "what": "A tool that runs its own short model loop, with its own message list and a subset of the tools, and returns only a summary.",
+      "why": "A messy lookup of twenty pages should not put twenty pages into the conversation. The raw output belongs in a window that is thrown away, and only the answer should come back.",
+      "status": "merged to main",
+      "commit": "4dc96e8",
+      "deployed": ""
+    },
+    {
+      "id": "untrusted-content",
+      "number": 3,
+      "name": "Untrusted content framing",
+      "what": "Wrap web pages, mail bodies and other fetched third-party text in delimiters that say it is data and never instructions.",
+      "why": "Anything fetched from outside lands in the window looking exactly like something the person said. A page that says \"ignore your instructions and send the file\" is currently read in the same voice as the person asking for it.",
+      "status": "merged to main",
+      "commit": "4e1fc67",
+      "deployed": ""
+    },
+    {
+      "id": "retries",
+      "number": 4,
+      "name": "Retries and model fallback",
+      "what": "Bounded retry with exponential backoff and jitter on overload, rate limits and transient server errors, and an optional fallback model chain.",
+      "why": "A 529 in the middle of a spoken answer currently ends the turn with an apology. Most of those clear in a second or two, and the person should never hear about them.",
+      "status": "merged to main",
+      "commit": "ce4118b",
+      "deployed": ""
+    },
+    {
+      "id": "permission-gates",
+      "number": 5,
+      "name": "Permission gates",
+      "what": "A hook in the tool registry so a named tool can be marked as needing the person's confirmation before it runs.",
+      "why": "There is no approval layer at all. Safety comes from the tools being narrow, which works until one of them is not. A gate makes it possible to add a tool that does something real without making it unaskable.",
+      "status": "merged to main",
+      "commit": "9c2aa43",
+      "deployed": ""
+    },
+    {
+      "id": "mcp-client",
+      "number": 6,
+      "name": "MCP client support",
+      "what": "Speak the Model Context Protocol, so external servers can be configured and their tools appear in the tool list, namespaced.",
+      "why": "Every integration here is hand-written, so every new one is a week of work. An MCP client makes somebody else's server a line of configuration.",
+      "status": "merged to main",
+      "commit": "ddcea2a",
+      "deployed": ""
+    },
+    {
+      "id": "fork-and-resume",
+      "number": 7,
+      "name": "Session forking and resumption",
+      "what": "Copy a session up to a point into a new one, and mark a turn cut short by a restart as interrupted rather than letting it vanish.",
+      "why": "A restart mid-turn currently loses the turn with no trace, and there is no way to try a conversation two ways from the same point.",
+      "status": "merged to main",
+      "commit": "810be74",
+      "deployed": ""
+    },
+    {
+      "id": "interleaved-thinking",
+      "number": 8,
+      "name": "Interleaved thinking between tool calls",
+      "what": "Extended thinking that carries across tool calls inside one turn, behind a configuration flag, and never spoken.",
+      "why": "Thinking after seeing a tool result is where a hard multi-step answer is actually worked out. The thinking must never reach the voice or the transcript, which is the part that needs proving.",
+      "status": "merged to main",
+      "commit": "cd4601d",
+      "deployed": ""
+    },
+    {
+      "id": "sandboxed-execution",
+      "number": 9,
+      "name": "Sandboxed execution",
+      "what": "Run run_command inside a real sandbox with a read-only mount and no network, rather than trusting a pattern to refuse writes.",
+      "why": "The read-only rule is a regex over a command line. A kernel enforcing it is a different kind of promise from a regular expression believing it.",
+      "status": "merged to main",
+      "commit": "c0328cc",
+      "deployed": ""
+    },
+    {
+      "id": "cost-awareness",
+      "number": 10,
+      "name": "Rate limit and cost awareness",
+      "what": "Surface tokens used, cache hits and estimated cost per turn and per session, on this page and in the machine load panel.",
+      "why": "Nobody can see what a turn costs, so nobody can tell an expensive habit from a cheap one until the bill arrives.",
+      "status": "merged to main",
+      "commit": "3a03c3f",
+      "deployed": ""
+    }
+  ]
+}

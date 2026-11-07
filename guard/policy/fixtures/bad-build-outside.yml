@@ -1,0 +1,5 @@
+services:
+  core:
+    image: !reset null
+    build:
+      context: /

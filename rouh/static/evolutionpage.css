@@ -1,0 +1,367 @@
+/* Evolution (`evolutionpage.js`): Parameters and Mutations, no wider than reads
+   comfortably. Rouh's own tokens and nothing new; dark, as all of Rouh is. */
+
+.evo-view:focus { outline: none; }
+.evo-wrap { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
+.evo-body { flex: 1 1 auto; min-width: 0; overflow: auto; scrollbar-width: thin; padding: 2px 2px 56px; }
+.evo-in { max-width: 860px; display: grid; gap: 12px; min-width: 0; }
+.evo-lede { margin: 0; color: var(--dim); font-size: 14px; max-width: 72ch; }
+.evo-loading { margin: 0; color: var(--dim); font-size: 14px; }
+.evo-error { margin: 0; color: var(--bad); font-size: 13.5px; }
+.evo-error:empty { display: none; }
+.evo-said { margin: 0; padding: 8px 12px; border-radius: var(--radius-s); background: var(--accent-soft);
+  color: var(--text); font-size: 13.5px; }
+.evo-said:empty, .evo-said[hidden] { display: none; }
+.evo-hint { margin: 0; color: var(--dim); font-size: 12.5px; line-height: 1.45; }
+.evo-k { display: block; margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--dim); }
+.evo-acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.evo-acts[hidden] { display: none; }
+.evo-acts .ctl.small { min-height: 32px; }
+.evo-link { color: var(--accent); font-size: 13px; text-decoration: none; }
+.evo-link:hover { text-decoration: underline; }
+.evo-back { color: var(--dim); font-size: 13px; text-decoration: none; justify-self: start; }
+.evo-back:hover { color: var(--text); }
+
+/* ---- Parameters ---- */
+.evo-when { margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-s);
+  font-size: 13.5px; color: var(--text); background: var(--panel); }
+.evo-when.paused { border-color: color-mix(in srgb, var(--warn) 50%, var(--line)); }
+.evo-params { display: grid; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--panel); }
+.evo-sec { margin: 4px 0 -4px; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--dim); }
+.evo-slide { display: grid; gap: 6px; }
+.evo-slide-head { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.evo-slide-name { font-size: 14px; font-weight: 640; color: var(--text); }
+.evo-num { width: 64px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel-2); color: var(--text); font: inherit; font-size: 15px; font-weight: 650;
+  text-align: right; font-variant-numeric: tabular-nums; }
+.evo-num:focus-visible, .evo-range:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.evo-range { width: 100%; accent-color: var(--accent); margin: 0; min-height: 24px; }
+.evo-summary { padding: 12px 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: linear-gradient(0deg, var(--panel), color-mix(in srgb, var(--accent) 7%, var(--panel))); }
+.evo-sum-main { margin: 0; font-size: 15px; font-weight: 640; color: var(--text); }
+.evo-sum-sub { margin: 4px 0 0; font-size: 13px; color: var(--dim); }
+.evo-state { font-size: 12.5px; color: var(--dim); }
+.evo-notes { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--dim); font-size: 13px;
+  line-height: 1.45; max-width: 72ch; }
+
+/* ---- the library ---- */
+.evo-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.evo-views { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--panel); }
+.evo-vtab { all: unset; box-sizing: border-box; cursor: pointer; padding: 6px 11px; border-radius: 7px;
+  font-size: 13px; font-weight: 600; color: var(--dim); white-space: nowrap; }
+.evo-vtab:hover { color: var(--text); }
+.evo-vtab.on { background: var(--panel-2); color: var(--accent); }
+.evo-vtab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* A view's count is a badge, never a word run into its name (fr_ca2be28fa511). */
+.evo-vtab { display: inline-flex; align-items: center; gap: 7px; }
+.evo-count { display: inline-grid; place-items: center; min-width: 20px; height: 18px; padding: 0 6px;
+  box-sizing: border-box; border-radius: 999px; background: var(--line-soft); color: var(--dim);
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.evo-vtab.on .evo-count { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+.evo-find { flex: 0 1 220px; min-width: 140px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel-2); color: var(--text); font: inherit; font-size: 13px; }
+.evo-sec-h { margin: 10px 0 0; font-size: 13px; font-weight: 700; color: var(--text); }
+.evo-sec-p { margin: -6px 0 0; font-size: 12.5px; color: var(--dim); max-width: 72ch; }
+.evo-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.evo-list > li + li { border-top: 1px solid var(--line-soft); }
+.evo-row { display: flex; align-items: flex-start; min-width: 0; }
+.evo-row:hover { background: var(--panel-2); }
+.evo-row > .evo-row-btn { flex: 1 1 auto; min-width: 0; }
+.evo-row > .evo-switch { flex: none; margin: 10px 14px 0 0; }
+/* A row in New is answered on the row: its answers under its words, the width of the row. */
+.evo-row-new { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.evo-row-new > .evo-answers { grid-column: 1 / -1; min-width: 0; padding: 0 14px 12px; border-top: 0; }
+.evo-row.evo-leaving { overflow: hidden; opacity: 0; transition: height .24s ease, opacity .2s ease; }
+.evo-row-btn > .evo-labelled { padding: 2px 0; }
+.evo-row-btn { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; gap: 3px; padding: 11px 14px; }
+.evo-row-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.evo-row-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
+.evo-row-name { font-size: 14.5px; font-weight: 640; color: var(--text); overflow-wrap: anywhere; }
+.evo-row-said { font-size: 13.5px; color: var(--text); opacity: .9; overflow-wrap: anywhere; margin: 0; }
+.evo-row-sub { display: block; font-size: 12.5px; color: var(--dim); overflow-wrap: anywhere; margin: 0; }
+/* Whether a gene is on: a switch with its word beside it, the same in a row and on a gene's page. */
+.evo-switch { all: unset; box-sizing: border-box; flex: none; display: inline-flex; align-items: center; gap: 8px;
+  cursor: pointer; padding: 4px 2px; border-radius: 999px; font-size: 12.5px; font-weight: 650; color: var(--dim); }
+.evo-switch-track { position: relative; width: 34px; height: 20px; border-radius: 999px; background: var(--line);
+  transition: background .15s ease; }
+.evo-switch-knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--text); transition: transform .15s ease; }
+.evo-switch-word { min-width: 2.2em; }
+.evo-switch.on { color: var(--text); }
+.evo-switch.on .evo-switch-track { background: var(--good); }
+.evo-switch.on .evo-switch-knob { transform: translateX(14px); background: #fff; }
+.evo-switch:disabled { opacity: .55; cursor: progress; }
+.evo-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#evolutionMeta:empty { display: none; }
+.evo-empty { padding: 24px 18px; border: 1px dashed var(--line); border-radius: 14px; text-align: center; }
+.evo-empty-h { margin: 0 0 6px; font-size: 15.5px; font-weight: 640; }
+.evo-empty-p { margin: 4px auto 0; max-width: 56ch; color: var(--dim); font-size: 13.5px; }
+
+/* One indicator of kind, a colour each; a warning is a chip and a box of its own. */
+.evo-chip { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 11.5px;
+  font-weight: 650; padding: 2px 9px; border-radius: 999px; background: var(--line-soft); color: var(--dim); }
+.evo-kind-invisible { color: #a9b6c8; }
+.evo-kind-shows_up { color: var(--accent); }
+.evo-kind-ask_for { color: var(--good); }
+.evo-kind-changes_work { color: var(--user); }
+.evo-kind-none { color: var(--dim); }
+.evo-warn { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
+.evo-quiet { color: var(--dim); font-weight: 560; }
+/* On trial, Passed and Failed, the three places a gene can be since 18 October 2026. Nothing
+   about a gene waits on Petar, so none is orange. */
+.evo-state-trial { color: var(--accent); }
+.evo-state-passed, .evo-state-kept { color: var(--good); }
+.evo-state-failed, .evo-state-off, .evo-state-off_disuse, a.evo-chip { text-decoration: none; cursor: pointer; }
+a.evo-chip:hover { background: color-mix(in srgb, var(--warn) 20%, transparent); }
+a.evo-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.evo-state-removed, .evo-state-removing, .evo-state-replaced { color: var(--dimmer); }
+.evo-state-rejected { color: var(--bad); }
+
+.evo-req { display: grid; gap: 6px; padding: 11px 14px; }
+.evo-req-gene { all: unset; cursor: pointer; font-size: 14px; font-weight: 640; color: var(--text); overflow-wrap: anywhere; }
+.evo-req-gene:hover { text-decoration: underline; }
+.evo-req-gene:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.evo-req-requested, .evo-req-building { color: var(--accent); }
+.evo-req-built, .evo-req-landed { color: var(--good); }
+.evo-req-failed { color: var(--bad); }
+.evo-req-withdrawn { color: var(--dimmer); }
+.evo-words { margin: 0; padding: 2px 0 2px 10px; border-left: 2px solid var(--accent); font-size: 13.5px;
+  color: var(--text); overflow-wrap: anywhere; white-space: pre-wrap; }
+
+/* ---- one gene ---- */
+.evo-gene-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+/* The name and where it stands on the left, wrapping as long as it needs; the switch at the
+   right edge of the same line (fr_44acd06b1e00). */
+.evo-gene-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.evo-gene-head > .evo-switch { flex: none; }
+.evo-gene-name { margin: 0; font-size: 19px; font-weight: 680; color: var(--text); overflow-wrap: anywhere; }
+.evo-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The answers stand above the tabs, there whichever tab is open; the tabs are Mutations' own. */
+.evo-in > .evo-answers { padding-top: 0; border-top: 0; }
+.evo-gene-tabs { justify-self: start; max-width: 100%; }
+.evo-gene-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+.evo-gene-panel > .evo-part-h:not(:first-child) { margin-top: 10px; }
+.evo-gene-panel .evo-sec-p { margin: 0; }
+.evo-gene-panel > .evo-trial { margin: 0; }
+.evo-gene-panel > .evo-part:first-child { padding-top: 0; border-top: 0; }
+/* Each part of a tab a heading and what is under it, and Questions at the bottom of every tab. */
+.evo-part { display: grid; gap: 8px; min-width: 0; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.evo-part-h { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--text); }
+.evo-part-h + .evo-ask { border-top: 0; padding-top: 0; }
+.evo-part > .evo-k { margin: 4px 0 0; }
+
+/* Its one column is never wider than the card: a row of screenshots or a long word scrolls or
+   wraps inside it rather than pushing every line of text past the card's edge (fr_5654dc340c44). */
+.evo-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 16px;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--panel); min-width: 0;
+  overflow-wrap: anywhere; }
+.evo-card > *, .evo-part > *, .evo-gene-panel > * { min-width: 0; }
+.evo-card code, .evo-card .evo-mono { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
+.evo-card.flagged { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.evo-card-top { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.evo-labelled { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.evo-label { font-size: 12px; color: var(--dim); white-space: nowrap; }
+.evo-card-name { margin: 0; font-size: 18px; font-weight: 680; color: var(--text); overflow-wrap: anywhere; }
+.evo-card-said { margin: -4px 0 0; font-size: 15px; line-height: 1.5; color: var(--text); }
+.evo-card-changed { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text); }
+.evo-warnbox { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--bad);
+  background: color-mix(in srgb, var(--bad) 10%, var(--panel)); color: var(--text); }
+.evo-warnbox strong { color: var(--bad); font-size: 13.5px; }
+.evo-warnbox p { margin: 4px 0 0; font-size: 13.5px; }
+.evo-rejected, .evo-kept-why { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+  border-left: 3px solid var(--bad); background: var(--panel-2); color: var(--text); }
+.evo-rejected strong, .evo-kept-why strong { font-size: 13.5px; }
+.evo-rejected p, .evo-kept-why p { margin: 4px 0 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.evo-rejected .evo-rejected-code { font-size: 13px; color: var(--dim); }
+/* Why he kept it (fr_c1aa7f60359d): the rejected box's shape, marked as a yes. */
+.evo-kept-why { border-left-color: var(--good, var(--accent)); }
+
+.evo-compare-wrap { display: grid; gap: 8px; }
+.evo-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.evo-side { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2);
+  display: grid; gap: 6px; align-content: start; min-width: 0; }
+.evo-side-h { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--text); }
+.evo-side-sub { margin: -6px 0 0; font-size: 12px; color: var(--dim); }
+.evo-side-said { margin: 0; font-size: 13px; color: var(--text); overflow-wrap: anywhere; }
+.evo-side-list { margin: 0; font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
+.evo-side-list .evo-k { margin-bottom: 1px; }
+.evo-side-none { margin: 0; font-size: 12.5px; color: var(--dim); font-style: italic; }
+.evo-diff { color: var(--bad); font-weight: 650; }
+.evo-check { margin: 0; font-size: 13px; color: var(--dim); }
+.evo-check strong { color: var(--text); }
+.evo-check-same strong { color: var(--good); }
+.evo-check-mutated strong { color: var(--bad); }
+
+.evo-answers { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.evo-answer-lines { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 12.5px; line-height: 1.45; color: var(--dim); }
+.evo-answer-lines strong { color: var(--text); font-weight: 600; }
+.evo-when-pick { padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2);
+  color: var(--text); font: inherit; font-size: 13px; color-scheme: dark; }
+.evo-mutate, .evo-ask { display: grid; gap: 8px; }
+.evo-mutate { padding: 12px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 10px; }
+.evo-text { width: 100%; box-sizing: border-box; resize: vertical; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font: inherit; font-size: 14px; line-height: 1.45; }
+.evo-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.evo-ask { padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.evo-ask-log { display: grid; gap: 10px; }
+.evo-ask-log:empty { display: none; }
+.evo-turn { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); }
+
+/* The screenshots slide sideways inside the card, one snapping into place at a time. */
+.evo-shots { display: flex; gap: 10px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory;
+  padding-bottom: 6px; scrollbar-width: thin; }
+/* Every thumbnail the same height, its width its own, so a phone's tall screenshot and a desk's
+   wide one sit in one even row; the caption wraps to its picture's width. */
+.evo-shot { margin: 0; flex: 0 0 auto; scroll-snap-align: start; }
+.evo-shot-open { all: unset; display: block; cursor: zoom-in; border-radius: 8px; }
+.evo-shot-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.evo-shot img { display: block; height: 240px; width: auto; max-width: min(78vw, 440px); object-fit: contain; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel-2); }
+.evo-shot figcaption { width: 0; min-width: 100%; margin-top: 4px; font-size: 11.5px; color: var(--dim); }
+
+/* A screenshot full screen (`viewPictures`): a modal dialog in the top layer, so nothing behind it
+   moves. The stage takes every touch, so a pinch zooms the picture and never the page. */
+.evo-viewer { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none;
+  margin: 0; padding: 0; border: 0; background: #000; color: #fff; overflow: hidden; overscroll-behavior: contain; }
+.evo-viewer::backdrop { background: #000; }
+.evo-viewer-stage { position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: zoom-in;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.evo-viewer.zoomed .evo-viewer-stage { cursor: grab; }
+.evo-viewer.zoomed .evo-viewer-stage:active { cursor: grabbing; }
+.evo-viewer-img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; will-change: transform;
+  pointer-events: none; }
+.evo-viewer-img.glide { transition: transform 200ms ease; }
+.evo-viewer-stage.sliding .evo-viewer-img, .evo-viewer-stage.sliding .evo-viewer-missing {
+  transition: transform var(--slide-ms, 320ms) cubic-bezier(.22, .61, .36, 1); }
+.evo-viewer-missing { position: absolute; left: 16px; right: 16px; top: 50%; margin: 0; transform: translateY(-50%);
+  text-align: center; font-size: 15px; color: rgba(255, 255, 255, .8); }
+.evo-viewer-close { position: absolute; z-index: 2; top: calc(env(safe-area-inset-top, 0px) + 12px);
+  right: calc(env(safe-area-inset-right, 0px) + 12px); display: inline-flex; align-items: center; gap: 8px;
+  min-height: 44px; padding: 0 18px 0 14px; border: 1px solid rgba(255, 255, 255, .35); border-radius: 999px;
+  background: rgba(20, 20, 22, .82); color: #fff; font: inherit; font-size: 15px; font-weight: 650; cursor: pointer;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.evo-viewer-close::before { content: "\2715"; font-size: 15px; line-height: 1; }
+.evo-viewer-close:hover { background: rgba(48, 48, 52, .92); }
+.evo-viewer-close:focus-visible, .evo-viewer-step:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.evo-viewer-step { position: absolute; z-index: 2; top: 50%; width: 44px; height: 44px; margin-top: -22px;
+  border: 1px solid rgba(255, 255, 255, .3); border-radius: 50%; background: rgba(20, 20, 22, .7); color: #fff;
+  font: inherit; font-size: 26px; line-height: 1; cursor: pointer; }
+.evo-viewer-step.prev { left: calc(env(safe-area-inset-left, 0px) + 10px); }
+.evo-viewer-step.next { right: calc(env(safe-area-inset-right, 0px) + 10px); }
+.evo-viewer-step[aria-disabled="true"] { opacity: .3; cursor: default; }
+.evo-viewer.zoomed .evo-viewer-step, .evo-viewer.zoomed .evo-viewer-foot { opacity: 0; pointer-events: none; }
+.evo-viewer-foot { position: absolute; z-index: 1; left: 0; right: 0; bottom: 0; pointer-events: none;
+  padding: 24px 16px calc(env(safe-area-inset-bottom, 0px) + 14px);
+  background: linear-gradient(to top, rgba(0, 0, 0, .7), transparent); transition: opacity 150ms ease; }
+.evo-viewer-caption { margin: 0; font-size: 13.5px; color: #fff; text-align: center; overflow-wrap: anywhere; }
+@media (pointer: coarse) { .evo-viewer-step { display: none; } }
+.evo-steps { margin: 0 0 8px; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; line-height: 1.45; }
+
+.evo-versions { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.evo-version { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 4px; }
+.evo-version.on { border-color: var(--accent); }
+.evo-history { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; border-left: 2px solid var(--line); }
+.evo-history li { padding: 6px 0 6px 12px; font-size: 13px; color: var(--text); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.evo-history li p { flex: 1 0 100%; margin: 0; color: var(--dim); overflow-wrap: anywhere; }
+.evo-when-at { font-family: var(--mono); font-size: 11.5px; color: var(--dim); }
+.evo-by { font-size: 12px; color: var(--dim); }
+.evo-remove { display: grid; gap: 6px; margin-top: 8px; padding: 12px; border: 1px dashed color-mix(in srgb, var(--bad) 40%, var(--line)); border-radius: 10px; }
+.evo-remove .ctl { justify-self: start; }
+.evo-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; font-size: 13.5px; }
+.evo-facts dt { color: var(--dim); }
+.evo-facts dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+
+/* ---- the month: thirty narrow days between the gene and its verdict; on a narrow screen the
+   table slides sideways and the gene's name stays put ---- */
+.evo-legend { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--dim); }
+.evo-month-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+.evo-month { width: 100%; border-collapse: collapse; font-size: 13px; }
+.evo-month th, .evo-month td { padding: 8px 8px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: top; }
+.evo-month th { font-size: 11.5px; color: var(--dim); font-weight: 650; white-space: nowrap; vertical-align: bottom; }
+.evo-month .evo-day { text-align: center; width: 18px; min-width: 18px; padding: 8px 1px; }
+.evo-month .evo-monday { border-left: 1px solid var(--line-soft); }
+.evo-day-w, .evo-day-n { display: block; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.evo-day-w { font-weight: 500; }
+.evo-month-name { width: 190px; min-width: 170px; position: sticky; left: 0; z-index: 1; background: var(--void); }
+.evo-month-name > * { display: block; text-align: left; }
+.evo-month-verdict { margin-top: 4px; font-size: 12.5px; color: var(--text); }
+.evo-month-name .ctl { margin-top: 6px; }
+.evo-month tr.evo-going td { background: color-mix(in srgb, var(--warn) 7%, transparent); }
+.evo-month tr.evo-going td.evo-month-name { background: color-mix(in srgb, var(--warn) 7%, var(--void)); }
+.evo-mark { font-size: 14px; }
+.evo-mark-used { color: var(--good); }
+.evo-mark-taken { color: var(--accent); }
+.evo-mark-offered { color: var(--dim); }
+.evo-mark-declined { color: var(--bad); }
+.evo-mark-ran { color: var(--text); font-size: 20px; line-height: 1; }
+
+@media (max-width: 560px) {
+  .evo-compare { grid-template-columns: 1fr; }
+  .evo-card { padding: 12px; }
+  .evo-row-btn, .evo-req { padding: 10px 10px; }
+  .evo-row-new > .evo-answers { padding: 0 10px 10px; }
+  .evo-find { flex: 1 1 100%; }
+  .evo-acts .ctl.small { min-height: 40px; }
+  .evo-facts { grid-template-columns: 1fr; gap: 2px; }
+  .evo-facts dd { margin-bottom: 8px; }
+  .evo-month-name { width: 132px; min-width: 132px; }
+}
+
+/* Genes on the fly, in Parameters. */
+.evo-drafts { margin: 0; border-color: var(--line); }
+.evo-drafts legend { padding: 0 6px; }
+.evo-radio { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text); cursor: pointer;
+  min-height: 32px; }
+.evo-radio input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+
+/* The heading sits flush with the page under it. The strip kept on its left at a phone's and a
+   tablet's width was for the glyph in the top left corner; where the navigation is a drawer the orb
+   is at the bottom left now (`orbTarget`), so the strip kept nothing clear and only indented
+   the name (fr_ca2be28fa511: "I'm not sure why the title is indented"). 2px is the body's own inset,
+   kept for focus rings, so the name starts where the views do. */
+@media (max-width: 899px) {
+  .evo-view > .run-head { padding-left: 2px; }
+}
+
+/* ---- the outside services a gene brought in (its Card), and Other switches ---- */
+.evo-svc { display: grid; gap: 6px; padding: 11px 14px; min-width: 0; }
+.evo-svc-spent { margin-left: auto; font-size: 12.5px; font-weight: 650; color: var(--dim); font-variant-numeric: tabular-nums; }
+.evo-svc-dl { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 3px 12px; margin: 0; font-size: 13px; }
+.evo-svc-dl dt { color: var(--dim); }
+.evo-svc-dl dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .evo-svc-dl { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .evo-svc-dl dd { margin-bottom: 6px; }
+}
+.evo-svc-on { color: var(--good); }
+.evo-svc-wait { color: var(--warn); }
+.evo-svc-gone { color: var(--dimmer); }
+.evo-svc-box { display: grid; gap: 8px; }
+.evo-svc-box > .evo-k { margin: 0; }
+.evo-other { align-items: center; gap: 12px; padding: 11px 14px; }
+.evo-other:hover { background: none; }
+.evo-other-words { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.evo-other > .evo-switch { margin: 0; }
+.evo-mono { font-family: var(--mono); font-size: 12px; }
+.evo-card > .evo-svc-box { border-top: 1px solid var(--line-soft); padding-top: 10px; }
+/* Review version N under a built change: a button's size, not the row's width. */
+.evo-req > a.ctl { justify-self: start; text-decoration: none; }
+/* Whether a gene's trial runs, on its Trial tab: a green dot and On, or a grey one and Off. */
+.evo-tab-state { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; color: var(--dim); }
+.evo-tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dimmer, var(--line)); }
+.evo-tab-state.on { color: var(--good); }
+.evo-tab-state.on .evo-tab-dot { background: var(--good); }
+
+/* A gene's trial, and Parameters' New trials: the same three settings (`trialForm`). */
+.evo-trial { display: grid; gap: 8px; margin: 12px 0; justify-items: start; }
+.evo-trial .evo-k { margin: 0; }
+.evo-trial-status { margin: 0; font-size: 14px; color: var(--text); overflow-wrap: anywhere; }
+.evo-trial-form { display: grid; gap: 10px; width: 100%; }
+.evo-trial-nums { display: flex; flex-wrap: wrap; gap: 10px 22px; }
+.evo-trial-num { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text); }
+.evo-trial-counts { margin: 0; padding: 0; border: 0; display: grid; gap: 4px; min-width: 0; }
+.evo-trial-counts legend { padding: 0; margin-bottom: 4px; font-size: 13.5px; color: var(--dim); }
+.evo-trial-form .evo-said { margin: 0; }

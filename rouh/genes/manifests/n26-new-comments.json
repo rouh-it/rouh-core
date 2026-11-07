@@ -1,0 +1,50 @@
+{
+  "id": "n26-new-comments",
+  "name": "New comments on your documents",
+  "title": "New comments on your documents: comments left in the last days on the Google documents your tasks link to, not yet answered, in the morning brief",
+  "aliases": [
+    "new comments",
+    "comments on my docs",
+    "feedback on the documents",
+    "who commented",
+    "unanswered comments"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<path d=\"M6 3.5h8l4 4v4\"/><path d=\"M6 3.5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h4\"/><path d=\"M13 13.5h8v5.5h-4.5l-2.5 2v-2h-1z\"/>",
+  "attaches_to": [
+    "task"
+  ],
+  "maturity": "lab",
+  "switch": "new_comments",
+  "signals": {
+    "events": {
+      "opened": "You pressed Open the comment on a new comment the morning brief listed",
+      "task": "You pressed Open the task on a new comment the morning brief listed",
+      "let_be": "You pressed Let it be on a new comment the morning brief listed"
+    },
+    "runs": {
+      "shown": "Rouh put new comments on your tasks' documents in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the Google document links in every task's notes",
+      "reads the comments on those documents in Rouh's own Google Drive",
+      "keeps the comments you let be in your own settings"
+    ],
+    "accounts": [
+      "Google Drive, read only"
+    ],
+    "tables": [
+      "user_settings",
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch new_comments off on its row in Evolution, Mutations, and the section is gone; to remove it for good revert night 26's commit (rouh/new_comments.py, the brief_new_comments route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawNewComments and its helpers in briefpage.js, the .bf-newcomment rules in briefpage.css, this manifest; rouh/comments_in_docs.py goes with the last of the three genes that use it) and delete the user setting new_comments."
+  }
+}

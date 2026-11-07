@@ -1,0 +1,262 @@
+/* The Incubator and the nightly run's page, inside Evolution's layer (`incubatorpage.js`,
+   `nightlyrunpage.js`). Rouh's own colours only, so both themes hold. */
+
+.evo-in.evo-wide { max-width: none; }
+.inc { display: grid; gap: 10px; min-width: 0; }
+.inc-head { display: grid; gap: 8px; }
+.inc-lede { margin: 0; }
+.inc-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.inc-search { flex: 1 1 260px; min-width: 0; height: 34px; padding: 0 12px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 14px; }
+.inc-search:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.inc-tools .ctl, .inc-p-acts .ctl, .inc-empty .ctl, .nr .ctl { width: auto; flex: 0 0 auto; padding: 0 14px; height: 34px; }
+.inc-talk { border-color: var(--accent); }
+/* A drawn chevron: the arrow characters are not in every font the page falls back to. */
+.inc-caret::after { content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 0 3px 8px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); }
+
+.inc-views { display: flex; flex-wrap: wrap; gap: 6px; }
+.inc-view { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px;
+  border: 1px solid var(--line); background: transparent; color: var(--dim); font: inherit; font-size: 13px; cursor: pointer; }
+.inc-view:hover { color: var(--text); border-color: var(--dimmer); }
+.inc-view.on { background: var(--accent-soft); color: var(--text); border-color: var(--accent); }
+.inc-view-save { border-style: dashed; }
+.inc-view-x { margin-left: 2px; color: var(--dimmer); }
+.inc-view-x:hover { color: var(--bad); }
+.inc-n { color: var(--dimmer); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* The labels: the task browser's (`labels.css`), a line for each group, a line too long for the screen
+   swiped sideways rather than wrapped, as the task browser's are. */
+.inc-filters { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.inc-labels { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.inc-line { display: flex; align-items: center; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain;
+  scrollbar-width: none; padding: 1px 0; }
+.inc-line::-webkit-scrollbar { display: none; }
+.inc-line > * { flex: none; }
+.inc-line-name { min-width: 92px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--dim); font-weight: 600; padding: 5px 7px 5px 0; }
+.inc-filter { height: 30px; padding: 0 10px; border-radius: var(--radius-s); border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.inc-filter.on { border-color: var(--accent); color: var(--accent); }
+.inc-active { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.inc-clear { border: 0; background: none; color: var(--accent); font: inherit; font-size: 12.5px; cursor: pointer; padding: 0 4px; }
+.inc-count { color: var(--dimmer); font-size: 12.5px; }
+@media (max-width: 640px) { .inc-line-name { min-width: 70px; } }
+
+.inc-pop-wrap { position: relative; }
+.inc-pop { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; min-width: 230px; max-height: 360px; overflow: auto;
+  padding: 6px; border-radius: var(--radius-s); border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); }
+.inc-pop-cols { right: 0; left: auto; min-width: 280px; }
+.inc-pop-h { margin: 2px 4px 6px; color: var(--dim); font-size: 12px; }
+.inc-pop-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.inc-pop-row:hover { background: var(--line-soft); }
+.inc-pop-row .inc-n { margin-left: auto; }
+.inc-pop-row label { flex: 1; cursor: pointer; }
+.inc-pop-dates .inc-pop-row { justify-content: space-between; }
+.inc-pop-dates input { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; }
+.inc-mv { width: 24px; height: 24px; border: 1px solid var(--line); border-radius: 6px; background: none; color: var(--dim); cursor: pointer; }
+.inc-mv:disabled { opacity: .35; cursor: default; }
+
+.inc-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px;
+  font-weight: 600; white-space: nowrap; color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 34%, transparent); }
+.inc-tone-blue { --c: var(--cat-blue); } .inc-tone-amber { --c: var(--cat-amber); } .inc-tone-teal { --c: var(--cat-teal); }
+.inc-tone-rose { --c: var(--cat-rose); } .inc-tone-violet { --c: var(--cat-violet); } .inc-tone-green { --c: var(--cat-green); }
+.inc-tone-slate { --c: var(--cat-slate); } .inc-tone-none { --c: var(--dim); } .inc-tone-accent { --c: var(--accent); }
+.inc-tone-user { --c: var(--user); }
+
+.inc-bulk { position: sticky; top: 0; z-index: 12; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 8px 10px; border-radius: var(--radius-s); background: var(--accent-soft); border: 1px solid var(--accent); }
+.inc-bulk[hidden] { display: none; }
+.inc-sel { height: 30px; border-radius: var(--radius-s); border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  font: inherit; font-size: 13px; padding: 0 6px; }
+
+.inc-scroll { overflow: auto; max-height: calc(100vh - 290px); min-height: 220px; border: 1px solid var(--line);
+  border-radius: var(--radius-s); scrollbar-width: thin; }
+.inc-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 13.5px; }
+.inc-table thead th { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line);
+  text-align: left; font-weight: 600; font-size: 12.5px; color: var(--dim); }
+.inc-th { position: relative; padding: 0; user-select: none; }
+.inc-th.drop { box-shadow: inset 2px 0 0 var(--accent); }
+.inc-th.dragging { opacity: .5; }
+.inc-sort { width: 100%; height: 34px; padding: 0 12px 0 10px; border: 0; background: none; color: inherit; font: inherit;
+  text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inc-sort:hover { color: var(--text); }
+th[aria-sort="ascending"] .inc-sort, th[aria-sort="descending"] .inc-sort { color: var(--accent); }
+.inc-grip { position: absolute; top: 6px; right: 0; bottom: 6px; width: 7px; cursor: col-resize; border-right: 2px solid var(--line); }
+.inc-grip:hover { border-right-color: var(--accent); }
+.inc-pick { width: 36px; text-align: center; padding: 0 !important; }
+.inc-table thead .inc-pick { position: sticky; top: 0; z-index: 6; background: var(--panel); }
+.inc-tr { cursor: pointer; }
+.inc-tr > td { border-bottom: 1px solid var(--line-soft); }
+.inc-tr:hover > td { background: var(--line-soft); }
+.inc-tr.open > td { background: var(--accent-soft); }
+.inc-tr.picked > td { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.inc-tr.merged { opacity: .62; }
+.inc-tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.inc-td { padding: 7px 10px; vertical-align: top; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.inc-c-title { white-space: normal; }
+.inc-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 550; line-height: 1.35; }
+.inc-sub { display: block; margin-top: 2px; color: var(--dimmer); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inc-code { font-family: var(--mono); font-size: 12px; color: var(--dim); white-space: nowrap; }
+.inc-c-created_at, .inc-c-updated_at, .inc-c-length, .inc-c-links { color: var(--dim); font-variant-numeric: tabular-nums; }
+.inc-more { margin-left: 5px; color: var(--accent); font-size: 11.5px; }
+.inc-tag { display: inline-block; margin: 0 4px 2px 0; padding: 0 6px; border-radius: 5px; background: var(--line-soft); color: var(--dim); font-size: 11.5px; }
+.inc-inline { position: relative; display: inline-flex; }
+.inc-inline-sel { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.inc-inline:hover .inc-chip, .inc-inline:focus-within .inc-chip { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 40%, transparent); }
+
+.inc-empty { display: grid; gap: 8px; justify-items: start; padding: 28px 22px; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--dim); }
+.inc-empty b { color: var(--text); font-size: 15px; }
+.inc-empty p { margin: 0; max-width: 60ch; }
+.inc-skeleton { display: grid; gap: 8px; }
+.inc-skel-row { height: 34px; border-radius: 8px; background: linear-gradient(90deg, var(--line-soft), var(--line), var(--line-soft));
+  background-size: 300% 100%; animation: inc-shimmer 1.4s infinite linear; }
+@keyframes inc-shimmer { from { background-position: 100% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .inc-skel-row { animation: none; } }
+
+.inc-tip { position: fixed; z-index: 2000; width: min(460px, calc(100vw - 24px)); max-height: 340px; overflow: hidden; padding: 12px 14px;
+  border-radius: var(--radius-s); border: 1px solid var(--line); background: var(--panel); color: var(--text); box-shadow: var(--shadow);
+  pointer-events: none; display: grid; gap: 6px; }
+.inc-tip[hidden] { display: none; }
+.inc-tip-h { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.inc-tip-t { font-size: 14px; line-height: 1.35; }
+.inc-tip-x { color: var(--dim); font-size: 12.5px; line-height: 1.45; white-space: pre-wrap; overflow: hidden; max-height: 210px;
+  -webkit-mask-image: linear-gradient(#000 80%, transparent); mask-image: linear-gradient(#000 80%, transparent); }
+.inc-tip-f { color: var(--dimmer); font-size: 11.5px; }
+
+/* Inside Evolution's layer (`.evo-wrap` is what it is placed against), never over the conversation. */
+.inc-panel { position: absolute; z-index: 40; top: 0; right: 0; bottom: 0; width: min(620px, 100%); overflow: auto; padding: 18px 20px 60px;
+  background: var(--bg); border-left: 1px solid var(--line); box-shadow: var(--shadow); display: grid; gap: 10px; align-content: start; }
+.inc-panel:focus { outline: none; }
+.inc-panel > * { min-width: 0; }
+.inc-panel-x { position: sticky; top: 0; justify-self: end; margin-bottom: -34px; z-index: 2; }
+.inc-p-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-right: 40px; }
+.inc-p-title { margin: 0; font-size: 18px; line-height: 1.3; }
+.inc-p-meta { margin: 0; color: var(--dim); font-size: 13px; }
+.inc-p-acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.inc-go { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.inc-p-h { margin: 8px 0 0; font-size: 13px; color: var(--dim); font-weight: 600; text-transform: none; }
+.inc-notes summary, .inc-sec summary { cursor: pointer; color: var(--text); font-size: 13.5px; font-weight: 600; padding: 6px 0;
+  display: flex; gap: 8px; align-items: baseline; }
+.inc-notes-ta { width: 100%; box-sizing: border-box; margin: 4px 0 6px; padding: 8px 10px; border-radius: var(--radius-s); border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); font: inherit; font-size: 13.5px; resize: vertical; }
+.inc-sec { border-top: 1px solid var(--line-soft); padding-top: 2px; }
+.inc-sec summary .inc-n { margin-left: auto; font-weight: 400; }
+.inc-text { font-size: 13.5px; line-height: 1.55; overflow-wrap: anywhere; color: var(--text); }
+.inc-text table { border-collapse: collapse; font-size: 12.5px; display: block; overflow: auto; }
+.inc-text td, .inc-text th { border: 1px solid var(--line); padding: 3px 6px; }
+.inc-text pre, .inc-pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--mono); font-size: 12px; background: var(--panel);
+  padding: 10px; border-radius: var(--radius-s); margin: 0; }
+.inc-raw { font-size: 12px; margin-bottom: 4px; }
+.inc-links { display: grid; gap: 4px; }
+.inc-links-h { color: var(--dim); font-size: 12.5px; font-weight: 600; }
+.inc-links-l { margin: 0; padding-left: 18px; display: grid; gap: 3px; font-size: 13px; }
+.inc-links-l.long { max-height: 200px; overflow: auto; }
+.inc-a { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-size: inherit; cursor: pointer; text-align: left;
+  text-decoration: none; overflow-wrap: anywhere; }
+.inc-a:hover { text-decoration: underline; }
+.inc-reader { display: grid; gap: 6px; }
+.inc-reader-h { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; font-size: 13px; }
+.inc-frame { width: 100%; height: 62vh; border: 1px solid var(--line); border-radius: var(--radius-s); background: #fff; }
+.inc-hist { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 12.5px; color: var(--dim); }
+
+/* The nightly run's page. */
+.nr { display: grid; gap: 12px; max-width: 980px; }
+.nr-part { display: grid; gap: 8px; }
+.nr-row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin: 0; }
+.nr-switch { display: inline-flex; gap: 8px; align-items: center; font-weight: 600; cursor: pointer; }
+.nr-switch input { width: 18px; height: 18px; accent-color: var(--accent); }
+.nr-time { height: 30px; border-radius: var(--radius-s); border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 0 8px; }
+.nr-dim { margin: 0; color: var(--dim); font-size: 13.5px; }
+.nr-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13.5px; }
+.nr-scroll { max-height: 520px; }
+.nr-table { width: 100%; table-layout: auto; }
+.nr-what { white-space: normal; max-width: 420px; }
+
+@media (max-width: 760px) {
+  .inc-scroll { max-height: calc(100vh - 230px); }
+  /* On a phone the conversation is a pane of its own, so an idea takes the whole screen. */
+  .inc-panel { position: fixed; inset: 0; width: auto; z-index: 900; padding: 14px 16px 60px; }
+  .inc-p-acts .inc-sel { flex: 1 1 140px; min-width: 0; max-width: 100%; }
+  /* Clear of the conversation's round button, which stands in the same corner on a phone. */
+  .inc-panel-x { margin-right: 50px; }
+  .inc-p-head { padding-right: 96px; }
+  .inc-pop { max-width: calc(100vw - 32px); }
+}
+
+/* The score (`incubator_score.py`): a chip coloured from cool (low) to warm (high) by where it stands, set
+   in `--h` by the page, and three stars, Rouh's suggestion as outlines and the person's own filled. */
+.inc-c-score { white-space: nowrap; }
+.inc-score { display: inline-flex; align-items: center; justify-content: center; min-width: 40px; height: 22px; padding: 0 7px;
+  margin-left: 6px; border-radius: 6px; font-weight: 700; font-size: 12.5px; font-variant-numeric: tabular-nums; vertical-align: middle;
+  color: var(--text); background: hsl(var(--h, 215) 80% 52% / .2); border: 1px solid hsl(var(--h, 215) 75% 50% / .55); cursor: default; }
+.inc-score.none { background: transparent; border-color: var(--line); color: var(--dimmer); font-weight: 400; }
+/* A score with a part or stars of the person's own carries a dot. */
+.inc-score.mine::after { content: ""; width: 5px; height: 5px; margin-left: 4px; border-radius: 50%; background: var(--accent); }
+.inc-stars { display: inline-flex; gap: 0; vertical-align: middle; }
+.inc-star { width: 22px; height: 24px; padding: 0 1px; border: 0; background: none; cursor: pointer; color: var(--dimmer);
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; }
+.inc-star svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
+.inc-star.hint { color: var(--cat-amber); }
+.inc-star.full { color: var(--cat-amber); }
+.inc-star.full svg { fill: currentColor; }
+.inc-star:not(.hint):not(.full) svg { opacity: .45; }
+.inc-star:hover, .inc-star:focus-visible { background: color-mix(in srgb, var(--cat-amber) 16%, transparent); outline: none; }
+.inc-stars.big .inc-star { width: 30px; height: 30px; }
+.inc-stars.big .inc-star svg { width: 23px; height: 23px; }
+@media (hover: none) { .inc-star { width: 30px; height: 32px; } .inc-star svg { width: 20px; height: 20px; } }
+.inc-pv { font-variant-numeric: tabular-nums; color: var(--text); }
+.inc-c-stars .inc-pv { margin-left: 4px; color: var(--dim); font-size: 12px; }
+.inc-part.mine .inc-pv { color: var(--accent); font-weight: 650; }
+.inc-part.mine .inc-pv::after { content: " ●"; font-size: 8px; vertical-align: middle; }
+.inc-part:hover .inc-pv { text-decoration: underline dotted; }
+
+/* The selected row: the one under the pointer, or moved to with the keys. */
+.inc-tr.sel > td { background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.inc-tr.sel > td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+
+.inc-sortby { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); font-size: 13px; }
+.inc-dir { white-space: nowrap; }
+.inc-resort { border: 1px dashed var(--accent); background: var(--accent-soft); color: var(--text); border-radius: 999px;
+  font: inherit; font-size: 12px; padding: 2px 10px; cursor: pointer; }
+.inc-resort[hidden] { display: none; }
+.inc-scoring { color: var(--accent); }
+.inc-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; color: var(--dim); font-size: 12px;
+  padding: 6px 10px; border-radius: var(--radius-s); border: 1px solid var(--line-soft); background: var(--panel); }
+.inc-legend kbd { font-family: var(--mono); font-size: 11px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--line);
+  border-bottom-width: 2px; background: var(--bg); color: var(--text); }
+.inc-legend-x { margin-left: auto; border: 0; background: none; color: var(--dimmer); font-size: 16px; cursor: pointer; padding: 0 4px; }
+.inc-legend-x:hover { color: var(--text); }
+@media (hover: none) { .inc-legend { display: none; } }
+.inc-err-live[hidden] { display: none; }
+
+/* The score taken apart, on hover and in the panel. */
+.inc-tip-score { width: min(560px, calc(100vw - 24px)); max-height: none; }
+.inc-bd { border-collapse: collapse; font-size: 12.5px; width: 100%; }
+.inc-bd th { text-align: left; font-weight: 600; color: var(--dim); padding: 3px 10px 3px 0; white-space: nowrap; vertical-align: top; }
+.inc-bd td { padding: 3px 8px 3px 0; vertical-align: top; }
+.inc-bd-v { white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; }
+.inc-bd-v.mine, .inc-bd-who.mine { color: var(--accent); }
+.inc-bd-who { white-space: nowrap; color: var(--dimmer); font-size: 12px; }
+.inc-bd-why { color: var(--dim); line-height: 1.4; }
+.inc-formula { font-family: var(--mono); font-size: 11.5px; color: var(--dim); white-space: pre-wrap; padding: 6px 8px; border-radius: 6px;
+  background: var(--line-soft); }
+.inc-p-score { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--panel); }
+.inc-p-score-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.inc-p-score-h .inc-score { margin-left: 0; }
+.inc-p-score-h .inc-a { margin-left: auto; font-size: 13px; }
+.inc-bd-panel .inc-sel { height: 28px; font-size: 12.5px; max-width: 170px; }
+.inc-bd-panel .inc-sel.mine { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.inc-pop-how { width: min(520px, calc(100vw - 32px)); max-height: 70vh; padding: 12px 14px; display: grid; gap: 8px; font-size: 13px; }
+.inc-how-h { font-size: 14px; }
+.inc-how-l { margin: 0; padding-left: 18px; display: grid; gap: 5px; line-height: 1.4; color: var(--dim); }
+.inc-how-l b { color: var(--text); }
+.inc-how-p { margin: 0; color: var(--dim); line-height: 1.4; }
+@media (max-width: 760px) {
+  .inc-pop-how { position: fixed; left: 16px; right: 16px; top: 80px; width: auto; }
+  .inc-bd-panel .inc-bd-why { display: block; }
+  .inc-bd-panel tr { display: grid; grid-template-columns: 90px 1fr auto; }
+  .inc-bd-panel td.inc-bd-why { grid-column: 1 / -1; padding-bottom: 6px; }
+}
+.inc-c-score, .inc-c-stars { overflow: visible; text-overflow: clip; white-space: nowrap; }

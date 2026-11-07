@@ -1,0 +1,41 @@
+{
+  "id": "telegram",
+  "name": "Telegram",
+  "title": "Telegram, both ways",
+  "aliases": [
+    "telegram",
+    "phone messages",
+    "bot"
+  ],
+  "group": "machine",
+  "route": "/anatomy/connections/telegram",
+  "anatomy": {
+    "order": 20
+  },
+  "icon": "<path d=\"M21 4.5 3 11.6l5.6 2 2.1 6.4 3.2-3.9 4.6 3.4z\"/><path d=\"M8.6 13.6 18 7\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [
+      "Telegram"
+    ],
+    "tables": [
+      "telegram_accounts",
+      "telegram_links",
+      "telegram_reply",
+      "telegram_fork"
+    ],
+    "jobs": [],
+    "remove": "the Settings group's own cards in rouh/templates/rouh/index.html and its script, rouh/telegram*.py and this manifest."
+  },
+  "uses": {
+    "tools": [
+      "send_telegram"
+    ]
+  }
+}

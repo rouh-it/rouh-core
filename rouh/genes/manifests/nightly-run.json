@@ -1,0 +1,35 @@
+{
+  "id": "nightly-run",
+  "name": "Nightly run",
+  "title": "Nightly run: the nightly feature run's schedule and switch, its nights and what each built, and its rules",
+  "aliases": [
+    "nightly feature run",
+    "nightly run",
+    "night",
+    "nights",
+    "feature run schedule",
+    "night caps"
+  ],
+  "group": "evolution",
+  "route": "/evolution/nightly",
+  "icon": "<path d=\"M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z\"/><path d=\"M16 4.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "nav": {
+    "place": "list",
+    "order": 27,
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "pauses, resumes and moves the nightly feature run's own scheduled row, and starts a night at once when the person presses Start a night now; the night's caps (100 dollars, two sign-ups) are as they were"
+    ],
+    "accounts": [],
+    "tables": [
+      "nightly_feature_nights",
+      "reminders"
+    ],
+    "jobs": [],
+    "remove": "Delete this manifest, rouh/web/nightly_run.py and nightlyrunpage.js, its page in evolutionpage.js and its address, and the line in rouh/web/clock.py that leaves the nightly row off Clockwork; the run itself is Mutations' and stays."
+  }
+}

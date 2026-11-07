@@ -1,0 +1,6 @@
+services:
+  core:
+    mem_limit: 6g
+  worker:
+    shm_size: 2g
+    mem_limit: 8g

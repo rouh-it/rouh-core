@@ -1,0 +1,277 @@
+{
+  "id": "trusted-contacts",
+  "name": "Trusted contacts",
+  "title": "The people Rouh may act for and answer, and what each may ask",
+  "aliases": [
+    "people",
+    "contacts",
+    "person",
+    "trusted",
+    "grants",
+    "delegation",
+    "who"
+  ],
+  "group": "memory",
+  "route": "/anatomy/behaviour/trusted-contacts",
+  "anatomy": {
+    "order": 70
+  },
+  "icon": "<circle cx=\"9\" cy=\"8.5\" r=\"3.2\"/><path d=\"M3.5 19.5a5.5 5.5 0 0 1 11 0\"/><circle cx=\"17\" cy=\"9.5\" r=\"2.4\"/><path d=\"M15.6 14.6a4.4 4.4 0 0 1 5.4 4.9\"/>",
+  "attaches_to": [
+    "person",
+    "email"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 30,
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "grants trusted contacts authority over goals, quests and tasks (DELEGATION.md)",
+      "one access level per task per contact - none, read or edit - read by Rouh's pages, email, Telegram and the case gate alike, set beside each task on the contact's page; a task they start is theirs to edit, and a task under a ticked project is shared with them to read (rouh/task_access.py, MAIL.md D28)",
+      "every task made for somebody outside is shared with them to edit as it is made, and they are emailed its link once (rouh/requester_share.py)",
+      "Your calendar is given one calendar at a time, and a contact's case may change only the calendars ticked for them (grants.calendars_of)"
+    ],
+    "accounts": [
+      "Gmail",
+      "Telegram",
+      "Google Calendar"
+    ],
+    "tables": [
+      "trusted_contacts",
+      "trusted_addresses",
+      "contact_groups",
+      "grants",
+      "grant_versions",
+      "contact_grants",
+      "page_guests",
+      "requester_shares",
+      "delegations"
+    ],
+    "jobs": [],
+    "remove": "the Settings group's own cards in rouh/templates/rouh/index.html and its script; see MAIL.md and DELEGATION.md before removing anything."
+  },
+  "uses": {
+    "tools": [
+      "delegate",
+      "delegate_act",
+      "read_granted_tasks",
+      "share_granted_page",
+      "remember_for_contact",
+      "shared_task"
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "communication.reply",
+      "version": 1,
+      "name": "Answer them",
+      "action": "answer",
+      "said": "have their questions answered in the reply, on their own email, Telegram or Slack",
+      "resource": "none",
+      "authority": "grant",
+      "legacy_grant": "communicate",
+      "rows": false,
+      "effects": [
+        "reply"
+      ],
+      "tools": [],
+      "about": "Communication on their page: every contact who is not switched off holds it. An answer alone needs nothing else."
+    },
+    {
+      "id": "tasks.read",
+      "version": 1,
+      "name": "Read a task",
+      "action": "read_task",
+      "said": "read the task and answer from it",
+      "resource": "task",
+      "authority": "task_level",
+      "level": "view",
+      "effects": [
+        "read_tasks"
+      ],
+      "tools": [
+        {
+          "tool": "read_granted_tasks",
+          "counts": false
+        }
+      ],
+      "about": "Their read, edit or decide on the task, from the one permission record, inherited from a quest or a parent task."
+    },
+    {
+      "id": "tasks.change",
+      "version": 1,
+      "name": "Change a task",
+      "action": "edit_task",
+      "said": "add to or change the task",
+      "resource": "task",
+      "authority": "task_level",
+      "level": "edit",
+      "effects": [
+        "change_task"
+      ],
+      "tools": [
+        {
+          "tool": "shared_task",
+          "when": {
+            "action": [
+              "add"
+            ]
+          },
+          "resource": "task"
+        },
+        {
+          "tool": "shared_task",
+          "when": {
+            "action": [
+              "list"
+            ]
+          },
+          "defaults": {
+            "action": "list"
+          },
+          "counts": false
+        }
+      ],
+      "about": "Their edit or decide on the task. Rouh adds a dated entry, attributed to them, to the task named, and to no other."
+    },
+    {
+      "id": "tasks.ask_ai",
+      "version": 1,
+      "name": "Ask AI on a task",
+      "action": "page_chat",
+      "said": "use Ask AI or a chat with Rouh on the task's pages",
+      "resource": "task",
+      "authority": "task_level",
+      "level": "edit",
+      "effects": [
+        "change_task"
+      ],
+      "tools": []
+    },
+    {
+      "id": "tasks.access",
+      "version": 1,
+      "name": "Be let in to a task",
+      "action": "access",
+      "said": "change the task and use Ask AI on its pages themselves",
+      "resource": "task",
+      "authority": "task_level",
+      "level": "edit",
+      "effects": [
+        "change_task"
+      ],
+      "tools": [],
+      "about": "The permission itself: when they hold edit or decide, the gate tells them so and nothing else is done."
+    },
+    {
+      "id": "tasks.decide",
+      "version": 1,
+      "name": "Decide for you",
+      "action": "decide",
+      "said": "decide for you on the task",
+      "resource": "task",
+      "authority": "task_level",
+      "level": "decide",
+      "effects": [
+        "decide"
+      ],
+      "tools": [
+        {
+          "tool": "delegate_act",
+          "guard": "tool"
+        }
+      ],
+      "about": "Decide on the task, its quest or goal (DELEGATION.md). delegate_act checks the sender, their own words and the scope itself, and never money, deleting, publishing, sending or anybody's grants."
+    },
+    {
+      "id": "tasks.share_page",
+      "version": 1,
+      "name": "Share a page",
+      "action": "share_page",
+      "said": "have pages of tasks they may read shared with them",
+      "resource": "task",
+      "authority": "grant",
+      "legacy_grant": "tasks",
+      "rows": false,
+      "effects": [
+        "share_page"
+      ],
+      "tools": [
+        {
+          "tool": "share_granted_page",
+          "guard": "tool"
+        },
+        {
+          "tool": "read_granted_tasks",
+          "counts": false
+        }
+      ],
+      "about": "Your tasks on their page. share_granted_page shares only a page of a task they may read, or one done for them, with their own address."
+    },
+    {
+      "id": "tasks.make_shared",
+      "version": 1,
+      "name": "Make a shared task",
+      "action": "new_task",
+      "said": "have a new task made in your Personal column that you and they both add to",
+      "resource": "self",
+      "authority": "grant",
+      "legacy_grant": "shared_task",
+      "rows": true,
+      "effects": [
+        "make_task"
+      ],
+      "tools": [
+        {
+          "tool": "shared_task",
+          "when": {
+            "action": [
+              "create"
+            ]
+          }
+        }
+      ],
+      "constraints": {
+        "per_day": {
+          "type": "count",
+          "min": 1,
+          "max": 3,
+          "default": 1,
+          "said": "up to {n} new tasks a day"
+        }
+      }
+    },
+    {
+      "id": "memory.note",
+      "version": 1,
+      "name": "Keep a note",
+      "action": "note",
+      "said": "keep notes they give in your memory, marked as theirs",
+      "resource": "self",
+      "authority": "grant",
+      "legacy_grant": "memory",
+      "rows": true,
+      "effects": [
+        "keep_note"
+      ],
+      "tools": [
+        {
+          "tool": "remember_for_contact"
+        }
+      ],
+      "constraints": {
+        "per_day": {
+          "type": "count",
+          "min": 1,
+          "max": 20,
+          "default": 3,
+          "said": "up to {n} a day"
+        }
+      },
+      "about": "A note goes into Synapse Master as from them, by name and address, and dated. It never writes a rule for Rouh and never changes what is kept."
+    }
+  ]
+}

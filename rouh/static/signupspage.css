@@ -1,0 +1,25 @@
+/* Settings, Sign-ups (`signupspage.js`, `rouh/signups.py`).
+
+   The cards of the Heartbeat page (`heartbeatpage.css`) with two things of its
+   own: what a sign-up covers and what stays the person's, side by side as a
+   short list, and each sign-up's fields under its name. */
+
+.sup-dl {
+  display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 6px 12px; margin: 0;
+  padding: 10px 12px; border-radius: var(--radius-s); border: 1px solid var(--line-soft);
+  font-size: 13px; line-height: 1.45;
+}
+.sup-dl dt { font-weight: 600; }
+.sup-dl dt.yes { color: var(--good); }
+.sup-dl dt.no { color: var(--accent); }
+.sup-dl dd { margin: 0; }
+
+.sup-mono { font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.sup-fields { grid-template-columns: 104px minmax(0, 1fr); }
+.sup-item.gone .hb-beat-what { color: var(--dim); }
+.sup-pw { margin-top: 8px; }
+
+@media (max-width: 480px) {
+  .sup-dl, .sup-fields { grid-template-columns: minmax(0, 1fr); gap: 0 10px; }
+  .sup-dl dd, .sup-fields dd { margin-bottom: 6px; }
+}

@@ -1,0 +1,410 @@
+#!/usr/bin/env bash
+# rouh-open: open what Rouh's runs need for upgrades and changes, for some hours, in one command.
+# Run it on your Mac.
+#
+#   rouh-open [HOURS]           GitHub as you, the internet (any public server, any port), and the
+#                               logins of rouh.land, the relay and the host itself; 8 hours if not
+#                               given, 1 to 72
+#   rouh-open status [--details] what is open and until when (--details: the token's scopes, and
+#                               the host's own list)
+#   rouh-open add NAME...       those servers' logins added to what is already open, ending with
+#                               it (rouh-open add NAME)
+#   rouh-open close             all of it closed now (only you close; a job never does)
+#   rouh-open update            the newest of these commands, here and on the host
+#   rouh-open --version         which rouh-open this is
+#
+# It prints one short block: a line for each thing, saying what is open, or "NOT open:" and why.
+# Rouh reads the grants itself (server_health), so there is nothing to tell it. Each grant ends by
+# itself; nothing takes it away when a job finishes. The office network stays closed: that is
+# rouh-proxy-grant lan.
+#
+# The servers are a small table in ~/.config/rouh/rouh-open.conf (or the file ROUH_OPEN_CONFIG
+# names), this installation's own; DEFAULTS below is empty on purpose. A line the same shape for each:
+#   NAME | admin   | user@host[:port] | shown as | the command that grants on it (with sudo -n)
+#   NAME | keyline | user@host[:port] | shown as | the jobs' public key, kept in root's keys
+#   NAME | host    | -                | shown as | the jobs' public key, kept in the keys of your
+#                                                  own account on the host, by rouh-grant there
+#                                                  (`mozart` is this kind's older name, still read)
+#   NAME | off                                      (leaves a server out)
+#   jobs-from | ADDRESS,ADDRESS                     (where the jobs come from: the host's public addresses)
+# For each server, ROUH_OPEN_<NAME>_USER and ROUH_OPEN_<NAME>_KEY change the user and the key
+# this Mac logs in with (NAME in capitals, - and . as _: ROUH_OPEN_RELAY_KEY=~/.ssh/relay.pub,
+# ROUH_OPEN_EXAMPLE_USER=admin). Every ssh offers that one key only (IdentitiesOnly), the one
+# your ~/.ssh/config names for the host when none is given. The host's own settings are
+# ROUH_HOST_SSH, ROUH_HOST_SSH_PORT and ROUH_HOST_IDENTITY_FILE, in ~/.config/rouh/grants.env,
+# as for rouh-github-grant.
+set -o pipefail   # not -e: one part failing must not stop the others; not -u: macOS's bash 3.2 calls an empty array unset
+ROUH_OPEN_VERSION=2026-11-07.1
+
+DEFAULTS='
+'
+
+# The Mac's locale is never sent to a server. macOS's ssh sends LANG and LC_* (SendEnv in
+# /etc/ssh/ssh_config) and a Mac's shell often has LC_CTYPE=UTF-8, which is no locale on Linux:
+# the host then answered "manpath: can't set the locale". So every ssh here runs without them, and
+# the server uses its own. (An -o SendEnv=-LC_* cannot do it: the system's file adds them back.)
+ssh_clean() {
+  local v u=()
+  for v in $(compgen -e); do case "$v" in LANG|LANGUAGE|LC_*) u+=(-u "$v") ;; esac; done
+  env "${u[@]}" "$@"
+}
+
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+gh_grant=$here/rouh-github-grant; px_grant=$here/rouh-proxy-grant
+[ -x "$gh_grant" ] || gh_grant=rouh-github-grant
+[ -x "$px_grant" ] || px_grant=rouh-proxy-grant
+helper=""
+for h in "$here/../servers/rouh-jobs-keys" "${ROUH_GRANTS_DIR:-$HOME/.rouh-grants}/deploy/grants/servers/rouh-jobs-keys" \
+         "$HOME/.local/share/rouh-grants/rouh-jobs-keys"; do
+  [ -f "$h" ] && { helper=$h; break; }
+done
+
+# ---- the servers' table (macOS's bash is 3.2: plain arrays, no ${x^^}) -------------------------
+S_NAME=(); S_HOW=(); S_LOGIN=(); S_SAID=(); S_ARG=(); JOBS_FROM=""
+trim() { local s=$1; s=${s#"${s%%[![:space:]]*}"}; printf '%s' "${s%"${s##*[![:space:]]}"}"; }
+set_server() {  # name how login said arg: replaces a server of that name, or adds it
+  local i keep_n=() keep_h=() keep_l=() keep_s=() keep_a=()
+  for i in "${!S_NAME[@]}"; do
+    [ "${S_NAME[$i]}" = "$1" ] && continue
+    keep_n+=("${S_NAME[$i]}"); keep_h+=("${S_HOW[$i]}"); keep_l+=("${S_LOGIN[$i]}"); keep_s+=("${S_SAID[$i]}"); keep_a+=("${S_ARG[$i]}")
+  done
+  S_NAME=(); S_HOW=(); S_LOGIN=(); S_SAID=(); S_ARG=()
+  [ ${#keep_n[@]} -eq 0 ] || { S_NAME=("${keep_n[@]}"); S_HOW=("${keep_h[@]}"); S_LOGIN=("${keep_l[@]}"); S_SAID=("${keep_s[@]}"); S_ARG=("${keep_a[@]}"); }
+  [ "$2" = off ] && return 0
+  S_NAME+=("$1"); S_HOW+=("$2"); S_LOGIN+=("$3"); S_SAID+=("$4"); S_ARG+=("$5")
+}
+read_table() {  # text, where it came from
+  local line n how login said arg rest
+  while IFS= read -r line; do
+    line=${line%%#*}; [ -n "$(trim "$line")" ] || continue
+    n=$(trim "${line%%|*}"); rest=${line#*|}
+    [ "$rest" != "$line" ] || { echo "rouh-open: a line of $2 has no |: $line"; exit 2; }
+    if [ "$n" = jobs-from ]; then
+      JOBS_FROM=$(trim "$rest" | tr -d ' ')
+      [[ "$JOBS_FROM" =~ ^[0-9a-fA-F:.,/]+$ ]] || { echo "rouh-open: jobs-from in $2 is not a list of addresses: $JOBS_FROM"; exit 2; }
+      continue
+    fi
+    how=$(trim "${rest%%|*}"); rest=${rest#*|}
+    [ "$how" != mozart ] || how=host
+    if [ "$how" = off ]; then set_server "$n" off "" "" ""; continue; fi
+    login=$(trim "${rest%%|*}"); rest=${rest#*|}
+    said=$(trim "${rest%%|*}"); arg=$(trim "${rest#*|}")
+    [[ "$n" =~ ^[a-z0-9][a-z0-9.-]*$ ]] || { echo "rouh-open: not a server name in $2: $n"; exit 2; }
+    [ "$how" = host ] || [[ "$login" =~ ^[A-Za-z0-9._-]+@[A-Za-z0-9.:-]+$ ]] \
+      || { echo "rouh-open: $n in $2 needs user@host or user@host:port, not: $login"; exit 2; }
+    case "$how" in
+      admin) [[ "$arg" =~ ^/[A-Za-z0-9/._-]+$ ]] || { echo "rouh-open: $n in $2 needs the whole path of its admin command"; exit 2; } ;;
+      keyline|host) [[ "$arg" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521))\ [A-Za-z0-9+/]+=*(\ [A-Za-z0-9@._-]+)?$ ]] \
+                 || { echo "rouh-open: $n in $2 needs the jobs' public key line (type, key, name)"; exit 2; } ;;
+      *) echo "rouh-open: $n in $2 is neither admin, keyline, host nor off: $how"; exit 2 ;;
+    esac
+    set_server "$n" "$how" "$login" "${said:-$n}" "$arg"
+  done <<<"$1"
+}
+read_table "$DEFAULTS" "the defaults"
+conf=${ROUH_OPEN_CONFIG:-$HOME/.config/rouh/rouh-open.conf}
+if [ -f "$conf" ]; then read_table "$(cat "$conf")" "$conf"; fi
+
+envname() { printf 'ROUH_OPEN_%s_%s' "$(printf '%s' "$1" | tr 'a-z.-' 'A-Z__')" "$2"; }
+# ssh to server i: its login, the user and key from the environment if given, one key only.
+server_ssh() {  # i, then the remote command; standard input is passed on
+  local i=$1 login=${S_LOGIN[$1]} user host port="" key uvar kvar
+  shift
+  user=${login%@*}; host=${login#*@}
+  case "$host" in *:*) port=${host##*:}; host=${host%:*} ;; esac
+  uvar=$(envname "${S_NAME[$i]}" USER); kvar=$(envname "${S_NAME[$i]}" KEY)
+  user=${!uvar:-$user}; key=${!kvar:-}
+  local opts=(-o IdentitiesOnly=yes -o ConnectTimeout=20)
+  [ -z "$port" ] || opts+=(-p "$port")
+  if [ -n "$key" ]; then
+    # shellcheck disable=SC2088  # a ~/ written in the setting, made whole here
+    case "$key" in "~/"*) key=$HOME/${key#"~/"} ;; esac
+    [ -f "$key" ] && [ -r "$key" ] || { echo "$kvar is not a readable file: $key"; return 1; }
+    opts+=(-i "$key")
+  fi
+  # shellcheck disable=SC2029  # the remote command is built here on purpose, from checked words
+  ssh_clean ssh "${opts[@]}" "$user@$host" "$@"
+}
+server_user() { local uvar; uvar=$(envname "${S_NAME[$1]}" USER); local usr=${!uvar:-${S_LOGIN[$1]%@*}}; printf '%s' "$usr"; }
+sudo_word() { [ "$(server_user "$1")" = root ] || printf 'sudo -n '; }
+
+# On server i: the admin command with its words (grant HOURS, status, lock).
+admin_run() { local i=$1; shift; server_ssh "$i" "$(sudo_word "$i")${S_ARG[$i]} $*" </dev/null; }
+# On server i: the jobs' keys helper, sent on standard input and run as root, with its words.
+keyline_run() {
+  local i=$1; shift
+  [ -n "$helper" ] || { echo "the helper rouh-jobs-keys is not on this Mac: run install-from-mac.sh again (rouh-open update)"; return 1; }
+  server_ssh "$i" "$(sudo_word "$i")bash -c 't=\$(mktemp) && cat > \"\$t\" && bash \"\$t\" $*; s=\$?; rm -f \"\$t\"; exit \$s'" < "$helper"
+}
+
+# the host, for the record of the servers' logins and what is open (rouh-grant login, summary).
+host_run() {
+  local opts=(-o IdentitiesOnly=yes -o ConnectTimeout=20 -p "$HOST_PORT") key=$HOST_KEY
+  if [ -n "$key" ]; then
+    # shellcheck disable=SC2088  # a ~/ written in the setting, made whole here
+    case "$key" in "~/"*) key=$HOME/${key#"~/"} ;; esac
+    opts+=(-i "$key")
+  fi
+  # shellcheck disable=SC2029  # the remote command is built here on purpose, from checked words
+  ssh_clean ssh "${opts[@]}" "$HOST_LOGIN" "$*" </dev/null
+}
+GRANTS_ENV=${ROUH_GRANTS_ENV:-$HOME/.config/rouh/grants.env}
+if [ -f "$GRANTS_ENV" ]; then
+  while IFS='=' read -r k v; do
+    case "$k" in ROUH_[A-Z0-9_]*) [ -n "${!k:-}" ] || export "$k=$v" ;; esac
+  done < <(grep -E '^ROUH_[A-Z0-9_]+=' "$GRANTS_ENV")
+fi
+# ROUH_MOZART_* are the older names of the host's three settings, still read.
+HOST_LOGIN=${ROUH_HOST_SSH:-${ROUH_MOZART_SSH:-}}
+HOST_PORT=${ROUH_HOST_SSH_PORT:-${ROUH_MOZART_SSH_PORT:-22}}
+HOST_KEY=${ROUH_HOST_IDENTITY_FILE:-${ROUH_MOZART_IDENTITY_FILE:-}}
+RG="sudo -n /usr/local/sbin/rouh-grant"
+
+# ---- times on this Mac's own clock ------------------------------------------------------------
+if date -r 0 +%s >/dev/null 2>&1; then fmt() { date -r "$1" "+$2"; }      # macOS
+else fmt() { date -d "@$1" "+$2"; }; fi                                     # Linux
+utc_epoch() {  # YYYYMMDDHHMM in UTC -> seconds
+  date -j -u -f %Y%m%d%H%M "$1" +%s 2>/dev/null || date -u -d "${1:0:8} ${1:8:2}:${1:10:2}" +%s 2>/dev/null
+}
+clock() {  # seconds -> 22:55 today, 09:00 tomorrow, Thu 5 Nov 09:00
+  local now; now=$(date +%s)
+  if [ "$(fmt "$1" %Y%m%d)" = "$(fmt "$now" %Y%m%d)" ]; then fmt "$1" '%H:%M today'
+  elif [ "$(fmt "$1" %Y%m%d)" = "$(fmt $((now + 86400)) %Y%m%d)" ]; then fmt "$1" '%H:%M tomorrow'
+  else fmt "$1" '%a %e %b %H:%M' | tr -s ' '; fi
+}
+left() { local m=$(( ($1 - $(date +%s)) / 60 )); [ "$m" -ge 0 ] || m=0; printf '%d h %02d min left' $((m / 60)) $((m % 60)); }
+
+# ---- why a part failed, in plain words --------------------------------------------------------
+plain() {  # the output of a failed part, the server's address, the setting naming its key
+  local last; last=$(grep -v '^[[:space:]]*$' <<<"$1" | grep -v "can't set the locale" | tail -1)
+  case "$last" in
+    *"timed out"*|*"No route to host"*|*"Network is unreachable"*) echo "no answer from $2 (is this Mac online? is the server up?)" ;;
+    *"Could not resolve hostname"*) echo "could not look up $2 (is this Mac online?)" ;;
+    *"Connection refused"*) echo "$2 refused the connection" ;;
+    *"Too many authentication failures"*) echo "$2 turned this Mac away before its key was tried (name the key: $3)" ;;
+    *"Permission denied"*) echo "$2 did not take this Mac's key (name the key it takes: $3)" ;;
+    *"password is required"*|*"a terminal is required"*) echo "sudo on $2 wants a password" ;;
+    *"Host key verification failed"*) echo "$2's host key is not the one this Mac knows (ssh $2 once to look)" ;;
+    "") echo "it stopped and said nothing" ;;
+    *) echo "$last" ;;
+  esac
+}
+
+# ---- the block ---------------------------------------------------------------------------------
+R_LABEL=(); R_TEXT=(); R_END=(); R_OK=()
+row() { R_LABEL+=("$1"); R_TEXT+=("$2"); R_END+=("${3:-0}"); R_OK+=("$4"); }
+INTERNET="any public server, any port (office network stays closed)"
+grant_words() {  # a grant's key from the host's summary -> label|words
+  case "$1" in
+    all) echo "Internet|$INTERNET" ;;
+    ssh) echo "SSH|ssh to any public server" ;;
+    servers) echo "Your servers|any port" ;;
+    lan) echo "Office network|and the host itself, any port" ;;
+    *:*) echo "$1|that port only" ;;
+    *) echo "$1|and every name under it, any port" ;;
+  esac
+}
+print_block() {  # the heading when all open rows end together, else each row with its end; then the rows
+  local i any="" same=yes first=0 hdr=$1 per=""
+  for i in "${!R_LABEL[@]}"; do
+    [ "${R_OK[$i]}" = yes ] && [ "${R_END[$i]}" -gt 0 ] || continue
+    any=yes
+    if [ "$first" -eq 0 ]; then first=${R_END[$i]}
+    elif [ $(( R_END[i] - first )) -gt 120 ] || [ $(( first - R_END[i] )) -gt 120 ]; then same=""; fi
+  done
+  if [ -z "$any" ]; then echo "$2"
+  elif [ -n "$same" ]; then echo "$hdr until $(clock "$first") ($3):"
+  else echo "$hdr:"; per=yes; fi
+  for i in "${!R_LABEL[@]}"; do
+    local t=${R_TEXT[$i]}
+    if [ -n "$per" ] && [ "${R_OK[$i]}" = yes ] && [ "${R_END[$i]}" -gt 0 ]; then t="$t, until $(clock "${R_END[$i]}")"; fi
+    printf '  %-14s %s\n' "${R_LABEL[$i]}" "$t"
+  done
+  [ -z "$any" ] || echo "Close early: rouh-open close"
+}
+failed() { local i; for i in "${!R_OK[@]}"; do [ "${R_OK[$i]}" = no ] && return 0; done; return 1; }
+host_key_word() { printf 'ROUH_HOST_IDENTITY_FILE'; }
+host_of_login() { local h=${1#*@}; printf '%s' "${h%%:*}"; }
+host_address() { host_of_login "$HOST_LOGIN"; }
+# Why a row of server i failed, in plain words; the host's own row is reached the way the host is.
+why_not() {  # i, the output
+  if [ "${S_HOW[$1]}" = host ]; then
+    if grep -q "rouh-grant github set" <<<"$2"; then echo "the host's rouh-grant is older than this rouh-open (run: rouh-open update)"
+    else plain "$2" "$(host_address)" "$(host_key_word)"; fi
+  else
+    plain "$2" "$(host_of_login "${S_LOGIN[$1]}")" "$(envname "${S_NAME[$1]}" KEY)"
+  fi
+}
+
+names=""
+open_one() {  # server i, hours, now[, an exact end]: its row, and "NAME HOURS" added to $names when it opened
+  local i=$1 hours=$2 now=$3 at=${4:-} got out rc cap_h ends span
+  got=$hours; rc=0; span=$hours
+  # With an exact end (rouh-open add), the servers that take one end with it; rouh.land's own
+  # command takes whole hours, rounded up.
+  [ -z "$at" ] || span="@$at"
+  case "${S_HOW[$i]}" in
+    admin)
+      out=$(admin_run "$i" grant "$hours" 2>&1) || rc=$?
+      cap_h=$(sed -n 's/.*from 1 to \([0-9][0-9]*\).*/\1/p' <<<"$out" | head -1)
+      if [ "$rc" -ne 0 ] && [ -n "$cap_h" ] && [ "$cap_h" -ge 1 ] && [ "$cap_h" -lt "$hours" ]; then
+        got=$cap_h; rc=0; out=$(admin_run "$i" grant "$cap_h" 2>&1) || rc=$?
+      fi ;;
+    keyline)
+      # shellcheck disable=SC2086  # the key line is three words on purpose: type, key, name
+      out=$(keyline_run "$i" open "${S_NAME[$i]}" "$span" "$JOBS_FROM" ${S_ARG[$i]} 2>&1) || rc=$? ;;
+    host)
+      out=$(host_run "$RG jobs-key open ${S_NAME[$i]} $span $JOBS_FROM ${S_ARG[$i]}" 2>&1) || rc=$? ;;
+  esac
+  if [ "$rc" -eq 0 ]; then
+    local words="server login" sudo_line
+    [ "$got" = "$hours" ] || words="server login, only $got h (the most ${S_SAID[$i]} gives)"
+    if [ "${S_HOW[$i]}" = host ]; then
+      sudo_line=$(sed -n 's/^sudo: //p' <<<"$out" | tail -1)
+      case "$sudo_line" in
+        yes\ *|"") ;;
+        password\ *) words="$words, as ${sudo_line#* } (its sudo asks a password, so the jobs have no sudo)" ;;
+        *) words="$words, as ${sudo_line#* } (no sudo)" ;;
+      esac
+    fi
+    ends=$((now + got * 3600))
+    if [ -n "$at" ] && [ "${S_HOW[$i]}" != admin ]; then ends=$at; names="$names ${S_NAME[$i]} @$at"
+    else names="$names ${S_NAME[$i]} $got"; fi
+    row "${S_SAID[$i]}" "$words" "$ends" yes
+  else
+    row "${S_SAID[$i]}" "NOT open: $(why_not "$i" "$out")" 0 no
+  fi
+}
+
+open_all() {
+  local hours=$1 now end out rc i login="" sum
+  now=$(date +%s); end=$((now + hours * 3600))
+  rc=0; out=$(ROUH_GRANT_QUIET=1 "$gh_grant" "$hours" 2>&1) || rc=$?
+  if [ "$rc" -eq 0 ]; then row GitHub "as you" "$end" yes
+  else row GitHub "NOT open: $(plain "$out" "$(host_address)" "$(host_key_word)")" 0 no; fi
+  rc=0; out=$(ROUH_GRANT_QUIET=1 "$px_grant" internet "$hours" 2>&1) || rc=$?
+  if [ "$rc" -eq 0 ]; then row Internet "$INTERNET" "$end" yes
+  else row Internet "NOT open: $(plain "$out" "$(host_address)" "$(host_key_word)")" 0 no; fi
+  for i in "${!S_NAME[@]}"; do open_one "$i" "$hours" "$now"; done
+  # What opened goes on record on the host, where Rouh reads it, and the host says whose GitHub it is.
+  sum=$(host_run "${names:+$RG login open$names; }$RG summary" 2>/dev/null) || true
+  login=$(sed -n 's/^github [0-9]* \(.*\)$/\1/p' <<<"$sum" | head -1)
+  [ -z "$login" ] || [ "$login" = - ] || { [ "${R_OK[0]}" = yes ] && R_TEXT[0]="as $login"; }
+  print_block "Open for Rouh's runs" "Nothing opened for Rouh's runs:" "$hours h"
+  ! failed
+}
+
+# Some of the servers added to what is already open, ending when it ends (rouh.land, whose own
+# command takes whole hours, rounded up), so nothing that is open is closed, shortened or
+# lengthened: rouh-open add NAME.
+add_some() {
+  local now sum end=0 e hours i n found want
+  now=$(date +%s)
+  sum=$(host_run "$RG summary" 2>&1) || { echo "Could not read what is open: $(plain "$sum" "$(host_address)" "$(host_key_word)")"; return 1; }
+  # github UNTIL LOGIN, grant KEY UNTIL, login NAME UNTIL: the latest end of what is open
+  for e in $(awk '$1 == "github" {print $2} $1 == "grant" || $1 == "login" {print $3}' <<<"$sum"); do
+    [[ "$e" =~ ^[0-9]+$ ]] && [ "$e" -gt "$end" ] && end=$e
+  done
+  [ "$end" -gt "$now" ] || { echo "Nothing is open to add to. Open it all with: rouh-open HOURS"; return 1; }
+  hours=$(( (end - now + 3599) / 3600 )); [ "$hours" -le 72 ] || hours=72
+  for want in "$@"; do
+    found=""
+    for i in "${!S_NAME[@]}"; do [ "${S_NAME[$i]}" = "$want" ] && { found=yes; open_one "$i" "$hours" "$now" "$end"; }; done
+    [ -n "$found" ] || { echo "rouh-open: no server called $want (the servers: ${S_NAME[*]})"; return 2; }
+  done
+  [ -z "$names" ] || host_run "$RG login open$names" >/dev/null 2>&1 || true
+  print_block "Added for Rouh's runs" "Nothing added for Rouh's runs:" "ending with what is open"
+  ! failed
+}
+
+status_all() {
+  local details=$1 sum line k end i out rc t lw login
+  rc=0; sum=$(host_run "$RG summary" 2>&1) || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    row "GitHub, Internet" "unknown: $(plain "$sum" "$(host_address)" "$(host_key_word)")" 0 no
+  else
+    line=$(grep '^github ' <<<"$sum" | head -1)
+    if [ -n "$line" ]; then read -r _ end login <<<"$line"; row GitHub "as $login" "$end" yes; else row GitHub closed 0 closed; fi
+    grep -q '^grant all ' <<<"$sum" || row Internet closed 0 closed
+    while read -r _ k end; do
+      lw=$(grant_words "$k"); row "${lw%%|*}" "${lw#*|}" "$end" yes
+    done < <(grep '^grant ' <<<"$sum")
+  fi
+  for i in "${!S_NAME[@]}"; do
+    rc=0
+    case "${S_HOW[$i]}" in
+      admin)
+        out=$(admin_run "$i" status 2>&1) || rc=$?
+        t=$(sed -n 's/.*until \([0-9]\{8\}\) \([0-9]\{4\}\) UTC.*/\1\2/p' <<<"$out" | head -1)
+        [ -z "$t" ] || end=$(utc_epoch "$t") ;;
+      keyline)
+        out=$(keyline_run "$i" until "${S_NAME[$i]}" 2>&1) || rc=$?
+        t=$(grep -E '^[0-9]+$' <<<"$out" | tail -1); end=${t:-0} ;;
+      host)
+        out=$(host_run "$RG jobs-key until ${S_NAME[$i]}" 2>&1) || rc=$?
+        t=$(grep -E '^[0-9]+$' <<<"$out" | tail -1); end=${t:-0} ;;
+    esac
+    if [ "$rc" -ne 0 ]; then row "${S_SAID[$i]}" "unknown: $(why_not "$i" "$out")" 0 no
+    elif [ -n "$t" ] && [ "${end:-0}" -gt "$(date +%s)" ]; then row "${S_SAID[$i]}" "server login" "$end" yes
+    else row "${S_SAID[$i]}" closed 0 closed; fi
+  done
+  local first=0 j
+  for j in "${!R_OK[@]}"; do [ "${R_OK[$j]}" = yes ] && { first=${R_END[$j]}; break; }; done
+  print_block "Open for Rouh's runs" "Nothing is open for Rouh's runs:" "$( [ "$first" -gt 0 ] && left "$first")"
+  if [ "$details" = yes ]; then
+    echo; echo "Details"
+    "$gh_grant" status --details 2>&1 | grep -i "scopes" | sed 's/^/  /'
+    host_run "$RG list" 2>&1 | sed 's/^/  /'
+  fi
+  return 0
+}
+
+close_all() {
+  local out rc i names=""
+  rc=0; out=$(ROUH_GRANT_QUIET=1 "$gh_grant" revoke 2>&1) || rc=$?
+  if [ "$rc" -eq 0 ]; then row GitHub closed 0 closed; else row GitHub "NOT closed: $(plain "$out" "$(host_address)" "$(host_key_word)")" 0 no; fi
+  rc=0; out=$(ROUH_GRANT_QUIET=1 "$px_grant" revoke all 2>&1) || rc=$?
+  if [ "$rc" -eq 0 ]; then row Internet "closed (and every other proxy grant)" 0 closed
+  else row Internet "NOT closed: $(plain "$out" "$(host_address)" "$(host_key_word)")" 0 no; fi
+  local warn=""
+  for i in "${!S_NAME[@]}"; do
+    rc=0
+    case "${S_HOW[$i]}" in
+      admin) out=$(admin_run "$i" lock 2>&1) || rc=$? ;;
+      keyline) out=$(keyline_run "$i" close "${S_NAME[$i]}" 2>&1) || rc=$? ;;
+      host) out=$(host_run "$RG jobs-key close ${S_NAME[$i]}" 2>&1) || rc=$? ;;
+    esac
+    if [ "$rc" -ne 0 ]; then
+      row "${S_SAID[$i]}" "NOT closed: $(why_not "$i" "$out")" 0 no
+    elif grep -q WARNING <<<"$out"; then
+      row "${S_SAID[$i]}" "closed; files changed while the jobs were in (below)" 0 closed
+      warn="$warn$(sed -n '/WARNING/,$p' <<<"$out" | sed "s/^/  ${S_SAID[$i]}: /")"$'\n'
+    else
+      row "${S_SAID[$i]}" closed 0 closed
+    fi
+    names="$names ${S_NAME[$i]}"
+  done
+  [ -z "$names" ] || host_run "$RG login close$names" >/dev/null 2>&1 || true
+  echo "Closed for Rouh's runs:"
+  for i in "${!R_LABEL[@]}"; do printf '  %-14s %s\n' "${R_LABEL[$i]}" "${R_TEXT[$i]}"; done
+  [ -z "$warn" ] || printf '%s' "$warn"
+  ! failed
+}
+
+case "${1:-8}" in
+  -h|--help|help) sed -n '5,14p' "$0" | sed 's/^# //'; exit 2 ;;
+  -V|--version|version) echo "rouh-open $ROUH_OPEN_VERSION"; exit 0 ;;
+  close|revoke) [ $# -le 1 ] || { echo "rouh-open close takes nothing more."; exit 2; }; close_all ;;
+  status|list)
+    case "${2:-}" in ""|--details) ;; *) echo "rouh-open status [--details]"; exit 2 ;; esac
+    status_all "$( [ "${2:-}" = --details ] && echo yes)" ;;
+  update) exec "$px_grant" update ;;
+  add)
+    [ $# -ge 2 ] || { echo "rouh-open add NAME...   (a server added to what is open, ending with it: rouh-open add NAME)"; exit 2; }
+    shift; add_some "$@" ;;
+  *)
+    hours=${1:-8}
+    [ $# -le 1 ] && [[ "$hours" =~ ^[0-9]+$ ]] && [ "$hours" -ge 1 ] && [ "$hours" -le 72 ] \
+      || { echo "Give a whole number of hours from 1 to 72, or close, status or update."; exit 2; }
+    open_all "$hours" ;;
+esac

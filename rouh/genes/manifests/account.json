@@ -1,0 +1,38 @@
+{
+  "id": "account",
+  "name": "Account",
+  "title": "Who is signed in, the email that signs you in, passkeys, and the way out",
+  "aliases": [
+    "log out",
+    "passkey",
+    "sign in by email",
+    "sign out",
+    "sign-in email",
+    "signed in"
+  ],
+  "group": "machine",
+  "route": "/anatomy/you/account",
+  "anatomy": {
+    "order": 30
+  },
+  "icon": "<circle cx=\"12\" cy=\"8.5\" r=\"3.6\"/><path d=\"M5 20a7 7 0 0 1 14 0\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "organisations",
+      "passkeys",
+      "sign_in_emails",
+      "sign_in_links",
+      "users"
+    ],
+    "jobs": [],
+    "remove": "Not removable."
+  }
+}

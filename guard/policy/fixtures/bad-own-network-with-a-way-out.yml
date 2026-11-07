@@ -1,0 +1,6 @@
+services:
+  sidecar:
+    image: busybox
+    networks: [out]
+networks:
+  out: {}

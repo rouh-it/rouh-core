@@ -1,0 +1,44 @@
+{
+  "id": "n19-notes-missing",
+  "name": "Meetings with no notes",
+  "title": "Meetings with no notes: your meetings with people from outside that the meeting library sent no notes for, in the morning brief, with when it last sent any",
+  "aliases": [
+    "missing notes",
+    "not recorded",
+    "no meeting notes",
+    "recorder stopped",
+    "meeting library"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<rect x=\"5\" y=\"3.5\" width=\"14\" height=\"17\" rx=\"2\"/><path d=\"M8.5 8h7M8.5 11.5h7M8.5 15h4\"/><path d=\"M4 20L20 4\"/>",
+  "attaches_to": [
+    "meeting"
+  ],
+  "maturity": "lab",
+  "switch": "notes_missing",
+  "signals": {
+    "events": {
+      "not_recorded": "You pressed Not recorded on a meeting the morning brief said had no notes",
+      "opened_library": "You pressed Open the meeting library on a meeting the morning brief said had no notes"
+    },
+    "runs": {
+      "shown": "Rouh put meetings that had no notes from the meeting library in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the events of your own calendars and the meetings from the meeting library in your Master, over the last week"
+    ],
+    "accounts": [],
+    "tables": [
+      "user_settings"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch notes_missing off on its row in Evolution, Mutations, and the section is gone; to remove it for good revert night 19's commit (rouh/notes_missing.py, the brief_no_notes route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawNoNotes and its helpers in briefpage.js, this manifest) and delete the user setting notes_missing."
+  }
+}

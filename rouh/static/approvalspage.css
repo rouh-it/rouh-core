@@ -1,0 +1,54 @@
+/* The Approvals page (`approvalspage.js`): each queue of what waits for
+   the person's decision, then the latest, a line each, no wider than reads
+   comfortably. Rouh's own tokens and nothing new. */
+
+.ap-view:focus { outline: none; }
+.ap-wrap { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
+.ap-body { flex: 1 1 auto; min-width: 0; overflow: auto; scrollbar-width: thin; padding: 2px 2px 48px; }
+/* One case: its page (`mail_case.html`) in a frame filling the body, which scrolls itself. */
+.ap-body.ap-framed { overflow: hidden; padding: 0; display: flex; position: relative; }
+.ap-frame { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; border-radius: 12px; background: #0a0c10;
+  color-scheme: dark; }
+/* The case's page on its way into the frame (fr_2da2f1984247). Safari paints a frame white until
+   the page inside has drawn, which was a white sheet in the middle of Rouh for as long as the
+   case took: the frame is laid out but out of sight until its page has loaded, and a quiet line
+   stands where it will be, only once the wait is long enough to notice. As the canvas's frame
+   does (`.tasks-body.loading`), and out of sight by opacity, never by visibility, for the same
+   reason. */
+.ap-body.ap-loading .ap-frame { opacity: 0; pointer-events: none; }
+.ap-wait { display: none; }
+.ap-body.ap-loading .ap-wait {
+  display: block; position: absolute; inset: 0; margin: 0; padding-top: 28px; text-align: center;
+  font-size: 13px; color: var(--dimmer); opacity: 0; animation: boot-in .2s ease-out .35s forwards;
+}
+.ap-page { max-width: 860px; display: grid; gap: 14px; }
+.ap-intro { margin: 0; max-width: 66ch; }
+.ap-contacts { color: var(--accent); }
+
+.ap-sec { display: grid; gap: 6px; }
+.ap-h { margin: 4px 0 0; display: flex; align-items: baseline; gap: 8px;
+  font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--dim); }
+.ap-n { font-size: 11.5px; font-weight: 650; padding: 0 6px; border-radius: 999px; background: var(--line-soft);
+  letter-spacing: 0; }
+.ap-list { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.ap-waiting .ap-list { border-left: 3px solid var(--warn); }
+.ap-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: baseline;
+  padding: 10px 12px; border-top: 1px solid var(--line-soft); color: inherit; text-decoration: none; }
+.ap-row:first-child { border-top: 0; }
+.ap-row:hover { background: var(--panel-2); }
+.ap-row:hover .ap-who { color: var(--accent); }
+.ap-who { font-size: 14px; font-weight: 640; overflow-wrap: anywhere; }
+.ap-what { grid-column: 1 / -1; font-size: 13px; color: var(--dim); overflow-wrap: anywhere; }
+.ap-pill { justify-self: end; white-space: nowrap; font-size: 12px; font-weight: 600; padding: 1px 9px;
+  border-radius: 999px; border: 1px solid var(--line); color: var(--dim); }
+.ap-pill.ap-warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.ap-pill.ap-good { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+.ap-pill.ap-bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+
+.ap-said, .ap-empty { margin: 0; color: var(--dim); font-size: 14px; }
+.ap-empty { padding: 28px 20px; border: 1px dashed var(--line); border-radius: 14px; text-align: center; }
+.ap-error { margin: 0; color: var(--bad); font-size: 14px; }
+
+@media (max-width: 560px) {
+  .ap-row { padding: 10px; }
+}

@@ -1,0 +1,33 @@
+{
+  "id": "home",
+  "name": "Home",
+  "title": "Home: the lights in every room and zone, and the house's other devices",
+  "aliases": [
+    "house",
+    "home automation",
+    "lights",
+    "rooms",
+    "smart home"
+  ],
+  "group": "now",
+  "route": "/home",
+  "icon": "<path d=\"M3.5 11 12 4l8.5 7\"/><path d=\"M5.5 9.5V20h13V9.5\"/><path d=\"M10 20v-5.5h4V20\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "dedicated",
+    "opens": "own",
+    "row": "homeBtn"
+  },
+  "touches": {
+    "permissions": [
+      "turns the person's Philips Hue rooms, zones and lights on and off, dims them, changes their colour and colour temperature, activates their scenes and turns everything off, when they press it on the Home page"
+    ],
+    "accounts": [
+      "Philips Hue"
+    ],
+    "tables": [],
+    "jobs": [],
+    "remove": "Delete homepage.js/.css, the house in the navigation's head and the homeView layer in rouh/templates/rouh/index.html, the home layer in app/runs.js and its places in app/cards.js and app/address.js, rouh/web/home.py and its route, page_home/page_change in rouh/hue.py, addressing.HOME and its route, and this manifest. Each device's own section goes with it."
+  }
+}

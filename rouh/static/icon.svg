@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192" role="img" aria-label="Rouh">
+  <!-- The mark, and the source the PNGs beside it were drawn from. It is the
+       dot in the sidebar's head blown up: the accent, with its soft halo round
+       it, on the page's own background. Nothing is transparent, because iOS
+       composites a home screen icon onto white and a dark mark with a clear
+       corner would come out as a white tile with a blue spot on it.
+
+       The halo is 56.7% of the square across and the dot 34%, so the whole
+       mark sits inside the middle 80% that an Android maskable icon is allowed
+       to be cropped to. -->
+  <rect width="192" height="192" fill="#0a0c10"/>
+  <circle cx="96" cy="96" r="54.4" fill="#5ec2ff" fill-opacity="0.14"/>
+  <circle cx="96" cy="96" r="32.6" fill="#5ec2ff"/>
+</svg>

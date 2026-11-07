@@ -1,0 +1,45 @@
+{
+  "id": "gene-therapy",
+  "name": "Gene therapy",
+  "title": "Gene therapy: how would you like to mutate me?",
+  "aliases": [
+    "feedback",
+    "mutate",
+    "mutation",
+    "gene therapy",
+    "feature request",
+    "bug",
+    "report",
+    "complain",
+    "idea",
+    "suggestion"
+  ],
+  "group": "machine",
+  "route": "/gene-therapy",
+  "icon": "<path d=\"M7 3c0 4.5 10 4.5 10 9s-10 4.5-10 9\"/><path d=\"M17 3c0 4.5-10 4.5-10 9s10 4.5 10 9\"/><path d=\"M8 5.2h8M8 9.8h8M8 14.2h8M8 18.8h8\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "dedicated",
+    "opens": "press",
+    "press": "geneTherapyBtn",
+    "counts": true
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "feedback",
+      "feature_request",
+      "feedback_board",
+      "feedback_file"
+    ],
+    "jobs": [],
+    "remove": "Not removable: Gene therapy is in the dedicated area under the menu button. It was Feedback until 12 October 2026; its tables kept their names."
+  },
+  "uses": {
+    "tools": [
+      "improve_myself"
+    ]
+  }
+}

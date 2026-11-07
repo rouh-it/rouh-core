@@ -1,0 +1,34 @@
+/* Settings, Cloudflare (`cloudflarepage.js`, `rouh/cloudflare.py`).
+
+   The cards of the Heartbeat page (`heartbeatpage.css`) and the permissions
+   box of Payments (`paymentspage.css`), with two things of its own: each
+   zone's ids and its token's state under its name, and what a check found,
+   one line a permission. */
+
+.cf-perms { margin-top: 4px; }
+.cf-perms .pay-perm { grid-template-columns: 72px minmax(0, 1fr); }
+.cf-name { font-family: var(--mono); font-size: 14px; }
+.cf-mono { font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.cf-fields { grid-template-columns: 104px minmax(0, 1fr); }
+.cf-form { margin-top: 8px; }
+.cf-zone .hb-actions { margin-top: 8px; }
+.cf-form .hb-field + .hb-field, .cf-add .hb-field + .hb-field { margin-top: 6px; }
+
+.cf-checks {
+  list-style: none; margin: 8px 0 0; padding: 8px 10px; display: grid; gap: 4px;
+  border-radius: var(--radius-s); border: 1px solid var(--line-soft); font-size: 13px; line-height: 1.4;
+}
+.cf-check { display: grid; grid-template-columns: 16px minmax(0, max-content) minmax(0, 1fr); gap: 4px 8px; }
+.cf-mark { font-weight: 700; text-align: center; }
+.cf-check.ok .cf-mark { color: var(--good); }
+.cf-check.bad .cf-mark, .cf-check.bad .cf-check-name { color: var(--bad); }
+.cf-check.opt .cf-mark { color: var(--dim); }
+.cf-check-name { font-weight: 600; }
+.cf-check-said { color: var(--dim); overflow-wrap: anywhere; }
+
+@media (max-width: 480px) {
+  .cf-fields { grid-template-columns: minmax(0, 1fr); gap: 0 10px; }
+  .cf-fields dd { margin-bottom: 6px; }
+  .cf-check { grid-template-columns: 16px minmax(0, 1fr); }
+  .cf-check-said { grid-column: 2; }
+}

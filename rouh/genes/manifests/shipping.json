@@ -1,0 +1,45 @@
+{
+  "id": "shipping",
+  "name": "Shipping",
+  "title": "Shipping: couriers, lockers, offices and addresses in your favourite order",
+  "aliases": [
+    "delivery",
+    "deliveries",
+    "address",
+    "addresses",
+    "courier",
+    "locker",
+    "parcel",
+    "speedy",
+    "econt"
+  ],
+  "group": "machine",
+  "route": "/anatomy/money/shipping",
+  "anatomy": {
+    "order": 20
+  },
+  "icon": "<path d=\"M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z\"/><path d=\"M3 7.5 12 12l9-4.5M12 12v9\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "fills a checkout's delivery fields with the option picked, and never presses its order button"
+    ],
+    "accounts": [],
+    "tables": [
+      "shipping_options",
+      "shipping_situations"
+    ],
+    "jobs": [],
+    "remove": "the Settings group's own cards in rouh/templates/rouh/index.html and its script, rouh/shipping.py, rouh/web/shipping.py, shippingpage.js/.css, the shipping tool and browser fill_shipping in rouh/tools.py, SHIP_FIELDS in rouh/browsing.py, SHIPPING in rouh/brain.py and this manifest."
+  },
+  "uses": {
+    "tools": [
+      "shipping"
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+services:
+  core:
+    post_start:
+      - command: ["sh", "-c", "true"]
+        privileged: true
+        user: root

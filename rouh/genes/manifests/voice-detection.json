@@ -1,0 +1,32 @@
+{
+  "id": "voice-detection",
+  "name": "Voice detection",
+  "title": "Voice detection: the microphone's tuning, watched while somebody talks",
+  "aliases": [
+    "microphone",
+    "mic",
+    "voice",
+    "vad",
+    "tuning",
+    "sensitivity"
+  ],
+  "group": "machine",
+  "route": "/anatomy/behaviour/voice",
+  "anatomy": {
+    "order": 20
+  },
+  "icon": "<path d=\"M4 6h16M4 12h16M4 18h16\"/><circle cx=\"9\" cy=\"6\" r=\"2\"/><circle cx=\"15\" cy=\"12\" r=\"2\"/><circle cx=\"8\" cy=\"18\" r=\"2\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [],
+    "jobs": [],
+    "remove": "A group of Settings, at /settings/voice; the tuning is this browser's own."
+  }
+}

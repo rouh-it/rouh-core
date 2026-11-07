@@ -1,0 +1,113 @@
+{% extends "rouh/signin_base.html" %}
+{% comment %}Signing the worker's Claude Code in, in the containers (`rouh/web/claude_signin.py`):
+   with the person's Claude subscription, through Claude Code's own sign-in run in the
+   worker, or with an Anthropic API key the core keeps and the key proxy adds. And, apart
+   from Claude Code, a key for Rouh's own chats, which call a provider's API themselves and
+   cannot use the Claude subscription: kept without switching Claude Code.{% endcomment %}
+{% block title %}Sign in to Claude{% endblock %}
+{% block body %}
+ <style>
+  .steps{display:grid;gap:14px}
+  .num{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;
+       background:#232a33;color:#e8ecf1;font-size:12px;font-weight:700;margin-right:6px}
+  .quiet{background:#11151a;color:#e8ecf1;border:1px solid #2b333d}
+  .quiet:hover{background:#171c22}
+  details{border-top:1px solid #232a33;padding-top:12px}
+  summary{cursor:pointer;color:#8fb8ff;font-size:14px}
+  details[open] summary{margin-bottom:10px}
+  .wait{display:flex;gap:10px;align-items:center}
+  .spin{flex:none;width:16px;height:16px;border-radius:50%;border:2px solid #232a33;
+        border-top-color:#5ec2ff;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spin{animation:none}}
+  [hidden]{display:none!important}
+  .chats{display:grid;gap:10px;border-top:1px solid #232a33;padding-top:14px}
+  .chats h3{font-size:15px;margin:0;font-weight:600;color:#e8ecf1}
+ </style>
+ <h2>Sign in to Claude</h2>{% if problem %}
+ <div class="bad" role="alert"><p>{{ problem }}</p></div>{% endif %}
+
+{% if state == "starting" %}
+ <div class="wait" role="status" id="starting"><span class="spin" aria-hidden="true"></span>
+  <p>Rouh is getting Claude Code ready. On the first start this takes about 2 minutes. This page carries on by itself.</p></div>
+ <div class="bad" role="alert" id="slow" hidden><p>This is taking longer than it should. In Rouh for Mac's menu, press Settings, then Repair.</p></div>
+ <script>
+  // Asks for the one word until the worker is ready, then shows the page for it.
+  // After ten minutes it says what to press, and keeps asking.
+  var asked = 0;
+  (function check(){
+    setTimeout(function(){
+      if(++asked === 150){document.getElementById("slow").hidden = false}
+      fetch("/setup/claude/state",{cache:"no-store"}).then(function(r){return r.json()})
+        .then(function(s){ if(s.state!=="starting"){location.replace("/setup/claude")} else {check()} })
+        .catch(check);
+    },4000);
+  })();
+ </script>
+
+{% elif state == "signed_in" %}
+ <p class="good">{{ how }}</p>
+
+{% elif state == "waiting_for_code" %}
+ <div class="steps">
+  <div class="field">
+   <p><span class="num">1</span>Sign in on Claude's page. It opens in a new tab.</p>
+   <a class="button" href="{{ address }}" target="_blank" rel="noopener noreferrer" id="openClaude">Open Claude's sign-in page</a>
+  </div>
+  <form method="post" action="/setup/claude" class="field">
+   {% csrf_token %}<input type="hidden" name="do" value="code">
+   <label for="code"><span class="num">2</span>Claude then shows a code. Paste it here.</label>
+   <input id="code" name="code" type="text" autocapitalize="none" autocorrect="off" autocomplete="off"
+          spellcheck="false" required>
+   <button type="submit">Finish signing in</button>
+  </form>
+  <form method="post" action="/setup/claude">
+   {% csrf_token %}<input type="hidden" name="do" value="cancel">
+   <button type="submit" class="quiet">Start again</button>
+  </form>
+ </div>
+
+{% else %}
+ <p>Rouh's work is done by Claude Code. Sign it in with your Claude account, or use an Anthropic API key.</p>
+ <form method="post" action="/setup/claude">
+  {% csrf_token %}<input type="hidden" name="do" value="start">
+  <button type="submit">Sign in with Claude</button>
+ </form>
+{% endif %}
+
+{% if state != "waiting_for_code" %}
+ <section class="chats" id="chats" aria-labelledby="chatsTitle">
+  <h3 id="chatsTitle">Rouh's own chats</h3>{% if chats_key and not chat_problem %}
+  <p class="good">Rouh's chats answer with your {{ chats_key }} key.</p>{% else %}
+  <p>Your Claude account signs in Claude Code only. Rouh's own chats need an Anthropic or OpenAI API key, billed by what they use. Claude Code stays on your account.</p>{% if chat_problem %}
+  <div class="bad" role="alert"><p>{{ chat_problem }}</p></div>{% endif %}
+  <form method="post" action="/setup/claude#chats" class="field">
+   {% csrf_token %}<input type="hidden" name="do" value="chat_key">
+   <label for="chatKey">Anthropic or OpenAI API key</label>
+   <input id="chatKey" name="key" type="password" autocomplete="off" spellcheck="false" required>
+   <button type="submit">Save the key for chats</button>
+  </form>
+  <p>Make one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a> or <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">platform.openai.com</a>.</p>{% endif %}
+ </section>
+{% endif %}
+{% if state == "signed_in" %}
+ <a class="button{% if not chats_key %} quiet{% endif %}" href="/">Continue to Rouh</a>
+{% endif %}
+
+{% if state != "starting" and state != "waiting_for_code" %}
+ <details{% if key_problem %} open{% endif %}>
+  <summary>{% if state == "signed_in" %}Sign Claude Code in another way{% else %}Run Claude Code on an Anthropic API key instead{% endif %}</summary>
+  {% if state == "signed_in" %}
+  <form method="post" action="/setup/claude" style="margin-bottom:14px">
+   {% csrf_token %}<input type="hidden" name="do" value="start">
+   <button type="submit" class="quiet">Sign in with Claude</button>
+  </form>{% endif %}
+  <form method="post" action="/setup/claude" class="field">
+   {% csrf_token %}<input type="hidden" name="do" value="api_key">
+   <label for="key">Anthropic API key for Claude Code, billed by use instead of your Claude account{% if has_key %} (one is kept; a new one replaces it){% endif %}</label>
+   <input id="key" name="key" type="password" autocomplete="off" spellcheck="false" required>
+   <button type="submit" class="quiet">Use this key</button>
+  </form>
+ </details>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,51 @@
+{
+  "id": "quests",
+  "name": "Quests",
+  "title": "Quests: the long-running work the heartbeat carries",
+  "aliases": [
+    "quest",
+    "long running work",
+    "long work",
+    "missions"
+  ],
+  "group": "work",
+  "route": "/quests",
+  "icon": "<path d=\"M20.5 3.5l-.7 4.6L10 17.9 6.1 14l9.8-9.8z\"/><path d=\"M3.8 12.2l8 8\"/><path d=\"M7.4 16.6l-3.6 3.6\"/>",
+  "attaches_to": [
+    "task"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 40,
+    "opens": "own",
+    "row": "questsRow",
+    "controls": "workView",
+    "marks": [
+      {
+        "id": "questsHint",
+        "class": "sb-row-hint"
+      }
+    ]
+  },
+  "touches": {
+    "permissions": [
+      "spends money only within the caps set in Settings, Payments"
+    ],
+    "accounts": [],
+    "tables": [
+      "long_work",
+      "long_work_ledger"
+    ],
+    "jobs": [
+      "each quest is worked on by the heartbeat's beats (rouh/heartbeat.py)"
+    ],
+    "remove": "Delete rouh/quests.py, rouh/web/quests.py, questspage.js and this manifest; the quests' tasks stay."
+  },
+  "uses": {
+    "tools": [
+      "quest",
+      "long_work"
+    ]
+  }
+}

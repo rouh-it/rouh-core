@@ -1,0 +1,6 @@
+services:
+  worker:
+    volumes: [elsewhere:/x]
+volumes:
+  elsewhere:
+    external: true

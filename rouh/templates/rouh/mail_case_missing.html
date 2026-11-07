@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include "rouh/_trust_style.html" %}
+<title>Case not shown - Rouh</title>
+<!--
+  What /mail/case/<key> says when it cannot show the case (`rouh/web/trusted.py`, `_case_missing`):
+  there is no such case for this account, or the case could not be drawn. Petar, 13 October 2026
+  (fr_e71feba5b161): a case link opened to "Something went wrong on the server." with nothing
+  to do next; the page says what happened in plain words and offers a way back.
+-->
+<style>
+.missing { max-width: 560px; margin: 12vh auto 0; }
+.missing p { margin: 0 0 18px; }
+.missing .nav { margin: 0; }
+</style>
+</head>
+<body>
+<main class="wrap missing" id="caseMissing">
+  <h1>{{ title }}</h1>
+  <p class="sub">{{ said }}</p>
+  <nav class="nav" aria-label="Where to go">
+    <a class="ctl" href="/chat/conversation" id="goBack">Go back</a>
+    <a class="ctl" href="/decisions" target="_top">Decisions</a>
+    <a class="ctl" href="{{ approvals }}" target="_top">All approvals</a>
+  </nav>
+</main>
+<script>
+document.getElementById("goBack").addEventListener("click", (e) => {
+  if (history.length > 1) { e.preventDefault(); history.back(); }
+});
+</script>
+</body>
+</html>

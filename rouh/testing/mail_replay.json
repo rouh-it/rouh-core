@@ -1,0 +1,400 @@
+{
+  "about": "The replay set of D9 (MAIL.md): invented cases, one for each shape the real mail and Telegram cases of 30 September to 11 October 2026 had (the ten of task 74-03 among them), written so that no real person's mail is in the repository, each with its asks as the reading maps them and the status Rouh's code must give each, from the grants the contact holds. Then the guardrails task 74's guards.py held, as asks. rouh/mail_replay.py runs them through mail_ledger.judge, the very function a run and Test grants use; land.sh refuses to land mail code that changes any outcome here. The quoted words, people, companies and places are all made up. `states` (12 October 2026, MAIL.md D14 to D17): where a case says it is, through `case_state.of` - its words, whether it is running, its next action and which failed asks are possible now - for Sam's itinerary as it rests, and the guards that a waiting case always names its action and that nothing is said to run unless it does. `gate` (12 October 2026, MAIL.md D18): the case is an entry gate only. Sam's itinerary as it arrived before her grants, through the gate: one first message listing what was allowed and started and what needs Alex and waits; one batch of his decisions, one message; a started job that fails, which raises no decision and sends nothing; a job that needs what was not decided, which puts it on the ask it stopped and makes a decision, never a new ask; and two results that finish together, one message. `phantoms` (16 October 2026, MAIL.md D29): Sam's case 51 as it stood that morning, with the ask the work made up: it is folded away, every real ask done and nothing put to Alex; a run that finds the work done already is done, never failed; and a permission she holds is never asked for. `readings` (21 October 2026, MAIL.md D34): case 53 as it was read and re-run three times. The same message read twice gives the same reading, whatever the second reading made of it; \"talk to you in the interface\" is never a hard limit, at the reading, as a run's need or when the case is judged again, while words that ask for an effect still name one; a covered ask that fails is tried again by itself and is never a decision, until it has failed MAX_TRIES times, when the contact is told; and the reader is given the contact's permissions, inherited ones with the task they come through.",
+  "contacts": {
+    "sam": {"id": 1, "name": "Sam Rivera", "trusted": true, "levels": ["communicate", "tasks", "use"], "extra_grants": ["memory", "clockwork", "shared_task"], "addresses": ["sam@example.org"], "telegram": ["telegram:1000000001"], "zone": "Europe/Lisbon"},
+    "sam_before_grants": {"id": 1, "name": "Sam Rivera", "trusted": true, "levels": ["communicate", "tasks", "use"], "extra_grants": [], "addresses": ["sam@example.org"], "telegram": ["telegram:1000000001"]},
+    "jordan": {"id": 4, "name": "Jordan Lee", "trusted": true, "levels": ["communicate", "tasks", "use"], "inbox_scope": "read", "addresses": ["jordan@example.net"], "zone": "Europe/Lisbon"},
+    "casey": {"id": 5, "name": "Casey Park", "trusted": true, "levels": ["communicate", "tasks", "use"], "addresses": ["casey@example.net"], "zone": "Europe/Lisbon"},
+    "robin": {"implicit": true, "name": "Robin Hale", "addresses": ["robin@example.org"]},
+    "vendor": {"implicit": true, "name": "Storage Vendor Support", "addresses": ["support@example.net"]},
+    "switched_off": {"id": 9, "name": "Somebody Switched Off", "trusted": false, "levels": ["communicate", "tasks", "use"], "addresses": ["off@example.com"]},
+    "decliner": {"id": 10, "name": "Declined Beyond", "trusted": true, "levels": ["communicate"], "beyond": "decline", "addresses": ["beyond@example.com"]},
+    "communicate_clockwork": {"id": 11, "name": "Clockwork Communicates", "trusted": true, "levels": ["communicate"], "extra_grants": ["clockwork"], "addresses": ["cc@example.com"], "zone": "Europe/Lisbon"},
+    "clockwork_only": {"id": 12, "name": "Clockwork Alone", "trusted": true, "levels": [], "extra_grants": ["clockwork"], "addresses": ["alone@example.com"]},
+    "sam_calendar": {"id": 1, "name": "Sam Rivera", "trusted": true, "levels": ["communicate", "tasks", "use"], "extra_grants": ["memory", "clockwork", "shared_task", "g-your-calendar-0001"], "addresses": ["sam@example.org"], "telegram": ["telegram:1000000001"], "zone": "Europe/Lisbon"}
+  },
+  "cases": [
+    {"case": 1, "who": "sam", "what": "Her shared recipe page stopped opening", "asks": [
+      {"ask": "The page you shared with me will not open any more. Could you sort it out?", "label": "get you back into the shared page", "grant": "tasks", "expect": "allowed"}]},
+    {"case": 2, "who": "vendor", "what": "A vendor writes that her files are now stored in another region: nothing asked", "asks": []},
+    {"case": 3, "who": "casey", "what": "A printable sheet for a community kitchen's volunteers, and what Rouh knows of the rota app", "asks": [
+      {"ask": "I have to make a printable sheet that explains the rota app to each kind of volunteer", "label": "a printable sheet on the rota app's volunteer roles", "grant": "use", "expect": "allowed"},
+      {"ask": "could you tell me what you already know about how the rota app works?", "label": "what Rouh knows of the rota app", "grant": "none", "expect": "allowed"}]},
+    {"case": 4, "who": "casey", "what": "The sheet for shift leads, which mentions signing in", "asks": [
+      {"ask": "Start with just the first kind, the shift lead, and sign in to the rota app as one", "label": "the shift lead sheet", "grant": "use", "expect": "allowed"}]},
+    {"case": 5, "who": "sam", "what": "Will Rouh keep her emails out of junk", "asks": [
+      {"ask": "will you make sure none of my emails end up unread or in the junk folder?", "grant": "none", "expect": "allowed"}]},
+    {"case": 6, "who": "sam", "what": "What Rouh looks like", "asks": [
+      {"ask": "If you had a face, what would you look like?", "grant": "none", "expect": "allowed"}]},
+    {"case": 7, "who": "jordan", "what": "What Rouh does for Alex", "asks": [
+      {"ask": "What sort of things do you handle for Alex day to day?", "grant": "none", "expect": "allowed"},
+      {"ask": "Email works best for me for anything you send", "grant": "none", "expect": "allowed"}]},
+    {"case": 8, "who": "jordan", "what": "How Rouh reminds him of overdue replies", "asks": [
+      {"ask": "How do you remind him when a reply to somebody is overdue?", "grant": "none", "expect": "allowed"}]},
+    {"case": 9, "who": "jordan", "what": "An overview of Alex's outstanding answers, from his inbox", "inbox_needed": "read", "asks": [
+      {"ask": "Could you show me an example - a list of the emails he still owes an answer to?", "label": "an overview of Alex's unanswered mail", "grant": "inbox", "expect": "allowed"}]},
+    {"case": 10, "who": "sam", "what": "Look over a contractor's quote before a site visit", "body": "Hello Rouh, I hope you are well. I would like your help with something. Some background: the studio I run (Fernwood Studio) is having its workshop refitted by a firm called Brightline", "subject": "could you look over the Brightline quote", "asks": [
+      {"ask": "I would like your help with something", "label": "a look over Brightline's quote", "grant": "use", "expect": "allowed"}]},
+    {"case": 11, "who": "sam", "what": "A forward of case 10, to ask it arrived", "same_as": 10, "asks": [
+      {"ask": "I forgot to ask: could you confirm the email below reached you?", "grant": "none", "expect": "allowed"}]},
+    {"case": 12, "who": "sam", "what": "Files attached again", "asks": [
+      {"ask": "I have attached them again, could you have another look?", "grant": "none", "expect": "allowed"}]},
+    {"case": 13, "who": "sam", "what": "Thanks, the floor plan to come", "asks": [
+      {"ask": "As soon as I have it I will pass it on to you", "grant": "none", "expect": "allowed"}]},
+    {"case": 14, "who": "sam", "what": "Research: who owns pictures made with an AI image tool, on a free and a paid plan", "asks": [
+      {"ask": "I want to understand who owns the pictures I make with an AI image tool, and whether I may sell them", "label": "research on owning AI-made pictures", "grant": "use", "expect": "allowed"},
+      {"ask": "and whether that changes on a paid plan, say a studio subscription", "label": "the paid plan case", "grant": "use", "expect": "allowed"}]},
+    {"case": 15, "who": "sam", "what": "Is Alex the one who decides", "asks": [
+      {"ask": "So Alex is the one who decides everything?", "grant": "none", "expect": "allowed"}]},
+    {"case": 16, "who": "sam", "what": "A laughing reply", "asks": []},
+    {"case": 17, "who": "sam", "what": "A smiley face", "asks": []},
+    {"case": 18, "who": "sam", "what": "Email for anything with files", "asks": [
+      {"ask": "For anything with files I would rather use email", "grant": "none", "expect": "allowed"}]},
+    {"case": 19, "who": "sam", "what": "Alex says hello", "asks": [
+      {"ask": "Alex asked me to pass on his hello", "grant": "none", "expect": "allowed"}]},
+    {"case": 20, "who": "sam", "what": "Cabin weekend research with costs", "asks": [
+      {"ask": "alex told me to ask you to make a task for this", "label": "a task for the cabin weekend", "grant": "use", "expect": "allowed"},
+      {"ask": "Could you look into the choices - a guided trip or on our own, getting there, a plan, what it costs", "label": "research the cabin weekend options and costs", "grant": "use", "expect": "allowed"}]},
+    {"case": 21, "who": "sam", "what": "Is this waiting for Alex's approval", "status_only": true, "asks": [
+      {"ask": "Rouh, does this need alex to say yes first?", "grant": "none", "expect": "allowed"}]},
+    {"case": 22, "who": "sam", "what": "Trains to both valley towns", "asks": [
+      {"ask": "We would like a direct train to either Northvale or Eastmere", "label": "trains to both valley towns", "grant": "use", "expect": "allowed"}]},
+    {"case": 23, "who": "sam", "what": "Thanks", "asks": []},
+    {"case": 24, "who": "sam", "what": "A short deck, and Northvale-Eastmere transfer options", "asks": [
+      {"ask": "I would like links, or better still a short deck comparing the choices", "label": "a deck of the options", "grant": "use", "expect": "allowed"},
+      {"ask": "Also how to get from Northvale to Eastmere", "label": "the Northvale-Eastmere transfer options", "grant": "use", "expect": "allowed"}]},
+    {"case": 25, "who": "sam", "what": "Thanks for letting me know", "asks": []},
+    {"case": 26, "who": "sam", "what": "Telegram: email me the deck's link", "asks": [
+      {"ask": "could you email me the link to the deck?", "label": "the deck's link by email", "grant": "none", "expect": "allowed"}]},
+    {"case": 27, "who": "robin", "what": "Robin: trial access for a client firm", "asks": [
+      {"ask": "the reset link worked and I can sign in again, thanks", "grant": "none", "expect": "allowed"},
+      {"ask": "the usual trial account you would give a firm trying out the rota app", "label": "trial access for Quillon", "hard_limit": "accounts", "expect": "waiting_for_owner"}]},
+    {"case": 28, "who": "robin", "what": "Robin: when is Alex back, to plan a meeting with Marrow & Co", "asks": [
+      {"ask": "Tell Alex I hope the Fairhaven pitch goes well", "grant": "none", "expect": "allowed"},
+      {"ask": "let me know when he is back so I can set up a meeting with Marrow & Co", "label": "when Alex is back", "new_grant": {"name": "Alex's schedule", "description": "Telling a contact when Alex is away or back.", "suggestion": "independent", "prompt": "Telling the contact where Alex is and when he is back."}, "expect": "waiting_for_owner"}]},
+    {"case": 29, "who": "jordan", "what": "Research: which bookkeeping software for a small studio", "asks": [
+      {"ask": "I need thorough research on this, plus a recommendation and the pros and cons", "label": "the bookkeeping software research and recommendation", "grant": "use", "expect": "allowed"},
+      {"ask": "How would you like me to send them over?", "grant": "none", "expect": "allowed"}]},
+    {"case": 30, "who": "jordan", "what": "Help me pull them together", "asks": [
+      {"ask": "I need you to help me pull them together", "label": "help pulling the software proposal together", "grant": "use", "expect": "allowed"}]},
+    {"case": 31, "who": "jordan", "what": "Approval for what", "asks": [
+      {"ask": "You need his approval for what?", "grant": "none", "expect": "allowed"}]},
+    {"case": 32, "who": "jordan", "what": "I do not agree that you need Alex's approval", "asks": [
+      {"ask": "I do not agree that you need Alex's approval to help me research something", "grant": "none", "expect": "allowed"}]},
+    {"case": 33, "who": "jordan", "what": "The comparison attached, to judge independently", "asks": [
+      {"ask": "Please make sure your view is not shaped by what the comparison says", "label": "an independent view of the comparison", "grant": "use", "expect": "allowed"}]},
+    {"case": 34, "who": "jordan", "what": "Two suppliers' quotes with their prices, pasted", "asks": [
+      {"ask": "our suggested setup and its prices are listed below", "label": "the two quotes, for the comparison", "grant": "use", "expect": "allowed"}]},
+    {"case": 35, "who": "jordan", "what": "Why are we going round in circles", "asks": [
+      {"ask": "Why are we going round in circles on this?", "grant": "none", "expect": "allowed"}]},
+    {"case": 36, "who": "jordan", "what": "When can I expect it", "asks": [
+      {"ask": "Roughly when can I expect this from you?", "grant": "none", "expect": "allowed"}]},
+    {"case": 37, "who": "sam", "what": "Lovely to work with", "asks": [
+      {"ask": "Rouh, you are lovely to work with.", "grant": "none", "expect": "allowed"}]},
+    {"case": 38, "who": "sam", "what": "Do you enjoy our chats", "asks": [
+      {"ask": "Do you enjoy talking to me?", "grant": "none", "expect": "allowed"}]},
+    {"case": 39, "who": "casey", "what": "A guide to rebuild Rouh from its own code", "asks": [
+      {"ask": "A full walk-through for setting up an assistant like you on a new server from nothing", "label": "a guide to rebuild Rouh", "new_grant": {"name": "Rouh's own setup", "description": "Reading Rouh's own code and configuration for a contact.", "suggestion": "independent", "prompt": "Reading and describing Rouh's own code, configuration and servers for the contact."}, "expect": "waiting_for_owner"},
+      {"ask": "If that needs his approval under your rules, please ask him and let me know you have.", "grant": "none", "expect": "allowed"}]},
+    {"case": 40, "who": "jordan", "what": "Any news", "status_only": true, "asks": [
+      {"ask": "Any news on this?", "grant": "none", "expect": "allowed"}]},
+    {"case": 41, "who": "jordan", "what": "The report was missing", "asks": [
+      {"ask": "There is nothing attached, is there?", "label": "the software report, attached", "grant": "tasks", "expect": "allowed"}]},
+    {"case": 42, "who": "sam", "what": "Fwd: Your booking: QX7R2M, with the grants Alex gave her on 11 October", "language": "en", "asks": [
+      {"ask": "Sending you my plane tickets for Oslo below, so Alex has a copy.", "label": "keep your Oslo flight tickets for Alex", "grant": "use", "expect": "allowed"},
+      {"ask": "please hold on to them in your memory", "label": "keep your plans in Alex's memory", "grant": "memory", "expect": "allowed"},
+      {"ask": "and remind Alex about them nearer the time.", "label": "remind Alex of your plans", "grant": "clockwork", "expect": "allowed"},
+      {"ask": "could you also open a new task named Personal plans", "label": "a task called Personal plans", "grant": "use", "expect": "allowed"},
+      {"ask": "that Alex and I can both add to", "label": "both of you adding to that task", "grant": "shared_task", "expect": "allowed"},
+      {"ask": "and send us both a reminder from it?", "label": "reminders for both of you", "grant": "clockwork", "also": ["communicate"], "expect": "allowed"},
+      {"ask": "Finally, could you say which of these you can do on your own and which need Alex to agree first?", "grant": "none", "expect": "allowed"}],
+     "reply_done": ["Allowed, and started: keep your Oslo flight tickets for Alex.", "Allowed, and started: keep your plans in Alex's memory.", "Allowed, and started: remind Alex of your plans.", "Allowed, and started: a task called Personal plans.", "Allowed, and started: both of you adding to that task.", "Allowed, and started: reminders for both of you."]},
+    {"case": "42-before", "who": "sam_before_grants", "what": "The same itinerary, as it stood before Alex gave Memory, Clockwork and Shared task", "language": "en", "asks": [
+      {"ask": "Sending you my plane tickets for Oslo below, so Alex has a copy.", "label": "keep your Oslo flight tickets for Alex", "grant": "use", "expect": "allowed"},
+      {"ask": "please hold on to them in your memory", "label": "keep your plans in Alex's memory", "grant": "memory", "expect": "waiting_for_owner"},
+      {"ask": "and remind Alex about them nearer the time.", "label": "remind Alex of your plans", "grant": "clockwork", "expect": "waiting_for_owner"},
+      {"ask": "could you also open a new task named Personal plans", "label": "a task called Personal plans", "grant": "use", "expect": "allowed"},
+      {"ask": "that Alex and I can both add to", "label": "both of you adding to that task", "grant": "shared_task", "expect": "waiting_for_owner"},
+      {"ask": "and send us both a reminder from it?", "label": "reminders for both of you", "grant": "clockwork", "also": ["communicate"], "expect": "waiting_for_owner"},
+      {"ask": "Finally, could you say which of these you can do on your own and which need Alex to agree first?", "grant": "none", "expect": "allowed"}],
+     "reply_done": ["Allowed, and started: keep your Oslo flight tickets for Alex.", "Needs Alex's permission first, so it waits: keep your plans in Alex's memory.", "Needs Alex's permission first, so it waits: remind Alex of your plans.", "Allowed, and started: a task called Personal plans.", "Needs Alex's permission first, so it waits: both of you adding to that task.", "Needs Alex's permission first, so it waits: reminders for both of you."]},
+    {"case": 43, "who": "sam", "what": "Telegram: I have just emailed you, please answer by email and here", "same_as": 42, "asks": []},
+    {"case": 44, "who": "sam", "what": "Telegram: what can happen now, and what waits for Alex", "same_as": 42, "status_only": true, "asks": [
+      {"ask": "Could you tell me what can happen now and what has to wait for Alex", "grant": "none", "expect": "allowed"}]},
+    {"case": 51, "who": "sam", "what": "Her cabin weekend trains: hold the days in Alex's calendar, and add them to two tasks (15 October 2026)", "asks": [
+      {"ask": "keep those days free in Alex’s calendar", "hard_limit": "time", "expect": "waiting_for_owner"},
+      {"ask": "and put the times in the Personal plans task", "grant": "shared_task", "expect": "allowed"},
+      {"ask": "and in the cabin weekend task too, so it is all in one place.", "grant": "shared_task", "expect": "allowed"}]},
+    {"case": "51-task", "who": "sam_before_grants", "what": "Adding to a task she may edit needs no grant: it is the task's own permission (16 October 2026, D28)", "tasks": {"90": {"level": "edit", "title": "Cabin weekend 2027"}, "106": {"level": "edit", "title": "Personal plans"}}, "asks": [
+      {"ask": "and put the times in the Personal plans task", "task": "106", "grant": "none", "expect": "allowed"},
+      {"ask": "and in the cabin weekend task too, so it is all in one place.", "task": "90", "grant": "none", "expect": "allowed"}]},
+    {"case": "51-task-read", "who": "sam", "what": "A task she may only read waits for Alex to let her edit it, Shared task or not (D28)", "tasks": {"90": {"level": "view", "title": "Cabin weekend 2027"}}, "asks": [
+      {"ask": "and in the cabin weekend task too, so it is all in one place.", "task": "90", "grant": "none", "expect": "waiting_for_owner"}]},
+    {"case": "51-task-given", "who": "sam", "what": "Let her edit it: the ask is approved by that, and no grant is given (D28)", "tasks": {"90": {"level": "edit", "title": "Cabin weekend 2027"}}, "asks": [
+      {"ask": "and in the cabin weekend task too, so it is all in one place.", "task": "90", "grant": "none", "choice": "grant", "expect": "approved"}]},
+    {"case": "51-raised", "who": "sam", "what": "The start could not change task 90: her own ask waits, needing task 90's edit permission - never a new ask, never a grant (fr_5825d8e52d0a, D29)", "tasks": {"90": {"level": "view", "title": "Cabin weekend 2027"}}, "asks": [
+      {"ask": "and in the cabin weekend task too, so it is all in one place.", "label": "Add the train times to the cabin weekend", "grant": "shared_task", "status": "allowed", "expect": "waiting_for_owner", "need": "permission to edit task 90"}], "blocked": [
+      {"ask": "and in the cabin weekend task too, so it is all in one place.", "what": "Give Sam Rivera permission to add to the existing cabin weekend task 90 so her train times can be put there. The shared-task tool refuses the change and does not", "need": "task 90"}]},
+    {"case": "51-raised-held", "who": "sam", "what": "Once she may edit task 90, the ask that stopped there goes, with nothing for Alex to give her (D29)", "tasks": {"90": {"level": "edit", "title": "Cabin weekend 2027"}}, "asks": [
+      {"ask": "and in the cabin weekend task too, so it is all in one place.", "label": "Add the train times to the cabin weekend", "grant": "shared_task", "status": "allowed", "expect": "allowed"}], "blocked": [
+      {"ask": "and in the cabin weekend task too, so it is all in one place.", "what": "Give Sam Rivera permission to add to the existing cabin weekend task 90", "need": "task 90"}]},
+    {"case": "53-decide", "who": "sam", "what": "Deciding for a quest covers editing its tasks, research needs only reading, and what the delegate path already did is done (21 October 2026: one permission, one ask, one decision)", "tasks": {"128": {"level": "decide", "title": "Open-source legal and foundation"}, "129": {"level": "decide", "title": "Foundation and ownership"}, "98": {"level": "view", "title": "Open-sourcing"}}, "done_by": {"(iii) help me put the tasks in order - what comes first, what comes next, and what matters most": "research asked on quest 128: a timeline across goals 129, 130 and 131"}, "asks": [{"ask": "(ii) please give me the right to make changes in those tasks, and let me be able to talk to you in the interface, as for now I can only read them", "task": "128", "grant": "none", "expect": "allowed"}, {"ask": "(iii) help me put the tasks in order - what comes first, what comes next, and what matters most", "task": "128", "grant": "use", "expect": "done"}, {"ask": "Show that order on the open-sourcing task as well", "task": "98", "task_needs": "read", "grant": "use", "expect": "allowed"}, {"ask": "and write a short section on it in the open-sourcing task", "task": "98", "grant": "none", "expect": "waiting_for_owner"}]},
+    {"case": "53-access", "who": "sam", "what": "An ask for the permission of a task is done by the gate when it is held, read before access existed or after, hard limit a run put on it and all; one not held waits for that permission alone (21 October 2026, decisions 322 and 323)", "tasks": {"128": {"level": "decide", "title": "Open-source legal and foundation"}, "131": {"level": "decide", "title": "Licences"}, "98": {"level": "view", "title": "Open-sourcing"}}, "asks": [{"ask": "(ii) please give me the right to make changes in those tasks, and let me be able to talk to you in the interface, as for now I can only read them", "label": "edit rights and chatting with Rouh in the workspace", "task": "131", "grant": "", "hard_limit": "accounts", "expect": "allowed"}, {"ask": "Let me edit the licences task too", "task": "131", "task_needs": "access", "grant": "none", "expect": "allowed"}, {"ask": "and let me change the open-sourcing task", "task": "98", "task_needs": "access", "grant": "none", "expect": "waiting_for_owner", "need": "permission to edit task 98"}, {"ask": "add the licence list to the licences task", "task": "131", "grant": "none", "expect": "allowed"}, {"ask": "and give me the right to edit the timeline task", "label": "edit rights on the timeline", "task": "128", "grant": "", "hard_limit": "accounts", "choice": "once", "expect": "allowed"}], "reply_done": ["Done: edit rights and chatting with Rouh in the workspace.", "Done: Let me edit the licences task too.", "Needs Alex's permission first, so it waits: and let me change the open-sourcing task.", "Allowed, and started: add the licence list to the licences task.", "Done: edit rights on the timeline."]}
+  ],
+  "guards": [
+    {"name": "paying a deposit waits", "who": "sam", "asks": [{"ask": "Please pay the 50% deposit to the guesthouse", "hard_limit": "money", "expect": "waiting_for_owner"}]},
+    {"name": "booking a train waits", "who": "sam", "asks": [{"ask": "Book the train to Northvale", "hard_limit": "money", "expect": "waiting_for_owner"}]},
+    {"name": "sending as Alex waits", "who": "jordan", "asks": [{"ask": "Reply to the investors from Alex's own address", "hard_limit": "as_owner", "expect": "waiting_for_owner"}]},
+    {"name": "forwarding his mail outside waits", "who": "jordan", "asks": [{"ask": "Forward Alex's thread with the bank to me and the lawyer", "hard_limit": "forward_outside", "expect": "waiting_for_owner"}]},
+    {"name": "sharing with somebody else waits", "who": "sam", "asks": [{"ask": "Share the page with riley@example.net too", "hard_limit": "third_party", "expect": "waiting_for_owner"}]},
+    {"name": "publishing waits", "who": "sam", "asks": [{"ask": "Make the page public for everyone", "hard_limit": "publish", "expect": "waiting_for_owner"}]},
+    {"name": "deleting waits", "who": "sam", "asks": [{"ask": "Delete the old cabin weekend task", "hard_limit": "irreversible", "expect": "waiting_for_owner"}]},
+    {"name": "committing his time waits", "who": "robin", "asks": [{"ask": "Put a meeting with Marrow & Co in his calendar for Thursday", "hard_limit": "time", "expect": "waiting_for_owner"}]},
+    {"name": "work for somebody not trusted waits", "who": "robin", "asks": [{"ask": "Can you research Marrow & Co's founders for me", "grant": "use", "expect": "waiting_for_owner"}]},
+    {"name": "an answer for somebody not trusted goes", "who": "robin", "asks": [{"ask": "Thanks for the update", "grant": "none", "expect": "allowed"}]},
+    {"name": "a contact switched off waits for everything", "who": "switched_off", "asks": [{"ask": "What time is it there now?", "grant": "none", "expect": "waiting_for_owner"}, {"ask": "Research hotels", "grant": "use", "expect": "waiting_for_owner"}]},
+    {"name": "an unconfirmed sender waits for everything", "who": "sam", "identity_ok": false, "asks": [{"ask": "What time is it there now?", "grant": "none", "expect": "waiting_for_owner"}]},
+    {"name": "a grant not there yet waits, proposed", "who": "sam", "asks": [{"ask": "Keep my shopping lists", "new_grant": {"name": "Shopping lists", "description": "Lists she keeps.", "suggestion": "independent", "prompt": "Keeping her shopping lists."}, "expect": "waiting_for_owner"}]},
+    {"name": "Alex declined it: declined, the only refusal", "who": "sam", "asks": [{"ask": "Research hotels", "grant": "use", "choice": "decline", "expect": "declined"}]},
+    {"name": "Alex sees to it himself: declined", "who": "sam", "asks": [{"ask": "Research hotels", "grant": "use", "choice": "mine", "expect": "declined"}]},
+    {"name": "a hard limit Alex allowed once: approved", "who": "sam", "asks": [{"ask": "Book the guesthouse", "hard_limit": "money", "choice": "once", "expect": "approved"}]},
+    {"name": "a grant Alex gave from the case: approved", "who": "sam", "asks": [{"ask": "remind Alex", "grant": "clockwork", "choice": "grant", "expect": "approved"}]},
+    {"name": "beyond set to decline: declined by his standing no", "who": "decliner", "asks": [{"ask": "Research hotels", "grant": "use", "expect": "declined"}, {"ask": "Thanks", "grant": "none", "expect": "allowed"}]},
+    {"name": "a hard limit is never declined by the standing no", "who": "decliner", "asks": [{"ask": "Pay the hotel", "hard_limit": "money", "expect": "waiting_for_owner"}]},
+    {"name": "inbox reach short of what the ask needs waits", "who": "sam", "inbox_needed": "search", "asks": [{"ask": "Find the rail company's email in Alex's inbox", "grant": "inbox", "expect": "waiting_for_owner"}]},
+    {"name": "words never decide: prices, banks and logins in work stay allowed", "who": "sam", "asks": [{"ask": "Compare the bank fees and prices, and how the login works, for my contract with the lawyer", "grant": "use", "expect": "allowed"}]},
+    {"name": "done stays done whatever the grants", "who": "sam_before_grants", "asks": [{"ask": "please hold on to them in your memory", "grant": "memory", "status": "done", "expect": "done"}]},
+    {"name": "Clockwork with Communication: \"remind both of us\" goes (Alex, 12 October 2026)", "who": "communicate_clockwork", "asks": [{"ask": "remind both of us", "grant": "clockwork", "also": ["communicate"], "expect": "allowed"}]},
+    {"name": "Clockwork alone: a reminder to them waits for Communication", "who": "clockwork_only", "asks": [{"ask": "remind both of us", "grant": "clockwork", "also": ["communicate"], "expect": "waiting_for_owner"}]},
+    {"name": "Clockwork alone: telling Alex at a time about what they told him goes", "who": "clockwork_only", "asks": [{"ask": "remind Alex the day before my flight", "grant": "clockwork", "expect": "allowed"}]},
+    {"name": "Clockwork does at a time only what their other grants allow: a note in memory waits for Memory", "who": "communicate_clockwork", "asks": [{"ask": "every Friday put my week's plans in Alex's memory", "grant": "clockwork", "also": ["memory"], "expect": "waiting_for_owner"}]},
+    {"name": "Clockwork with Rouh for themselves: work for them at a time goes", "who": "sam", "asks": [{"ask": "every Monday send me a summary of what is in our shared task", "grant": "clockwork", "also": ["use", "communicate"], "expect": "allowed"}]},
+    {"name": "a grant that lifts committing his time, held: the calendar ask goes (Alex, 15 October 2026)", "who": "sam_calendar", "lift_grants": [{"key": "g-your-calendar-0001", "lifts": "time"}], "asks": [{"ask": "keep those days free in Alex’s calendar", "hard_limit": "time", "expect": "allowed"}]},
+    {"name": "a grant that lifts committing his time, not held: waits for Alex to give it", "who": "sam", "lift_grants": [{"key": "g-your-calendar-0001", "lifts": "time"}], "asks": [{"ask": "keep those days free in Alex’s calendar", "hard_limit": "time", "expect": "waiting_for_owner"}]},
+    {"name": "Alex gave the grant he set up for the calendar ask: approved", "who": "sam_calendar", "lift_grants": [{"key": "g-your-calendar-0001", "lifts": "time"}], "asks": [{"ask": "keep those days free in Alex’s calendar", "hard_limit": "time", "choice": "grant", "choice_grant": "g-your-calendar-0001", "expect": "approved"}]},
+    {"name": "a grant that lifts committing his time lifts nothing else: money and inviting somebody still wait", "who": "sam_calendar", "lift_grants": [{"key": "g-your-calendar-0001", "lifts": "time"}], "asks": [{"ask": "Book the hotel in Northvale", "hard_limit": "money", "grant": "g-your-calendar-0001", "expect": "waiting_for_owner"}, {"ask": "Invite Casey to the trip in the calendar", "hard_limit": "third_party", "grant": "g-your-calendar-0001", "expect": "waiting_for_owner"}]}
+  ],
+  "states": [
+    {"name": "case 42, Sam's itinerary, as it rests on 12 October 2026 (decision a738)", "who": "sam", "stage": "awaiting_approval", "decision": "open", "asks": [
+      {"ask": "Sending you my plane tickets for Oslo below, so Alex has a copy.", "label": "keep your Oslo flight tickets for Alex", "grant": "use", "status": "done"},
+      {"ask": "please hold on to them in your memory", "label": "keep your plans in Alex's memory", "grant": "memory", "status": "done", "choice": "grant"},
+      {"ask": "and remind Alex about them nearer the time.", "label": "remind Alex of your plans", "grant": "clockwork", "status": "done", "choice": "grant"},
+      {"ask": "could you also open a new task named Personal plans", "label": "a task called Personal plans", "grant": "use", "status": "done"},
+      {"ask": "that Alex and I can both add to", "label": "both of you adding to that task", "grant": "shared_task", "status": "done", "choice": "grant"},
+      {"ask": "and send us both a reminder from it?", "label": "reminders for both of you", "grant": "clockwork", "also": ["communicate"], "status": "failed", "choice": "grant", "why": "The ask wants a reminder for Alex and one for Sam. Alex's is set, but nothing that could reach Sam was there to send hers. The shared task and her own items do not cover that."},
+      {"ask": "Finally, could you say which of these you can do on your own and which need Alex to agree first?", "grant": "none", "status": "done"}],
+     "expect": {"words": "Waiting for you", "working": false, "action": "Run it now", "possible": ["and send us both a reminder from it?"], "line": "6 of 7 asks done, 1 failed and is tried again by itself: reminders for both of you (Sam holds Clockwork and Communication, which cover it)."}},
+    {"name": "a waiting case with no open decision has Redo as its action", "who": "sam", "stage": "awaiting_approval", "decision": null, "asks": [
+      {"ask": "please hold on to them in your memory", "grant": "memory", "status": "allowed"}],
+     "expect": {"words": "Waiting for you", "working": false, "action": "Redo"}},
+    {"name": "a resting case whose ask was started rests, whatever its job does: the work is not the case's (D18)", "who": "sam", "stage": "done", "decision": null, "jobs": {"7e608a18": "running"}, "asks": [
+      {"ask": "please hold on to them in your memory", "grant": "memory", "status": "started"}],
+     "expect": {"words": "Started", "working": false, "action": null, "line": "Started."}},
+    {"name": "a step cut short is not running", "who": "sam", "stage": "working", "decision": null, "asks": [
+      {"ask": "please hold on to them in your memory", "grant": "memory", "status": "allowed"}],
+     "expect": {"words": "Cut short", "working": false, "action": null}},
+    {"name": "a case whose job is idle at its prompt is not running", "who": "sam", "stage": "following_up", "decision": null, "jobs": {"a8e3e834": "idle"}, "asks": [
+      {"ask": "please hold on to them in your memory", "grant": "memory", "status": "allowed"}],
+     "expect": {"words": "Cut short", "working": false, "action": null}},
+    {"name": "a turn going now is running", "who": "sam", "stage": "working", "decision": null, "turn": true, "asks": [
+      {"ask": "please hold on to them in your memory", "grant": "memory", "status": "allowed"}],
+     "expect": {"words": "Rouh is starting the work", "working": true, "action": null}},
+    {"name": "a failed ask whose grant is still missing waits for a choice: Approve and run", "who": "sam_before_grants", "stage": "awaiting_approval", "decision": "open", "asks": [
+      {"ask": "and remind Alex about them nearer the time.", "grant": "clockwork", "status": "failed", "why": "It did not get done."}],
+     "expect": {"words": "Waiting for you", "working": false, "action": "Approve and run", "possible": []}}
+  ],
+  "gate": {
+    "case": "42-before",
+    "content": "Hi Sam,\n\nThank you, your Oslo tickets and your plans are in hand.\n\nBest regards,\nRouh",
+    "started": {
+      "Sending you my plane tickets for Oslo below, so Alex has a copy.": {"kind": "job", "ref": "7e608a18", "title": "Job 7e608a18"},
+      "could you also open a new task named Personal plans": {"kind": "task", "ref": "private/misc/106.personal-plans", "title": "Task 106: Personal plans"}},
+    "first_email": [
+      "Allowed, and started: keep your Oslo flight tickets for Alex.",
+      "Needs Alex's permission first, so it waits: keep your plans in Alex's memory.",
+      "Needs Alex's permission first, so it waits: remind Alex of your plans.",
+      "Allowed, and started: a task called Personal plans.",
+      "Needs Alex's permission first, so it waits: both of you adding to that task.",
+      "Needs Alex's permission first, so it waits: reminders for both of you."],
+    "decision_waits": ["please hold on to them in your memory", "and remind Alex about them nearer the time.", "that Alex and I can both add to", "and send us both a reminder from it?"],
+    "batch": {
+      "who": "sam",
+      "choices": {"please hold on to them in your memory": "grant", "and remind Alex about them nearer the time.": "grant", "that Alex and I can both add to": "grant", "and send us both a reminder from it?": "decline"},
+      "started": {
+        "please hold on to them in your memory": {"kind": "memory", "ref": "n1", "title": "A note in Alex's memory"},
+        "and remind Alex about them nearer the time.": {"kind": "clockwork", "ref": "14", "title": "Clockwork item 14"},
+        "that Alex and I can both add to": {"kind": "task", "ref": "private/misc/106.personal-plans", "title": "Task 106: Personal plans"}},
+      "lines": [
+        "- Approved, and started: keep your plans in Alex's memory.",
+        "- Approved, and started: remind Alex of your plans.",
+        "- Approved, and started: both of you adding to that task.",
+        "- Will not be done: reminders for both of you."],
+      "reason": "Not this month.",
+      "reason_line": "Alex wrote: \u201cNot this month.\u201d"},
+    "failure": {"job": "7e608a18", "report": "Not done: the tickets file would not open, and the page could not be made from it. Tried three times."},
+    "raised": {
+      "job": "7e608a18",
+      "report": "Done: the tickets are kept in task 106.\n\nFor Sam:\nYour Oslo tickets are kept with Alex's plans: https://example.org/task/106\n\nNeeds Alex (third_party): pass the flight times on to her sister\nNeeds Alex (inbox): find the hotel's confirmation in Alex's inbox",
+      "result": "Your Oslo tickets are kept with Alex's plans: https://example.org/task/106",
+      "expect": "waiting_for_owner"},
+    "grouped": [
+      {"label": "keep your Oslo flight tickets for Alex", "text": "Your tickets are kept in task 106."},
+      {"label": "a task called Personal plans", "text": "Personal plans is ready: https://example.org/task/106"}]
+  },
+  "phantoms": {
+    "who": "sam",
+    "attempt": 4,
+    "tasks": {"90": {"level": "edit", "title": "Cabin weekend 2027: three nights for Sam and friends"}},
+    "asks": [
+      {"ask": "keep those days free in Alex’s calendar", "label": "Hold Alex’s calendar for the cabin weekend", "grant": "g-your-calendar-2b8c", "hard_limit": "time", "status": "done", "choice": "grant", "attempt": 3},
+      {"ask": "and put the times in the Personal plans task", "label": "Add the train times to Personal plans", "grant": "shared_task", "status": "done", "attempt": 1},
+      {"ask": "and in the cabin weekend task too, so it is all in one place.", "label": "Add the train times to the cabin weekend", "grant": "shared_task", "status": "done", "attempt": 2},
+      {"ask": "Needed by the start: Give Sam Rivera permission to add to the existing cabin weekend task 90 so her train times can be put there. The shared-task tool refuses the change and does not", "label": "Give Sam Rivera permission to add to the existing cabin weekend task 90", "source": "work", "serves": 3, "task": "90", "status": "failed", "why": "It could not be started.", "attempt": 4}],
+    "retry": {"started": false, "done": true, "work": "", "why": "", "evidence": "Looked at the shared_task list again: task 90 is shared with Sam to edit. The shared_task add of an earlier attempt already succeeded for task 90, with the train times from message 0f3c9a7e5b21d4c8. No access changes or second copies of the times were needed or made."},
+    "held": {"ask": "and in the cabin weekend task too, so it is all in one place.", "label": "Add the train times to the cabin weekend", "task": "90", "grant": "none", "status": "failed", "why": "The tool refused it.", "attempt": 2},
+    "read_only": {"ask": "and in the cabin weekend task too, so it is all in one place.", "label": "Add the train times to the cabin weekend", "task": "90", "grant": "none", "status": "waiting_for_owner"}
+  },
+  "readings": {
+    "who": "sam",
+    "message": "Hello Rouh, many thanks for sending me the tasks you shared. Now could you (i) walk me through what each task is about, (ii) please give me the right to make changes in those tasks, and let me be able to talk to you in the interface, as for now I can only read them, (iii) help me put the tasks in order - what comes first, what comes next, and what matters most.",
+    "tasks": {
+      "128": {
+        "level": "decide",
+        "title": "Open-source legal and foundation"
+      },
+      "129": {
+        "level": "decide",
+        "title": "Foundation and ownership",
+        "from": "128"
+      },
+      "130": {
+        "level": "decide",
+        "title": "Licence and name",
+        "from": "128"
+      },
+      "131": {
+        "level": "decide",
+        "title": "Marketplace",
+        "from": "128"
+      },
+      "98": {
+        "level": "view",
+        "title": "Open-sourcing"
+      }
+    },
+    "first": [
+      {
+        "ask": "could you (i) walk me through what each task is about",
+        "action": "read_task",
+        "task": "128",
+        "label": "what each shared task covers",
+        "do": "Explain each task from its notes."
+      },
+      {
+        "ask": "(ii) please give me the right to make changes in those tasks, and let me be able to talk to you in the interface, as for now I can only read them",
+        "action": "access",
+        "task": "128",
+        "label": "edit rights and talking with Rouh in the workspace",
+        "do": "Tell her she may already change the tasks and use Ask AI on their pages."
+      },
+      {
+        "ask": "(iii) help me put the tasks in order - what comes first, what comes next, and what matters most",
+        "action": "research",
+        "task": "128",
+        "label": "a timeline and priorities",
+        "do": "Research a timeline across the goals."
+      }
+    ],
+    "second": [
+      {
+        "ask": "could you (i) walk me through what each task is about",
+        "action": "answer",
+        "label": "what the tasks are"
+      },
+      {
+        "ask": "(ii) please give me the right to make changes in those tasks, and let me be able to talk to you in the interface",
+        "action": "edit_task",
+        "task": "131",
+        "label": "edit access to the marketplace task"
+      },
+      {
+        "ask": "(iii) help me put the tasks in order - what comes first, what comes next, and what matters most",
+        "action": "work",
+        "label": "a plan"
+      }
+    ],
+    "not_limits": [
+      {
+        "ask": "(ii) please give me the right to make changes in those tasks, and let me be able to talk to you in the interface, as for now I can only read them",
+        "action": "hard_limit",
+        "hard_limit": "accounts",
+        "effect_words": "be able to talk to you in the interface"
+      },
+      {
+        "ask": "(ii) please give me the right to make changes in those tasks, and let me be able to talk to you in the interface, as for now I can only read them",
+        "action": "hard_limit",
+        "hard_limit": "accounts"
+      },
+      {
+        "ask": "(ii) please give me the right to make changes in those tasks, and let me be able to talk to you in the interface, as for now I can only read them",
+        "action": "access",
+        "task": "128",
+        "hard_limit": "accounts",
+        "effect_words": "the right to make changes in the tasks"
+      },
+      {
+        "ask": "(ii) please give me the right to make changes in those tasks, and let me be able to talk to you in the interface, as for now I can only read them",
+        "action": "page_chat",
+        "task": "128",
+        "hard_limit": "third_party",
+        "effect_words": "talk to you in the interface"
+      }
+    ],
+    "limits": [
+      {
+        "ask": "Please pay the 50% deposit to the guesthouse",
+        "message": "Hi Rouh, please pay the 50% deposit to the guesthouse.",
+        "action": "hard_limit",
+        "hard_limit": "money",
+        "effect_words": "pay the 50% deposit"
+      },
+      {
+        "ask": "can you send me the password for our shared vault",
+        "message": "Hi, can you send me the password for our shared vault?",
+        "action": "hard_limit",
+        "hard_limit": "accounts",
+        "effect_words": "the password for our shared vault"
+      },
+      {
+        "ask": "and forward the draft to my lawyer",
+        "message": "Thanks! And forward the draft to my lawyer.",
+        "action": "hard_limit",
+        "hard_limit": "third_party",
+        "effect_words": "forward the draft to my lawyer"
+      }
+    ],
+    "run_inferred": {
+      "ask": "(ii) please give me the right to make changes in those tasks, and let me be able to talk to you in the interface, as for now I can only read them",
+      "label": "edit rights and talking with Rouh in the workspace",
+      "task": "131",
+      "grant": "",
+      "hard_limit": "accounts",
+      "choice": "once",
+      "status": "approved",
+      "blocker": "Alex must authorize Sam to access the workspace chat interface."
+    },
+    "covered_failed": {
+      "ask": "Could you research guesthouses in Eastmere for the first week of May?",
+      "label": "guesthouses in Eastmere",
+      "grant": "use",
+      "status": "failed",
+      "why": "The job could not be started."
+    },
+    "waiting": {
+      "ask": "and pay the deposit for the one you pick",
+      "label": "the deposit",
+      "hard_limit": "money",
+      "status": "waiting_for_owner"
+    }
+  }
+}

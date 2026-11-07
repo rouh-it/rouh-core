@@ -1,0 +1,171 @@
+/* The gene log and the Gene Pool (`genelogpage.js`, `genepoolpage.js`), inside Mutations'
+   layer: Rouh's own tokens and the library's own parts (`evolutionpage.css`), nothing new. */
+
+.glog-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.glog-sort { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel); }
+.glog-meta { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12.5px;
+  color: var(--dim); }
+.glog-meta .ctl.small { min-height: 30px; }
+.glog-off { margin: 0; padding: 8px 12px; border-radius: var(--radius-s); border: 1px solid
+  color-mix(in srgb, var(--warn) 50%, var(--line)); font-size: 13px; color: var(--text); }
+
+.glog-row-btn { grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 14px; }
+.glog-row-main { display: grid; gap: 3px; min-width: 0; }
+.glog-uses { display: grid; justify-items: end; min-width: 44px; }
+.glog-uses-n { font-size: 20px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.glog-uses-w { font-size: 11px; color: var(--dim); }
+.glog-none { padding: 14px; color: var(--dim); font-size: 13.5px; }
+
+.glog-origin-rouh { color: var(--dim); }
+.glog-origin-request { color: var(--good); }
+.glog-origin-night { color: var(--accent); }
+.glog-origin-draft { color: var(--user); }
+.glog-origin-pool, .glog-origin-fork { color: #c7a6ff; }
+.glog-status-pending, .glog-status-growing, .glog-status-installing, .glog-status-draft { color: var(--warn); }
+.glog-status-off, .glog-status-removing { color: var(--dim); }
+.glog-status-rejected, .glog-status-removed, .glog-status-replaced { color: var(--dimmer); }
+.glog-shared { color: var(--accent); background: var(--accent-soft); }
+
+.glog-sec { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px;
+  background: var(--panel); min-width: 0; }
+.glog-sec-h { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--dim); }
+
+.glog-nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; }
+.glog-num { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--panel-2); }
+.glog-num-n { font-size: 19px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.glog-num-w { font-size: 11.5px; color: var(--dim); }
+.glog-days { display: flex; align-items: flex-end; gap: 2px; height: 56px; padding: 4px 0;
+  border-bottom: 1px solid var(--line-soft); }
+.glog-day { flex: 1 1 0; min-width: 2px; border-radius: 2px 2px 0 0; background: var(--accent); }
+.glog-day.none { background: var(--line-soft); }
+
+.glog-marks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.glog-marks-w { font-size: 12.5px; color: var(--dim); margin-right: 4px; }
+.glog-mark { all: unset; box-sizing: border-box; cursor: pointer; padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--dim); min-height: 30px;
+  display: inline-flex; align-items: center; }
+.glog-mark:hover { color: var(--text); }
+.glog-mark.on { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+.glog-mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.glog-eval { display: grid; gap: 6px; justify-items: start; padding-top: 8px; border-top: 1px solid var(--line-soft); }
+.glog-eval-score { margin: 0; font-size: 15px; font-weight: 680; color: var(--text); }
+.glog-eval-p { margin: 0; font-size: 13.5px; color: var(--text); }
+
+.glog-contract { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px;
+  font-size: 13.5px; }
+.glog-contract dt { color: var(--dim); }
+.glog-contract dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+
+.glog-tree { list-style: none; margin: 0; padding: 0 0 0 16px; border-left: 1px solid var(--line); display: grid; gap: 6px; }
+.glog-tree-top { padding-left: 0; border-left: 0; }
+.glog-node { display: grid; gap: 2px; padding-top: 2px; }
+.glog-node > .glog-tree { margin-top: 4px; }
+.glog-node-btn { all: unset; cursor: pointer; font-size: 14px; font-weight: 640; color: var(--text); overflow-wrap: anywhere; }
+.glog-node-btn:hover { text-decoration: underline; }
+.glog-node-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.glog-node.here > .glog-node-btn { color: var(--accent); }
+.glog-node-sub { font-size: 12px; color: var(--dim); }
+
+.glog-remove-said { margin: 0; font-size: 13.5px; color: var(--text); }
+.glog-sure { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.glog-sure p { margin: 0 0 4px; flex: 1 1 100%; font-size: 13.5px; }
+
+.glog-hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.glog-hist li { display: grid; gap: 2px; }
+.glog-hist-top { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.glog-hist-what { font-size: 13.5px; font-weight: 640; color: var(--text); }
+.glog-hist-node { font-size: 12px; color: var(--accent); }
+.glog-hist-when { font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.glog-hist-p { font-size: 13px; color: var(--dim); overflow-wrap: anywhere; }
+.glog-hist-from { font-size: 12.5px; color: var(--dim); font-style: italic; overflow-wrap: anywhere; }
+/* Its history is closed until opened: the summary is the section's heading, with the count. */
+.glog-hist-box > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
+.glog-hist-box > summary::-webkit-details-marker { display: none; }
+.glog-hist-box > summary::before { content: '\25B8'; font-size: 11px; transition: transform .15s; }
+.glog-hist-box[open] > summary::before { transform: rotate(90deg); }
+.glog-hist-box:not([open]) { gap: 0; }
+
+@media (max-width: 640px) {
+  .glog-contract { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .glog-contract dd { margin-bottom: 6px; }
+  .glog-mark { min-height: 40px; }
+  .glog-sec { padding: 12px; }
+}
+
+/* ---- the Gene Pool (`genepoolpage.js`) ---- */
+.pool-closed { margin: 0; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--line); font-size: 13.5px;
+  color: var(--text); }
+.pool-form { display: grid; gap: 10px; }
+.pool-field { margin: 0; display: grid; gap: 4px; }
+.pool-field label { font-size: 13px; font-weight: 640; color: var(--text); }
+.pool-field input, .pool-field textarea, .pool-words { width: 100%; box-sizing: border-box; padding: 8px 10px;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font: inherit;
+  font-size: 13.5px; }
+.pool-field textarea { font-family: var(--mono, monospace); font-size: 12px; }
+.pool-more summary { cursor: pointer; font-size: 13px; color: var(--dim); }
+.pool-more[open] { display: grid; gap: 8px; }
+.pool-form .ctl.small.primary { justify-self: start; padding: 8px 14px; font-size: 13.5px; }
+.pool-ask { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pool-ask .evo-find { flex: 1 1 260px; }
+.pool-picks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pool-pick { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--panel-2); }
+.pool-why { margin: 0; font-size: 13.5px; color: var(--text); }
+.pool-fork-idea { margin: 0; font-size: 13px; color: var(--accent); }
+.pool-families .evo-row-btn { gap: 3px; }
+.pool-tree .evo-card { margin-bottom: 4px; }
+.pool-signals { margin: 0; font-size: 12.5px; color: var(--dim); }
+.pool-confirm:empty { display: none; }
+.pool-share { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 640; color: var(--text);
+  cursor: pointer; }
+.pool-share input { width: 20px; height: 20px; accent-color: var(--accent); margin: 0; }
+.pool-sync { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pool-sync li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.pool-sync-name { font-size: 13.5px; font-weight: 600; color: var(--text); }
+/* The review list: your genes on their way to the Pool (task 141, step 141-09). */
+.pool-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pool-open { justify-self: start; text-decoration: none; display: inline-flex; align-items: center; min-height: 32px; }
+.pool-share-state { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); }
+.pool-modes { margin: 0; padding: 10px 14px 12px; border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 6px;
+  background: var(--panel); min-width: 0; }
+.pool-modes legend { padding: 0 4px; font-size: 13px; font-weight: 700; color: var(--text); }
+.pool-modes legend .tc-info { margin-left: 8px; vertical-align: middle; }
+.pool-about { display: grid; gap: 6px; padding: 8px 10px; border-radius: 10px; background: var(--panel-2); }
+.pool-about p { margin: 0; font-size: 13px; color: var(--text); }
+.pool-ways { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.pool-way { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; color: inherit;
+  text-decoration: none; background: var(--panel); min-height: 44px; }
+.pool-way:hover { border-color: var(--accent); }
+.pool-way:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pool-way-h { font-size: 15px; font-weight: 700; color: var(--text); }
+.pool-standing { overflow-wrap: anywhere; }
+.pool-mode { display: flex; align-items: flex-start; gap: 10px; padding: 6px 4px; border-radius: 8px; cursor: pointer; }
+.pool-mode input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--accent); flex: 0 0 auto; }
+.pool-mode-w { display: grid; gap: 1px; font-size: 13.5px; color: var(--text); min-width: 0; }
+/* A state says what to do next, so it is never cut: it wraps instead. */
+.evo-chip[class*="pool-state-"] { white-space: normal; max-width: 100%; }
+.pool-state-review, .pool-state-proposed, .pool-state-changed { color: var(--warn); }
+.pool-state-approved { color: var(--accent); }
+.pool-state-sent { color: var(--good); background: color-mix(in srgb, var(--good) 12%, transparent); }
+.pool-state-blocked { color: var(--bad); }
+.pool-state-cannot, .pool-state-declined, .pool-state-stopped, .pool-state-none, .pool-state-skipped { color: var(--dim); }
+.pool-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.pool-check { padding: 6px 10px; border-radius: 8px; font-size: 13px; color: var(--text); overflow-wrap: anywhere;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.pool-check-block { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); }
+.pool-body > summary, .pool-raw > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--dim); min-height: 28px;
+  display: flex; align-items: center; }
+.pool-body[open] { display: grid; gap: 8px; }
+.pool-pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--mono, monospace); font-size: 12px;
+  line-height: 1.45; color: var(--text); }
+.pool-raw pre { padding: 8px 10px; border-radius: 8px; background: var(--panel-2); max-height: 420px; overflow: auto; }
+.pool-out-card { display: grid; gap: 8px; }
+.pool-update { display: grid; gap: 6px; justify-items: start; padding: 0 14px 12px; }
+.pool-edit textarea { font-family: inherit; font-size: 13.5px; }
+@media (max-width: 640px) {
+  .pool-share input { width: 24px; height: 24px; }
+  .pool-mode input { width: 24px; height: 24px; }
+}

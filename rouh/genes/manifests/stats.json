@@ -1,0 +1,38 @@
+{
+  "id": "stats",
+  "name": "Stats",
+  "title": "Stats: how Rouh is used, and every press of the navigation",
+  "aliases": [
+    "statistics",
+    "analytics",
+    "usage",
+    "taps",
+    "events",
+    "event log",
+    "numbers"
+  ],
+  "group": "machine",
+  "route": "/anatomy/meta/stats",
+  "anatomy": {
+    "order": 20
+  },
+  "icon": "<path d=\"M5 20V12M12 20V5M19 20v-9\"/><path d=\"M3.5 20.5h17\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "nav_taps",
+      "analytics.event",
+      "analytics.event_hourly",
+      "analytics.object_daily"
+    ],
+    "jobs": [],
+    "remove": "the Settings group's own cards in rouh/templates/rouh/index.html and its script, rouh/navtaps.py, statspage.js/.css and this manifest."
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "id": "tasks",
+  "name": "Task browser",
+  "title": "Every project and every task in your workspace",
+  "aliases": [
+    "tasks",
+    "task",
+    "projects",
+    "project",
+    "work",
+    "workspace",
+    "browse",
+    "steps",
+    "all tasks"
+  ],
+  "group": "work",
+  "route": "/tasks",
+  "icon": "<path d=\"M4 6h16M4 12h16M4 18h10\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 10,
+    "opens": "own",
+    "class": "sb-browse",
+    "plus": {
+      "id": "newTaskBtn",
+      "nav": "new-task",
+      "name": "New task",
+      "title": "New task. It files itself into the project it belongs in",
+      "icon": "<path d=\"M12 5v14M5 12h14\"/>"
+    }
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "project",
+      "task",
+      "task_change",
+      "chat",
+      "run",
+      "artifact",
+      "uploaded_file",
+      "user_settings"
+    ],
+    "jobs": [],
+    "remove": "Not removable: the task browser is the way in to the work."
+  },
+  "uses": {
+    "tools": [
+      "make_a_task",
+      "move_task",
+      "check_tasks",
+      "look_at_task",
+      "reply_to_task",
+      "read_task_log",
+      "what_task_changed",
+      "tidy_tasks",
+      "stop_task",
+      "publish_task",
+      "check_task_sharing",
+      "share_with_person",
+      "read_workspace",
+      "show_workspace_page"
+    ]
+  }
+}

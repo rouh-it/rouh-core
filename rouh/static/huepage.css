@@ -1,0 +1,15 @@
+/* Settings, Connections, Philips Hue (`huepage.js`, `rouh/hue.py`).
+
+   The cards of the Heartbeat page (`heartbeatpage.css`) and the (i), the facts and the form of the
+   Slack page (`slackpage.css`, its `sk-` classes), the same component for the same thing. Its own:
+   Connect while the Hue app is not set, the callback address in the (i), an app id not set, and the
+   line that asks for the bridge's own button. */
+
+.hue-status .hb-actions { margin-top: 8px; }
+.hue-connect { text-decoration: none; }
+.hue-connect.off { opacity: .45; cursor: not-allowed; }
+.hue-app .hb-h { margin-bottom: 0; }
+.hue-app .sk-guide { margin-top: 6px; justify-items: start; }
+.hue-cb-url { font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; color: var(--text); }
+.hue-none { color: var(--dim); }
+.hue-button-line { margin: 6px 0 0; line-height: 1.45; }

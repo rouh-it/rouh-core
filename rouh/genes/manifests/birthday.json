@@ -1,0 +1,59 @@
+{
+  "id": "birthday",
+  "name": "Birthday",
+  "title": "Rouh profile: a free Rouh and what you call it, or, once connected to rouh.land, the official name rouh.land gave it, its birthday, and one plain line about rouh.land",
+  "aliases": [
+    "birth",
+    "my rouh's name",
+    "rouh's name",
+    "own name",
+    "second name",
+    "nickname",
+    "identity",
+    "sign up",
+    "rouh profile",
+    "birthday",
+    "birthday code",
+    "connect code",
+    "free rouh",
+    "official name"
+  ],
+  "group": "machine",
+  "route": "/anatomy/rouh-land/rouh-profile",
+  "anatomy": {
+    "order": 20,
+    "name": "Rouh profile"
+  },
+  "icon": "<path d=\"M4.5 20.5h15\"/><path d=\"M6 20.5v-6.2a1.8 1.8 0 0 1 1.8-1.8h8.4a1.8 1.8 0 0 1 1.8 1.8v6.2\"/><path d=\"M6 16.2c1.5 1 3 1 4 0s3-1 4 0 3 1 4 0\"/><path d=\"M12 12.5V9\"/><path d=\"M12 4.2c.9 1 1.3 1.8 1.3 2.5a1.3 1.3 0 0 1-2.6 0c0-.7.4-1.5 1.3-2.5z\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "a free Rouh has no birth, no name and no keys: only the nicknames its people give it",
+      "when its owner connects it to rouh.land, makes its keys once, kept sealed and in every backup and never shown, and is born there: rouh.land grants its official name, which never changes",
+      "with a code from its owner's rouh.land account, is born into that account; its name, tag and public keys go there, never the owner's name",
+      "asks rouh.land every few hours, once registered, whether it still recognises this Rouh",
+      "about a hundred days after its birth, asks a model to read its own history (counts and gene names, never a chat) for a second name (Models, Second name)"
+    ],
+    "accounts": [
+      "rouh.land's birth service, only when its owner connects it there"
+    ],
+    "tables": [
+      "rouh_birth",
+      "rouh_nickname"
+    ],
+    "jobs": [
+      "every fifteen minutes with the gene log's beat: rouh.land asked after its keys every six hours once registered, a waiting new key asked after, and the second name once it is due (birth.tick)"
+    ],
+    "remove": "Delete this manifest, rouh/birth.py, rouh/names/, rouh/web/birth.py and its routes, birthpage.js and birthpage.css, its section in rouh/templates/rouh/index.html and its line in app/runs.js's settingsPages, its line in rouh/anatomy.py's CHECKS and in runtime.py's gene log beat, the use second_name, and drop the tables rouh_birth and rouh_nickname with a migration. The Gene Pool then joins as \"A Rouh\" again."
+  },
+  "uses": {
+    "purposes": [
+      "second_name"
+    ]
+  }
+}

@@ -1,0 +1,377 @@
+#!/usr/bin/env python3
+"""Read or change a task's status, summary or meta, which Rouh keeps in its database and nowhere else.
+
+    rouh-task status 58 waiting
+    rouh-task status 58-03 done                     a step, by its two numbers
+    rouh-task summary 58 "What it is. Where it stands. What is open."
+    rouh-task summary 58 - < summary.txt            the summary from standard input
+    rouh-task show 58                               its status, summary, chats and latest changes
+    rouh-task chats-check                           every task's chat that looks like another task's
+
+    rouh-task meta 58                               its meta, as JSON
+    rouh-task meta 58 merge '{"tags": ["goal"]}'    keys put in, a key given as null taken out;
+                                                    "steps" is merged step by step
+    rouh-task meta 58 append sends_himself '{...}'  one item added to the end of a list
+    rouh-task meta 58 set - < meta.json             the whole meta replaced (null for none)
+
+A task's meta is its steps' titles, descriptions and groups
+("steps": {"58-03.the-folder": {"title", "description", "group"}}), "groups", the "arrows" between steps, its "tags", a goal's "goal" and a goal step's
+"goal_step" block, a waiting task's "question", and the replies the owner sends himself
+("sends_himself"). A JSON value given as - is read from standard input.
+
+It is part of Rouh's code (`bin/` in Rouh's repository), which a run has on its
+PATH, and is run from inside a checkout of the workspace. It was `bin/task` in
+the workspace itself until 21 October 2026, when the workspace became a
+repository of its own and kept no code.
+
+A task is named by its number, a step by its two numbers, either by its folder
+(`work/acme/19.pricing`), or left out inside the folder itself. The five
+statuses are not-started, in-progress, waiting (the next move is the owner's),
+stopped and done. A summary is 50 to 90 words: what the task is, where it
+stands and what is open, one sentence per line.
+
+None of them is in any file, and `_tasks.md` is only a view Rouh writes out of
+its database, so this is the one way to change them. Every change is kept in
+Rouh with when, who and the old and new value.
+
+Where it goes:
+- On the server, Rouh on this machine (http://127.0.0.1:8021/internal/task),
+  which only this machine may reach. In the containers, the address and key
+  Rouh gave the worker (/run/one/rouh-worker.json, rouh/workerkey.py). A run of the one program or a crew job is
+  named by the ONE_RUN or ROUH_JOB its environment has.
+- Anywhere else, such as the laptop, the address and key in
+  ~/.config/rouh/task.json: {"url": "https://rouh.example.com", "token": "rouh_task_..."}.
+  The key is made on the server with `python manage.py task_token add --user
+  <username> --name laptop`.
+- ROUH_URL (and ROUH_TASK_TOKEN) in the environment win over both.
+
+When Rouh cannot be reached it says so and exits 2. It never writes the change
+into a file instead: a status or a summary in a file is one nobody reads.
+
+A task made in this checkout that has not reached Rouh yet is sent with the id
+its .object.json gives, and Rouh keeps the change until the task arrives.
+
+Standard library only, so it runs with any python3.
+"""
+from __future__ import annotations
+
+import getpass
+import json
+import os
+import re
+import socket
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+STATUSES = ("not-started", "in-progress", "waiting", "stopped", "done")
+LOCAL = "http://127.0.0.1:8021"
+CONFIG = Path.home() / ".config" / "rouh" / "task.json"
+TIMEOUT = 20
+
+
+def _workspace() -> Path:
+    """The workspace this is run in: the nearest folder up from here with the map in it,
+    a `workspace/` with the map in it right here, or else the one ROUH_WORKSPACE names."""
+    here = Path.cwd().resolve()
+    for folder in (here, *here.parents):
+        if (folder / "_migration-map.json").is_file():
+            return folder
+        if (folder / "workspace" / "_migration-map.json").is_file() and folder == here:
+            return folder / "workspace"
+    said = os.environ.get("ROUH_WORKSPACE", "").strip() or os.environ.get(
+        "ROUH_ASSISTANT_REPO", "").strip()
+    return Path(said).resolve() if said else here
+
+
+ROOT = _workspace()
+
+
+def fail(message: str, code: int = 1) -> None:
+    print(f"rouh-task: {message}", file=sys.stderr)
+    sys.exit(code)
+
+
+def where() -> tuple[str, str]:
+    """Rouh's address and the key to use, or "" for none."""
+    url = os.environ.get("ROUH_URL", "").strip()
+    token = os.environ.get("ROUH_TASK_TOKEN", "").strip()
+    if not url and CONFIG.is_file():
+        try:
+            said = json.loads(CONFIG.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            fail(f"{CONFIG} could not be read ({exc}), so there is no telling which Rouh "
+                 "to reach. Nothing was changed.", 2)
+        url = str(said.get("url") or "").strip()
+        token = token or str(said.get("token") or "").strip()
+    if not url and not token:
+        url = str(worker_key().get("url") or "")
+    return (url or LOCAL).rstrip("/"), token
+
+
+def worker_key() -> dict:
+    """In the containers, the key and address Rouh gave the worker (`rouh/workerkey.py`), else {}."""
+    path = os.environ.get("ROUH_WORKER_KEY_FILE", "").strip() or "/run/one/rouh-worker.json"
+    try:
+        said = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return said if isinstance(said, dict) and said.get("token") else {}
+
+
+def who() -> tuple[str, str]:
+    """Who is making the change, in words, and the run it comes from."""
+    run = os.environ.get("ONE_RUN", "").strip()
+    if run:
+        return f"run {run}", run
+    job = os.environ.get("ROUH_JOB", "").strip()
+    if job:
+        return f"job {job}", job
+    try:
+        user = getpass.getuser()
+    except Exception:
+        user = "someone"
+    return f"{user} at a terminal on {socket.gethostname()}", ""
+
+
+def _sidecar(folder: Path) -> dict:
+    try:
+        said = json.loads((folder / ".object.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return said if isinstance(said, dict) else {}
+
+
+def _sidecar_beside(folder: Path) -> dict:
+    """A task that is a repository of its own keeps its .object.json beside it."""
+    try:
+        said = json.loads((folder.parent / f".object.{folder.name}.json").read_text("utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return said if isinstance(said, dict) else {}
+
+
+def _task_folders():
+    for path in ROOT.rglob("*"):
+        if path.is_dir() and re.match(r"^\d+\.", path.name) and not any(
+                part.startswith(".") or part == "node_modules"
+                for part in path.relative_to(ROOT).parts):
+            said = _sidecar(path) or _sidecar_beside(path)
+            if said.get("type") == "task":
+                yield path
+
+
+def locate(ref: str) -> tuple[str, str, str]:
+    """What this checkout says about the task: (ref as sent, its id, its folder)."""
+    ref = ref.strip()
+    folder: Path | None = None
+    if not ref:
+        here = Path.cwd().resolve()
+        while here != ROOT and ROOT in here.parents:
+            if _sidecar(here).get("type") == "task":
+                folder = here
+                break
+            here = here.parent
+        if folder is None:
+            fail("Say which task: its number, its two numbers for a step, or its folder. "
+                 "Or run this inside the task's folder.")
+    elif "/" in ref or ref.startswith("."):
+        for base in (Path.cwd(), ROOT, ROOT.parent):
+            if (base / ref).is_dir():
+                folder = (base / ref).resolve()
+                break
+    elif re.fullmatch(r"\d{1,4}", ref):
+        found = [p for p in _task_folders() if int(p.name.split(".", 1)[0]) == int(ref)
+                 and not (_sidecar(p.parent).get("type") == "task")]
+        if len(found) == 1:
+            folder = found[0]
+    elif re.fullmatch(r"\d{1,4}[-.]\d{1,3}", ref):
+        a, b = re.split(r"[-.]", ref)
+        lead = f"{int(a):02d}-{int(b):02d}."
+        found = [p for p in ROOT.rglob(lead + "*") if p.is_dir()
+                 and _sidecar(p).get("type") == "task"]
+        if len(found) == 1:
+            folder = found[0]
+    if folder is None:
+        return ref, "", ""
+    said = _sidecar(folder) or _sidecar_beside(folder)
+    try:
+        rel = folder.relative_to(ROOT).as_posix()
+    except ValueError:
+        rel = ""
+    return ref or rel, str(said.get("id") or "") if said.get("type") == "task" else "", rel
+
+
+def call(method: str, payload: dict | None = None, query: str = "") -> dict:
+    url, token = where()
+    address = url + ("/api/task" if token else "/internal/task") + query
+    data = None
+    headers = {"Accept": "application/json"}
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    elif worker_key():
+        headers["X-Rouh-Worker-Key"] = worker_key()["token"]
+    request = urllib.request.Request(address, data=data, headers=headers, method=method)
+    # An internal call never goes through a proxy: Rouh refuses one that did.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({})) if not token else urllib.request.build_opener()
+    try:
+        with opener.open(request, timeout=TIMEOUT) as response:
+            body = response.read()
+    except urllib.error.HTTPError as exc:
+        body = exc.read()
+        try:
+            said = json.loads(body.decode("utf-8"))
+        except ValueError:
+            said = {}
+        message = said.get("error") or f"Rouh at {url} answered {exc.code}."
+        if exc.code in (401, 403) and not token:
+            message += (f" Off the server, put Rouh's address and a key in {CONFIG} "
+                        "(python manage.py task_token add, on the server).")
+        fail(f"{message} Nothing was changed.", 1 if exc.code == 400 else 2)
+    except (urllib.error.URLError, OSError) as exc:
+        reason = getattr(exc, "reason", exc)
+        hint = ("" if token or url != LOCAL else
+                f" Off the server, put Rouh's address and a key in {CONFIG}.")
+        fail(f"Rouh could not be reached at {url} ({reason}). Nothing was changed, and "
+             f"nothing was written to a file.{hint}", 2)
+    try:
+        return json.loads(body.decode("utf-8"))
+    except ValueError:
+        fail(f"Rouh at {url} gave an answer that is not JSON. Nothing is known to have changed.", 2)
+    return {}
+
+
+def show(ref: str) -> None:
+    sent, ident, folder = locate(ref)
+    from urllib.parse import urlencode
+
+    got = call("GET", query="?" + urlencode({"ref": sent, "id": ident, "folder": folder}))
+    task = got.get("task") or {}
+    name = (f"Task {task.get('number')}" if task.get("number") is not None
+            else f"Step {str(task.get('folder') or '').rsplit('/', 1)[-1]}")
+    print(f"{name}: {task.get('title')}")
+    print(f"  folder   {task.get('folder')}")
+    print(f"  status   {task.get('status')}" + ("  (archived)" if task.get("archived") else ""))
+    print("  summary  " + (str(task.get("summary") or "(none yet)").replace("\n", "\n           ")))
+    chats = got.get("chats") or []
+    if chats:
+        print("  chats")
+        for one in chats:
+            hangs = ""
+            if one.get("fork_of"):
+                hangs = f", fork of {one['fork_of']}" + (
+                    f" ({one['fork_of_task']}'s chat)" if one.get("fork_of_task") else "") + (
+                    ", cut" if one.get("fork_cut") else "")
+            print(f"    {'main ' if one.get('main') else '     '}{one.get('id')}  "
+                  f"{one.get('title') or '(untitled)'}  {one.get('messages')} messages{hangs}")
+            for fork in one.get("forks") or []:
+                print(f"           fork {fork.get('id')}  {fork.get('title') or '(untitled)'}")
+    changes = got.get("history") or []
+    if changes:
+        import time
+
+        print("  changes")
+        for one in changes:
+            at = time.strftime("%Y-%m-%d %H:%M", time.localtime(float(one.get("at") or 0)))
+            new = str(one.get("new") or "")
+            new = (new if one.get("field") == "status"
+                   else "changed" if one.get("field") == "meta"
+                   else f"{len(new.split())} words")
+            print(f"    {at}  {one.get('field')} -> {new}  by {one.get('by')}")
+
+
+def chats_check() -> None:
+    got = call("GET", query="?check=chats")
+    found = got.get("misbound") or []
+    if not found:
+        print("No task's chat looks as if it belongs to another task.")
+        return
+    for one in found:
+        print(f"{one.get('task')}: {'main chat' if one.get('main') else 'chat'} {one.get('chat')} "
+              f"{one.get('title') or '(untitled)'}: " + "; ".join(one.get("why") or [])
+              + " (" + ", ".join(one.get("belongs_to") or []) + ")")
+
+
+def change(field: str, ref: str, value: str) -> None:
+    if field == "status":
+        value = value.strip().lower()
+        if not value:
+            fail("Say the status: " + ", ".join(STATUSES) + ".")
+    elif value == "-":
+        value = sys.stdin.read()
+    sent, ident, folder = locate(ref)
+    by, run = who()
+    got = call("POST", {"ref": sent, "id": ident, "folder": folder, field: value,
+                        "by": by, "run": run})
+    if not got.get("ok"):
+        fail(str(got.get("error") or "Rouh did not say it was done."), 1)
+    print(got.get("did") or "Done.")
+
+
+def meta(rest: list[str]) -> None:
+    """`rouh-task meta <task> [set|merge|append ...]`: show it, or change it."""
+    from urllib.parse import urlencode
+
+    # The task may be left out inside its own folder, as for status and summary.
+    ref = ""
+    if rest and rest[0] not in ("set", "merge", "append"):
+        ref, rest = rest[0], rest[1:]
+    sent, ident, folder = locate(ref)
+    if not rest:
+        got = call("GET", query="?" + urlencode({"ref": sent, "id": ident, "folder": folder}))
+        print(json.dumps(got.get("meta"), indent=2, ensure_ascii=False))
+        return
+    how, args = rest[0], rest[1:]
+    key = ""
+    if how == "append":
+        if len(args) != 2:
+            fail("rouh-task meta <task> append <key> '<JSON>'")
+        key, raw = args
+    elif how in ("set", "merge"):
+        if len(args) != 1:
+            fail(f"rouh-task meta <task> {how} '<JSON>'  (or - to read it from standard input)")
+        raw = args[0]
+    else:
+        fail(f"{how!r} is not a way to change a meta: set, merge or append.")
+    if raw == "-":
+        raw = sys.stdin.read()
+    try:
+        value = json.loads(raw)
+    except ValueError as exc:
+        fail(f"That is not JSON ({exc}). Nothing was changed.")
+    by, run = who()
+    got = call("POST", {"ref": sent, "id": ident, "folder": folder, "how": how, "key": key,
+                        "meta": value, "by": by, "run": run})
+    if not got.get("ok"):
+        fail(str(got.get("error") or "Rouh did not say it was done."), 1)
+    print(got.get("did") or "Done.")
+
+
+def main(argv: list[str]) -> None:
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return
+    what, rest = argv[0], argv[1:]
+    if what == "show":
+        show(rest[0] if rest else "")
+    elif what == "meta":
+        meta(rest)
+    elif what == "chats-check":
+        chats_check()
+    elif what in ("status", "summary"):
+        if len(rest) == 1:
+            change(what, "", rest[0])
+        elif len(rest) == 2:
+            change(what, rest[0], rest[1])
+        else:
+            fail(f"rouh-task {what} <task> <{'status' if what == 'status' else 'summary'}>")
+    else:
+        fail(f"{what!r} is not something rouh-task does: status, summary, meta, show or chats-check.")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

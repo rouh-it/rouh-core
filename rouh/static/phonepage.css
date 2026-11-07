@@ -1,0 +1,32 @@
+/* Settings, Connections, Phone (`phonepage.js`, `rouh/relay.py`).
+
+   The cards of the Heartbeat page (`heartbeatpage.css`), with the address, its state's
+   dot (pulsing green while connected, amber while it waits on the relay, grey when off),
+   this month's traffic as one bar, and the QR code beside its two lines. */
+
+.ph-address { margin: 4px 0 0; font-family: var(--mono); font-size: 15px; overflow-wrap: anywhere; }
+.ph-state { margin-top: 6px; flex-wrap: wrap; }
+.ph-said { color: var(--dim); }
+.ph-state.connecting .hb-pulse, .ph-state.reconnecting .hb-pulse {
+  background: var(--warn); animation: none; box-shadow: none;
+}
+.ph-state.off .hb-pulse { background: var(--dimmer); animation: none; box-shadow: none; }
+.ph-card .hb-actions { margin-top: 10px; }
+.ph-usage { margin-top: 8px; display: grid; gap: 5px; font-size: 13px; color: var(--dim); }
+.ph-bar { display: block; height: 6px; border-radius: 3px; background: var(--line-soft); overflow: hidden; }
+.ph-fill { display: block; height: 100%; background: var(--good); }
+.ph-fill.slowed { background: var(--warn); }
+.ph-qr {
+  margin-top: 12px; display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 14px; align-items: center;
+}
+.ph-qr-pic { background: #fff; border-radius: var(--radius-s); padding: 6px; line-height: 0; }
+.ph-qr-pic svg { width: 100%; height: auto; }
+.ph-qr-words { display: grid; gap: 6px; font-size: 13.5px; line-height: 1.45; }
+.ph-qr-words p { margin: 0; }
+.ph-info { margin-top: 10px; font-size: 13px; }
+.ph-info summary { cursor: pointer; color: var(--dim); }
+
+@media (max-width: 480px) {
+  .ph-qr { grid-template-columns: minmax(0, 1fr); justify-items: start; }
+  .ph-qr-pic { width: 200px; }
+}

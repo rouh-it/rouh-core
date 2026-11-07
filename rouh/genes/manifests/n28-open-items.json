@@ -1,0 +1,41 @@
+{
+  "id": "n28-open-items",
+  "name": "Open on this task",
+  "title": "Open on this task: the open items in a task's Where this stands listed on its page, each closed with Done, kept and labelled in its notes",
+  "aliases": [
+    "open items",
+    "what is still open on this task",
+    "mark it done",
+    "close an open item"
+  ],
+  "group": "work",
+  "route": "/tasks",
+  "icon": "<rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><path d=\"M8 12.5l2.5 2.5L16 9.5\"/>",
+  "attaches_to": [
+    "task"
+  ],
+  "maturity": "lab",
+  "switch": "open_items",
+  "signals": {
+    "events": {
+      "done": "You pressed Done on an open item in a task's Open on this task"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the Where this stands of the task's notes (AGENTS.md)",
+      "strikes an item you mark done through in those notes and labels it, and puts it back on Undo",
+      "saves that change to your workspace like every change Rouh makes there"
+    ],
+    "accounts": [],
+    "tables": [
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch open_items off on its row in Evolution, Mutations, and the section is gone from task pages; to remove it for good revert night 28's commit (rouh/open_items.py, rouh/web/open_items.py, its route in rouh/project/urls.py, its lines in rouh/objectindex.py, the open_item act in cards.js, the tkOpen code in taskpage.js, the .oopen rules in taskbrowser.css, this manifest). rouh/not_handed.py reads its open items too."
+  }
+}

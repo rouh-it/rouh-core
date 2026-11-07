@@ -1,0 +1,43 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+*.sqlite3
+*.sqlite3-*
+# Anchored to the repository root, and that leading slash is the whole point.
+# Rouh's own data, logs and crew directories are at the root of a local
+# checkout (on the server they are beside it, at /var/www/rouh/). Written
+# without the slash these three ordinary words matched a directory of that name
+# at any depth, and since the assistant workspace arrived at workspace/ that
+# means a task's own data/ or logs/ folder, which is a deliverable and not
+# regenerable state. A note the terminal assistant wrote would have been
+# ignored silently, which is the worst way to lose one.
+/logs/
+/data/
+/crew/
+.passphrase
+.venv-*/
+.local-data/
+
+# What a failed end-to-end test leaves behind.
+.artifacts/
+
+# What a browser driven over Playwright MCP leaves behind: page snapshots,
+# console logs and any screenshot taken without a path of its own. Evidence for
+# the job that took it, never the repository's.
+.playwright-mcp/
+
+# What Rouh writes into a crewmate's own worktree: its brief, its session log
+# and the hook settings that report the job. Per-run scratch, never the
+# repository's, and a worker that staged everything would otherwise commit it.
+.rouh/
+# The same folder under the name it had before 22 September 2026. A worktree
+# made by a run that started before the rename still has one (RENAME.md).
+.jarvis/
+.claude/settings.local.json
+
+# Never, anywhere. The assistant workspace has a package.json and the terminal
+# assistant runs npm in it; none of what that leaves behind belongs here.
+node_modules/
+.stack-test/
+.secrets/

@@ -1,0 +1,6 @@
+services:
+  peek:
+    network_mode: none
+    extends:
+      file: @TMP@/host/other.yml
+      service: leak

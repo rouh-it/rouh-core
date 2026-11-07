@@ -1,0 +1,3 @@
+services:
+  worker:
+    env_file: ["../host/secret.env"]

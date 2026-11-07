@@ -1,0 +1,45 @@
+{
+  "id": "sources-checked",
+  "name": "Sources",
+  "title": "Sources: in each task, every page with footnotes, Check sources beside each, and which of its sources do not say what the page says",
+  "aliases": [
+    "check sources",
+    "verify sources",
+    "fake sources",
+    "hallucinated sources",
+    "footnotes checked",
+    "citations"
+  ],
+  "group": "work",
+  "route": "/sources",
+  "icon": "<path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z\"/><path d=\"M14 3v5h5\"/><path d=\"M9 14.5l2 2 4-4\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "switch": "source_check",
+  "signals": {
+    "events": {
+      "sources_opened": "You opened a task's Sources to look at what its pages cite",
+      "check_pressed": "You pressed Check sources beside a page",
+      "source_held": "You marked a flagged source as holding"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads a task's pages to list the ones with footnotes under its Sources, and only when you press Check sources beside one, the web pages and PDFs its Sources list links to, fetched from Rouh's server and never from a private address, and read once more in a headless browser with none of your logins when a plain fetch gets no text",
+      "marks a source as holding only when you press It holds on the Sources page"
+    ],
+    "accounts": [],
+    "tables": [
+      "page_source_checks",
+      "user_settings"
+    ],
+    "jobs": [
+      "a look every minute, or at once when you press Check sources, for a page you asked to have checked, one model call per ten of its sources (Models, Checking a page's sources)"
+    ],
+    "remove": "Turn the switch source_check off on its row in Evolution, Mutations, and nothing is fetched or read and no task's page has a Sources section; to remove it for good revert night 10's commits (rouh/source_check.py, rouh/web/sources.py, sourcespage.js and sourcespage.css, the Sources layer in index.html, runs.js, cards.js and address.js, the Sources section on a task's page (objectindex._sources_section) and its address in pages.py and urls.py, its Use, the stand-in in fake_model.py, migration 0137 and this manifest), drop the table page_source_checks and delete the user setting source_check_held (and source_check_since, left from before checks were on demand)."
+  }
+}

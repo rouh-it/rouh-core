@@ -1,0 +1,18 @@
+#!/bin/bash
+#
+# rouh-ssh-key NAME: one SSH key for one purpose, in the worker, for the runs that work on one of
+# the owner's own servers (CONTAINERS.md, runs.ssh). Made once, kept in the worker's home, and its
+# public half printed, to be put on that server for a user that can do only that job, never root:
+#
+#   docker compose exec worker rouh-ssh-key sites      # then, on the server, in that user's
+#                                                       # ~/.ssh/authorized_keys
+#
+# The runs reach the server only if the owner lists it in the settings file
+# (ROUH_KEYPROXY_ALLOW=sites.example.com:22), through the key proxy (rouh-connect).
+set -euo pipefail
+name="${1:-}"
+[[ "$name" =~ ^[A-Za-z0-9._-]{1,40}$ ]] || { echo "rouh-ssh-key: give the key a short name, such as sites" >&2; exit 2; }
+mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+key="$HOME/.ssh/$name"
+[ -f "$key" ] || ssh-keygen -q -t ed25519 -N '' -C "rouh-$name" -f "$key"
+cat "$key.pub"

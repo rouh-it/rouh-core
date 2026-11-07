@@ -1,0 +1,3 @@
+services:
+  worker:
+    user: "0:0"

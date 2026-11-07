@@ -1,0 +1,143 @@
+{% extends "rouh/signin_base.html" %}
+{% comment %}Signing the worker's Codex in with a ChatGPT plan (`rouh/web/codex_signin.py`): one press
+   starts Codex's own device sign-in in the worker, and its address and one-time code are shown
+   here large, with a QR code for a phone; the page follows the sign-in by itself, then shows one
+   trivial Codex run that proves it works. Apart from it, the OpenAI key per use for somebody with
+   no plan, off until they choose it, and Sign out.{% endcomment %}
+{% block title %}Sign in Codex{% endblock %}
+{% block body %}
+ <style>
+  main{width:min(92vw,380px)}
+  .quiet{background:#11151a;color:#e8ecf1;border:1px solid #2b333d}
+  .quiet:hover{background:#171c22}
+  .wait{display:flex;gap:10px;align-items:center}
+  .spin{flex:none;width:16px;height:16px;border-radius:50%;border:2px solid #232a33;
+        border-top-color:#5ec2ff;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spin{animation:none}}
+  .code{font:700 clamp(30px,10vw,44px)/1.1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.06em;
+        text-align:center;color:#e8ecf1;background:#11151a;border:1px solid #2b333d;border-radius:12px;padding:14px 8px;
+        user-select:all}
+  .addr{font:600 18px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;text-align:center;overflow-wrap:anywhere}
+  .qr{display:grid;place-items:center;gap:6px}
+  .qr img{width:184px;height:184px;border-radius:10px;background:#fff;image-rendering:pixelated}
+  .steps{display:grid;gap:14px}
+  .num{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;
+       background:#232a33;color:#e8ecf1;font-size:12px;font-weight:700;margin-right:6px}
+  details{border-top:1px solid #232a33;padding-top:12px}
+  summary{cursor:pointer;color:#8fb8ff;font-size:14px}
+  details[open] summary{margin-bottom:10px}
+  details>form+form,details>p+form,details>form+p{margin-top:10px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .checking{color:#8b95a3}
+ </style>
+ <h2>Sign in Codex with ChatGPT</h2>{% if problem %}
+ <div class="bad" role="alert"><p>{{ problem }}</p></div>{% endif %}
+
+{% if state == "starting" %}
+ <div class="wait" role="status"><span class="spin" aria-hidden="true"></span>
+  <p>Rouh's worker is not answering yet{% if why %} ({{ why }}){% endif %}. This page carries on by itself.</p></div>
+
+{% elif state == "waiting" %}
+ <div class="steps" id="waiting">
+  <div class="field">
+   <p><span class="num">1</span>Open OpenAI's page, on this computer or your phone.</p>
+   <a class="button" href="{{ address }}" target="_blank" rel="noopener noreferrer" id="openOpenAI">Open {{ address|cut:"https://" }}</a>
+   {% if qr %}<div class="qr"><img src="{{ qr }}" alt="QR code for {{ address }}"><p>Or scan this with your phone.</p></div>{% endif %}
+  </div>
+  <div class="field">
+   <p><span class="num">2</span>Sign in with your ChatGPT account and enter this code:</p>
+   <div class="code" id="code" aria-label="The one-time code">{{ code }}</div>
+   <p>The code works for 15 minutes. It was also sent to your phone if this page is not in front of you.</p>
+  </div>
+  <div class="wait" role="status" aria-live="polite"><span class="spin" aria-hidden="true"></span>
+   <p id="progress">Waiting for you to approve it on OpenAI's page. This page changes by itself when Codex is signed in.</p></div>
+  <form method="post" action="/setup/codex">
+   {% csrf_token %}<input type="hidden" name="do" value="cancel">
+   <button type="submit" class="quiet">Cancel</button>
+  </form>
+ </div>
+
+{% elif state == "signed_in" %}
+ <p class="good" id="said" role="status">{{ said }}</p>
+ {% if test %}{% if test.running %}
+ <div class="wait" role="status" aria-live="polite"><span class="spin" aria-hidden="true"></span>
+  <p id="testSaid">Checking with one small Codex run that it really works...</p></div>
+ {% elif test.ok %}
+ <p class="good" id="testSaid">A test run of Codex worked. It answered: "{{ test.said }}"</p>
+ {% else %}
+ <div class="bad" role="alert" id="testSaid"><p>A test run of Codex did not work. Codex said: {{ test.said }}</p></div>
+ {% endif %}{% endif %}
+ <div class="row">
+  <form method="post" action="/setup/codex">
+   {% csrf_token %}<input type="hidden" name="do" value="test">
+   <button type="submit" class="quiet">Test again</button>
+  </form>
+  <form method="post" action="/setup/codex">
+   {% csrf_token %}<input type="hidden" name="do" value="logout">
+   <button type="submit" class="quiet">Sign out</button>
+  </form>
+ </div>
+ <a class="button quiet" href="/">Continue to Rouh</a>
+
+{% else %}
+ {% if failed %}
+ <div class="bad" role="alert" id="failed"><p>Codex did not sign in. It said: {{ failed }}</p></div>
+ {% endif %}
+ <p>Rouh's Codex runs, such as the nightly code tidy-up, use your ChatGPT plan. Press the button, then approve the code on OpenAI's page. No terminal needed.</p>
+ <form method="post" action="/setup/codex">
+  {% csrf_token %}<input type="hidden" name="do" value="start">
+  <button type="submit" id="start">{% if failed %}Try again{% else %}Sign in Codex with ChatGPT{% endif %}</button>
+ </form>
+{% endif %}
+
+{% if state != "starting" and state != "waiting" %}
+ <details id="key"{% if key_problem or api_key_chosen %} open{% endif %}>
+  <summary>No ChatGPT plan? Use the OpenAI key instead</summary>
+  {% if api_key_chosen %}
+  <p class="good">Codex runs are billed to your OpenAI API key, per use (per token).{% if not has_openai_key %} No OpenAI key is kept yet, so they cannot start until you add one below.{% endif %}</p>
+  <form method="post" action="/setup/codex#key">
+   {% csrf_token %}<input type="hidden" name="do" value="api_key"><input type="hidden" name="on" value="0">
+   <button type="submit" class="quiet">Stop using the key{% if state == "signed_in" and method != "api_key" %}; use the ChatGPT plan{% endif %}</button>
+  </form>
+  {% else %}
+  <p>Off. With it on, every Codex run is billed to your OpenAI API key, per use (per token), instead of a ChatGPT plan. Only you can turn it on.</p>
+  <form method="post" action="/setup/codex#key">
+   {% csrf_token %}<input type="hidden" name="do" value="api_key"><input type="hidden" name="on" value="1">
+   <button type="submit" class="quiet" id="useKey">Bill Codex runs to the OpenAI key</button>
+  </form>
+  {% endif %}
+  {% if key_problem %}<div class="bad" role="alert"><p>{{ key_problem }}</p></div>{% endif %}
+  {% if not has_openai_key or key_problem %}
+  <form method="post" action="/setup/codex#key" class="field">
+   {% csrf_token %}<input type="hidden" name="do" value="openai_key">
+   <label for="openaiKey">OpenAI API key (make one at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">platform.openai.com</a>)</label>
+   <input id="openaiKey" name="key" type="password" autocomplete="off" spellcheck="false" required>
+   <button type="submit" class="quiet">Keep the key</button>
+  </form>
+  {% else %}<p>An OpenAI key is kept. The worker never sees it.</p>{% endif %}
+ </details>
+{% endif %}
+ <p class="back"><a href="/setup/claude">Claude Code's sign-in</a></p>
+
+{% if state == "starting" or state == "waiting" or test.running %}
+ <script>
+  // Asks how the sign-in is going every three seconds, and shows the page for it once it
+  // changes. While the page is in front of somebody it says so (seen=1), so the code's
+  // notice is not sent on to the phone.
+  (function(){
+    var was = "{{ state }}";
+    var testing = {% if test.running %}true{% else %}false{% endif %};
+    function check(){
+      var seen = document.visibilityState === "visible" ? "1" : "0";
+      fetch("/setup/codex/state?seen=" + seen, {cache:"no-store"}).then(function(r){return r.json()})
+        .then(function(s){
+          var still = s.state === was && (!testing || (s.test && s.test.running));
+          if(!still){ location.replace("/setup/codex") } else { setTimeout(check, 3000) }
+        }).catch(function(){ setTimeout(check, 3000) });
+    }
+    check();
+  })();
+ </script>
+{% endif %}
+{% endblock %}

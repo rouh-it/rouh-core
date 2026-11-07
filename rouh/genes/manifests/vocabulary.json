@@ -1,0 +1,37 @@
+{
+  "id": "vocabulary",
+  "name": "Vocabulary",
+  "title": "Vocabulary: your own words and nicknames, and what you mean by them, found whenever you use them",
+  "aliases": [
+    "words",
+    "your words",
+    "nicknames",
+    "terms",
+    "glossary",
+    "definitions"
+  ],
+  "group": "memory",
+  "route": "/synapse/vocabulary",
+  "icon": "<path d=\"M5 4.5h9.5A2.5 2.5 0 0 1 17 7v12.5H7.5A2.5 2.5 0 0 1 5 17z\"/><path d=\"M5 17a2.5 2.5 0 0 1 2.5-2.5H17\"/><path d=\"M8.5 8h5M8.5 11h3.5\"/>",
+  "attaches_to": [
+    "person"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 25,
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "synapse.item (kind vocabulary)"
+    ],
+    "jobs": [],
+    "remove": "Delete rouh/vocabulary.py, rouh/web/vocabulary.py and this manifest, the Vocabulary page in synapse.js, and the calls to vocabulary in rules.py, synapse/autorecall.py, synapse/text.py and synapse/chat.py; the entries stay in Synapse Master as items until deleted there."
+  },
+  "uses": {
+    "tools": []
+  }
+}

@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""rouh-guard: the protected core's own command (guard/README.md).
+
+    rouh-guard serve        the guard service: the socket (changes contract 1), the change step
+                            with its undo points, and the doctor
+    rouh-guard status       what the core says about itself and this Rouh, as JSON
+    rouh-guard points       the undo points, newest first
+    rouh-guard undo N       put /code back to undo point N
+    rouh-guard propose SHA [WHY]   check a commit of /code and, if it passes, run it
+    rouh-guard verify WHO   what the start scripts ask before they run /code (core)
+    rouh-guard upstream     the Creator Rouh's push: on or off, what was pushed (upstream.py)
+    rouh-guard upstream-key the Creator Rouh's key for rouh-core, made once in the guard's own
+                            volume; prints only its public half, for a deploy key on rouh-core
+
+Every command but serve asks the running guard over its socket, ROUH_GUARD_SOCKET
+(/run/guard/guard.sock), so it is the same whether a person types it in the guard container
+(docker compose exec guard rouh-guard status) or the Rouh asks.
+"""
+from __future__ import annotations
+
+import json
+import os
+import socket
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+SOCKET = os.environ.get("ROUH_GUARD_SOCKET", "/run/guard/guard.sock")
+
+
+def ask(req: dict, timeout: float = 3600) -> dict:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+        s.settimeout(timeout)
+        s.connect(SOCKET)
+        s.sendall((json.dumps({"contract": 1, **req}) + "\n").encode())
+        got = bytearray()
+        while not got.endswith(b"\n"):
+            chunk = s.recv(1 << 20)
+            if not chunk:
+                break
+            got.extend(chunk)
+    return json.loads(got.decode() or "{}")
+
+
+def main(argv: list[str]) -> int:
+    cmd = argv[0] if argv else "status"
+    if cmd == "serve":
+        from rouh_guard import daemon
+
+        return daemon.main()
+    if cmd in ("status", "points"):
+        reply = ask({"op": cmd}, 30)
+    elif cmd == "undo" and len(argv) == 2:
+        reply = ask({"op": "undo", "point": int(argv[1]), "by": "a person, in the guard container"})
+    elif cmd == "propose" and len(argv) in (2, 3):
+        reply = ask({"op": "propose", "commit": argv[1], "why": argv[2] if len(argv) == 3 else "",
+                     "by": "a person, in the guard container"})
+    elif cmd == "upstream":
+        reply = ask({"op": "upstream", "fetch": True}, 300)
+    elif cmd == "upstream-key":
+        reply = ask({"op": "upstream", "key": True}, 60)
+    elif cmd == "verify" and len(argv) == 2:
+        reply = ask({"op": "verify", "who": argv[1]})
+    else:
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    print(json.dumps(reply, indent=1, ensure_ascii=False))
+    return 0 if reply.get("ok") else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

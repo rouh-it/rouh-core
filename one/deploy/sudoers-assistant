@@ -1,0 +1,9 @@
+# Every run of the one program (task 30, step 10) works as the "assistant"
+# user, and may use sudo with nobody asked, so a run can do anything on this
+# machine: the assistant and Rouh are one assistant, and a job on the server
+# is one of its jobs. The person's decision of 15 September 2026 (D42).
+#
+# Installed as /etc/sudoers.d/assistant by one/deploy/install.sh. To take it
+# back, delete that file: runs then work as assistant without sudo, as
+# before D41.
+assistant ALL=(ALL) NOPASSWD: ALL

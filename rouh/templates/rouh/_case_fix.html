@@ -1,0 +1,61 @@
+{% comment %}The runs fixing the checks behind steps Petar told Fix were false alarms
+   (`rouh/case_fixes.py`), inside Sent back to be fixed. Petar, 8 October 2026: while it runs,
+   where it is in plain words, since when, the run and a Stop; when it ends, what was done, why
+   and how it will be different, with Undo. Drawn by the page and again by
+   `/mail/case/<key>/fixes` while one is going, which swaps it in.{% endcomment %}
+<div id="fixPanel" class="fix-panel" data-live="{% for f in fixes %}{% if f.live %}1{% endif %}{% endfor %}"{% if not fixes %} hidden{% endif %}>
+{% if fixes and follow %}<h3 class="fx-sub" style="margin-top:0">Rouh's checks, sent to be fixed from Fix</h3>{% endif %}
+{% for f in fixes %}{% if forloop.counter == 4 %}<details class="panel fx-older"><summary>Earlier fixes ({{ fixes|length|add:"-3" }})</summary><div class="panel-body">{% endif %}
+<section class="card fixcard {% if f.tone == 'run' %}busy{% else %}{{ f.tone }}{% endif %}" id="fix-{{ f.id }}" aria-labelledby="fixHead-{{ f.id }}">
+  <div class="fx-head">
+    <span class="run {% if f.tone == 'run' %}run-running{% else %}run-done {{ f.tone }}{% endif %}" aria-hidden="true"></span>
+    <h2 id="fixHead-{{ f.id }}">{% if f.outcome == "fixed" or f.changed %}Fixed the check at{% elif f.outcome == "nothing" %}Nothing to fix at{% else %}Fixing the check at{% endif %} <a class="mono" href="#{{ f.step }}" data-open="{{ f.step }}">{{ f.step }}</a></h2>
+    <span class="pill {% if f.tone == 'run' %}busy{% else %}{{ f.tone }}{% endif %}" id="fixState-{{ f.id }}">{{ f.pill }}</span>
+  </div>
+
+  {% if f.tone == "run" %}
+  <p class="fx-now" id="fixNow-{{ f.id }}"><strong>{{ f.doing }}</strong>{% if f.said %}: {{ f.said }}{% endif %}{% if f.replaying and f.doing == "Testing on earlier cases" %} <span class="muted">({{ f.replaying }} earlier case{{ f.replaying|pluralize }})</span>{% endif %}{% if f.phase_when %} <span class="muted small nw">since {{ f.phase_when }}</span>{% endif %}</p>
+  {% endif %}
+  {% if f.outcome != "stopped" and f.outcome != "nothing" %}
+  <ol class="fx-track" aria-label="How far it is">{% for t in f.track %}<li class="{{ t.state }}"{% if t.state == "now" %} aria-current="step"{% endif %}>{{ t.label }}</li>{% endfor %}</ol>
+  {% endif %}
+
+  {% if f.outcome == "fixed" or f.changed and f.tone == "run" %}
+  <dl class="fx-sum" id="fixSummary-{{ f.id }}">
+    <div><dt>What was done</dt><dd>{{ f.changed }}{% if f.files %}<span class="fx-files">{% for p in f.files %}<span class="mono">{{ p }}</span>{% endfor %}</span>{% endif %}<span class="fx-commit">{% if f.deployed %}Commit <span class="mono">{{ f.commit }}</span>, deployed at {{ f.deployed_when }}.{% elif f.commit %}Commit <span class="mono">{{ f.commit }}</span> is on main and not live yet.{% elif f.claimed %}The run reported commit <span class="mono">{{ f.claimed }}</span>; Rouh has not found it on main yet.{% else %}Its commit is not on main yet.{% endif %}</span></dd></div>
+    <div><dt>Why</dt><dd>{{ f.cause }}</dd></div>
+    <div><dt>How it will be different</dt><dd>{{ f.different }}{% if f.rerun %}<span class="fx-line" id="fixRerun-{{ f.id }}">This {{ noun|default:"case" }} was {{ f.rerun }}</span>{% elif f.deployed %}<span class="fx-line muted">This case is being run again.</span>{% else %}<span class="fx-line muted">This case is run again once the fix is live.</span>{% endif %}{% if f.replayed %}<span class="fx-line">It replayed {{ f.replayed }} earlier case{{ f.replayed|pluralize }} you marked: {% if f.same == f.replayed %}all behaved as they should{% else %}{{ f.same }} behaved as they should{% endif %}.</span>{% endif %}</dd></div>
+  </dl>
+  {% elif f.outcome == "nothing" %}
+  <dl class="fx-sum" id="fixSummary-{{ f.id }}">
+    <div><dt>What was done</dt><dd>Nothing needed changing.</dd></div>
+    {% if f.cause %}<div><dt>Why</dt><dd>{{ f.cause }}</dd></div>{% endif %}
+    {% if f.different %}<div><dt>How it is now</dt><dd>{{ f.different }}</dd></div>{% endif %}
+  </dl>
+  {% elif f.outcome == "needs_owner" or f.outcome == "needs_petar" or f.outcome == "failed" %}
+  <dl class="fx-sum" id="fixSummary-{{ f.id }}">
+    <div><dt>{% if f.outcome == "needs_owner" or f.outcome == "needs_petar" %}It stopped{% else %}What went wrong{% endif %}</dt><dd>{% if f.outcome == "needs_owner" or f.outcome == "needs_petar" %}The only fix would loosen a safety rule, so nothing was changed.{% else %}{{ f.why|default:"The run ended without saying what it did." }}{% endif %}</dd></div>
+    {% if f.cause %}<div><dt>What it found</dt><dd>{{ f.cause }}</dd></div>{% endif %}
+    <div><dt>What is needed from you</dt><dd>{% if f.outcome == "needs_owner" or f.outcome == "needs_petar" %}{{ f.needs }}{% else %}Try again, perhaps with more to go on, or leave the check as it is.{% endif %}{% if f.verdict %}<span class="fx-line">You answered: {% if f.verdict == "leave" %}leave it{% else %}try again{% endif %}.</span>{% elif f.decision_number %}<span class="fx-line">It is in your <a href="/decisions/{{ f.decision_number }}">Decisions as <span class="dq-number">Decision {{ f.decision_number }}</span></a>.</span>{% endif %}</dd></div>
+  </dl>
+  {% elif f.outcome == "stopped" %}
+  <p class="fx-now">{{ f.why|default:"You stopped it." }}{% if f.ended %} <span class="muted small">{{ f.ended }}</span>{% endif %}</p>
+  {% endif %}
+
+  {% if f.undo_state %}
+  <p class="fx-undo {% if f.undo_state == 'done' %}good{% elif f.undo_state == 'failed' %}bad{% endif %}" id="fixUndo-{{ f.id }}">{% if f.undo_state == "running" %}Undoing it: a run is reverting the commit and redeploying.{% elif f.undo_state == "done" %}Undone: reverted in <span class="mono">{{ f.undo_commit }}</span> and deployed at {{ f.undo_when }}. The check is as it was before.{% elif f.undo_state == "stopped" %}You stopped the undo; the fix is still in place.{% else %}The undo did not go live; the fix is still in place.{% endif %}{% if f.undo_run_href %} <a href="{{ f.undo_run_href }}">Its run</a>{% endif %}</p>
+  {% endif %}
+
+  <div class="fx-foot">
+    <span class="muted small">{% if f.since %}Started {{ f.since }}{% endif %}{% if f.run_href %} · <a href="{{ f.run_href }}" id="fixRun-{{ f.id }}">Run {{ f.run_id|slice:":8" }}</a>{% endif %}</span>
+    {% if f.can_stop %}<form method="post" action="{{ path }}/fix/{{ f.id }}/stop" class="fx-form">{% csrf_token %}<button class="ctl small danger" type="submit" id="fixStop-{{ f.id }}">{% if f.undo_state == "running" %}Stop the undo{% else %}Stop{% endif %}</button></form>{% endif %}
+    {% if f.can_undo %}<form method="post" action="{{ path }}/fix/{{ f.id }}/undo" class="fx-form" data-once>{% csrf_token %}<button class="ctl small" type="submit" id="fixUndoGo-{{ f.id }}">Undo</button></form>{% endif %}
+  </div>
+  {% if f.reasons %}
+  <details class="fx-reasons"><summary class="muted small">Your reason{{ f.reasons|length|pluralize }} ({{ f.reasons|length }})</summary>
+    <ul>{% for r in f.reasons %}<li><span class="muted small">{{ r.when }}</span> {{ r.text }}</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+</section>
+{% if forloop.last and forloop.counter > 3 %}</div></details>{% endif %}{% endfor %}
+</div>

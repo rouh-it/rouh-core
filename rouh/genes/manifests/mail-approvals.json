@@ -1,0 +1,57 @@
+{
+  "id": "mail-approvals",
+  "name": "Approvals",
+  "title": "Emails and messages waiting for your approval",
+  "aliases": [
+    "mail",
+    "inbox",
+    "trusted mail",
+    "approvals",
+    "cases",
+    "mail cases"
+  ],
+  "group": "now",
+  "route": "/mail/approvals",
+  "icon": "<rect x=\"3\" y=\"5.5\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M3.5 7l8.5 6 8.5-6\"/><path d=\"M15.5 16.2l1.4 1.4 2.6-2.8\"/>",
+  "attaches_to": [
+    "email",
+    "person"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 15,
+    "opens": "own",
+    "row": "approvalsRow",
+    "controls": "approvalsView"
+  },
+  "touches": {
+    "permissions": [
+      "sends mail and Telegram messages to trusted contacts only through rouh/mail_outbox.py"
+    ],
+    "accounts": [
+      "Gmail (the person's and Rouh's mailboxes)",
+      "Telegram"
+    ],
+    "tables": [
+      "mail_cases",
+      "mail_asks",
+      "mail_outbox",
+      "mail_approvals",
+      "mail_case_events"
+    ],
+    "jobs": [
+      "new mail handled as it arrives, through Gmail push (rouh/mail_alerts.py)"
+    ],
+    "remove": "See MAIL.md: the mail ledger has its own replay guard in land.sh; remove the routes in rouh/project/urls.py, rouh/web/trusted.py, approvalspage.js/.css, mailcasepage.js/.css and mail_case.html (one case, /mail/case/<key>, the server's page in a frame in the same layer, with the asks at its top; /mail/case/<key>/trace goes to it), the approvalsView layer and its wiring in app/runs.js, app/address.js and app/cards.js, and this manifest."
+  },
+  "uses": {
+    "tools": [
+      "mail_alerts",
+      "handle_email_again"
+    ],
+    "purposes": [
+      "case_ask"
+    ]
+  }
+}

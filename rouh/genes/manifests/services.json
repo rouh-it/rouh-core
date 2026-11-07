@@ -1,0 +1,39 @@
+{
+  "id": "services",
+  "name": "Services",
+  "title": "Services: what Rouh and you pay for again and again, what each costs, when it renews and how to cancel it",
+  "aliases": [
+    "outside services",
+    "subscriptions",
+    "subscription",
+    "plans",
+    "renewals",
+    "unsubscribe",
+    "cancel a subscription",
+    "trials"
+  ],
+  "group": "machine",
+  "route": "/anatomy/money/services",
+  "anatomy": {
+    "order": 15
+  },
+  "icon": "<path d=\"M4 12a8 8 0 0 1 13.7-5.6L20 8.7\"/><path d=\"M20 4v4.7h-4.7\"/><path d=\"M20 12a8 8 0 0 1-13.7 5.6L4 15.3\"/><path d=\"M4 20v-4.7h4.7\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "keeps the services you type in, and never cancels or pays for one by itself"
+    ],
+    "accounts": [],
+    "tables": [
+      "paid_services"
+    ],
+    "jobs": [],
+    "remove": "Delete rouh/services.py, rouh/web/services.py and its three routes, servicespage.js and servicespage.css, its section in rouh/templates/rouh/index.html, its line in rouh/anatomy.py's CHECKS and this manifest, and drop the table paid_services with a migration."
+  },
+  "uses": {}
+}

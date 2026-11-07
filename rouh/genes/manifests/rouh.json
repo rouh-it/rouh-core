@@ -1,0 +1,34 @@
+{
+  "id": "rouh",
+  "name": "Rouh",
+  "title": "Rouh, the chat that is always there",
+  "aliases": [
+    "general",
+    "main chat",
+    "chat",
+    "talk",
+    "conversation",
+    "home"
+  ],
+  "group": "now",
+  "route": null,
+  "icon": "<circle cx=\"12\" cy=\"12\" r=\"3.8\"/><path d=\"M16.8 14.8C17.4 17.4 21.0 14.9 21.4 17.4M12.0 17.6C10.0 19.4 14.0 21.2 12.0 22.8M7.2 14.8C4.6 14.0 5.0 18.4 2.6 17.4M7.2 9.2C6.6 6.6 3.0 9.1 2.6 6.6M12.0 6.4C14.0 4.6 10.0 2.8 12.0 1.2M16.8 9.2C19.4 10.0 19.0 5.6 21.4 6.6\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "dedicated",
+    "opens": "press",
+    "press": "generalRow",
+    "counts": true
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "chat",
+      "messages"
+    ],
+    "jobs": [],
+    "remove": "Not removable: it is Rouh's own conversation. Its row is in the dedicated area under the menu button."
+  }
+}

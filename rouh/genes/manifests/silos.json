@@ -1,0 +1,47 @@
+{
+  "id": "silos",
+  "name": "Silos",
+  "title": "Silos: the parts of your life Rouh keeps apart, and what labels everything with them",
+  "aliases": [
+    "silo",
+    "silos",
+    "work and personal",
+    "labels",
+    "work",
+    "personal",
+    "family"
+  ],
+  "group": "machine",
+  "route": "/anatomy/you/silos",
+  "anatomy": {
+    "order": 40
+  },
+  "icon": "<rect x=\"3.5\" y=\"5\" width=\"5\" height=\"14\" rx=\"1.5\"/><rect x=\"9.5\" y=\"5\" width=\"5\" height=\"14\" rx=\"1.5\"/><rect x=\"15.5\" y=\"5\" width=\"5\" height=\"14\" rx=\"1.5\"/>",
+  "attaches_to": [
+    "person",
+    "email",
+    "task"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "decides which silos a trusted contact, a delegate and an unattended run may see, filtered at Synapse's readers check"
+    ],
+    "accounts": [
+      "Google"
+    ],
+    "tables": [
+      "silo",
+      "silo_rule",
+      "synapse.item.silos",
+      "trusted_contacts.sees",
+      "reminders.silos"
+    ],
+    "jobs": [],
+    "remove": "the Settings group in rouh/templates/rouh/index.html, silospage.js/.css, rouh/silos.py, rouh/web/silos.py and this manifest; every reader of silos.limit_now and silos.fill; drop the silo and silo_rule tables and the silos columns with a migration."
+  }
+}

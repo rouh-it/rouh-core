@@ -1,0 +1,49 @@
+{% load rouh_case %}{% comment %}
+  A case's steps, one row each, in the order they happened: who did it, what it was
+  given, what it decided, and what it put out word for word (Petar, 11 October 2026).
+  Rows are {at, who, step, given, decided, raw} (`case_trace.timeline`); a Test of the
+  case draws its own rows the same way. Nothing in a cell is rebuilt: a raw cell is what
+  was kept, JSON styled (`templatetags/rouh_case.py`). Long cells fold. At a phone's
+  width each row is a card of its own.
+{% endcomment %}<style>
+:root { --j-q: var(--accent); --j-key: var(--accent); --j-colon: var(--warn); --j-str: var(--good); }
+.tl-wrap { overflow-x: auto; }
+.tl { width: 100%; border-collapse: collapse; font-size: 12.5px; table-layout: fixed; }
+.tl th { text-align: left; font-weight: 600; color: var(--dim); font-size: 11.5px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.tl td { vertical-align: top; padding: 8px; border-bottom: 1px solid var(--line); min-width: 0; overflow-wrap: anywhere; }
+.tl col.c-at { width: 92px; } .tl col.c-who { width: 128px; } .tl col.c-given { width: 23%; } .tl col.c-decided { width: 22%; }
+.tl .tl-step { display: block; color: var(--dim); font-size: 11.5px; margin-top: 2px; }
+.tl .tl-who { font-weight: 600; }
+.tl time { color: var(--dim); font-variant-numeric: tabular-nums; }
+.tl pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--mono); font-size: 11.5px; line-height: 1.45; max-height: 520px; overflow: auto; }
+.tl pre.tl-text { font-family: var(--sans); font-size: 12.5px; border: 0; background: none; padding: 0; }
+.tl pre.tl-json { padding: 8px 10px; }
+.tl details > summary { cursor: pointer; color: var(--dim); list-style: none; }
+.tl details > summary::-webkit-details-marker { display: none; }
+.tl details > summary::before { content: "›"; display: inline-block; width: 10px; transition: transform .12s; }
+.tl details[open] > summary::before { transform: rotate(90deg); }
+.tl details[open] > summary { margin-bottom: 6px; }
+.tl .tl-none { color: var(--dimmer); }
+.tl .j-q { color: var(--j-q); }
+.tl .j-key { color: var(--j-key); }
+.tl .j-colon { color: var(--j-colon); }
+.tl .j-str { color: var(--j-str); }
+.tl-empty { color: var(--dim); margin: 0; }
+@media (max-width: 640px) {
+  .tl, .tl tbody, .tl tr, .tl td { display: block; width: 100%; }
+  .tl colgroup, .tl thead { display: none; }
+  .tl tr { border: 1px solid var(--line); border-radius: var(--radius-s); margin: 0 0 10px; padding: 4px 0; }
+  .tl td { border: 0; padding: 4px 10px; }
+  .tl td[data-k]::before { content: attr(data-k); display: block; color: var(--dimmer); font-size: 11px; font-weight: 600; margin-bottom: 2px; }
+}
+</style>
+{% if rows %}<div class="tl-wrap"><table class="tl"{% if tl_id %} id="{{ tl_id }}"{% endif %}>
+<colgroup><col class="c-at"><col class="c-who"><col class="c-given"><col class="c-decided"><col class="c-raw"></colgroup>
+<thead><tr><th scope="col">Time</th><th scope="col">Who</th><th scope="col">What it was given</th><th scope="col">What it decided</th><th scope="col">Raw output</th></tr></thead>
+<tbody>{% for r in rows %}<tr class="tl-row" data-step="{{ r.step }}">
+<td data-k="Time"><time>{{ r.at|case_clock }}</time></td>
+<td data-k="Who"><span class="tl-who">{{ r.who }}</span>{% if r.step %}<span class="tl-step">{{ r.step }}</span>{% endif %}</td>
+<td data-k="What it was given">{% if r.given|case_size > 240 %}<details><summary>{{ r.given|case_head }}</summary>{{ r.given|case_json }}</details>{% else %}{{ r.given|case_json }}{% endif %}</td>
+<td data-k="What it decided">{% if r.decided|case_size > 400 %}<details><summary>{{ r.decided|case_head }}</summary>{{ r.decided|case_json }}</details>{% else %}{{ r.decided|case_json }}{% endif %}</td>
+<td data-k="Raw output">{% if r.raw|case_size > 160 %}<details class="tl-raw"><summary>{{ r.raw|case_head }}</summary>{{ r.raw|case_json }}</details>{% else %}{{ r.raw|case_json }}{% endif %}</td>
+</tr>{% endfor %}</tbody></table></div>{% else %}<p class="tl-empty">{{ empty|default:"Nothing was recorded for this case's steps." }}</p>{% endif %}

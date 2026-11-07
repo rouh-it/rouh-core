@@ -1,0 +1,4 @@
+#!/bin/sh
+# The stand-in for Claude Code (one/tests/fake_claude.py), as the one program in the stack test
+# runs it (tests/stack/compose.test.yml, ONE_CLAUDE): it does what its prompt says, line by line.
+exec python3 /code/one/tests/fake_claude.py "$@"

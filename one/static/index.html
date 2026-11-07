@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>one</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="static/vendor/xterm.css">
+<link rel="stylesheet" href="static/app.css">
+</head>
+<body>
+<header class="top">
+  <span class="brand">one</span>
+  <span id="conn" class="conn" role="status" aria-label="Not connected"></span>
+  <span id="summary" class="summary"></span>
+  <span class="spacer"></span>
+  <span id="device" class="device"></span>
+  <button id="tree-btn" type="button" aria-pressed="false">Work tree</button>
+  <button id="start-btn" type="button" class="primary">Start a run</button>
+</header>
+
+<section id="questions" class="questions" aria-live="polite" hidden></section>
+
+<div class="layout">
+  <nav class="runs" aria-label="Runs">
+    <div class="runs-head">
+      <span class="runs-title">Runs</span>
+      <div class="runs-toggles">
+        <label class="toggle"><input type="checkbox" id="show-ended" checked> Ended too</label>
+        <!-- A run put out of the way is off this list until this is ticked.
+             The flag is kept by the program, with the run; the tick is this
+             browser's own and is remembered between reloads. -->
+        <label class="toggle"><input type="checkbox" id="show-archived"> Archived too</label>
+      </div>
+    </div>
+    <!-- Anything the program would not do, said beside the list it is about. -->
+    <p id="runs-note" class="runs-note" role="status" aria-live="polite" hidden></p>
+    <ul id="run-list" class="run-list"></ul>
+    <p id="no-runs" class="empty" hidden>No runs yet. Start one with the button at the top.</p>
+  </nav>
+
+  <main class="view" id="view">
+    <div id="placeholder" class="placeholder">
+      <h2>Pick a run</h2>
+      <p>Its terminal, what it is doing and everything it did appear here.</p>
+    </div>
+
+    <article id="run" class="run" hidden>
+      <div class="run-head">
+        <button id="back" type="button" class="back">Runs</button>
+        <div class="run-heading">
+          <h1 id="run-title"></h1>
+          <div id="run-meta" class="meta"></div>
+        </div>
+        <button id="stop-btn" type="button" class="danger">Stop</button>
+      </div>
+
+      <div id="run-ask" class="run-ask" hidden></div>
+      <p id="run-said" class="said" hidden></p>
+
+      <div class="term-wrap" id="term-wrap">
+        <div id="term" class="term"></div>
+        <p id="term-none" class="term-none" hidden>This run has no terminal now.</p>
+        <!-- A file dragged over the terminal, and what happened to it (D52). -->
+        <div id="drop" class="drop" role="status" aria-live="polite" hidden>
+          <p id="drop-say"></p>
+        </div>
+      </div>
+      <p class="take-hint" id="typing">Click in the terminal and type: your keys go straight to it.</p>
+
+      <form id="say-form" class="say" autocomplete="off">
+        <label class="visually-hidden" for="say-text">Message for the run</label>
+        <input id="say-text" placeholder="Send it a message">
+        <button type="submit">Send</button>
+      </form>
+
+      <h2 class="section">What happened</h2>
+      <ol id="timeline" class="timeline"></ol>
+    </article>
+
+    <section id="tree" class="tree-view" hidden>
+      <h1>Work tree</h1>
+      <p class="muted">Every run open now, with its helpers and the tool calls they are making.</p>
+      <ul id="tree-root" class="tree"></ul>
+      <p id="tree-empty" class="empty" hidden>Nothing is running.</p>
+    </section>
+  </main>
+</div>
+
+<dialog id="start-dialog" class="dialog">
+  <form id="start-form" method="dialog">
+    <h2>Start a run</h2>
+    <label>What should it do?
+      <textarea id="start-brief" rows="6" required
+                placeholder="Write it as you would to the assistant in a terminal."></textarea>
+    </label>
+    <label>Space
+      <select id="start-space">
+        <option value="assistant">The assistant, in your workspace</option>
+      </select>
+    </label>
+    <!-- Which agent does the work. Claude Code unless Codex is picked; the
+         run is governed by the same rules either way, and what Codex has not
+         got is in one/README.md under "Codex". -->
+    <label>Agent
+      <select id="start-engine">
+        <option value="claude">Claude Code</option>
+        <option value="codex">Codex</option>
+      </select>
+    </label>
+    <!-- Who pays for a run of Codex (one/billing.py). The subscription Codex is
+         logged in with unless the API key is picked, for this one run only. -->
+    <label id="start-billing-label" hidden>Billed to
+      <select id="start-billing">
+        <option value="subscription">ChatGPT subscription (Codex's own login)</option>
+        <option value="api">OpenAI API key - billed per token</option>
+      </select>
+      <span class="hint" id="start-billing-hint"></span>
+    </label>
+    <label id="start-folder-label" hidden>Project name
+      <input id="start-folder" type="text" placeholder="for example linkedin-video"
+             autocomplete="off" spellcheck="false">
+      <span class="hint" id="start-folder-hint"></span>
+    </label>
+    <label id="start-repo-label" hidden>Repository, its name on GitHub
+      <input id="start-repo" type="text" placeholder="owner/repo"
+             autocomplete="off" spellcheck="false">
+    </label>
+    <p id="start-error" class="error" hidden></p>
+    <div class="dialog-actions">
+      <button type="button" id="start-cancel">Cancel</button>
+      <button type="submit" class="primary">Start</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="static/vendor/xterm.js"></script>
+<script src="static/app.js"></script>
+</body>
+</html>

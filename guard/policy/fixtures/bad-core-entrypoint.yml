@@ -1,0 +1,3 @@
+services:
+  core:
+    entrypoint: ["/code/deploy/run-server.sh"]

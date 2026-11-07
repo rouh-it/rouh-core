@@ -1,0 +1,135 @@
+/* The Thoughts page (`thoughtspage.js`): the person's own thoughts, newest
+   first under each month, each one whole, no wider than reads comfortably.
+   Rouh's own tokens and nothing new; pills, as on Clockwork and Goals. */
+
+.th-view:focus { outline: none; }
+.th-wrap { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
+.th-body { flex: 1 1 auto; min-width: 0; overflow: auto; scrollbar-width: thin; padding: 2px 2px 48px; }
+.th-page { max-width: 760px; display: grid; gap: 14px; }
+
+/* The fields, as Clockwork's. */
+.th-in {
+  width: 100%; padding: 8px 12px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+  font: inherit; font-size: 14px; line-height: 1.45; color-scheme: dark;
+}
+.th-in::placeholder { color: var(--dimmer); }
+.th-in:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+textarea.th-in { resize: vertical; }
+
+.th-primary.ctl { width: auto; background: var(--accent); border-color: var(--accent);
+  color: var(--accent-ink); font-weight: 650; justify-content: center; white-space: nowrap; }
+.th-primary.ctl:hover { filter: brightness(1.08); border-color: var(--accent); }
+.th-view .ctl:not(.small):not(.th-primary) { width: auto; }
+
+/* A new thought, at the top. */
+.th-new { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.th-new-in { min-height: 44px; }
+
+.th-bar { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
+.th-search { flex: 1 1 220px; min-width: 0; border-radius: 999px; padding-inline: 14px; }
+.th-which { display: inline-flex; padding: 2px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--panel-2); }
+.th-pick { appearance: none; cursor: pointer; border: 0; background: transparent; color: var(--dim);
+  font: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: 999px; }
+.th-pick:hover { color: var(--text); }
+.th-pick.on { background: var(--accent-soft); color: var(--text); }
+
+/* Topics: every one with how many, and on a thought the ones it has. */
+.th-topics, .th-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.th-tag { appearance: none; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600;
+  padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line); background: transparent;
+  color: var(--dim); display: inline-flex; align-items: baseline; gap: 6px; }
+.th-tag:hover { color: var(--text); border-color: var(--dim); }
+.th-tag.on { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+.th-tag-n { font-size: 11px; color: var(--dimmer); font-variant-numeric: tabular-nums; }
+.th-tags .th-tag { font-weight: 500; }
+
+.th-month { display: grid; gap: 8px; }
+.th-h { margin: 6px 0 0; display: flex; align-items: baseline; gap: 8px;
+  font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--dim); }
+.th-n { font-size: 11.5px; font-weight: 650; padding: 0 6px; border-radius: 999px; background: var(--line-soft); }
+.th-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+
+/* One thought. */
+.th-card { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px;
+  background: var(--panel); scroll-margin: 16px; transition: border-color .4s, box-shadow .4s; }
+.th-card.is-developed { border-left: 3px solid var(--good); }
+.th-card.is-archived { opacity: .85; }
+.th-card.th-flash { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.th-head { display: flex; align-items: baseline; gap: 10px; }
+.th-title { margin: 0; flex: 1 1 auto; min-width: 0; font-size: 15.5px; font-weight: 650; line-height: 1.35;
+  overflow-wrap: anywhere; }
+.th-num { flex: 0 0 auto; font-size: 12px; color: var(--dimmer); text-decoration: none;
+  font-variant-numeric: tabular-nums; }
+.th-num:hover { color: var(--text); }
+.th-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 12.5px; color: var(--dim); }
+.th-src { font-weight: 650; color: var(--text); }
+.th-when { font-variant-numeric: tabular-nums; }
+.th-status { font-size: 11.5px; font-weight: 650; padding: 0 8px; border-radius: 999px; background: var(--line-soft); }
+.th-status-developed { color: var(--good); }
+.th-words { margin: 0; font-size: 14.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Where a line of thinking came from, and where it went. */
+.th-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 13px; }
+.th-line-lab { color: var(--dimmer); font-size: 12px; font-weight: 650; }
+.th-link { appearance: none; cursor: pointer; border: 0; padding: 0; background: none; font: inherit;
+  color: var(--accent); text-align: left; }
+.th-link:hover { text-decoration: underline; }
+.th-chat { font-size: 12.5px; }
+
+/* A title opens the thought on its own page. */
+.th-title-a { color: inherit; text-decoration: none; }
+.th-title-a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Its enriched version (`thought_enrich.py`): a line on the list, a panel on its own page. */
+.th-enr { display: grid; gap: 8px; font-size: 13px; color: var(--dim); }
+.th-enr-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.th-enr-note { line-height: 1.45; overflow-wrap: anywhere; }
+.th-enr-pill { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 650;
+  padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--text); white-space: nowrap; }
+.th-enr-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+  animation: th-enr-pulse 1.4s ease-in-out infinite; }
+@keyframes th-enr-pulse { 0%, 100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .th-enr-dot { animation: none; } }
+.th-enr-pill.th-enr-bad { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+.th-view .th-enr-open.ctl { width: auto; border-color: var(--accent); color: var(--text); font-weight: 650; }
+.th-view .th-enr-open.ctl:hover { background: var(--accent-soft); }
+.th-enr-earlier { font-size: 12.5px; }
+.th-enr-big { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); }
+.th-enr-big.th-enr-done { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.th-enr-h { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--dim); }
+.th-enr-big .th-enr-note { font-size: 13.5px; }
+
+/* One thought on its own page. */
+.th-one-bar { display: flex; align-items: center; gap: 8px; }
+.th-view .th-back.ctl { width: auto; }
+.th-card-big { padding: 18px 20px; gap: 10px; }
+.th-card-big .th-title { font-size: 18px; }
+.th-card-big .th-words { font-size: 15.5px; }
+
+.th-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.th-card > .th-acts { margin-top: 2px; }
+.th-archive.ctl.small:hover { color: var(--text); }
+
+.th-form { display: grid; gap: 10px; }
+.th-follow-form { padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.th-field { display: grid; gap: 5px; }
+.th-lab { font-size: 12px; color: var(--dim); }
+.th-words-in { min-height: 72px; }
+
+.th-loading { margin: 0; color: var(--dim); font-size: 14px; }
+.th-error { margin: 0; color: var(--bad); font-size: 13.5px; }
+.th-empty { padding: 28px 20px; border: 1px dashed var(--line); border-radius: 14px; text-align: center;
+  display: grid; gap: 8px; justify-items: center; }
+.th-empty-h { margin: 0; font-size: 16px; font-weight: 640; }
+.th-empty-p { margin: 0 auto; max-width: 52ch; color: var(--dim); font-size: 14px; line-height: 1.5; }
+
+@media (max-width: 560px) {
+  .th-new { grid-template-columns: minmax(0, 1fr); }
+  .th-new .th-primary.ctl { min-height: 42px; }
+  .th-card, .th-card-big { padding: 12px; }
+  .th-acts .ctl.small { min-height: 34px; }
+  .th-which { width: 100%; }
+  .th-pick { flex: 1 1 0; min-height: 34px; }
+}

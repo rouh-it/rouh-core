@@ -1,0 +1,11 @@
+# Sundays at 04:40, an hour after the nightly dump (pg_dump@18-main, 03:40).
+[Unit]
+Description=Rouh: weekly encrypted backup to Cloudflare R2
+
+[Timer]
+OnCalendar=Sun *-*-* 04:40
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

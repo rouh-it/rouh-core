@@ -1,0 +1,8 @@
+{# What a route concluded, apart from its rules: not one more rule. First, it heads the route (Petar, 8 October 2026); under a replay, it closes it. #}
+<div class="conclusion {{ c.tone }}{% if first %} first{% endif %}" data-route="{{ c.route }}">
+  <div class="cbox">
+    <p class="cval">Conclusion: <strong>{{ c.value }}</strong>{% if c.means %} <span class="means">({{ c.means }})</span>{% endif %}</p>
+    {% if c.by %}<p class="cby">Decided by <strong>{{ c.by }}</strong></p>{% endif %}
+    {% if c.why %}<p class="cwhy">{{ c.why }}</p>{% endif %}
+  </div>
+</div>

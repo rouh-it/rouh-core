@@ -1,0 +1,1302 @@
+{
+  "$schema": "model_standard.schema.json",
+  "schema": 4,
+  "revision": "2026-10-24.1",
+  "published": "2026-10-24T09:00:00Z",
+  "tiers": {
+    "cheaper": {
+      "models": [
+        "gpt-6-luna",
+        "claude-haiku-4-5",
+        "gemini-3.5-flash-lite",
+        "grok-4.3"
+      ],
+      "why": "The cheap models, first asked first: GPT-6 Luna, OpenAI's most cost-efficient, about a hundred times cheaper than the smart one, then Anthropic's Haiku 4.5, Google's Gemini 3.5 Flash-Lite and xAI's Grok 4.3. Luna stays first because every Cheaper use ran on it the day the lists came; an install without an OpenAI key asks the next one it has a key for."
+    },
+    "smart": {
+      "models": [
+        "claude-opus-5-5",
+        "gpt-6.1-sol",
+        "gemini-4-argon",
+        "grok-4.7"
+      ],
+      "why": "The smart models, in the default order until there is data: Opus 5.5 at medium, GPT-6.1 Sol at high (its best point on DeepSWE, 75.2%), Google's Gemini 4 Argon and xAI's Grok 4.7. An install takes the first one it has a key for."
+    }
+  },
+  "modes": {
+    "default": "balanced",
+    "best": {
+      "why": "Every message is answered by the smart model. The best answers, at the smart model's price."
+    },
+    "balanced": {
+      "why": "The router reads each message with the last few turns and stays on the smart model unless it is very sure the message is easy. Most of the quality of Best, for less."
+    },
+    "saver": {
+      "why": "Every message is answered by the cheap model, and nothing is paid per token for a model above it. Runs that go through a subscription you already have may still use the smart model."
+    }
+  },
+  "router": {
+    "bar": 0.9,
+    "why": "Cheaper answers only when the Decisions API is at least 90% sure the message is easy: a wrong drop costs more than the smart model would have."
+  },
+  "efforts": {
+    "claude-opus-5-5": {
+      "effort": "medium",
+      "why": "Anthropic's own default for it. At medium it matches or beats Opus 5 at high; high adds 3 to 6 points on some tests for about 1.3 to 1.4 times the cost.",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/effort",
+      "source_title": "Effort - Claude API docs"
+    },
+    "claude-sonnet-5": {
+      "effort": "high",
+      "why": "Anthropic's default, which it says balances tokens and intelligence for most uses. On Artificial Analysis high scores 32 against medium's 28, while max costs nearly three times as much for 6 more.",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5",
+      "source_title": "Prompting Claude Sonnet 5 - Claude API docs"
+    },
+    "claude-haiku-4-5": {
+      "effort": "",
+      "why": "It takes no reasoning level at all: asking it for one is refused, so none is sent.",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/effort",
+      "source_title": "Effort - Claude API docs"
+    },
+    "claude-fable-5-1": {
+      "effort": "high",
+      "why": "Anthropic says to start with high, its default. On Artificial Analysis high scores 51, xhigh and max 53 for half as much again and nearly twice the cost.",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1",
+      "source_title": "Prompting Claude Fable 5.1 - Claude API docs"
+    },
+    "claude-fable-5": {
+      "effort": "high",
+      "why": "Anthropic says to start with high, the default, for most tasks, and keep xhigh for the most demanding work.",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/effort",
+      "source_title": "Effort - Claude API docs"
+    },
+    "claude-opus-4-8": {
+      "effort": "high",
+      "why": "Anthropic calls high the best overall balance of quality and experience, and keeps xhigh for hard, long-running jobs.",
+      "source": "https://www.anthropic.com/news/claude-opus-4-8",
+      "source_title": "Introducing Claude Opus 4.8 - Anthropic"
+    },
+    "claude-opus-4-7": {
+      "effort": "high",
+      "why": "Anthropic's docs call high often the best balance of quality and token use.",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/effort",
+      "source_title": "Effort - Claude API docs"
+    },
+    "claude-sonnet-4-6": {
+      "effort": "medium",
+      "why": "Anthropic calls medium the recommended default for most uses; this model has no xhigh.",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/effort",
+      "source_title": "Effort - Claude API docs"
+    },
+    "gpt-6-luna": {
+      "effort": "high",
+      "why": "On Hex's DataBench high scores 46.0 against medium's 42.7, and xhigh no more for a higher cost. OpenAI gives no single default for it.",
+      "source": "https://aiagentstore.ai/ai-models/reasoning-effort/gpt-6-luna",
+      "source_title": "GPT-6 Luna reasoning effort - AI Agent Store"
+    },
+    "gpt-6-astra": {
+      "effort": "medium",
+      "why": "OpenAI pairs Astra with medium. On OpenAI's DeepSWE chart medium scores 72.8% and xhigh 74.1% for about 45% more per task.",
+      "source": "https://developers.openai.com/api/docs/guides/model-selection",
+      "source_title": "Model selection - OpenAI API docs"
+    },
+    "gpt-6.1-sol": {
+      "effort": "high",
+      "why": "On OpenAI's DeepSWE chart high is its best point, 75.2% against medium's 73.0%; xhigh and max score lower and cost more.",
+      "source": "https://www.orcarouter.ai/blog/gpt-6-1-sol-vendor-benchmarks",
+      "source_title": "GPT-6.1 Sol vendor benchmarks - OrcaRouter"
+    },
+    "gpt-6-sol": {
+      "effort": "high",
+      "why": "On OpenAI's DeepSWE chart high scores 65.3% and xhigh 66.6% for about one and a half times the cost; max adds 2 more for nearly three times.",
+      "source": "https://kingy.ai/blog/gpt-6-sol-vs-astra-effort-pricing/",
+      "source_title": "GPT-6 Sol vs Astra: effort and pricing - Kingy AI"
+    },
+    "gpt-5.6-terra": {
+      "effort": "high",
+      "why": "On ARC-AGI-2 high scores 67.1 against medium's 37.5, and xhigh only a little more. OpenAI suggests high for complex and agentic work.",
+      "source": "https://arcprize.org/results/openai-gpt-5-6",
+      "source_title": "OpenAI GPT-5.6 results - ARC Prize"
+    },
+    "gpt-5.5": {
+      "effort": "medium",
+      "why": "OpenAI calls medium the recommended balanced starting point; on Amp's coding test high did no better than medium for more money.",
+      "source": "https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.5",
+      "source_title": "GPT-5.5 model guidance - OpenAI API docs"
+    },
+    "gpt-5.4": {
+      "effort": "medium",
+      "why": "No source for this model alone: OpenAI's reasoning guide calls medium the default for most workloads.",
+      "source": "https://developers.openai.com/api/docs/guides/reasoning",
+      "source_title": "Reasoning models - OpenAI API docs"
+    },
+    "gpt-5.4-mini": {
+      "effort": "medium",
+      "why": "No source for this model alone: OpenAI's reasoning guide calls medium the default for most workloads.",
+      "source": "https://developers.openai.com/api/docs/guides/reasoning",
+      "source_title": "Reasoning models - OpenAI API docs"
+    },
+    "gpt-4.1-mini": {
+      "effort": "",
+      "why": "It is not a reasoning model: it takes no reasoning level, and is on the list only for the log probabilities Synapse's decision backend reads.",
+      "source": "https://platform.openai.com/docs/api-reference/responses/create",
+      "source_title": "OpenAI API reference: Create a model response"
+    },
+    "gpt-4.1-nano": {
+      "effort": "",
+      "why": "It is not a reasoning model: it takes no reasoning level, and is on the list only for the log probabilities Synapse's decision backend reads.",
+      "source": "https://platform.openai.com/docs/api-reference/responses/create",
+      "source_title": "OpenAI API reference: Create a model response"
+    },
+    "gemini-4-argon": {
+      "effort": "medium",
+      "why": "Google's own default for it: thinking on, at medium.",
+      "source": "https://ai.google.dev/gemini-api/docs/thinking",
+      "source_title": "Gemini thinking - Gemini API docs"
+    },
+    "gemini-3.8-flash": {
+      "effort": "medium",
+      "why": "Google's own default for it: thinking on, at medium.",
+      "source": "https://ai.google.dev/gemini-api/docs/thinking",
+      "source_title": "Gemini thinking - Gemini API docs"
+    },
+    "gemini-3.5-flash-lite": {
+      "effort": "low",
+      "why": "Google's default for it is minimal thinking; low is the closest level Rouh names, and is sent as low.",
+      "source": "https://ai.google.dev/gemini-api/docs/thinking",
+      "source_title": "Gemini thinking - Gemini API docs"
+    },
+    "grok-4.7": {
+      "effort": "high",
+      "why": "xAI's default for it: high, for very challenging problems; low is for latency-sensitive tool calls.",
+      "source": "https://docs.x.ai/developers/model-capabilities/text/reasoning",
+      "source_title": "Reasoning - xAI docs"
+    },
+    "grok-4.6": {
+      "effort": "high",
+      "why": "xAI's default for it: high.",
+      "source": "https://docs.x.ai/developers/model-capabilities/text/reasoning",
+      "source_title": "Reasoning - xAI docs"
+    },
+    "grok-4.3": {
+      "effort": "low",
+      "why": "xAI says grok-4.3 defaults to low, and takes only none and low.",
+      "source": "https://docs.x.ai/developers/model-capabilities/text/reasoning",
+      "source_title": "Reasoning - xAI docs"
+    }
+  },
+  "uses": {
+    "general": {
+      "tier": "smart",
+      "routed": true,
+      "why": "The mode decides: Best answers every message on Smart, Saver on Cheaper, and Balanced has the router read each message and drop to Cheaper only when it is very sure the message is easy.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "chats": {
+      "tier": "smart",
+      "routed": true,
+      "why": "As in Rouh: the mode decides, and in Balanced the router reads each message.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "router_decisions": {
+      "tier": "gpt-6-luna",
+      "why": "In Balanced, OpenAI's Decisions API reads each message and says how sure it is that the message is easy. It takes only GPT-6 Luna, answers in a fraction of a second and charges for what it reads alone.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "router_question": {
+      "tier": "cheaper",
+      "why": "Only without an OpenAI key: one word, easy or hard, from the cheapest model this Rouh can ask (Cheaper's list, cheapest first: Luna, Gemini 3.5 Flash-Lite, Haiku 4.5, Grok 4.3), so it is quick and costs little.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "google",
+          "anthropic",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "chat_title": {
+      "tier": "cheaper",
+      "why": "An emoji and a few words, wanted on screen a second after the answer: speed matters, depth does not.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "task_icon": {
+      "tier": "cheaper",
+      "why": "One emoji for each of a list of task titles; nobody waits on it and a small model picks them well.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "filing": {
+      "tier": "cheaper",
+      "why": "Picks one project from a short list; nobody waits on it and a smaller model does it well.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "reminder_title": {
+      "tier": "cheaper",
+      "why": "One line about one reminder: a small, quick job.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "reminder_words": {
+      "tier": "cheaper",
+      "why": "Turns a few words into a day and a time while you type, so it has to be fast.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "heartbeat_check": {
+      "tier": "off",
+      "why": "Off until you turn it on: every beat goes straight to the decision. When on, Cheaper is enough to say whether anything needs attention.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "heartbeat_decide": {
+      "tier": "smart",
+      "why": "Decides what to do and does it with nobody watching, so it needs good judgement.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "provider_check_anthropic": {
+      "tier": "cheaper",
+      "why": "A few tokens to see whether Anthropic answers at all: the cheapest model is enough."
+    },
+    "provider_check_openai": {
+      "tier": "cheaper",
+      "why": "A few tokens to see whether OpenAI answers at all: the cheapest model is enough."
+    },
+    "key_check_anthropic": {
+      "tier": "cheaper",
+      "why": "A few tokens to see whether a pasted Anthropic key has credit: the cheapest model is enough."
+    },
+    "key_check_openai": {
+      "tier": "cheaper",
+      "why": "A few tokens to see whether a pasted OpenAI key has credit: the cheapest model is enough."
+    },
+    "code_runs": {
+      "tier": "smart",
+      "why": "Writes and changes code that lands on main: a weaker model costs more in fixes than it saves.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "merge_pass": {
+      "tier": "smart",
+      "why": "Reconciles two sides of a clash without losing either: a mistake reaches main.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "codex_runs": {
+      "tier": "smart",
+      "why": "A coding run like any other, on OpenAI's side.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "nightly_feature_run": {
+      "tier": "smart",
+      "why": "Researches and builds a whole feature on its own each night.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "nightly_refactor_run": {
+      "tier": "smart",
+      "why": "Changes Rouh's code without changing what it does, which needs care.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "workers": {
+      "tier": "smart",
+      "why": "Background jobs that work in your files and accounts on their own.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "triage": {
+      "tier": "smart",
+      "why": "Writes the brief a run builds from: a poor brief wastes the whole run.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "run_summary": {
+      "tier": "cheaper",
+      "why": "One line on a finished run's card.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "subagent": {
+      "tier": "smart",
+      "why": "Looks things up for a turn; what it finds is what the answer stands on.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "askai": {
+      "tier": "smart",
+      "why": "Answers and edits a page you are reading, and you read every word.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "page_define": {
+      "tier": "cheaper",
+      "why": "A few sentences on a passage, with the page beside it, and the reader is waiting on the tooltip, so a quick model.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "page_listen": {
+      "tier": "cheaper",
+      "why": "A whole page written as a spoken walk-through while the listener waits to hear it, so a quick model that writes well.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "comment_pass": {
+      "tier": "smart",
+      "why": "Answers the comments on a page, which people read.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "source_check": {
+      "tier": "smart",
+      "why": "Judging whether a source says what a page claims needs careful reading; a small model misses the difference.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "gene_question": {
+      "tier": "smart",
+      "why": "Answers your question about a gene from its record.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "gene_writer": {
+      "tier": "cheaper",
+      "why": "Puts a commit to one gene from a list: a quick sorting job that runs on every change.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "incubator_score": {
+      "tier": "smart",
+      "why": "The score decides which idea is built first; a few dozen requests when every idea is scored, then one per new idea.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "trial_tester": {
+      "tier": "smart",
+      "why": "A trial is only as good as the person it plays: one call a step, a few dozen a trial, only for changes a person sees.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "trial_matcher": {
+      "tier": "smart",
+      "why": "A wrong match hides a problem or counts it twice; one call at the end of each trial.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "trial_writer": {
+      "tier": "smart",
+      "why": "A tester is only as real as their profile; written once, when a person adds one.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "trial_discuss": {
+      "tier": "smart",
+      "why": "The owner decides what to do with a problem from this talk; a few calls a problem, only when they write.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "gene_eval": {
+      "tier": "smart",
+      "why": "Once a month: few calls, and the score decides what is kept.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "gene_match": {
+      "tier": "smart",
+      "why": "Few calls, and its suggestions are read by you.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "second_name": {
+      "tier": "smart",
+      "why": "Once in a Rouh's life, and its owner reads it: worth the better model.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "case_fix_run": {
+      "tier": "smart",
+      "why": "A code run that fixes a check and lands it.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "case_read": {
+      "tier": "smart",
+      "why": "Somebody else's words decide what Rouh does for them and what it puts to you, so every message is read on the smart model, never routed to a cheaper model by how simple it looks.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "case_ask": {
+      "tier": "smart",
+      "why": "Answers your question about a mail case.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "slack_promises": {
+      "tier": "cheaper",
+      "why": "Reads every new Slack message: a lot of calls, and what it finds waits in Decisions for you.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "slack_decisions": {
+      "tier": "smart",
+      "why": "Writes decisions into a task's notes, which later work follows.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "goal_split": {
+      "tier": "smart",
+      "why": "Writes a goal's whole plan, which the work then follows.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "goal_revise": {
+      "tier": "smart",
+      "why": "Rewrites a step of a plan the way you asked, while you wait.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "morning_brief": {
+      "tier": "smart",
+      "why": "Picks what is worth your morning, once a day.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "meeting_brief": {
+      "tier": "smart",
+      "why": "Says what to raise before a meeting, from long threads of mail.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "meeting_pick_words": {
+      "tier": "cheaper",
+      "why": "Matches a short answer against a few names.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "meeting_next": {
+      "tier": "smart",
+      "why": "Decides which work a meeting calls for.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "job_request": {
+      "tier": "cheaper",
+      "why": "Reads one short request against the tools a job already has; what it decides is said to the job, and anything that needs you is one decision.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "his_word": {
+      "tier": "smart",
+      "why": "Decides whether work you asked for goes ahead without asking you again: running something you did not ask for, or asking you about something you did, both cost you.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "answered_in_chat": {
+      "tier": "cheaper",
+      "why": "Checks a question against your messages; what it finds still waits for you to confirm.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "decision_gate": {
+      "tier": "smart",
+      "why": "Decides whether a question may reach you at all: letting through one that did not need you, or keeping back one that did, both cost you.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "control_room": {
+      "tier": "smart",
+      "why": "Names the Control Room's clusters and writes their headlines, which you read.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "synapse_helper": {
+      "tier": "cheaper",
+      "why": "Many small reading jobs on every item Synapse keeps: they have to be cheap.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "synapse_answer": {
+      "tier": "cheaper",
+      "why": "Answers from what was recalled, often and quickly; Synapse's lab measured Luna doing it well.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "synapse_decision": {
+      "tier": "gpt-4.1-mini",
+      "why": "It needs log probabilities, which only OpenAI's GPT-4.1 models give.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "synapse_recall_second": {
+      "tier": [
+        "claude-haiku-4-5",
+        "grok-4.3",
+        "gemini-3.5-flash-lite",
+        "gpt-4.1-nano"
+      ],
+      "why": "Raced against the first reader, so another company's quick model where there is one: whichever answers first is used. Without an Anthropic key, the next cheap model this Rouh has a key for.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "synapse_judge": {
+      "tier": "smart",
+      "why": "A benchmark is only as good as its judge, and it runs rarely.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "synapse_dream": {
+      "tier": "cheaper",
+      "why": "Proposes changes that a gate then tests, so a cheap model is enough.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "double_judge": {
+      "tier": "cheaper",
+      "why": "Says which of two answers was better, on a small share of calls: it has to cost little.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "synapse_decisions_api": {
+      "tier": "cheaper",
+      "why": "It was asked of Luna from the start, the Cheaper tier's model.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
+    "synapse_recall_first": {
+      "tier": [
+        "gpt-4.1-mini",
+        "gemini-3.5-flash-lite",
+        "grok-4.3",
+        "claude-haiku-4-5"
+      ],
+      "why": "Quick and cheap, raced against the second reader of another company; Synapse's lab measured GPT-4.1 Mini first. Without an OpenAI key, the first cheap model this Rouh has a key for.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    }
+  },
+  "double_calls": {
+    "rate": 0.02,
+    "why": "Two in a hundred read-only answers are asked of a second model too, so what each model does well is learned from many Rouhs at little cost."
+  }
+}

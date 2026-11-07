@@ -1,0 +1,31 @@
+# What the end-to-end suite needs: the two apps, so it can start them, and
+# Playwright, so it can drive a real browser at them.
+#
+# The apps' own pins are included rather than copied, so this file cannot drift
+# away from what actually runs in production.
+-r ../../rouh/requirements.txt
+-r ../../one/requirements.txt
+
+# The stand-ins in rouh/testing/ - Anthropic, Google, ElevenLabs, Telegram,
+# MCP - are small FastAPI servers of their own. Neither app is FastAPI any more
+# (both are Django since 23 September 2026), so what the stand-ins need is
+# named here rather than arriving with an app's requirements.
+fastapi==0.115.6
+python-multipart==0.0.20
+
+# Playwright itself. Pinned, like everything else here: a browser build and the
+# library that drives it have to be the same age, and ./e2e.sh installs the
+# browser that matches this line.
+playwright==1.56.0
+pytest-playwright==0.7.1
+
+# The test runner. one/requirements.txt already pins pytest; this is the piece
+# Rouh's own suite needs and does not pin anywhere.
+pytest-asyncio==0.25.0
+
+# Reading a screenshot pixel by pixel. `rouh/test_orb_load_in_a_browser.py`
+# photographs the ring round the circle in the corner and asks which hours of
+# the clock face the arc covers, because an arc and a whole circle are the same
+# to every measurement short of looking at them. Without this the two tests that
+# do it fail outright rather than skipping, which is how it was found.
+pillow==12.3.0

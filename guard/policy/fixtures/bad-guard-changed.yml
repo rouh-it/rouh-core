@@ -1,0 +1,4 @@
+services:
+  guard:
+    environment:
+      ROUH_GUARD_DOCTOR_PATIENCE: "999999"

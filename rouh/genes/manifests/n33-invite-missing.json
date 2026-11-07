@@ -1,0 +1,49 @@
+{
+  "id": "n33-invite-missing",
+  "name": "Invitations not in your calendar",
+  "title": "Invitations not in your calendar: a meeting invitation in your mail that never reached your calendar, in the morning brief, with one press to put it there",
+  "aliases": [
+    "invitations not in your calendar",
+    "invitation not on my calendar",
+    "missing invitation",
+    "invite not in calendar",
+    "put the invitation in my calendar"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<rect x=\"3\" y=\"7\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M3 9l9 6 9-6\"/><path d=\"M8 4v4M16 4v4\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "switch": "invite_missing",
+  "signals": {
+    "events": {
+      "added": "You pressed Put it in my calendar on an invitation in the morning brief",
+      "put": "You pressed Not needed on an invitation in the morning brief"
+    },
+    "runs": {
+      "shown": "Rouh put an invitation from your mail that is on none of your calendars in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the invitations (calendar files) in your own inboxes from the last three weeks, read only, each time the morning brief opens",
+      "reads the calendars the connected Google account sees at each invitation's time, to tell whether it is there",
+      "puts an invitation on your main calendar as the same meeting only when you press Put it in my calendar; nobody is emailed",
+      "keeps the invitations you put away or put in in your own settings"
+    ],
+    "accounts": [
+      "Gmail (your read-only inboxes)",
+      "Google Calendar"
+    ],
+    "tables": [
+      "user_settings",
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch invite_missing off on its row in Evolution, Mutations, and the section is gone and the route refuses; to remove it for good revert night 33's commit for it (rouh/invite_missing.py, the brief_invite_missing route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawInviteMissing and its helpers in briefpage.js and its rules in briefpage.css, this manifest) and delete the user setting invite_missing. rouh/invites.py, Calendar.import_invite and Gmail's calendar parts are shared with Invitations read on your clock."
+  }
+}

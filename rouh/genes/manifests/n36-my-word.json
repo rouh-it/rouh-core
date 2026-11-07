@@ -1,0 +1,48 @@
+{
+  "id": "n36-my-word",
+  "name": "Your word, by mail",
+  "title": "Your word, by mail: what you promised somebody by email, by a day, in the morning brief when the day comes, unless you have written to them since",
+  "aliases": [
+    "your word by mail",
+    "what i promised by email",
+    "my promises",
+    "promised by email",
+    "did i send what i promised"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<rect x=\"3\" y=\"6\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M3 8l9 6 9-6\"/><path d=\"M15 3.5l2 2 3.5-3.5\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "switch": "my_word",
+  "signals": {
+    "events": {
+      "opened": "You pressed Open the email on a promise of yours in the morning brief",
+      "context": "You opened What you wrote on a promise of yours in the morning brief",
+      "done": "You pressed Mark as done on a promise of yours in the morning brief"
+    },
+    "runs": {
+      "shown": "Rouh put a promise you made by email, due or late, in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads your sent mail of the last three weeks in every mailbox you gave Rouh, with GET alone, when the morning brief opens (kept a quarter of an hour)",
+      "looks for a later email from you to the same person, to leave out what you may have sent",
+      "keeps the promises you put away in your own settings"
+    ],
+    "accounts": [
+      "Gmail"
+    ],
+    "tables": [
+      "user_settings",
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch my_word off on its row in Evolution, Mutations, and the section is gone and the route refuses; to remove it for good revert night 36's commit for it (rouh/my_word.py, the brief_my_word route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawMyWord and its helpers in briefpage.js, this manifest) and delete the user setting my_word. rouh/mail_promises.py is shared with Promised to you by mail and If it does not come."
+  }
+}

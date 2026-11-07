@@ -1,0 +1,29 @@
+/* Meta, Changes (`changespage.js`, `rouh/codechanges.py`).
+
+   The cards of the Heartbeat page (`heartbeatpage.css`), with an undo point a row: its number,
+   what it was, and under it its commit, when and by whom. The point that runs is marked, and the
+   doctor's card stands first, in the warning colour, until the next change. */
+
+.ch-dl { grid-template-columns: 104px minmax(0, 1fr); }
+.ch-dl dd { overflow-wrap: anywhere; }
+.ch-busy { color: var(--accent); margin: 8px 0 0; }
+.ch-warn { color: var(--warn, var(--bad)); margin: 8px 0 0; }
+.ch-list { margin-top: 4px; }
+.ch-row { display: grid; gap: 4px; }
+.ch-row.current { border-color: var(--accent); }
+.ch-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ch-n {
+  font-family: var(--mono); font-size: 12px; min-width: 22px; text-align: center;
+  border-radius: var(--radius-s); border: 1px solid var(--line-soft); padding: 0 4px;
+}
+.ch-why { flex: 1 1 200px; overflow-wrap: anywhere; }
+.ch-sub { color: var(--dim); font-size: 12.5px; overflow-wrap: anywhere; }
+.ch-pill { margin-left: auto; }
+.ch-ask { color: var(--dim); font-size: 13px; flex: 1 1 100%; }
+.ch-row .hb-actions { margin-top: 2px; flex-wrap: wrap; }
+.ch-doctor { border-color: var(--bad); }
+
+@media (max-width: 480px) {
+  .ch-dl { grid-template-columns: minmax(0, 1fr); gap: 0 10px; }
+  .ch-dl dd { margin-bottom: 6px; }
+}

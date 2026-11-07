@@ -1,0 +1,30 @@
+Rouh
+Copyright 2026 Petar Petrov
+
+The rights in Rouh are being assigned to TwoGears EOOD by a written
+agreement; this line changes to TwoGears EOOD once it is signed.
+
+This product is licensed under the Apache License, Version 2.0
+(see the LICENSE file).
+
+ROUH is a trade mark of TwoGears EOOD (EU trade mark application
+No. 019441683, filed 27 October 2026). The Apache License does not
+grant permission to use the name ROUH or any Rouh logo, except as
+section 6 of that licence allows: to describe where the work comes
+from and to reproduce this NOTICE file.
+
+This product includes software developed by other projects:
+
+- ONNX Runtime Web, Copyright (c) Microsoft Corporation, MIT License,
+  with the third-party notices it ships (ThirdPartyNotices.txt).
+- Silero VAD model, Copyright (c) Silero Team, MIT License.
+- xterm.js and its fit add-on, Copyright (c) The xterm.js authors,
+  MIT License.
+- Lucide icons, Copyright (c) Lucide Contributors, ISC License.
+- Tables and error texts adapted from Tasshack/dreame-vacuum,
+  Copyright (c) Tasshack, MIT License.
+
+Python packages that Rouh uses at run time under the LGPL-3.0
+(psycopg, psycopg-binary, pyte) and the MPL-2.0 (certifi) are used
+unchanged and are not part of this work; their licences come with
+them. Their full licence texts are in the third_party/ folder.

@@ -1,0 +1,72 @@
+# What the stack test adds to the real stack file (deploy/stack/compose.yml), and nothing else:
+#
+#   docker compose -f deploy/stack/compose.yml -f tests/stack/compose.test.yml ...
+#
+# the stand-ins for every outside service (tests/stack/standins.py), on a network of their own
+# that the core and the key proxy join, and the key proxy pointed at the model stand-ins. Every
+# other setting of every part is the real stack's, so what passes here is what an install runs.
+# Never part of a release: the stack check (guard/policy) is run on compose.yml alone.
+
+services:
+  standins:
+    image: ${ROUH_BASE_IMAGE:?}
+    user: "10001:10001"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        pip install --quiet --disable-pip-version-check --target /tmp/standin-libs fastapi==0.115.6 python-multipart==0.0.20
+        && git init -q --bare -b main /tmp/git/workspace.git
+        && git clone -q --bare --no-local /code /tmp/git/rouh-core.git
+        && git daemon --reuseaddr --base-path=/tmp/git --export-all --enable=receive-pack --port=9418 --detach
+        && PYTHONPATH=/tmp/standin-libs exec python /code/tests/stack/standins.py --record /tmp/standins
+    environment:
+      STANDINS_ROUH_URL: ${ROUH_PUBLIC_URL:-http://127.0.0.1:8420}
+      HOME: /tmp
+    tmpfs:
+      - /tmp:rw,exec,size=512m
+    volumes:
+      - code:/code:ro
+    networks:
+      standins:
+        # The stand-in website the browser opens, by a name with a dot in it, as a site has; and
+        # iCloud's partition host, a sibling of the name the core reaches this by (fake_carddav).
+        # The last three stand in for public servers a timed grant opens (runs.proxy-grant): the key
+        # proxy is told to treat them as public, as nothing on a test machine is.
+        aliases: [shop.stack.test, p52.standins, public.stack.test, a.sub.public.stack.test, other.stack.test]
+    # The two sign-in pages a browser on the test machine is sent to.
+    ports:
+      - "127.0.0.1:${STACK_GOOGLE_PORT:-19015}:9015"
+      - "127.0.0.1:${STACK_HUE_PORT:-19011}:9011"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9001/openapi.json', timeout=4)"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+    depends_on:
+      code-install:
+        condition: service_completed_successfully
+
+  core:
+    networks: [db, workers, edge, browser, standins]
+    depends_on:
+      standins:
+        condition: service_healthy
+
+  # Runs do what their brief says, with the stand-in for Claude Code (one/tests/fake_claude.py),
+  # so a run's own calls back into Rouh and out through the key proxy can be watched.
+  worker:
+    environment:
+      ONE_CLAUDE: /code/tests/stack/fake-claude
+
+  keyproxy:
+    networks: [workers, egress, browser, standins]
+    environment:
+      ROUH_KEYPROXY_ANTHROPIC: http://standins:9001
+      ROUH_KEYPROXY_OPENAI: http://standins:9002
+      ROUH_KEYPROXY_GITHUB: http://standins:9020
+      ROUH_KEYPROXY_ALLOW_PRIVATE: public.stack.test,a.sub.public.stack.test,other.stack.test
+
+networks:
+  standins: {}

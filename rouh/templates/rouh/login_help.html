@@ -1,0 +1,21 @@
+{% extends "rouh/signin_base.html" %}
+{% comment %}Other ways in, for this Rouh's owner, when the email does not arrive and there is no
+   password (`rouh/web/auth.py`, `help_page`): the twelve recovery words, and, on the machine
+   itself, the one-time link an administrator makes there.{% endcomment %}
+{% block title %}Other ways in - Rouh{% endblock %}
+{% block body %}
+ <h2>Other ways in</h2>
+ <p>For this Rouh's owner. A guest asks the person who invited them.</p>
+ <form method="post" action="/login/recover">
+  {% csrf_token %}{% if next_to != "/" %}<input type="hidden" name="next" value="{{ next_to }}">{% endif %}
+  <div class="field">
+   <label for="words">Its twelve recovery words</label>
+   <input id="words" name="words" type="text" autocapitalize="none" autocorrect="off" autocomplete="off" required>
+  </div>
+  <button type="submit" class="second">Sign in with the recovery words</button>
+ </form>
+ <p>On the machine Rouh runs on, an administrator can make a one-time sign-in link for your email:</p>
+ <code>{{ command }}</code>
+ {% if owner_way %}<p>{{ owner_way.mac }}</p>{% endif %}
+ <p class="back"><a href="/login">Back to sign in</a></p>
+{% endblock %}

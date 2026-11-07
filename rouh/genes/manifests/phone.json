@@ -1,0 +1,44 @@
+{
+  "id": "phone",
+  "name": "Phone",
+  "title": "Phone: this Rouh's own address on the relay, locked end to end, opened from the chat",
+  "aliases": [
+    "phone",
+    "relay",
+    "phone address",
+    "reach me from my phone",
+    "frp",
+    "tunnel",
+    "certificate",
+    "lets encrypt"
+  ],
+  "group": "machine",
+  "route": "/anatomy/connections/phone",
+  "anatomy": {
+    "order": 22
+  },
+  "icon": "<rect x=\"7\" y=\"2.5\" width=\"10\" height=\"19\" rx=\"2.5\"/><path d=\"M11 18.5h2\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "asks the relay's claim endpoint for this Rouh's address at birth, signed with its daily key, only when it was born Connected",
+      "runs frp's client, which keeps one line open to the relay while the owner has the address on",
+      "gets and renews a Let's Encrypt certificate for its own address"
+    ],
+    "accounts": [
+      "the birth service's relay",
+      "Let's Encrypt"
+    ],
+    "tables": [],
+    "jobs": [],
+    "remove": "the Settings section in rouh/templates/rouh/index.html, phonepage.js/.css, rouh/relay.py, rouh/acme.py, rouh/web/relay.py and its routes, the relay lines in rouh/web/gate.py, rouh/web/auth.py, rouh/web/firstrun.py and rouh/runtime.py, phone_in.html, frpc in deploy/container/Dockerfile.base and this manifest; delete the data folder's relay/."
+  },
+  "uses": {
+    "tools": []
+  }
+}

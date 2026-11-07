@@ -1,0 +1,50 @@
+{
+  "id": "n11-page-pdf",
+  "name": "Printable PDF",
+  "title": "A page as a printable PDF: an HTML page, one page or .md of a task, or one of its chats, laid out again for Letter or A4, from the PDF section of an HTML page's Share menu, from an item's own menu on a task's page, or by asking, with a notice when it is ready",
+  "aliases": [
+    "pdf",
+    "print",
+    "print this page",
+    "printable",
+    "letter size",
+    "a4"
+  ],
+  "group": "work",
+  "route": null,
+  "icon": "<path d=\"M6 3.5h8.5L18.5 7.5v13H6z\"/><path d=\"M14 3.5v4.5h4.5\"/><path d=\"M9 12.5h6M9 16h6\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "lab",
+  "switch": "page_pdf",
+  "signals": {
+    "events": {
+      "page_pdf": "You pressed PDF in a page's Share menu, or in its menu on a task's page",
+      "chat_pdf": "You pressed PDF in a chat's menu on a task's page",
+      "asked_for_pdf": "You asked Rouh in a chat for a page as a PDF"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "press",
+    "press": "shareBtn"
+  },
+  "touches": {
+    "permissions": [
+      "opens a page of your workspace in a headless Chromium on Rouh's server, with only the page's own folder and public https, and writes the PDF into the same folder beside the page",
+      "reads a chat's messages and the cards it drew when you ask for that chat's PDF from its menu on its task's page, and writes the PDF into that task's folder",
+      "tells you in Rouh's notifications when the PDF is ready, and the phone if the notice is left alone, as every notice does"
+    ],
+    "accounts": [],
+    "tables": [],
+    "jobs": [],
+    "remove": "Turn the switch page_pdf off on its row in Evolution, Mutations: the Share menu has no PDF section, the items on a task's page have no menu, and print_page makes nothing; the chats, subtasks and checked pages on a task's page keep their menus without the PDF section. To remove it for good revert night 11's and night 12's commits (rouh/page_pdf.py, rouh/web/page_pdf.py, the print_page tool, the PDF section of the Share menu in index.html, runs.js, app.css and menu.js, the items' own menus on a task's page (objectindex._item_line, _chat_line, _subtask_dots, taskpage.js, taskItemPdf and taskChatAct in cards.js, taskbrowser.css, page_pdf.make_chat), the /files/ download in notices.js and cards.js, and this manifest). PDFs already made stay in their task folders until deleted."
+  },
+  "uses": {
+    "tools": [
+      "print_page"
+    ]
+  }
+}

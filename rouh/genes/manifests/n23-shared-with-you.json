@@ -1,0 +1,51 @@
+{
+  "id": "n23-shared-with-you",
+  "name": "Shared with you",
+  "title": "Shared with you: a Google Doc somebody shared with you, in the morning brief, with the task it belongs to and Add to the task",
+  "aliases": [
+    "shared with you",
+    "document shared",
+    "new doc shared",
+    "shared doc into task",
+    "google doc shared with me"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<path d=\"M8 3.5h6l4 4v12a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-3\"/><path d=\"M14 3.5v4h4\"/><path d=\"M2.5 12.5h8M8 9.5l3 3-3 3\"/>",
+  "attaches_to": [
+    "task"
+  ],
+  "maturity": "lab",
+  "switch": "shared_with_you",
+  "signals": {
+    "events": {
+      "added": "You pressed Add to task on a document the morning brief said was shared with you",
+      "opened": "You opened a document the morning brief said was shared with you",
+      "seen": "You pressed Got it on a document the morning brief said was shared with you"
+    },
+    "runs": {
+      "shown": "Rouh put a document shared with you in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads Google's \"Document shared with you\" emails of the last two weeks in your own inboxes, read only",
+      "reads your tasks' notes (.md files) to find which task names the person who shared it",
+      "asks Rouh's own Google Drive whether it can open each document",
+      "writes the document's link into the task's AGENTS.md when you press Add to task"
+    ],
+    "accounts": [
+      "Gmail (your own inboxes, read only)",
+      "Google Drive"
+    ],
+    "tables": [
+      "user_settings"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch shared_with_you off on its row in Evolution, Mutations, and the section is gone; to remove it for good revert night 23's commit (rouh/shared_with_you.py, the brief_shared_with_you route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawShared and its helpers in briefpage.js and the .bf-shared rules in briefpage.css, this manifest) and delete the user setting shared_with_you. Lines it added under \"Documents added\" in a task's AGENTS.md stay, as the task's own notes."
+  }
+}

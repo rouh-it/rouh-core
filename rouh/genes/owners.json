@@ -1,0 +1,2562 @@
+{
+ "about": "Which gene every file of Rouh belongs to (rouh/genes/owners.py, GENES.md \"Every file belongs to a gene\"). A new file goes under the gene it is part of; a new gene only for a new ability.",
+ "outside": {
+  "workspace/**": "The person's own work: tasks, steps and their files. Not Rouh's code."
+ },
+ "genes": {
+  "foundation": {
+   "name": "Foundation",
+   "what": "Rouh's frame: the Django project, its database and migrations, its settings and clock, and the rules every change follows.",
+   "core": true,
+   "files": [
+    "rouh/__init__.py",
+    "rouh/apps.py",
+    "rouh/project/**",
+    "rouh/dbwork.py",
+    "rouh/restarts.py",
+    "rouh/migrations/**",
+    "rouh/models/__init__.py",
+    "rouh/models/rest.py",
+    "rouh/config.py",
+    "rouh/site.py",
+    "rouh/clock.py",
+    "rouh/owner.py",
+    "rouh/web/owner_marks.py",
+    "rouh/management/commands/setup.py",
+    "rouh/management/commands/owner_profile.py",
+    "rouh/workspace_template/**",
+    "tools/distribution/**",
+    "deploy/installation.env.example",
+    "SETUP.md",
+    "rouh/sqlite_import.py",
+    "rouh/conftest.py",
+    "rouh/pytest.ini",
+    "rouh/requirements.txt",
+    "rouh/management/__init__.py",
+    "rouh/management/commands/__init__.py",
+    "rouh/web/__init__.py",
+    "rouh/web/common.py",
+    "rouh/web/clock.py",
+    "rouh/web/defaults.py",
+    "rouh/templatetags/__init__.py",
+    "rouh/admin.py",
+    "manage.py",
+    "pyproject.toml",
+    "uv.lock",
+    ".python-version",
+    ".gitignore",
+    ".gitmodules",
+    "README.md",
+    "RENAME.md",
+    "AGENTS.md",
+    "SECURITY.md",
+    "LICENSE",
+    "NOTICE",
+    "CONTRIBUTING.md",
+    "DCO",
+    "COPYRIGHT-HEADERS.md",
+    "third_party/**",
+    "rouh/web/gate.py",
+    "rouh/workspace.py",
+    "rouh/fileutil.py",
+    "rouh/gitutil.py",
+    "rouh/instructions.py",
+    "rouh/untrusted.py",
+    "rouh/redaction.py",
+    "rouh/management/commands/import_sqlite.py",
+    "rouh/management/commands/predeploy.py"
+   ]
+  },
+  "turn-loop": {
+   "name": "Conversation turns",
+   "what": "One turn of Rouh's: the message read, the model asked, its tools run and the answer streamed back, in a chat, by voice or on the phone.",
+   "core": true,
+   "files": [
+    "rouh/brain.py",
+    "rouh/runtime.py",
+    "rouh/turntrace.py",
+    "rouh/turnrecords.py",
+    "rouh/management/commands/turn_records.py",
+    "rouh/static/app/turnline.js",
+    "rouh/server.py",
+    "rouh/stopping.py",
+    "rouh/retrying.py",
+    "rouh/context_editing.py",
+    "rouh/servercalls.py",
+    "rouh/subagent.py",
+    "rouh/toolsearch.py",
+    "rouh/tools.py",
+    "rouh/permissions.py",
+    "rouh/protected.py",
+    "rouh/gaps.py",
+    "rouh/gaps.json",
+    "rouh/web/consumers.py",
+    "rouh/mcp.py",
+    "rouh/luna.py",
+    "rouh/sandbox.py",
+    "rouh/templates/rouh/gaps.html",
+    "rouh/static/app/socket.js",
+    "rouh/static/app/transcript.js",
+    "rouh/attachments.py",
+    "rouh/static/app/attachments.js",
+    "rouh/uploads.py",
+    "rouh/extracting.py",
+    "rouh/youtube.py",
+    "rouh/youtube_store.py",
+    "rouh/models/youtube.py",
+    "PROTOCOL.md",
+    "rouh/static/app/protocol.d.ts"
+   ],
+   "needed_by": [
+    "account",
+    "box",
+    "brief",
+    "browser",
+    "chat-kinds",
+    "clockwork",
+    "email",
+    "event-log",
+    "goals",
+    "heartbeat",
+    "image-generation",
+    "model-calls",
+    "mutations",
+    "n11-page-pdf",
+    "offline",
+    "runs",
+    "search",
+    "self-link-resolution",
+    "signups",
+    "slack",
+    "synapse",
+    "tasks",
+    "telegram",
+    "thoughts",
+    "trusted-contacts"
+   ]
+  },
+  "screen": {
+   "name": "The screen and its cards",
+   "what": "What Rouh shows: the page with its conversation, canvas and orb, every card it draws and the pages it opens on the canvas.",
+   "core": true,
+   "files": [
+    "rouh/artifacts.py",
+    "rouh/asking.py",
+    "rouh/composing.py",
+    "rouh/picture.py",
+    "rouh/citing.py",
+    "rouh/pages.py",
+    "rouh/picturelinks.py",
+    "rouh/pagestate.py",
+    "rouh/web/pagestate.py",
+    "rouh/steps.py",
+    "rouh/templates/rouh/index.html",
+    "rouh/templates/rouh/reader.html",
+    "rouh/static/app.js",
+    "rouh/static/app.css",
+    "rouh/static/app/cards.js",
+    "rouh/static/app/helpers.js",
+    "rouh/static/app/controls.js",
+    "rouh/static/app/shared.js",
+    "rouh/static/app/welcome.js",
+    "rouh/static/app/orb.js",
+    "rouh/static/app/orb_sound.js",
+    "rouh/static/app/orb_panel.js",
+    "rouh/static/app/orb_costs.js",
+    "rouh/static/app/globals.d.ts",
+    "rouh/static/menu.js",
+    "rouh/static/menu.css",
+    "rouh/static/labels.*",
+    "rouh/static/press.js",
+    "rouh/static/reader.js",
+    "rouh/static/csrf.js",
+    "rouh/static/icon*",
+    "rouh/static/manifest.webmanifest",
+    "rouh/templatetags/rouh_assets.py",
+    "rouh/web/assets.py",
+    "rouh/web/views.py",
+    "rouh/worklabel.py"
+   ],
+   "needed_by": [
+    "brief",
+    "browser",
+    "clockwork",
+    "control",
+    "email",
+    "foundation",
+    "goals",
+    "linkedin-research",
+    "meeting-guest-research",
+    "n11-draft-edits",
+    "n11-page-pdf",
+    "n16-facts-told-on-a-page",
+    "night-6",
+    "offline",
+    "page-history-and-options",
+    "public-page-sharing",
+    "quests",
+    "runs",
+    "search",
+    "self-link-resolution",
+    "sources-checked",
+    "synapse",
+    "tasks",
+    "telegram",
+    "thoughts",
+    "trusted-contacts",
+    "turn-loop"
+   ]
+  },
+  "model-calls": {
+   "name": "Model calls",
+   "what": "The LLM service: the one way any part of Rouh asks a model, whichever company's, at the model and level the Models page sets.",
+   "core": true,
+   "files": [
+    "rouh/llm.py",
+    "rouh/llmguard.py",
+    "rouh/promptcache.py",
+    "rouh/costs.py",
+    "rouh/usage.py"
+   ],
+   "needed_by": [
+    "answered-in-chat",
+    "brief",
+    "clockwork",
+    "control",
+    "decisions",
+    "feedback-triage-board",
+    "gene-registry",
+    "goals",
+    "heartbeat",
+    "image-generation",
+    "llm-request-log",
+    "meeting-guest-research",
+    "models",
+    "mutations",
+    "night-5",
+    "night-6",
+    "night-7",
+    "page-comments",
+    "rouh",
+    "runs",
+    "slack",
+    "sources-checked",
+    "tasks",
+    "trusted-contacts",
+    "turn-loop"
+   ]
+  },
+  "llm-request-log": {
+   "name": "LLM request log",
+   "what": "Rouh keeps a full log of every request made of a model, with its cost, reasoning, settings and metadata.",
+   "core": true,
+   "files": [
+    "rouh/llmlog.py",
+    "rouh/models/llmlog.py",
+    "rouh/management/commands/llm_log.py"
+   ],
+   "needed_by": [
+    "gene-registry",
+    "heartbeat",
+    "image-generation",
+    "model-calls",
+    "models",
+    "page-comments",
+    "trusted-contacts",
+    "turn-loop"
+   ]
+  },
+  "landing": {
+   "name": "Landing and deploying",
+   "what": "How a change reaches the live Rouh: land.sh replays it onto main with its checks, pushes it and deploys both services.",
+   "core": true,
+   "files": [
+    "rouh/workspace_follow.py",
+    "bin/rouh-land",
+    "land.sh",
+    "rouh/hostguard.py",
+    "rouh/hostpaths.json",
+    "update-all.sh",
+    "rouh/answers_now.py",
+    "run-local.sh",
+    "verify.py",
+    "deploy/nginx-*",
+    "deploy/rouh.sh",
+    "deploy/run-server.sh",
+    "deploy/with-rouh-env.sh",
+    "deploy/container/**",
+    "rouh/management/commands/creator_watch.py",
+    "mac/**",
+    ".dockerignore",
+    ".github/workflows/**",
+    "rouh/conflicts.py",
+    "rouh/merge_pass.py",
+    "rouh/numbering.py",
+    "rouh/saving.py",
+    "rouh/self_update.py",
+    "rouh/one_deploy.py",
+    "rouh/rouh_version.py",
+    "rouh/versions.py",
+    "rouh/version.py",
+    "rouh/one_version.py",
+    "rouh/workspace_repo.py",
+    "docs/landing-architecture.md"
+   ]
+  },
+  "encrypted-offsite-backup": {
+   "name": "Encrypted offsite backup",
+   "what": "Rouh's copies of itself: on a server, the nightly dumps sent weekly to Cloudflare R2, encrypted with gpg (deploy/backup_offsite.py); in a stack, a database copy every night by the backup part and, weekly, the whole Rouh as one bundle encrypted in age's format, sent to R2 or any S3 by the core, eight kept, and checked.",
+   "files": [
+    "deploy/backup_offsite.py",
+    "deploy/install_offsite_backup.sh",
+    "deploy/rouh-offsite-backup.*",
+    "rouh/offsite.py",
+    "rouh/agefile.py",
+    "rouh/bundle.py",
+    "rouh/management/commands/offsite_backup.py"
+   ]
+  },
+  "gene-registry": {
+   "name": "Genes and their history",
+   "what": "The list of Rouh's genes, the file that says which gene every part of Rouh belongs to, every change written into a gene's history, and the switches.",
+   "core": true,
+   "files": [
+    "rouh/genes/__init__.py",
+    "rouh/genes/__main__.py",
+    "rouh/genes/owners.py",
+    "rouh/genes/signals.py",
+    "rouh/genes/owners.json",
+    "GENES.md",
+    "rouh/genelog.py",
+    "rouh/geneuse.py",
+    "rouh/models/genelog.py",
+    "rouh/static/genelogpage.*",
+    "rouh/web/genelog.py",
+    "rouh/web/genes.py",
+    "rouh/switches.py",
+    "rouh/management/commands/feature_switch.py",
+    "rouh/static/app/navgroups.js",
+    "rouh/templates/rouh/_nav_row.html",
+    "rouh/navtaps.py"
+   ],
+   "needed_by": [
+    "answered-in-chat",
+    "gene-pool",
+    "genes",
+    "meeting-guest-research",
+    "mutations",
+    "n11-asked-again",
+    "n11-draft-edits",
+    "n11-page-pdf",
+    "n13-plain-words",
+    "n14-n14-copies-in-step",
+    "n15-n15-short-answers",
+    "n16-facts-told-on-a-page",
+    "night-3",
+    "night-5",
+    "night-6",
+    "night-7",
+    "object-addressing",
+    "receipts",
+    "search",
+    "settings",
+    "sources-checked",
+    "tasks",
+    "trusted-contacts",
+    "turn-loop"
+   ]
+  },
+  "run-program": {
+   "name": "Run program",
+   "what": "Rouh holds and runs sessions of Claude Code, logs every tool call, and lets a person take a run over from a terminal and hand it back.",
+   "core": true,
+   "files": [
+    "rouh/onebridge.py",
+    "one/**",
+    "mcp-servers.json",
+    ".mcp.json",
+    ".claude/settings.json",
+    "rouh/one_client.py",
+    "rouh/one_jobs.py"
+   ]
+  },
+  "account": {
+   "core": true,
+   "files": [
+    "rouh/accounts.py",
+    "rouh/tenancy.py",
+    "rouh/handover.py",
+    "rouh/password_reset.py",
+    "rouh/password_rules.py",
+    "rouh/encryption.py",
+    "rouh/models/accounts.py",
+    "rouh/web/auth.py",
+    "rouh/web/firstrun.py",
+    "rouh/templates/rouh/firstrun.html",
+    "rouh/management/commands/setup_link.py",
+    "rouh/management/commands/first_run_state.py",
+    "rouh/web/claude_signin.py",
+    "rouh/templates/rouh/claude_signin.html",
+    "rouh/web/codex_signin.py",
+    "rouh/templates/rouh/codex_signin.html",
+    "rouh/web/reset.py",
+    "rouh/web/sso.py",
+    "rouh/signin.py",
+    "rouh/passkeys.py",
+    "rouh/models/signin.py",
+    "rouh/web/signin.py",
+    "rouh/static/signinpage.js",
+    "rouh/templates/rouh/login_check.html",
+    "rouh/templates/rouh/login_help.html",
+    "rouh/templates/rouh/login_link.html",
+    "rouh/templates/rouh/login_password.html",
+    "rouh/management/commands/signin_link.py",
+    "rouh/management/commands/signin_email.py",
+    "rouh/templates/rouh/forgot.html",
+    "rouh/templates/rouh/join.html",
+    "rouh/templates/rouh/login.html",
+    "rouh/templates/rouh/password_rules.html",
+    "rouh/templates/rouh/reset.html",
+    "rouh/templates/rouh/refused.html",
+    "rouh/templates/rouh/signin_base.html",
+    "rouh/static/password-rules.js",
+    "rouh/management/commands/account.py",
+    "rouh/management/commands/handover.py"
+   ],
+   "needed_by": [
+    "apple-contacts",
+    "box",
+    "cloudflare",
+    "dreame",
+    "email",
+    "event-log",
+    "foundation",
+    "heartbeat",
+    "hue",
+    "llm-request-log",
+    "location",
+    "meeting-guest-research",
+    "mutations",
+    "offline",
+    "payments",
+    "rules",
+    "signups",
+    "slack",
+    "tasks",
+    "trusted-contacts",
+    "turn-loop"
+   ]
+  },
+  "test-worlds": {
+   "name": "Test worlds",
+   "what": "Throwaway Rouhs with stand-ins for every outside service, where each change is proved in a real browser before it lands.",
+   "files": [
+    "tests/**",
+    "CONTAINERS.md",
+    "rouh/testing/**",
+    "e2e.sh",
+    "tools/**",
+    "tsconfig.json",
+    "rouh/static/vad.d.ts",
+    "rouh/testing/workspace_source.py"
+   ]
+  },
+  "rouh": {
+   "core": true,
+   "files": [
+    "rouh/chats.py",
+    "rouh/emptychats.py",
+    "rouh/static/app/chats.js",
+    "rouh/management/commands/empty_chats.py"
+   ]
+  },
+  "chat-kinds": {
+   "name": "Chat kinds",
+   "what": "Rouh treats General and every other chat as two kinds, each with its own trimming rules and default model.",
+   "files": [
+    "rouh/chatkinds.py"
+   ]
+  },
+  "conversation-forks": {
+   "name": "Conversation forks",
+   "what": "Lets a chat be forked into a side conversation that stays linked to its source, with its own table, never shown in the chat lists.",
+   "files": [
+    "rouh/forks.py"
+   ]
+  },
+  "models": {
+   "core": true,
+   "files": [
+    "rouh/modeldefaults.py",
+    "rouh/modeloutcomes.py",
+    "rouh/modelvotes.py",
+    "rouh/providerkeys.py",
+    "rouh/compat.py",
+    "rouh/static/app/compare.js",
+    "rouh/modelrouter.py",
+    "rouh/modelstandard.py",
+    "rouh/model_standard.json",
+    "rouh/model_standard.schema.json",
+    "rouh/management/commands/model_defaults.py",
+    "rouh/migrations/0210_model_modes.py"
+   ]
+  },
+  "synapse": {
+   "core": true,
+   "files": [
+    "rouh/synapse/**",
+    "rouh/memory.py",
+    "rouh/people.py",
+    "rouh/models/memory.py",
+    "rouh/web/synapse.py",
+    "rouh/web/people.py",
+    "rouh/static/synapse.*",
+    "rouh/static/personlinks.*",
+    "rouh/management/commands/synapse_attempt.py",
+    "rouh/management/commands/synapse_bench.py",
+    "rouh/management/commands/synapse_benchmark.py",
+    "rouh/management/commands/synapse_dream.py",
+    "rouh/management/commands/synapse_mail.py",
+    "rouh/management/commands/synapse_master.py",
+    "rouh/management/commands/synapse_meetings.py",
+    "rouh/management/commands/synapse_nightly.py",
+    "rouh/management/commands/synapse_vectors.py"
+   ],
+   "needed_by": [
+    "answered-in-chat",
+    "apple-contacts",
+    "brief",
+    "clockwork",
+    "control",
+    "conversation-forks",
+    "decisions",
+    "email",
+    "foundation",
+    "google-calendar",
+    "mail-alerts",
+    "meeting-guest-research",
+    "memory-recall",
+    "night-5",
+    "night-6",
+    "night-7",
+    "offline",
+    "rules",
+    "run-program",
+    "silos",
+    "slack",
+    "thoughts",
+    "trusted-contacts",
+    "turn-loop"
+   ]
+  },
+  "memory-recall": {
+   "name": "Automatic memory recall",
+   "what": "Before Rouh answers, a small model reads what the message is about, and the people, tasks and topics it names are looked up in Synapse.",
+   "switch": "memory_recall",
+   "signals": {
+    "events": {
+     "recalled": "You sent Rouh a message, and it answered with what Synapse knew about what you named"
+    }
+   },
+   "files": [
+    "rouh/recalling.py",
+    "rouh/synapse/autorecall.py"
+   ]
+  },
+  "google-calendar": {
+   "name": "Google Calendar",
+   "what": "Rouh reads and writes every calendar the connected Google account can see, from a conversation.",
+   "files": [
+    "rouh/google_api/calendar.py",
+    "rouh/synapse/calsync.py",
+    "rouh/management/commands/synapse_calendar.py"
+   ]
+  },
+  "email": {
+   "core": true,
+   "files": [
+    "rouh/google_api/**",
+    "rouh/google_oauth.py",
+    "rouh/google_store.py",
+    "rouh/google_audit.py",
+    "rouh/mailboxes.py",
+    "rouh/inboxes.py",
+    "rouh/inbox.py",
+    "rouh/forwarding.py",
+    "rouh/mailfiles.py",
+    "rouh/mailer.py",
+    "rouh/signatures.py",
+    "rouh/mail_attachments.py",
+    "rouh/ghosts.py",
+    "rouh/my_card.py",
+    "rouh/web/google.py",
+    "rouh/web/mailboxes.py",
+    "rouh/web/signatures.py",
+    "rouh/web/mycard.py",
+    "rouh/templates/rouh/google_mark.html",
+    "GOOGLE.md",
+    "rouh/management/commands/read_doc.py",
+    "rouh/management/commands/attachments_access.py"
+   ],
+   "needed_by": [
+    "account",
+    "brief",
+    "heartbeat",
+    "mail-alerts",
+    "night-3",
+    "night-5",
+    "night-7",
+    "offline",
+    "page-comments",
+    "profile",
+    "receipts",
+    "runs",
+    "settings",
+    "shipping",
+    "silos",
+    "slack",
+    "tasks",
+    "trusted-contacts",
+    "turn-loop"
+   ]
+  },
+  "mail-alerts": {
+   "name": "Mail alerts",
+   "what": "Watches Gmail via Pub/Sub push and sends a Telegram note when a new message is judged worth attention.",
+   "files": [
+    "rouh/mail_alerts.py",
+    "rouh/web/mail_alerts.py"
+   ]
+  },
+  "trusted-contacts": {
+   "files": [
+    "rouh/trusted.py",
+    "rouh/mail_cases.py",
+    "rouh/mail_ledger.py",
+    "rouh/mail_outbox.py",
+    "rouh/mail_replay.py",
+    "rouh/mail_turn.py",
+    "rouh/mail_flow.py",
+    "rouh/case_*.py",
+    "rouh/grants.py",
+    "rouh/capabilities.py",
+    "rouh/capabilities.lock.json",
+    "rouh/capability_grants.py",
+    "rouh/inbox_grants.py",
+    "rouh/clockwork_grants.py",
+    "rouh/commitments.py",
+    "rouh/telegram_guests.py",
+    "rouh/sentlog.py",
+    "rouh/task_access.py",
+    "rouh/workpicker.py",
+    "rouh/delegation.py",
+    "rouh/models/trust.py",
+    "rouh/templates/rouh/_case_*.html",
+    "rouh/templates/rouh/_trust_style.html",
+    "rouh/templates/rouh/mail_case*.html",
+    "rouh/templates/rouh/mail_log.html",
+    "rouh/templatetags/rouh_case.py",
+    "rouh/web/trusted.py",
+    "rouh/web/guests.py",
+    "rouh/static/mailcasepage.*",
+    "MAIL.md",
+    "DELEGATION.md",
+    "CAPABILITIES.md",
+    "rouh/management/commands/case_follow_up.py",
+    "rouh/management/commands/case_notes.py",
+    "rouh/management/commands/case_trace.py",
+    "rouh/management/commands/delegate.py",
+    "rouh/management/commands/capabilities.py"
+   ]
+  },
+  "mail-approvals": {
+   "files": [
+    "rouh/static/approvalspage.*"
+   ]
+  },
+  "worker-outbox": {
+   "name": "Worker outbox",
+   "what": "A background job queues an email it wants sent to the person, and Rouh sends it from the outbox table.",
+   "files": [
+    "rouh/outbox.py",
+    "rouh/worker_mcp.py"
+   ]
+  },
+  "job-gateway": {
+   "name": "Rouh's tools for background jobs",
+   "what": "Every background job uses Rouh's own tools through one gateway, run by Rouh with its own logins and ruled on in code by one permission check: reads run within the job's scope, what is risky becomes one decision, and what no tool gives is asked with request_from_rouh and logged. Files out of mail are two of its tools.",
+   "files": [
+    "rouh/workerkey.py",
+    "rouh/job_gateway.py",
+    "rouh/job_policy.py",
+    "rouh/job_mail.py",
+    "rouh/his_word.py",
+    "rouh/migrations/0225_his_word.py"
+   ]
+  },
+  "runs": {
+   "core": true,
+   "files": [
+    "rouh/runs.py",
+    "rouh/run_report.py",
+    "rouh/runsummary.py",
+    "rouh/runfiles.py",
+    "rouh/tree.py",
+    "rouh/job_phone.py",
+    "rouh/job_report.py",
+    "rouh/machine_load.py",
+    "rouh/static/app/runs.js",
+    "rouh/static/xterm*",
+    "rouh/models/agents.py",
+    "rouh/starting.py",
+    "rouh/crew.py",
+    "rouh/crew_launch.py",
+    "rouh/assistant_job.py",
+    "TELEMETRY.md"
+   ],
+   "needed_by": [
+    "decisions",
+    "feedback-triage-board",
+    "mail-alerts",
+    "mutations",
+    "nightly-refactoring",
+    "run-program",
+    "tasks",
+    "thoughts",
+    "trusted-contacts",
+    "turn-loop",
+    "worker-outbox"
+   ]
+  },
+  "browser": {
+   "files": [
+    "rouh/browsing.py",
+    "rouh/checkout_fields.py",
+    "rouh/browser_handoff.py",
+    "rouh/fetchfallback.py",
+    "rouh/purchases.py"
+   ]
+  },
+  "signups": {
+   "files": [
+    "rouh/signups.py",
+    "rouh/web/signups.py",
+    "rouh/static/signupspage.*"
+   ]
+  },
+  "tasks": {
+   "core": true,
+   "files": [
+    "rouh/objectindex.py",
+    "rouh/objectindex_panels.py",
+    "rouh/objectindex_write.py",
+    "rouh/objects.py",
+    "rouh/objecttree.py",
+    "rouh/owning.py",
+    "rouh/moving.py",
+    "rouh/archiving.py",
+    "rouh/pinning.py",
+    "rouh/tasklist.py",
+    "rouh/taskrecord.py",
+    "rouh/taskmeta.py",
+    "rouh/taskicons.py",
+    "rouh/task_origin.py",
+    "rouh/conversations.py",
+    "rouh/subtasknotes.py",
+    "rouh/waiting.py",
+    "rouh/answering.py",
+    "rouh/filing.py",
+    "rouh/keeping.py",
+    "rouh/pageplaces.py",
+    "rouh/filelinks.py",
+    "rouh/taskshare.py",
+    "rouh/requester_share.py",
+    "rouh/docview.py",
+    "rouh/models/objects.py",
+    "rouh/web/objecttreeapi.py",
+    "rouh/web/taskapi.py",
+    "rouh/taskchats.py",
+    "rouh/static/taskbrowser.*",
+    "rouh/static/taskpage.js",
+    "rouh/static/taskicon.js",
+    "rouh/static/emoji.json",
+    "tools/emoji/**",
+    "rouh/static/projectpage.js",
+    "rouh/static/app/tasks.js",
+    "rouh/management/commands/task_origin.py",
+    "rouh/management/commands/task_token.py",
+    "rouh/management/commands/task_icons.py",
+    "rouh/management/commands/waiting_check.py",
+    "bin/rouh-task",
+    "bin/rouh"
+   ],
+   "needed_by": [
+    "agent-instructions",
+    "chat-kinds",
+    "clockwork",
+    "control",
+    "conversation-forks",
+    "decisions",
+    "foundation",
+    "goals",
+    "heartbeat",
+    "landing",
+    "n11-page-pdf",
+    "night-6",
+    "object-addressing",
+    "offline",
+    "page-comments",
+    "page-highlights",
+    "public-page-sharing",
+    "quests",
+    "rules",
+    "run-program",
+    "runs",
+    "screen",
+    "search",
+    "self-link-resolution",
+    "slack",
+    "synapse",
+    "telegram",
+    "thoughts",
+    "trusted-contacts",
+    "turn-loop"
+   ]
+  },
+  "object-addressing": {
+   "name": "Object addressing",
+   "what": "Every chat, run, task, project and artifact in Rouh has its own URL so it can be bookmarked, shared or reopened directly",
+   "files": [
+    "rouh/addressing.py",
+    "rouh/static/app/address.js",
+    "rouh/web/addresses.py"
+   ]
+  },
+  "self-link-resolution": {
+   "name": "Self-link resolution",
+   "what": "Rouh recognizes links to its own pages and reads them directly as the signed-in person instead of fetching them over the web.",
+   "files": [
+    "rouh/rouhlinks.py"
+   ]
+  },
+  "public-page-sharing": {
+   "name": "Public page sharing",
+   "what": "Lets a page from the workspace be made public at a token address anybody can open without signing in.",
+   "files": [
+    "rouh/sharing.py",
+    "rouh/templates/rouh/shared.html"
+   ]
+  },
+  "ask-ai-page-editing": {
+   "name": "Ask AI page editing",
+   "what": "Rouh lets you point at part of a shared or public page and ask AI to edit it directly, with undo, and lets guests sign up by email to view shared pages.",
+   "files": [
+    "rouh/askai.py",
+    "rouh/static/askai/askai.*"
+   ]
+  },
+  "page-comments": {
+   "name": "Page comments",
+   "what": "Rouh lets people on a shared page leave Figma-style pinned comments with tags, resolving and orphan snapshots, and Rouh and its agents read, add, change and take away those comments with the page_comments tool.",
+   "files": [
+    "rouh/comments.py",
+    "rouh/commentpass.py",
+    "rouh/page_comments.py",
+    "rouh/static/askai/comments.*",
+    "rouh/web/comments.py"
+   ]
+  },
+  "page-highlights": {
+   "name": "Page highlights",
+   "what": "Rouh lets a reader highlight passages of text on an HTML page in chosen colours, kept per reader and page.",
+   "files": [
+    "rouh/highlights.py",
+    "rouh/static/askai/highlights.*",
+    "rouh/web/highlights.py"
+   ]
+  },
+  "page-definitions": {
+   "name": "Page definitions",
+   "what": "Rouh lets a reader select a term or passage on an HTML page and press Define beside Ask, which explains it in a tooltip in the light of the page and leaves it underlined, so hovering it later shows the same explanation.",
+   "files": [
+    "rouh/definitions.py",
+    "rouh/static/askai/definitions.*",
+    "rouh/web/definitions.py"
+   ]
+  },
+  "page-history-and-options": {
+   "name": "Page history and options",
+   "what": "Rouh keeps a history of every change to a page, who made it and when, and lets a version be kept as a switchable option over the page.",
+   "files": [
+    "rouh/pagehistory.py"
+   ]
+  },
+  "x-ray-report-layer": {
+   "name": "X-ray report layer",
+   "what": "Adds an X-ray layer over long research reports showing a one-sentence answer, an argument map, a numbered claim outline and a doubts tab, without changing the report.",
+   "files": [
+    "rouh/xray.py",
+    "rouh/static/askai/xray.*"
+   ]
+  },
+  "decisions": {
+   "core": true,
+   "files": [
+    "rouh/decisions.py",
+    "rouh/decision_desk.py",
+    "rouh/decision_gate.py",
+    "rouh/decision_numbers.py",
+    "rouh/decision_sources.py",
+    "rouh/web/decisions.py",
+    "rouh/static/decision.*",
+    "rouh/static/decisionspage.*",
+    "DECISIONS.md",
+    "rouh/management/commands/decisions_migrate.py"
+   ],
+   "needed_by": [
+    "answered-in-chat",
+    "brief",
+    "clockwork",
+    "foundation",
+    "heartbeat",
+    "mutations",
+    "offline",
+    "slack",
+    "synapse",
+    "tasks",
+    "telegram",
+    "trusted-contacts",
+    "turn-loop"
+   ]
+  },
+  "clockwork": {
+   "core": true,
+   "files": [
+    "rouh/reminders.py",
+    "rouh/reminder_titles.py",
+    "rouh/reminder_words.py",
+    "rouh/timekeeper.py",
+    "rouh/job_watch.py",
+    "rouh/management/commands/job_watch.py"
+   ],
+   "needed_by": [
+    "brief",
+    "control",
+    "goals",
+    "mutations",
+    "nightly-refactoring",
+    "offline",
+    "slack",
+    "tasks",
+    "trusted-contacts"
+   ]
+  },
+  "heartbeat": {
+   "files": [
+    "rouh/heartbeat.py",
+    "rouh/provider_check.py",
+    "rouh/web/heartbeat.py",
+    "rouh/static/heartbeatpage.*"
+   ]
+  },
+  "beats": {
+   "files": [
+    "rouh/beatlog.py",
+    "rouh/static/beatspage.js"
+   ]
+  },
+  "quests": {
+   "files": [
+    "rouh/quests.py",
+    "rouh/questcheck.py",
+    "rouh/web/quests.py",
+    "rouh/static/questspage.js"
+   ]
+  },
+  "goals": {
+   "files": [
+    "rouh/goals.py",
+    "rouh/static/goalpage.js"
+   ]
+  },
+  "control": {
+   "files": [
+    "rouh/controlroom.py",
+    "rouh/one_thing.py",
+    "rouh/web/control.py",
+    "rouh/static/controlroom.*"
+   ]
+  },
+  "brief": {
+   "files": [
+    "rouh/morning_brief.py",
+    "rouh/birthdays.py",
+    "rouh/web/brief.py",
+    "rouh/static/briefpage.*",
+    "rouh/static/briefdoodle.js"
+   ]
+  },
+  "thoughts": {
+   "files": [
+    "rouh/thoughts.py",
+    "rouh/thought_enrich.py",
+    "rouh/web/thoughts.py",
+    "rouh/static/thoughtspage.*"
+   ]
+  },
+  "rules": {
+   "files": [
+    "rouh/rules.py",
+    "rouh/rule_groups.py",
+    "rouh/web/rules.py",
+    "rouh/management/commands/rules.py",
+    "rouh/management/commands/rule_defaults.py",
+    "rouh/prompting.py",
+    "rouh/ruledefaults.py",
+    "rouh/rule_defaults_fallback.json",
+    "rouh/models/prompt_parts.py"
+   ]
+  },
+  "box": {
+   "files": [
+    "rouh/boxes.py",
+    "rouh/web/boxes.py",
+    "rouh/static/boxpage.*"
+   ]
+  },
+  "silos": {
+   "files": [
+    "rouh/silos.py",
+    "rouh/models/silos.py",
+    "rouh/web/silos.py",
+    "rouh/static/silospage.*"
+   ]
+  },
+  "receipts": {
+   "files": [
+    "rouh/receipts.py",
+    "rouh/web/receipts.py",
+    "rouh/static/receiptspage.*"
+   ]
+  },
+  "payments": {
+   "files": [
+    "rouh/payments.py",
+    "rouh/web/payments.py",
+    "rouh/static/paymentspage.*"
+   ]
+  },
+  "services": {
+   "files": [
+    "rouh/services.py",
+    "rouh/web/services.py",
+    "rouh/static/servicespage.*"
+   ]
+  },
+  "shipping": {
+   "files": [
+    "rouh/shipping.py",
+    "rouh/web/shipping.py",
+    "rouh/static/shippingpage.*"
+   ]
+  },
+  "profile": {
+   "files": [
+    "rouh/profile.py",
+    "rouh/web/profile.py"
+   ]
+  },
+  "settings": {
+   "core": true,
+   "files": [
+    "rouh/settings.py",
+    "rouh/anatomy.py",
+    "rouh/web/anatomy.py",
+    "rouh/static/app/settings.js"
+   ]
+  },
+  "location": {
+   "files": [
+    "rouh/location.py",
+    "rouh/web/location.py"
+   ]
+  },
+  "stats": {
+   "files": [
+    "rouh/web/stats.py",
+    "rouh/static/statspage.*"
+   ]
+  },
+  "event-log": {
+   "name": "Event log",
+   "what": "Rouh records every action done in it and by it to an append-only, partitioned event log, with a first view under Settings, Stats.",
+   "files": [
+    "rouh/events.py",
+    "rouh/static/track.js",
+    "EVENTS.md"
+   ],
+   "needed_by": [
+    "brief",
+    "clockwork",
+    "decisions",
+    "mail-alerts",
+    "runs",
+    "telegram"
+   ]
+  },
+  "notifications": {
+   "files": [
+    "rouh/notices.py",
+    "rouh/static/notices.css",
+    "rouh/static/app/notices.js"
+   ],
+   "needed_by": [
+    "answered-in-chat",
+    "brief",
+    "browser",
+    "clockwork",
+    "decisions",
+    "genes",
+    "heartbeat",
+    "mail-alerts",
+    "mutations",
+    "n11-page-pdf",
+    "night-3",
+    "night-5",
+    "night-7",
+    "payments",
+    "slack",
+    "trusted-contacts"
+   ]
+  },
+  "search": {
+   "files": [
+    "rouh/searching.py",
+    "rouh/static/app/search.js"
+   ]
+  },
+  "offline": {
+   "files": [
+    "rouh/offline.py",
+    "rouh/offline_merge.py",
+    "rouh/web/offline.py",
+    "rouh/static/sw.js",
+    "rouh/static/offline.css",
+    "rouh/static/app/offline.js",
+    "rouh/static/app/offlineview.js"
+   ]
+  },
+  "telegram": {
+   "files": [
+    "rouh/web/phoneapi.py",
+    "rouh/telegram.py",
+    "rouh/telegram_account.py",
+    "rouh/telegram_chat.py",
+    "rouh/telegram_forks.py",
+    "rouh/web/telegram_account.py"
+   ]
+  },
+  "slack": {
+   "files": [
+    "rouh/slack*.py",
+    "rouh/meeting_slack.py",
+    "rouh/models/slack.py",
+    "rouh/web/slack.py",
+    "rouh/static/slackpage.*"
+   ]
+  },
+  "apple-contacts": {
+   "files": [
+    "rouh/apple_contacts.py",
+    "rouh/contact_photos.py",
+    "rouh/person_addresses.py",
+    "rouh/static/personaddresses.*",
+    "rouh/carddav.py",
+    "rouh/vcard.py",
+    "rouh/web/apple.py",
+    "APPLE.md",
+    "rouh/management/commands/apple.py"
+   ]
+  },
+  "cloudflare": {
+   "files": [
+    "rouh/cloudflare.py",
+    "rouh/web/cloudflare.py",
+    "rouh/static/cloudflarepage.*"
+   ]
+  },
+  "phone": {
+   "files": [
+    "rouh/relay.py",
+    "rouh/acme.py",
+    "rouh/web/relay.py",
+    "rouh/static/phonepage.*",
+    "rouh/templates/rouh/phone_in.html"
+   ]
+  },
+  "hue": {
+   "files": [
+    "rouh/hue.py",
+    "rouh/models/hue.py",
+    "rouh/web/hue.py",
+    "rouh/static/huepage.*"
+   ]
+  },
+  "dreame": {
+   "files": [
+    "rouh/dreame.py",
+    "rouh/dreame_mi.py",
+    "rouh/models/dreame.py",
+    "rouh/web/dreame.py",
+    "rouh/static/dreamepage.*",
+    "rouh/static/homevacuum.*"
+   ]
+  },
+  "home": {
+   "files": [
+    "rouh/web/home.py",
+    "rouh/static/homepage.*"
+   ]
+  },
+  "voice-detection": {
+   "files": [
+    "rouh/static/vad.js",
+    "rouh/static/silero-vad.onnx",
+    "rouh/static/ort*"
+   ]
+  },
+  "voice": {
+   "name": "Talking and listening",
+   "what": "Rouh's ears and mouth: the microphone heard, the end of a turn told from the words, and every answer spoken aloud.",
+   "files": [
+    "rouh/speech.py",
+    "rouh/turnmarks.py",
+    "rouh/replymode.py",
+    "rouh/static/app/voice.js",
+    "rouh/static/app/playback.js",
+    "rouh/static/mic-worklet.js"
+   ]
+  },
+  "orb-sound-feedback": {
+   "name": "Orb sound feedback",
+   "what": "Plays distinct musical notes for jobs, helpers and tool calls while the orb is open, with quiet ambient music underneath.",
+   "files": [
+    "rouh/static/app/orb.js",
+    "rouh/static/app/orb_sound.js"
+   ]
+  },
+  "falling-stars-decoration": {
+   "name": "Falling stars decoration",
+   "what": "Rouh shows an occasional falling star animation across the navigation sidebar for decoration.",
+   "files": [
+    "rouh/static/app/stars.js"
+   ]
+  },
+  "image-generation": {
+   "name": "Image generation",
+   "what": "Rouh generates and edits pictures through a provider-neutral imaging interface, currently backed by OpenAI's image API.",
+   "files": [
+    "rouh/imaging.py",
+    "rouh/imaging_openai.py"
+   ]
+  },
+  "linkedin-research": {
+   "name": "LinkedIn research",
+   "what": "Rouh searches LinkedIn by name, shows a card of candidate people to pick from, then harvests the chosen profile.",
+   "files": [
+    "rouh/linkedin.py"
+   ]
+  },
+  "meeting-guest-research": {
+   "name": "Meeting guest research",
+   "what": "Rouh looks up every guest at an upcoming external meeting on LinkedIn ahead of time and saves what it finds to their Synapse contact.",
+   "switch": "meeting_people",
+   "signals": {
+    "events": {
+     "guests_shown": "You asked Rouh who is coming to a meeting, and saw its guests"
+    }
+   },
+   "files": [
+    "rouh/meeting_people.py",
+    "rouh/management/commands/meeting_people.py"
+   ]
+  },
+  "meeting-contacts": {
+   "name": "Meeting guests into contacts",
+   "what": "Rouh adds every guest of the owner's meetings of fewer than twenty people to their iCloud contacts, leaving out family, rooms, lists, bots and anybody already there.",
+   "switch": "meeting_contacts",
+   "files": [
+    "rouh/meeting_contacts.py",
+    "rouh/management/commands/meeting_contacts.py"
+   ],
+   "signals": {
+    "events": {
+     "added_contact_shown": "You looked at a contact Rouh added from one of your meetings"
+    },
+    "runs": {
+     "added": "Rouh added the guests of your meetings to your iCloud contacts"
+    }
+   }
+  },
+  "agent-instructions": {
+   "files": [
+    "rouh/agent_instructions.py",
+    "rouh/web/agent_instructions.py"
+   ]
+  },
+  "gene-therapy": {
+   "files": [
+    "rouh/gene_therapy.py",
+    "rouh/web/gene_therapy.py",
+    "rouh/static/app/gene_therapy.js"
+   ]
+  },
+  "feedback-triage-board": {
+   "name": "Feedback triage board",
+   "what": "Reads feedback, writes feature requests, starts runs for them and tracks each through to Done on the board.",
+   "files": [
+    "rouh/triage.py"
+   ]
+  },
+  "mutations": {
+   "files": [
+    "rouh/evolution.py",
+    "rouh/gene_questions.py",
+    "rouh/models/evolution.py",
+    "rouh/web/evolution.py",
+    "rouh/static/evolutionpage.*",
+    "EVOLUTION.md",
+    "rouh/nightly_feature.py",
+    "rouh/nightly_ideas.py"
+   ]
+  },
+  "nightly-refactoring": {
+   "name": "Nightly refactoring",
+   "what": "Every night at 03:00, after the feature run, up to ten refactors of Rouh's code side by side, each with Undo in the morning brief.",
+   "files": [
+    "rouh/nightly_refactor.py"
+   ]
+  },
+  "birthday": {
+   "files": [
+    "rouh/birth.py",
+    "rouh/names/**",
+    "rouh/models/birth.py",
+    "rouh/web/birth.py",
+    "rouh/static/birthpage.*",
+    "rouh/migrations/0211_rouh_birth.py",
+    "rouh/migrations/0217_rouh_human_names.py",
+    "rouh/management/commands/rouh_birth.py",
+    "rouh/migrations/0235_birth_advanced_recovery.py",
+    "rouh/migrations/0236_birth_no_advanced_recovery.py"
+   ]
+  },
+  "rouh-land-account": {
+   "files": [
+    "rouh/landaccount.py",
+    "rouh/web/landaccount.py",
+    "rouh/static/landaccountpage.*"
+   ]
+  },
+  "gene-pool": {
+   "files": [
+    "rouh/genepool.py",
+    "rouh/web/genepool.py",
+    "rouh/static/genepoolpage.js",
+    "rouh/management/commands/gene_pool.py",
+    "rouh/migrations/0209_gene_pool_review.py",
+    "rouh/migrations/0215_gene_pool_incoming.py"
+   ]
+  },
+  "genes": {
+   "files": [
+    "rouh/genelab.py",
+    "rouh/genedraft.py",
+    "rouh/static/genespage.*"
+   ]
+  },
+  "evolution-parameters": {},
+  "answered-in-chat": {
+   "files": [
+    "rouh/answered_in_chat.py"
+   ]
+  },
+  "n11-asked-again": {
+   "name": "Asked again",
+   "what": "A request you keep typing by hand on different days is offered, once, as scheduled work that Rouh does for you at the time you usually ask.",
+   "switch": "asked_again",
+   "signals": {
+    "events": {
+     "offered_again": "You asked again for something you asked for before, and Rouh offered to do it regularly"
+    }
+   },
+   "files": [
+    "rouh/asked_again.py"
+   ]
+  },
+  "n11-draft-edits": {
+   "files": [
+    "rouh/draft_edits.py",
+    "rouh/web/draftedits.py",
+    "rouh/static/draftedits.*"
+   ]
+  },
+  "n11-page-pdf": {
+   "files": [
+    "rouh/page_pdf.py",
+    "rouh/web/page_pdf.py"
+   ]
+  },
+  "n13-plain-words": {
+   "name": "Plain words",
+   "what": "A term you would not know is explained in plain words where Rouh or a run first uses it, and a term you ask the meaning of is explained every time after.",
+   "switch": "plain_words",
+   "signals": {
+    "events": {
+     "term_kept": "You asked what a term means, and Rouh kept it to explain every time"
+    }
+   },
+   "files": [
+    "rouh/plain_words.py"
+   ]
+  },
+  "n14-n14-copies-in-step": {
+   "name": "Copies kept in step",
+   "what": "When you ask for a change to work that exists in two forms, such as a deck's HTML slides and its Google Slides copy, the run changes both, and says so.",
+   "switch": "copies_in_step",
+   "signals": {
+    "events": {
+     "copies_named": "You started a run in a task whose work has copies, and it was told to change them all"
+    }
+   },
+   "files": [
+    "rouh/copies.py"
+   ]
+  },
+  "n15-n15-short-answers": {
+   "name": "Short answers",
+   "what": "When you ask Ask AI what a word or a passage means, or say \"shortly\", you get a few plain sentences instead of a page.",
+   "switch": "short_answers",
+   "signals": {
+    "events": {
+     "kept_short": "You asked Ask AI a short question, and got a short answer"
+    }
+   },
+   "files": [
+    "rouh/short_answers.py"
+   ]
+  },
+  "n16-facts-told-on-a-page": {
+   "name": "Facts told on a page",
+   "what": "A fact you tell Ask AI about your work in passing is kept in the task's notes, so every later run, chat and page in that task knows it without your saying it again.",
+   "switch": "page_facts",
+   "signals": {
+    "events": {
+     "fact_kept": "You told Ask AI a fact on a page, and Rouh kept it"
+    }
+   },
+   "files": [
+    "rouh/page_facts.py"
+   ]
+  },
+  "n17-sent-by-you": {
+   "name": "Sent by you",
+   "what": "When you send a reply yourself, from your own mail, to email a task drafted for you, Rouh finds it in your sent mail and keeps it in the task's notes in your own words, so the task knows it went and what you said.",
+   "switch": "sent_by_you",
+   "signals": {
+    "events": {
+     "reply_kept": "You sent, from your own mail, a reply a task had drafted for you, and Rouh kept it in the task"
+    }
+   },
+   "files": [
+    "rouh/sent_by_you.py"
+   ]
+  },
+  "sources-checked": {
+   "files": [
+    "rouh/source_check.py",
+    "rouh/web/sources.py",
+    "rouh/static/sourcespage.*"
+   ]
+  },
+  "night-3": {
+   "name": "Before you meet",
+   "what": "Before a meeting with people from outside, the morning brief's opened meeting and a Telegram an hour before say who is coming and the last emails with each.",
+   "switch": "meeting_prep",
+   "signals": {
+    "events": {
+     "meeting_opened": "You opened a meeting in the morning brief and saw who is coming from outside"
+    }
+   },
+   "files": [
+    "rouh/meeting_prep.py"
+   ]
+  },
+  "night-5": {
+   "name": "What to raise",
+   "what": "Before a meeting with people from outside, one read of the mail with them says where things stand, what to raise and why, and what is open.",
+   "switch": "meeting_brief",
+   "signals": {
+    "events": {
+     "corrected": "You corrected What to raise for a meeting"
+    },
+    "runs": {
+     "read": "Rouh read the mail with a meeting's guests and said what to raise"
+    }
+   },
+   "files": [
+    "rouh/meeting_brief.py"
+   ]
+  },
+  "night-6": {
+   "name": "After the meeting",
+   "what": "After each recorded meeting, the work it calls for is offered in Decisions, with why, its task and when; Start begins a run briefed with the meeting.",
+   "switch": "meeting_next",
+   "signals": {
+    "events": {
+     "work_started": "You pressed Start on work a meeting called for"
+    },
+    "runs": {
+     "work_offered": "Rouh offered work a meeting called for in Decisions"
+    }
+   },
+   "files": [
+    "rouh/meeting_next.py"
+   ]
+  },
+  "night-7": {
+   "name": "What to raise remembers",
+   "what": "What to raise also reads the earlier meetings with the same people, and keeps every correction you make for every later meeting with them.",
+   "switch": "raise_memory",
+   "signals": {
+    "events": {
+     "correction_kept": "You corrected What to raise, and Rouh kept it for later meetings with them"
+    },
+    "runs": {
+     "remembered": "What to raise used earlier meetings, or what you told it before"
+    }
+   },
+   "files": [
+    "rouh/meeting_brief.py"
+   ]
+  },
+  "n18-newest-first": {
+   "name": "Newest in the thread first",
+   "what": "A reply in a thread never goes out over a newer message in it: when somebody wrote again after the message being answered, the reply waits and the newer message is read first; on a draft card it is shown, and Send again sends it as it is.",
+   "switch": "newest_first",
+   "signals": {
+    "events": {
+     "held_back": "A reply was about to go over a newer message in its thread, and waited until the newer message was read"
+    }
+   },
+   "files": [
+    "rouh/newest_first.py"
+   ]
+  },
+  "n18-since-read": {
+   "name": "Since you last read it",
+   "what": "When a page you open on the canvas has changed since you last saw it, the bar over it shows What changed, and pressing it has Ask AI say what changed: each visit keeps the page's words, and nothing is asked of a model before the press.",
+   "switch": "since_read",
+   "signals": {
+    "events": {
+     "pressed": "You pressed What changed on a page that had changed since you last saw it"
+    },
+    "runs": {
+     "offered": "A page you opened had changed since you last saw it, so What changed was on its bar"
+    }
+   },
+   "files": [
+    "rouh/since_read.py",
+    "rouh/web/since_read.py",
+    "rouh/migrations/0216_page_reads.py"
+   ]
+  },
+  "n18-share-opens": {
+   "files": [
+    "rouh/share_opens.py"
+   ]
+  },
+  "n18-owed-to-you": {
+   "files": [
+    "rouh/owed_to_you.py"
+   ]
+  },
+  "n19-notes-missing": {
+   "files": [
+    "rouh/notes_missing.py"
+   ]
+  },
+  "n19-mail-pictures": {
+   "name": "Pictures in mail seen",
+   "what": "A picture or a scan with no words, attached to an email, is shown to Rouh as itself when it opens the file, so it can say what the screenshot, the photo or the scanned page shows instead of saying it cannot see pictures.",
+   "switch": "mail_pictures",
+   "signals": {
+    "events": {
+     "seen": "Rouh opened a picture or a scan attached to an email, and saw it as itself"
+    }
+   },
+   "files": [
+    "rouh/mail_pictures.py"
+   ]
+  },
+  "n19-page-listen": {
+   "files": [
+    "rouh/page_listen.py",
+    "rouh/web/page_listen.py",
+    "rouh/static/askai/listen.js",
+    "rouh/static/askai/listen.css"
+   ]
+  },
+  "n20-follow-through": {
+   "name": "Followed through",
+   "what": "When a job Rouh started finishes, Rouh is reminded of the step it told the person it would do once the job was done, and does it, and checks the job's report against everything added to the job while it ran, asking the job for what it left out.",
+   "switch": "follow_through",
+   "signals": {
+    "events": {
+     "kept_word": "A job you asked for finished, and Rouh was handed the step it told you it would do once the job was done",
+     "added_checked": "A job finished, and Rouh checked its report against what you added to it while it ran"
+    }
+   },
+   "files": [
+    "rouh/follow_through.py"
+   ]
+  },
+  "n20-next-meeting": {
+   "files": [
+    "rouh/next_meeting.py"
+   ]
+  },
+  "n20-doc-changes": {
+   "name": "What changed in a doc",
+   "what": "Asked what changed in a Google Doc since a day, Rouh reads the document's saved versions in Drive and says who changed it, each paragraph added, taken out or changed, and the comments made since.",
+   "switch": "doc_changes",
+   "signals": {
+    "events": {
+     "read": "You asked what changed in a Google Doc, and Rouh read its saved versions and comments"
+    }
+   },
+   "files": [
+    "rouh/doc_changes.py"
+   ]
+  },
+  "n20-task-docs": {
+   "files": [
+    "rouh/task_docs.py",
+    "rouh/web/task_docs.py"
+   ]
+  },
+  "n21-copy-exact": {
+   "name": "Copy kept word for word",
+   "what": "Copy given to Ask AI for a page, line by line or with the copy to stay as written, is checked on the page word for word after Ask AI changes it; Ask AI is told what is not there as given and puts it right, and what is still not right is named under its answer.",
+   "switch": "copy_exact",
+   "signals": {
+    "events": {
+     "checked": "You gave Ask AI copy for a page, and what landed on the page was checked word for word",
+     "corrected": "Copy you gave Ask AI was not on the page as given, and Ask AI was told to put it right"
+    }
+   },
+   "files": [
+    "rouh/copy_exact.py"
+   ]
+  },
+  "n21-others-changed": {
+   "files": [
+    "rouh/others_changed.py"
+   ]
+  },
+  "n22-doc-comments": {
+   "name": "Comments read with the doc",
+   "what": "Whatever reads a Google Doc through read_doc, a chat, a job or Ask AI, is given the doc's open comments after its text: who wrote each, the words it is on, what it says and the answers so far.",
+   "switch": "doc_comments",
+   "signals": {
+    "events": {
+     "read": "You had Rouh read a Google Doc with comments on it, and it read the comments with the text"
+    }
+   },
+   "files": [
+    "rouh/doc_comments.py"
+   ]
+  },
+  "n22-askai-docs": {
+   "name": "The Google Doc you link",
+   "what": "A Google Doc, Sheet or Slides deck linked in a question to Ask AI is read before it answers and given to it with the question, so copy can be linked instead of pasted; for an invited guest only a document the task's own notes link.",
+   "switch": "askai_docs",
+   "signals": {
+    "events": {
+     "read": "You linked a Google Doc in a question to Ask AI, and it read the document before answering"
+    }
+   },
+   "files": [
+    "rouh/askai_docs.py"
+   ]
+  },
+  "n22-doc-reply": {
+   "name": "Answer a comment",
+   "what": "Asked to answer a comment in a Google Doc, Rouh writes the answer under it from its own Google account, in the words given, and marks it resolved when asked.",
+   "switch": "doc_reply",
+   "signals": {
+    "events": {
+     "answered": "You asked Rouh to answer a comment in a Google Doc, and it wrote the answer under it"
+    }
+   },
+   "files": [
+    "rouh/doc_comments.py"
+   ]
+  },
+  "n21-doc-on-page": {
+   "files": [
+    "rouh/doc_on_page.py",
+    "rouh/web/doc_on_page.py"
+   ]
+  },
+  "n21-page-gdoc": {
+   "files": [
+    "rouh/page_gdoc.py",
+    "rouh/web/page_gdoc.py"
+   ]
+  },
+  "base-patches": {
+   "name": "Patch-level base updates",
+   "what": "What every Rouh runs on, kept patched without touching its code: a base image with no Rouh code, Rouh's code in a volume of its own, a nightly look for patch-level fixes, and each Rouh's own checks and the security checks before it switches.",
+   "files": [
+    "rouh/base_patches.py",
+    "rouh/selfcheck/**",
+    "deploy/container/base_patch.py",
+    "deploy/container/Dockerfile.base",
+    "deploy/container/Dockerfile.base.dockerignore",
+    "deploy/container/Dockerfile.code",
+    "deploy/container/Dockerfile.code.dockerignore",
+    "deploy/container/code-init.sh",
+    "deploy/container/rouh-check",
+    "deploy/container/rouh-extra-pip",
+    "deploy/container/check-base.sh",
+    "deploy/container/base/**",
+    ".github/workflows/base.yml",
+    "deploy/stack/**"
+   ]
+  },
+  "protected-core": {
+   "name": "The protected core",
+   "what": "rouh-guard: the safety and repair parts a Rouh uses and cannot edit - the key proxy, the base check with the frozen security checks, the start scripts, the signature check on a shared gene, the change step with its undo points, and the doctor - and the Rouh's two small sides of it, the check face and the guard's client; and the owner's timed grants the key proxy reads (GitHub, and servers past its lists), with git and gh in the worker that use them.",
+   "core": true,
+   "files": [
+    "guard/**",
+    "deploy/grants/**",
+    "bin/rouh-github",
+    "rouh/checkface.py",
+    "rouh/guardface.py"
+   ]
+  },
+  "changes": {
+   "files": [
+    "rouh/codechanges.py",
+    "rouh/web/changes.py",
+    "rouh/static/changespage.*"
+   ]
+  },
+  "n23-doc-last-changed": {
+   "name": "Who last changed it",
+   "what": "A Google Doc, Sheet or Slides deck Rouh reads through read_doc, in a chat, a job or Ask AI, comes with when it was last changed, on your clock, and who changed it.",
+   "switch": "doc_last_changed",
+   "signals": {
+    "events": {
+     "read": "You had Rouh read a Google document, and it was told when it was last changed and by whom"
+    }
+   },
+   "files": [
+    "rouh/doc_last_changed.py"
+   ]
+  },
+  "n23-doc-comment": {
+   "name": "Leave a comment",
+   "what": "Asked to comment on a Google Doc, Rouh writes a new comment in it from its own Google account, in the words given, on the passage named, which is checked against the document first.",
+   "switch": "doc_comment",
+   "signals": {
+    "events": {
+     "commented": "You asked Rouh to comment on a Google Doc, and it wrote the comment in it"
+    }
+   },
+   "files": [
+    "rouh/doc_comment.py"
+   ]
+  },
+  "n23-shared-with-you": {
+   "files": [
+    "rouh/shared_with_you.py"
+   ]
+  },
+  "n23-doc-add": {
+   "files": [
+    "rouh/task_docs.py",
+    "rouh/web/task_docs.py"
+   ]
+  },
+  "n24-askai-follow": {
+   "name": "Follow-ups stay where you were",
+   "what": "After Ask AI changes a page, its next turn is told which part of the page that change was in, by the heading above it and its words, so words like \"it\" or \"great, but\" are read as being about that part, and its answer names the part it changed.",
+   "switch": "askai_follow",
+   "signals": {
+    "events": {
+     "followed": "You asked Ask AI more after it changed a page, and it was told where its last change was"
+    }
+   },
+   "files": [
+    "rouh/askai_follow.py"
+   ]
+  },
+  "n24-task-rename": {
+   "name": "Rename a task",
+   "what": "Asked in words to rename a task or a step, Rouh renames it: its row, its folder's .object.json and, for a step, the title its task's meta gives it; the folder and every link stay as they are.",
+   "switch": "task_rename",
+   "signals": {
+    "events": {
+     "renamed": "You asked Rouh to rename a task or a step, and it did"
+    }
+   },
+   "files": [
+    "rouh/task_rename.py"
+   ]
+  },
+  "n24-askai-show": {
+   "files": [
+    "rouh/askai_show.py"
+   ]
+  },
+  "n24-to-send": {
+   "files": [
+    "rouh/to_send.py",
+    "rouh/web/to_send.py"
+   ]
+  },
+  "n25-askai-words": {
+   "name": "Where your words are",
+   "what": "Words quoted in a question to Ask AI are found on the page before it answers: how many places they are in, under which heading and in which part of the page, and a phrase cut short with \"..\" is matched to the heading nearest it; when they are in more than one place, Ask AI asks which before it changes anything.",
+   "switch": "askai_words",
+   "signals": {
+    "events": {
+     "located": "You quoted words of a page to Ask AI, and it was told where on the page they are"
+    }
+   },
+   "files": [
+    "rouh/askai_words.py"
+   ]
+  },
+  "n25-not-opened": {
+   "files": [
+    "rouh/not_opened.py"
+   ]
+  },
+  "n25-step-move": {
+   "name": "Move a step",
+   "what": "Asked in words to move a step, Rouh moves it into another task, out as a task of its own, or out as the first step of a new task, renumbered as Move in its three dots does, with its old number kept for search.",
+   "switch": "step_move",
+   "signals": {
+    "events": {
+     "moved": "You asked Rouh to move a step, and it did"
+    }
+   },
+   "files": [
+    "rouh/step_move.py"
+   ]
+  },
+  "n25-share-remind": {
+   "name": "Remind them",
+   "what": "In the Share panel, beside a person shared with by hand who has not opened it a day after the invitation, Remind them opens a new email to them in Gmail, in your own mailbox, with the page's name and their link.",
+   "switch": "share_remind",
+   "signals": {
+    "events": {
+     "reminded": "You pressed Remind them beside a person in the Share panel who had not opened what you shared"
+    }
+   },
+   "files": [
+    "rouh/share_remind.py"
+   ]
+  },
+  "demo-mode": {
+   "files": [
+    "rouh/demo.py",
+    "rouh/web/demo.py",
+    "rouh/models/demo.py",
+    "rouh/static/app/demo.js",
+    "rouh/genes/manifests/demo-mode.json",
+    "rouh/demo_style.py",
+    "rouh/static/demo-redact.woff2",
+    "tools/demo-font/**"
+   ]
+  },
+  "n26-each-point": {
+   "name": "Every point accounted for",
+   "what": "A job asked to apply comments, feedback or a review, or given three or more numbered changes, is told to find every point first, go through them one at a time, check each against the result, and end its report with one line per point: Done, Partly or Not done, and why.",
+   "switch": "each_point",
+   "signals": {
+    "events": {
+     "told": "You asked for several comments or changes to be applied, and the job was told to account for each one"
+    }
+   },
+   "files": [
+    "rouh/each_point.py"
+   ]
+  },
+  "n26-comments-by": {
+   "name": "Their comments",
+   "what": "Asked in words, Rouh finds every comment and answer one person left on the Google Docs, Sheets and Slides decks linked in the tasks' notes and changed lately in Drive: the document, the task, the words it is on, what it says, when, whether it is open or answered, and a link to it.",
+   "switch": "comments_by",
+   "signals": {
+    "events": {
+     "found": "You asked Rouh for somebody's comments, and it looked through the documents for them"
+    }
+   },
+   "files": [
+    "rouh/comments_by.py",
+    "rouh/comments_in_docs.py"
+   ]
+  },
+  "n26-new-comments": {
+   "files": [
+    "rouh/new_comments.py",
+    "rouh/comments_in_docs.py"
+   ]
+  },
+  "n26-task-comments": {
+   "files": [
+    "rouh/task_comments.py",
+    "rouh/comments_in_docs.py"
+   ]
+  },
+  "moving-in": {
+   "name": "Moving a Rouh in",
+   "what": "An existing Rouh, on a server or in another stack, exported as one bundle (its database, its encryption and Django keys, its data directory and workspace) and brought into a fresh stack before its first start, every saved login still opening.",
+   "files": [
+    "rouh/bundle.py",
+    "rouh/management/commands/export_rouh.py"
+   ]
+  },
+  "n27-deck-slides": {
+   "name": "Decks read slide by slide",
+   "what": "Whatever reads a Google Slides deck through read_doc, a chat, a job or Ask AI, is given it slide by slide: each slide by its number, with its title, its words, its speaker notes and the open comments on it, and the link that opens any one slide.",
+   "switch": "deck_slides",
+   "signals": {
+    "events": {
+     "read": "You had Rouh read a Google Slides deck, and it read it slide by slide with its speaker notes and comments"
+    }
+   },
+   "files": [
+    "rouh/decks.py",
+    "rouh/google_api/slides.py",
+    "rouh/testing/fake_google/slides.py"
+   ]
+  },
+  "n27-find-slides": {
+   "name": "Find a slide",
+   "what": "Asked in words, Rouh finds the slides themselves in the person's Google Slides decks, by their words and speaker notes, each with its deck, its number and a link that opens the deck on it.",
+   "switch": "find_slides",
+   "signals": {
+    "events": {
+     "found": "You asked Rouh to find a slide, and it looked through your decks slide by slide"
+    }
+   },
+   "files": [
+    "rouh/find_slides.py",
+    "rouh/decks.py"
+   ]
+  },
+  "n27-talk-deck": {
+   "files": [
+    "rouh/talk_deck.py",
+    "rouh/decks.py"
+   ]
+  },
+  "n27-rehearse": {
+   "files": [
+    "rouh/rehearse.py",
+    "rouh/decks.py"
+   ]
+  },
+  "vocabulary": {
+   "files": [
+    "rouh/vocabulary.py",
+    "rouh/web/vocabulary.py",
+    "rouh/management/commands/vocabulary.py"
+   ]
+  },
+  "n28-doc-pictures": {
+   "name": "Pictures in docs seen",
+   "what": "The pictures in a Google Doc Rouh reads, a diagram, a screenshot or a photo, are marked where they stand in its words and shown to Rouh as themselves after them, so it can say what they show instead of reading round them.",
+   "switch": "doc_pictures",
+   "signals": {
+    "events": {
+     "seen": "You had Rouh read a Google Doc with pictures in it, and it saw them as themselves"
+    }
+   },
+   "files": [
+    "rouh/doc_pictures.py"
+   ]
+  },
+  "n28-page-asks": {
+   "name": "What they asked on your pages",
+   "what": "Asked in words, Rouh lists what each person asked Ask AI to do on your pages: when, who, on which page, their request in their own words, what Ask AI did and whether it was undone, with a count by person and by page.",
+   "switch": "page_asks",
+   "signals": {
+    "events": {
+     "listed": "You asked Rouh what somebody asked Ask AI to change on your pages, and it listed their requests"
+    }
+   },
+   "files": [
+    "rouh/page_asks.py"
+   ]
+  },
+  "n28-not-handed": {
+   "files": [
+    "rouh/not_handed.py"
+   ]
+  },
+  "n28-open-items": {
+   "files": [
+    "rouh/open_items.py",
+    "rouh/web/open_items.py"
+   ]
+  },
+  "n29-sheet-tabs": {
+   "name": "Sheets read tab by tab",
+   "what": "A Google Sheet Rouh reads is read with every tab by its name, in the sheet's order, each with its rows numbered and its columns lettered, as the sheet shows them, instead of only its first tab as comma-separated text.",
+   "switch": "sheet_tabs",
+   "signals": {
+    "events": {
+     "read": "You had Rouh read a Google Sheet, and it read every tab of it"
+    }
+   },
+   "files": [
+    "rouh/sheet_tabs.py",
+    "rouh/google_api/sheets.py",
+    "rouh/testing/fake_google/sheets.py"
+   ]
+  },
+  "n29-sheet-write": {
+   "name": "Written into a sheet",
+   "what": "Asked in words, Rouh writes cells or adds rows in a Google Sheet, as if typed, and says what every changed cell held before.",
+   "switch": "sheet_write",
+   "signals": {
+    "events": {
+     "written": "You asked Rouh to put something in a Google Sheet, and it wrote it"
+    }
+   },
+   "files": [
+    "rouh/sheet_write.py",
+    "rouh/google_api/sheets.py"
+   ]
+  },
+  "n29-share-ends": {
+   "files": [
+    "rouh/share_ends.py",
+    "rouh/migrations/0223_share_ends.py"
+   ]
+  },
+  "n29-task-dates": {
+   "files": [
+    "rouh/task_dates.py"
+   ]
+  },
+  "n30-doc-suggestions": {
+   "name": "Suggested edits read as suggestions",
+   "what": "In a Google Doc Rouh reads, each suggested edit nobody has accepted yet is marked where it stands, a suggested insertion or a suggested deletion, and counted under the title, instead of being read as if it were already the document's words.",
+   "switch": "doc_suggestions",
+   "signals": {
+    "events": {
+     "read": "You had Rouh read a Google Doc with suggested edits in it, and it told them apart from the words"
+    }
+   },
+   "files": [
+    "rouh/doc_suggestions.py"
+   ]
+  },
+  "n30-slide-write": {
+   "name": "Written into a deck",
+   "what": "Asked in words, Rouh replaces words on a Google Slides deck's slides and writes their speaker notes, and says what each held before.",
+   "switch": "slide_write",
+   "signals": {
+    "events": {
+     "written": "You asked Rouh to change words or speaker notes in a Google Slides deck, and it wrote them"
+    }
+   },
+   "files": [
+    "rouh/slide_write.py"
+   ]
+  },
+  "n30-host-admits": {
+   "files": [
+    "rouh/host_admits.py"
+   ]
+  },
+  "n30-share-meeting": {
+   "files": [
+    "rouh/share_meeting.py"
+   ]
+  },
+  "n31-drive-files": {
+   "name": "Files in Drive read",
+   "what": "A PDF, Word, Excel or PowerPoint file kept in Google Drive is read like a document when Rouh is asked about it, instead of being refused as a file with no words.",
+   "switch": "drive_files",
+   "signals": {
+    "events": {
+     "read": "You had Rouh read a PDF, Word, Excel or PowerPoint file in your Drive, and it read its words"
+    }
+   },
+   "files": [
+    "rouh/drive_files.py"
+   ]
+  },
+  "n31-raise-attached": {
+   "files": [
+    "rouh/raise_attached.py"
+   ]
+  },
+  "n31-drive-copy": {
+   "name": "A copy made when asked",
+   "what": "Asked in words, Rouh makes Drive's own copy of a document, sheet, deck or any file, names it, files it in the folder asked for and fills in the words asked for, leaving the original as it was.",
+   "switch": "drive_copy",
+   "signals": {
+    "events": {
+     "copied": "You asked Rouh to copy a file in your Drive, and it made the copy"
+    }
+   },
+   "files": [
+    "rouh/drive_copy.py"
+   ]
+  },
+  "n31-meeting-attach": {
+   "files": [
+    "rouh/meeting_attach.py",
+    "rouh/web/meeting_attach.py"
+   ]
+  },
+  "incubator": {
+   "files": [
+    "rouh/incubator.py",
+    "rouh/incubator_import.py",
+    "rouh/web/incubator.py",
+    "rouh/models/incubator.py",
+    "rouh/static/incubatorpage.*",
+    "rouh/migrations/0227_incubator.py",
+    "rouh/migrations/0230_incubator_score.py",
+    "rouh/incubator_score.py",
+    "bin/rouh-incubator"
+   ]
+  },
+  "nightly-run": {
+   "files": [
+    "rouh/web/nightly_run.py",
+    "rouh/static/nightlyrunpage.js"
+   ]
+  },
+  "n32-inside-files": {
+   "name": "Files inside files read",
+   "what": "A forwarded email (.eml) and a zip archive, attached to an email or uploaded, are read like any document: the email's sender, date, subject and words, and every document inside either one, instead of being refused or read as raw code.",
+   "switch": "inside_files",
+   "signals": {
+    "events": {
+     "read": "You had Rouh read a forwarded email or a zip archive an email brought, and it read what was inside"
+    }
+   },
+   "files": [
+    "rouh/inside_files.py"
+   ]
+  },
+  "n32-calendar-away": {
+   "name": "Away and focus time",
+   "what": "Asked in words, Rouh puts Google Calendar's own out-of-office or focus-time block on your calendar, which declines meeting invitations in that time by itself with your message, instead of an ordinary event that declines nothing.",
+   "switch": "calendar_away",
+   "signals": {
+    "events": {
+     "blocked": "You asked Rouh to mark you out of office or keep focus time, and it put Google's own block on your calendar"
+    }
+   },
+   "files": [
+    "rouh/calendar_away.py"
+   ]
+  },
+  "n32-flight-open": {
+   "files": [
+    "rouh/flight_open.py"
+   ]
+  },
+  "n32-task-time": {
+   "files": [
+    "rouh/task_time.py",
+    "rouh/web/task_time.py"
+   ]
+  },
+  "n33-mail-invites": {
+   "name": "Invitations read on your clock",
+   "what": "When Rouh reads an email carrying a meeting invitation, it reads the invitation's calendar file too: what it is (new, changed, cancelled, an answer), when on your own clock with the sender's time beside it, how long, where, the call link, who sent it and who is invited.",
+   "switch": "mail_invites",
+   "signals": {
+    "events": {
+     "read": "You had Rouh read an email carrying a meeting invitation, and it read the invitation's time on your clock"
+    }
+   },
+   "files": [
+    "rouh/mail_invites.py",
+    "rouh/invites.py"
+   ]
+  },
+  "n33-invite-missing": {
+   "files": [
+    "rouh/invite_missing.py",
+    "rouh/invites.py"
+   ]
+  },
+  "n33-when-free": {
+   "name": "When others are free",
+   "what": "Asked in words, Rouh reads colleagues' free and busy times from Google, with your own, and says the times when everybody can meet, and whose calendar Google would not show.",
+   "switch": "when_free",
+   "signals": {
+    "events": {
+     "asked": "You asked Rouh when other people are free, and it read their free and busy times"
+    }
+   },
+   "files": [
+    "rouh/free_busy.py"
+   ]
+  },
+  "n33-busy-guard": {
+   "name": "Not booked over someone busy",
+   "what": "Before Rouh books or moves a meeting with guests, it reads their free and busy times; if one of them is busy then, nothing is booked or emailed, and Rouh says who is busy and the next times when everybody is free.",
+   "switch": "busy_guard",
+   "signals": {
+    "events": {
+     "held": "You asked Rouh to book or move a meeting into a time a guest is busy, and it held it and offered times when everybody is free"
+    }
+   },
+   "files": [
+    "rouh/busy_guard.py"
+   ]
+  },
+  "n34-away-replies": {
+   "name": "Away, said their automatic reply",
+   "what": "Before Rouh drafts or sends an email, or books a meeting with guests, it looks in your mailboxes for an automatic reply from each of them in the last three weeks that says they are away, and says when they are back and whom it names instead.",
+   "switch": "away_replies",
+   "signals": {
+    "events": {
+     "told": "You had Rouh write to or book somebody whose automatic reply says they are away, and it told you first"
+    }
+   },
+   "files": [
+    "rouh/away_replies.py"
+   ]
+  },
+  "n34-not-arrived": {
+   "name": "Did not arrive",
+   "what": "An email Rouh sent for you that bounced is told to you at once in a notice: to whom, which email, and why it did not arrive, with Open the chat it was sent from.",
+   "switch": "not_arrived",
+   "signals": {
+    "events": {
+     "opened": "You pressed Open on a notice that an email Rouh sent did not arrive"
+    },
+    "runs": {
+     "told": "Rouh told you in a notice that an email it sent did not arrive"
+    }
+   },
+   "files": [
+    "rouh/not_arrived.py",
+    "rouh/web/not_arrived.py"
+   ]
+  },
+  "n34-to-answer": {
+   "name": "Waiting on your answer",
+   "what": "Asked in words, Rouh reads your inboxes for the emails from people that you have not answered, each with what they asked, who, when and how long it has waited.",
+   "switch": "to_answer",
+   "signals": {
+    "events": {
+     "asked": "You asked Rouh which emails you have not answered"
+    }
+   },
+   "files": [
+    "rouh/to_answer.py"
+   ]
+  },
+  "n34-inbox-unsubscribe": {
+   "name": "Unsubscribe in the inbox card",
+   "what": "A newsletter or a shop's mail opened on the inbox card has an Unsubscribe button: one press stops it (RFC 8058 one-click), or opens the sender's own page.",
+   "switch": "inbox_unsubscribe",
+   "signals": {
+    "events": {
+     "unsubscribed": "You pressed Unsubscribe on a newsletter opened on the inbox card"
+    }
+   },
+   "files": [
+    "rouh/inbox_unsubscribe.py"
+   ]
+  },
+  "trials": {
+   "files": [
+    "rouh/trials/**",
+    "rouh/models/trials.py",
+    "rouh/web/trials.py",
+    "rouh/static/trialspage.*",
+    "rouh/migrations/0238_trials.py",
+    "rouh/migrations/0239_trial_jobs_testers.py",
+    "rouh/migrations/0240_trial_mode.py",
+    "rouh/migrations/0242_trial_tester_paused.py",
+    "bin/rouh-trial"
+   ]
+  },
+  "files": {
+   "name": "One home for every file",
+   "what": "Every file Rouh is handed lives once, in the folder of the task, chat or project it belongs to, on one list of files, at a path Rouh and every job see read and write.",
+   "core": true,
+   "files": [
+    "rouh/filestore.py",
+    "rouh/models/files.py",
+    "rouh/web/filesapi.py",
+    "bin/rouh-files",
+    "rouh/management/commands/files_migrate.py"
+   ],
+   "needed_by": [
+    "turn-loop",
+    "tasks",
+    "runs"
+   ]
+  },
+  "n33b-meet-link": {
+   "name": "Booked with a call link",
+   "what": "When Rouh books a meeting with guests and no place, it gives it a Google Meet link, the way the Add Google Meet button does, and says so; told there should be no link, it adds none.",
+   "switch": "meet_link",
+   "signals": {
+    "events": {
+     "booked": "You had Rouh book a meeting with guests and no place, and it went out with a Google Meet link"
+    }
+   },
+   "files": [
+    "rouh/meet_link.py"
+   ]
+  },
+  "n33b-no-place": {
+   "files": [
+    "rouh/no_place.py",
+    "rouh/meet_link.py"
+   ]
+  },
+  "n33b-calendar-link": {
+   "name": "A calendar link read",
+   "what": "Given the link of a calendar somebody published (an .ics or webcal address), Rouh reads it whole and says what is on it day by day on your clock, with weekly repeats, dates taken out and moved meetings worked out.",
+   "switch": "calendar_link",
+   "signals": {
+    "events": {
+     "read": "You gave Rouh a calendar's link, and it read what is on it on your clock"
+    }
+   },
+   "files": [
+    "rouh/calendar_link.py",
+    "rouh/invites.py"
+   ]
+  },
+  "n33b-address-check": {
+   "name": "A mistyped address caught",
+   "what": "Before Rouh sends an email, each address is compared with the ones you already have; one that is a letter or two off a known address (dana@northwnd.com for dana@northwind.com, gmial.com) is not sent, and Rouh asks whether you meant the known one.",
+   "switch": "address_check",
+   "signals": {
+    "events": {
+     "held": "You asked Rouh to email an address a letter or two off one you know, and it held the email and asked which you meant"
+    }
+   },
+   "files": [
+    "rouh/address_check.py"
+   ]
+  },
+  "n34b-attach-promised": {
+   "name": "A file promised, not attached",
+   "what": "Before Rouh sends an email whose words say a file is attached (attached, enclosed, прикачен, приложено) and that carries no file, it is not sent; Rouh finds the file the email means and attaches it, or asks. A draft that says so is made, with a line saying the file is not on it yet.",
+   "switch": "attach_promised",
+   "signals": {
+    "events": {
+     "held": "You had Rouh write an email that said a file was attached, and Rouh held it, or said so on the draft, because no file was on it"
+    }
+   },
+   "files": [
+    "rouh/attach_promised.py"
+   ]
+  },
+  "n34b-public-holidays": {
+   "name": "Public holidays read from Google",
+   "what": "Asked whether a day is a holiday in a country, or which holidays a country has in a span, Rouh reads Google's own public holiday calendar for it instead of answering from memory.",
+   "switch": "public_holidays",
+   "signals": {
+    "events": {
+     "asked": "You asked Rouh about the public holidays in a country, and it read them from Google's holiday calendar"
+    }
+   },
+   "files": [
+    "rouh/public_holidays.py"
+   ]
+  },
+  "n34b-inbox-remind": {
+   "name": "Remind me about this email",
+   "what": "A message opened on the inbox card has Remind me: This evening, Tomorrow morning or Monday morning; one press makes a reminder on Clockwork that brings the email back to you then, with what it asks of you.",
+   "switch": "inbox_remind",
+   "signals": {
+    "events": {
+     "reminded": "You pressed Remind me on an email opened on the inbox card"
+    }
+   },
+   "files": [
+    "rouh/inbox_remind.py"
+   ]
+  },
+  "n34b-not-said-yes": {
+   "files": [
+    "rouh/not_said_yes.py"
+   ]
+  },
+  "n35-their-clock": {
+   "name": "On their clock too",
+   "what": "Before Rouh sends or drafts an email that names a time, to somebody whose own mail is written on another clock, it is told the hour on their clock, so the email says both.",
+   "switch": "their_clock",
+   "signals": {
+    "events": {
+     "told": "You had Rouh write a time to somebody on another clock, and it said the time on theirs too"
+    }
+   },
+   "files": [
+    "rouh/their_clock.py"
+   ]
+  },
+  "n35-renewal-notice": {
+   "name": "Renews soon",
+   "what": "An email saying a subscription renews or a free trial ends and charges is told to you at once in a notice: what, when, in how many days and how much, with Open the email.",
+   "switch": "renewal_notice",
+   "signals": {
+    "events": {
+     "opened": "You pressed Open the email on a notice that a subscription renews soon"
+    },
+    "runs": {
+     "told": "Rouh told you in a notice that a subscription renews or a trial ends soon"
+    }
+   },
+   "files": [
+    "rouh/renewal_notice.py",
+    "rouh/web/renewal.py"
+   ]
+  },
+  "n35-unread-lists": {
+   "name": "Newsletters you never open",
+   "what": "Asked in words, the newsletters and lists in your mailboxes whose mail of the last two months you never opened, each with how many came, and stopped in one word.",
+   "switch": "unread_lists",
+   "signals": {
+    "events": {
+     "asked": "You asked which newsletters you never open",
+     "stopped": "You had Rouh unsubscribe from lists you never open"
+    }
+   },
+   "files": [
+    "rouh/unread_lists.py"
+   ]
+  },
+  "n35-their-hours": {
+   "name": "Not in their night",
+   "what": "Before Rouh books a meeting with a guest abroad, it reads the guest's clock from their own newest email, and a meeting that falls before 08:00 or ends after 20:00 for them is not booked until you have heard their hour and the hours inside both days.",
+   "switch": "their_hours",
+   "signals": {
+    "events": {
+     "held": "You had Rouh book a meeting that fell in a guest's early morning or night, and it said their hour before any invitation went"
+    }
+   },
+   "files": [
+    "rouh/their_hours.py"
+   ]
+  },
+  "n36-holiday-guard": {
+   "name": "Not booked on a guest's public holiday",
+   "what": "Before Rouh books a meeting with a guest whose address is in another country's domain, it reads Google's public holiday calendar for that country, and a meeting on a day off there is not booked until you have heard whose holiday it is.",
+   "switch": "holiday_guard",
+   "signals": {
+    "events": {
+     "held": "You had Rouh book a meeting on a day that is a public holiday in a guest's country, and it said so before any invitation went"
+    }
+   },
+   "files": [
+    "rouh/holiday_guard.py"
+   ]
+  },
+  "n36-not-answered": {
+   "files": [
+    "rouh/not_answered.py"
+   ]
+  },
+  "n36-meeting-hours": {
+   "name": "Where your meeting time went, by company",
+   "what": "Asked how much time went into meetings, or with whom, Rouh counts your main calendar exactly over the span, by company and by person, your own company apart, each against the span before.",
+   "switch": "meeting_hours",
+   "signals": {
+    "events": {
+     "asked": "You asked Rouh how much of your time went into meetings, or with a company or a person, and it counted your calendar"
+    }
+   },
+   "files": [
+    "rouh/meeting_hours.py"
+   ]
+  },
+  "n36-meeting-soon": {
+   "name": "You meet them soon",
+   "what": "An email opened on the inbox card from somebody you meet in the next seven days, or with them on it, says when and which meeting, with Open the meeting.",
+   "switch": "meeting_soon",
+   "signals": {
+    "events": {
+     "opened": "You pressed Open the meeting on an email from somebody you meet soon, on the inbox card"
+    },
+    "runs": {
+     "shown": "Rouh said on an email you opened that you meet somebody on it in the next days"
+    }
+   },
+   "files": [
+    "rouh/meeting_soon.py"
+   ]
+  },
+  "n36-their-language": {
+   "name": "In their language",
+   "what": "Before Rouh sends or drafts an email, it reads the language each person it goes to writes to you in, from their own newest email, and an email in another language waits until it is written in theirs or you say it is fine.",
+   "switch": "their_language",
+   "signals": {
+    "events": {
+     "told": "You had Rouh write to somebody in another language than the one they write to you in, and it was told theirs before the email went"
+    }
+   },
+   "files": [
+    "rouh/their_language.py"
+   ]
+  },
+  "n36-my-word": {
+   "files": [
+    "rouh/my_word.py",
+    "rouh/mail_promises.py"
+   ]
+  },
+  "n36-promised-to-you": {
+   "name": "Promised to you by mail",
+   "what": "Asked in words, Rouh reads your inboxes for what people promised you by email by a day: which days have passed with nothing from them since, which are coming, and which may have come.",
+   "switch": "promised_to_you",
+   "signals": {
+    "events": {
+     "asked": "You asked Rouh what people promised you by email, or what you are still waiting for"
+    }
+   },
+   "files": [
+    "rouh/promised_to_you.py",
+    "rouh/mail_promises.py"
+   ]
+  },
+  "n36-promise-watch": {
+   "name": "If it does not come",
+   "what": "An email opened on the inbox card that promises you something by a day has If it has not come by that day, tell me: one press, and Rouh looks for it the morning after and tells you only if nothing came.",
+   "switch": "promise_watch",
+   "signals": {
+    "events": {
+     "watched": "You pressed If it has not come, tell me on an email opened on the inbox card"
+    }
+   },
+   "files": [
+    "rouh/promise_watch.py",
+    "rouh/mail_promises.py"
+   ]
+  }
+ }
+}

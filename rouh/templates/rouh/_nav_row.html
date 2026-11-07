@@ -1,0 +1,40 @@
+{% comment %}
+One link of the navigation, drawn from its gene's manifest (`rouh/genes`,
+GENES.md) and from nothing else: no link is written into the page by hand.
+A row whose page code wires it (`opens` own) keeps the id that code finds it
+by; any other is pressed by app/navgroups.js, which goes to its route or
+presses the control it names. A lab is marked, and stands last in its group; a
+shared gene from the organisation's lab (`rouh/genelab.py`) is marked Shared.
+A link drawn as others (`nav.as`, Anatomy as its groups) is those links in
+its place, each with its own glyph, and each goes to its route.
+{% endcomment %}{% if f.as_links %}{% for u in f.as_links %}
+            <a id="{{ u.row_id }}" class="sb-row sb-do sb-as-link" data-nav="{{ u.id }}" href="{{ u.route }}" data-inapp data-opens="address"
+               title="{{ u.title }}">
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none"
+                   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ u.icon|safe }}</svg>
+              <span class="sb-row-name">{{ u.name }}</span>
+            </a>{% endfor %}{% elif f.plus %}
+            <div class="sb-row sb-pair{% if f.css %} {{ f.css }}-pair{% endif %}">
+              <a class="sb-pair-main{% if f.css %} {{ f.css }}{% endif %}" id="{{ f.row_id }}" href="{{ f.route }}" data-inapp data-nav="{{ f.id }}"{% if f.opens != "own" %} data-opens="{{ f.opens }}"{% endif %}
+                 title="{{ f.title }}">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none"
+                     stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ f.icon|safe }}</svg>
+                <span class="sb-row-name">{{ f.name }}</span>{% if f.lab %}
+                <span class="sb-lab" title="A lab: still being tried out">Lab</span>{% endif %}
+              </a>
+              <button id="{{ f.plus.id }}" class="sb-pair-plus" type="button" data-nav="{{ f.plus.nav }}"
+                      aria-label="{{ f.plus.name }}" title="{{ f.plus.title }}">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none"
+                     stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ f.plus.icon|safe }}</svg>
+              </button>
+            </div>{% else %}
+            <{% if f.route %}a{% else %}button type="button"{% endif %} id="{{ f.row_id }}" class="sb-row sb-do{% if f.css %} {{ f.css }}{% endif %}" data-nav="{{ f.id }}"{% if f.route %} href="{{ f.route }}" data-inapp{% endif %}{% if f.opens != "own" %} data-opens="{{ f.opens }}"{% endif %}{% if f.press %} data-press="{{ f.press }}"{% endif %}{% if f.controls %}
+               aria-controls="{{ f.controls }}" aria-expanded="false"{% endif %}
+               title="{{ f.title }}"{% if f.hidden %} hidden{% endif %}>
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none"
+                   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ f.icon|safe }}</svg>
+              <span class="sb-row-name">{{ f.name }}</span>{% if f.shared %}
+              <span class="sb-lab sb-shared" title="A shared gene from {{ f.publisher_name }}, in the lab">Shared</span>{% elif f.lab %}
+              <span class="sb-lab" title="A lab: still being tried out">Lab</span>{% endif %}{% for mk in f.marks %}
+              <span class="{{ mk.class }}" id="{{ mk.id }}"{% if mk.class == "sb-row-dot" %} hidden{% endif %}></span>{% endfor %}
+            </{% if f.route %}a{% else %}button{% endif %}>{% endif %}

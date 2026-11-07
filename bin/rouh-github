@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+"""rouh-github: git and the gh CLI in the worker, through the key proxy's GitHub grant.
+
+The worker holds no GitHub token, as it holds no model key. While the owner has opened a grant
+from their own machine (`rouh-github-grant 8` on the Mac, deploy/grants/README.md), the key proxy
+(guard/rouh_guard/keyproxy.py) adds the owner's token to every request a worker sends to GitHub's
+names, and takes off whatever credential the worker sent. It can only do that to a request it can
+read, so the worker sends those requests as plain http to the proxy, which sends them on as https:
+
+- git: `url.http://github.com/.insteadOf https://github.com/`, so `git clone https://github.com/...`
+  goes through HTTP_PROXY as http, and a credential helper that answers a stand-in, so git never
+  stops to ask for a password the worker does not have (the proxy takes the stand-in off).
+- gh: its own `http_unix_socket` setting, a socket this keeps in the worker's home that hands each
+  connection to the proxy as it is; gh speaks plain http over such a socket. `~/.local/bin/gh` is a
+  small wrapper that makes sure the socket is there, with GH_TOKEN set to a stand-in so gh thinks it
+  is signed in. gh itself is fetched once from GitHub's releases, its checksum checked.
+- anything else: `curl http://api.github.com/user` (HTTP_PROXY does the rest).
+
+    rouh-github setup      once per worker home: git, gh and its wrapper (safe to run again)
+    rouh-github status     whether a grant is open, until when and as whom, as the proxy says
+    rouh-github relay      the socket gh talks over (the wrapper starts it; it stops when idle)
+
+Nothing here ever holds, prints or writes a token. Standard library only.
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import contextlib
+import fcntl
+import hashlib
+import io
+import json
+import os
+import platform
+import shutil
+import socket
+import subprocess
+import sys
+import tarfile
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+from urllib.parse import urlsplit
+
+HOME = Path(os.environ.get("HOME") or "/home/rouh")
+SHARE = HOME / ".local/share/rouh-github"
+SOCKET = HOME / ".cache/rouh-github/gh.sock"
+if len(str(SOCKET)) > 100:   # a socket's path is at most 107 bytes
+    SOCKET = Path(f"/tmp/rouh-github-{os.getuid()}/gh.sock")
+GH_CONFIG = HOME / ".config/rouh-gh"
+WRAPPER = HOME / ".local/bin/gh"
+#: The gh release fetched when none is there (`setup --gh-version` for another).
+GH_VERSION = "2.103.3"
+#: How long the socket waits with nothing to do before it stops.
+IDLE = 3600
+#: What git and gh send, which the key proxy takes off. It is not a token.
+STAND_IN = "via-keyproxy"
+
+
+def proxy_address() -> tuple[str, int]:
+    url = urlsplit(os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
+                   or os.environ.get("HTTPS_PROXY") or "http://keyproxy:8080")
+    return url.hostname or "keyproxy", url.port or 8080
+
+
+# --- the socket gh talks over ----------------------------------------------------------------------
+
+async def _pipe(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    try:
+        while data := await reader.read(65536):
+            writer.write(data)
+            await writer.drain()
+    except (ConnectionError, OSError):
+        pass
+    finally:
+        with contextlib.suppress(Exception):
+            if writer.can_write_eof():
+                writer.write_eof()
+
+
+async def _serve(path: Path) -> None:
+    host, port = proxy_address()
+    last = {"at": time.monotonic(), "open": 0}
+
+    async def one(reader, writer):
+        last["open"] += 1
+        try:
+            up_reader, up_writer = await asyncio.wait_for(asyncio.open_connection(host, port), 20)
+        except (OSError, asyncio.TimeoutError):
+            writer.close()
+            last["open"] -= 1
+            return
+        await asyncio.gather(_pipe(reader, up_writer), _pipe(up_reader, writer))
+        for w in (writer, up_writer):
+            with contextlib.suppress(Exception):
+                w.close()
+        last["open"] -= 1
+        last["at"] = time.monotonic()
+
+    with contextlib.suppress(FileNotFoundError):
+        path.unlink()
+    server = await asyncio.start_unix_server(one, str(path))
+    os.chmod(path, 0o600)
+    async with server:
+        while not (last["open"] == 0 and time.monotonic() - last["at"] > IDLE):
+            await asyncio.sleep(30)
+
+
+def _answers(path: Path) -> bool:
+    with contextlib.suppress(OSError), socket.socket(socket.AF_UNIX) as s:
+        s.settimeout(2)
+        s.connect(str(path))
+        return True
+    return False
+
+
+def relay(ensure: bool) -> int:
+    SOCKET.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if not ensure:
+        asyncio.run(_serve(SOCKET))
+        return 0
+    if _answers(SOCKET):
+        return 0
+    with open(SOCKET.parent / "start.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if _answers(SOCKET):
+            return 0
+        # Its own session, and not marked as a run's, so it outlives the gh that started it; it
+        # stops by itself once idle, and the next gh starts it again.
+        env = {k: v for k, v in os.environ.items() if k != "ONE_RUN"}
+        subprocess.Popen([sys.executable, "-I", str(Path(__file__).resolve()), "relay"], env=env,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True, cwd="/")
+        end = time.monotonic() + 10
+        while time.monotonic() < end:
+            if _answers(SOCKET):
+                return 0
+            time.sleep(0.1)
+    print("rouh-github: the socket for gh did not start", file=sys.stderr)
+    return 1
+
+
+# --- setup -----------------------------------------------------------------------------------------
+
+def git(*args: str) -> None:
+    subprocess.run(["git", "config", "--global", *args], check=False, capture_output=True)
+
+
+def setup_git() -> None:
+    git("--unset-all", "url.http://github.com/.insteadOf")
+    git("--add", "url.http://github.com/.insteadOf", "https://github.com/")
+    helper = "credential.http://github.com.helper"
+    git("--unset-all", helper)
+    git("--add", helper, "")   # no helper before this one
+    git("--add", helper, f"!f() {{ test \"$1\" = get && printf 'username=x-access-token\\npassword={STAND_IN}\\n'; }}; f")
+    print("git: https://github.com/... goes to the key proxy, which adds the grant's token")
+
+
+def _fetch(url: str) -> bytes:
+    with urllib.request.urlopen(url, timeout=120) as r:
+        return r.read()
+
+
+def setup_gh(version: str) -> None:
+    arch = {"x86_64": "amd64", "amd64": "amd64", "aarch64": "arm64", "arm64": "arm64"}.get(platform.machine())
+    if not arch:
+        raise SystemExit(f"rouh-github: no gh for {platform.machine()}")
+    binary = SHARE / f"gh-{version}" / "gh"
+    if not binary.exists():
+        name = f"gh_{version}_linux_{arch}.tar.gz"
+        base = f"https://github.com/cli/cli/releases/download/v{version}"
+        sums = _fetch(f"{base}/gh_{version}_checksums.txt").decode()
+        want = next((line.split()[0] for line in sums.splitlines() if line.endswith(" " + name)), "")
+        data = _fetch(f"{base}/{name}")
+        if not want or hashlib.sha256(data).hexdigest() != want:
+            raise SystemExit(f"rouh-github: {name} does not match its checksum; nothing installed")
+        with tarfile.open(fileobj=io.BytesIO(data)) as tar:
+            member = tar.getmember(f"gh_{version}_linux_{arch}/bin/gh")
+            payload = tar.extractfile(member).read()
+        binary.parent.mkdir(parents=True, exist_ok=True)
+        tmp = binary.with_suffix(".new")
+        tmp.write_bytes(payload)
+        tmp.chmod(0o755)
+        tmp.replace(binary)
+    SHARE.mkdir(parents=True, exist_ok=True)
+    # This script itself, beside gh, so the wrapper never depends on a run's checkout.
+    me = SHARE / "rouh-github"
+    shutil.copyfile(Path(__file__).resolve(), me.with_suffix(".new"))
+    me.with_suffix(".new").chmod(0o755)
+    me.with_suffix(".new").replace(me)
+    GH_CONFIG.mkdir(parents=True, exist_ok=True)
+    config = GH_CONFIG / "config.yml"
+    lines = [line for line in (config.read_text().splitlines() if config.exists() else [])
+             if not line.startswith(("http_unix_socket:", "git_protocol:", "prompt:"))]
+    lines += [f"http_unix_socket: {SOCKET}", "git_protocol: https", "prompt: disabled"]
+    config.write_text("\n".join(lines) + "\n")
+    WRAPPER.parent.mkdir(parents=True, exist_ok=True)
+    WRAPPER.write_text(f"""#!/bin/sh
+# Written by rouh-github setup: gh through the key proxy, which adds the owner's GitHub grant.
+"{sys.executable}" -I "{me}" relay --ensure || exit 1
+GH_CONFIG_DIR="{GH_CONFIG}" GH_TOKEN={STAND_IN} GH_NO_UPDATE_NOTIFIER=1 GH_PROMPT_DISABLED=1 exec "{binary}" "$@"
+""")
+    WRAPPER.chmod(0o755)
+    print(f"gh {version}: {WRAPPER}, talking to the key proxy over {SOCKET}")
+
+
+def status() -> int:
+    host, port = proxy_address()
+    proxy = urllib.request.ProxyHandler({"http": f"http://{host}:{port}"})
+    req = urllib.request.Request("http://api.github.com/user", headers={"Accept": "application/vnd.github+json"})
+    try:
+        with urllib.request.build_opener(proxy).open(req, timeout=30) as r:
+            said, code, body = r.headers.get("X-Rouh-GitHub-Grant", ""), r.status, r.read()
+    except urllib.error.HTTPError as e:
+        said, code, body = e.headers.get("X-Rouh-GitHub-Grant", ""), e.code, e.read()
+    except OSError as e:
+        print(f"The key proxy could not be asked: {e}")
+        return 1
+    if not said:
+        print("The key proxy does not know GitHub grants yet (its image is older than this).")
+        return 1
+    if said.startswith("open"):
+        login = ""
+        with contextlib.suppress(ValueError):
+            login = json.loads(body).get("login", "")
+        print(f"GitHub grant {said}; GitHub answered {code}" + (f" for {login}" if login else ""))
+        return 0 if code == 200 else 1
+    print(f"No GitHub grant is open ({said}). The owner opens one with rouh-github-grant on their own machine.")
+    return 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="rouh-github", description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("setup")
+    s.add_argument("--gh-version", default=GH_VERSION)
+    s.add_argument("--no-gh", action="store_true", help="git only")
+    sub.add_parser("status")
+    r = sub.add_parser("relay")
+    r.add_argument("--ensure", action="store_true", help="start it unless it answers already")
+    a = ap.parse_args(argv)
+    if a.cmd == "setup":
+        setup_git()
+        if not a.no_gh:
+            setup_gh(a.gh_version)
+        return 0
+    if a.cmd == "status":
+        return status()
+    return relay(a.ensure)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,17 @@
+# Rouh's weekly copy to Cloudflare R2 (deploy/backup_offsite.py). A template:
+# deploy/install_offsite_backup.sh fills in @ROUH_VENV@ and @ROUH_APP_DIR@ from
+# the installation's own settings, adds @ENVIRONMENT@, and installs the result.
+[Unit]
+Description=Rouh: weekly encrypted backup to Cloudflare R2
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+Nice=10
+IOSchedulingClass=idle
+@ENVIRONMENT@
+ExecStart=@ROUH_VENV@/bin/python @ROUH_APP_DIR@/deploy/backup_offsite.py run
+TimeoutStartSec=3h

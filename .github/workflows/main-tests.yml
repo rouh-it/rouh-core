@@ -1,0 +1,136 @@
+# Tests on main: every push to main is checked the way a new install would run it, and rouh.land
+# is told the newest commit that passed (task 98, step 98-23).
+#
+# A new Rouh no longer starts from a code image: on its first start it fetches the newest commit
+# of main that passed these tests, through rouh.land, which hands it only to signed-up testers
+# (guard/bin/rouh-code-install, rouh.land's /mac/code/install). So this is what decides which
+# commit that is:
+#
+#   1. the repository's own quick checks, plain Python: the gene contract and the map of every
+#      file to its gene, the mail replay, every model call through the LLM service, the
+#      capability contracts, and the stack check against its fixtures;
+#   2. the whole check a Rouh's code must pass, on the newest published base, with the protected
+#      core built from this commit: the base's own parts, the headless browser over MCP, the
+#      frozen security checks and the Rouh's own checks, against a throwaway PostgreSQL, with
+#      the libraries main needs and the base lacks put into /extra exactly as a first start
+#      does (guard/bin/check-base.sh, rouh-code-install --extra-only);
+#   3. the stack test (stack-tests.yml): the real stack on images built from this commit, on Intel
+#      and on Arm, with every feature CONTAINERS.md says works checked from outside (Petar,
+#      29 October 2026: a change that breaks a feature in the containers fails);
+#   4. only if all three pass: the record "main at <commit> passed" is signed with the release key
+#      (the secret ROUH_MAC_STACK_SIGNING_KEY, kept in the environment code-pass-signing, which
+#      takes main alone) and sent to rouh.land (mac_release.py code-pass, code-publish), whose
+#      /mac/code/newest.json then names it.
+#
+# A run still going is let finish (the stack test takes most of an hour), and of the pushes that
+# came meanwhile only the newest waits to run next: only the newest commit matters.
+
+name: Tests on main
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  packages: read
+
+concurrency:
+  group: main-tests
+  cancel-in-progress: false
+
+env:
+  # Rouh's public site, the one setting every address of it is made from (rouh/site.py, task 165);
+  # a repository variable ROUH_SITE_URL moves it, https://rouh.land unless said (task 165).
+  ROUH_SITE_URL: ${{ vars.ROUH_SITE_URL || 'https://rouh.land' }}
+  PREFIX: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  test:
+    name: Check main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The repository's own quick checks
+        run: |
+          set -euo pipefail
+          python3 -m rouh.genes
+          python3 -m rouh.genes.owners check
+          python3 -m rouh.mail_replay
+          python3 -m rouh.llmguard
+          python3 -m rouh.capabilities check
+          python3 guard/policy/fixtures/check.py
+          # base.yml builds and signs one exact commit: no checkout in its build or publish job names a branch (task 158).
+          # merge, between them, checks out main on purpose: it only moves main forward to the tested commit.
+          ! { sed -n '/^  build:/,/^  merge:/p' .github/workflows/base.yml; sed -n '/^  publish:/,/^  failed:/p' .github/workflows/base.yml; } \
+            | grep -E '^ +ref:' | grep -vE 'needs\.prepare\.outputs\.(commit|code) }}$'
+
+      - name: No file of the machine reaches a Rouh's stack, on real Docker
+        # Compose folds any file a stack file names (env_file, label_file, include, extends) into the
+        # stack it resolves; task 158. Linux resolves the Rouh's own stack sealed, and the protected
+        # core's check refuses all four: proved here on every push, with a guard image of this commit.
+        run: |
+          set -euo pipefail
+          docker build -q -f guard/Dockerfile -t rouh-guard-test . >/dev/null
+          python3 guard/policy/fixtures/host_files.py --guard rouh-guard-test
+
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: The protected core from this commit, and the newest published base
+        run: |
+          set -euo pipefail
+          docker build -q -f guard/Dockerfile -t rouh-guard:check .
+          docker pull -q "$PREFIX/rouh-base:latest"
+          docker run --rm --entrypoint cat "$PREFIX/rouh-base:latest" /opt/rouh-base/base.env
+
+      - name: The whole check, as a first start would run it
+        run: |
+          set -euo pipefail
+          docker volume create ci-guard >/dev/null
+          docker volume create ci-extra >/dev/null
+          docker run --rm --user 0:0 --network none -v ci-guard:/out \
+            --entrypoint /opt/rouh-guard/bin/rouh-guard-install rouh-guard:check /out
+          docker run --rm --user 0:0 -v ci-guard:/opt/rouh-guard:ro -v ci-extra:/extra -v "$PWD:/src:ro" \
+            --entrypoint python "$PREFIX/rouh-base:latest" -I /opt/rouh-guard/bin/rouh-code-install --extra-only /src
+          guard/bin/check-base.sh --base "$PREFIX/rouh-base:latest" --guard rouh-guard:check --code-dir . \
+            --extra-volume ci-extra --name rouh-main-check | tee check.log
+          { echo "### The check of $GITHUB_SHA"; echo; echo '```'; grep -E '^(ok|FAIL|gap|[0-9]+ passed)' check.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  stack:
+    name: The stack test
+    uses: ./.github/workflows/stack-tests.yml
+    secrets: inherit
+
+  publish:
+    name: Tell rouh.land this commit passed
+    needs: [test, stack]
+    if: github.ref == 'refs/heads/main'
+    # The release key is in this environment only, which takes main alone (S12, step 139-11).
+    environment: code-pass-signing
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Tell rouh.land this commit passed
+        env:
+          ROUH_MAC_STACK_SIGNING_KEY: ${{ secrets.ROUH_MAC_STACK_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          [ -n "$ROUH_MAC_STACK_SIGNING_KEY" ] || { echo "the secret ROUH_MAC_STACK_SIGNING_KEY is not set" >&2; exit 1; }
+          python3 deploy/container/mac_release.py code-pass --commit "$GITHUB_SHA" \
+            --run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" pass.json
+          unset ROUH_MAC_STACK_SIGNING_KEY
+          python3 deploy/container/mac_release.py code-publish pass.json
+          python3 deploy/container/mac_release.py code-newest >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,4 @@
+services:
+  sidecar:
+    image: busybox
+    ports: ["0.0.0.0:9000:9000"]

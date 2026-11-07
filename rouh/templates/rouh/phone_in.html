@@ -1,0 +1,10 @@
+{% extends "rouh/signin_base.html" %}
+{% comment %}Where the phone lands from the QR code on the computer (`rouh/web/relay.py`,
+   `phone_in`) when its code is wrong, used or too old, or when the address is opened
+   with no code at all.{% endcomment %}
+{% block title %}Sign in on your phone{% endblock %}
+{% block body %}
+ <h2>Sign in on your phone</h2>
+ <p>This sign-in code is used or too old. Each code works once, for ten minutes.</p>
+ <p>On your computer, open Rouh, go to Settings, Connections, Phone, press <strong>Sign in on my phone</strong>, and scan the new code with this phone's camera.</p>
+{% endblock %}

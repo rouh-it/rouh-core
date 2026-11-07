@@ -1,0 +1,50 @@
+{
+  "id": "n28-not-handed",
+  "name": "Made, not handed over",
+  "title": "Made, not handed over: work a task made for a named person that was never shared with them, in the morning brief, with Open the task and Handed over",
+  "aliases": [
+    "not handed over",
+    "who is still waiting for my work",
+    "what have I not sent yet",
+    "made for somebody"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<path d=\"M4 12h11M11 8l4 4-4 4\"/><path d=\"M15 5h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-3\"/>",
+  "attaches_to": [
+    "task"
+  ],
+  "maturity": "lab",
+  "switch": "not_handed",
+  "signals": {
+    "events": {
+      "task": "You pressed Open the task on work made and not handed over, in the morning brief",
+      "handed": "You pressed Handed over on work made for somebody, in the morning brief"
+    },
+    "runs": {
+      "shown": "Rouh put work made for somebody and never shared with them in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the Where this stands of your open tasks' notes",
+      "reads who each task and its pages were shared with",
+      "reads when each open line was written, from the workspace's history",
+      "keeps the lines you say were handed over in your own settings"
+    ],
+    "accounts": [],
+    "tables": [
+      "task",
+      "page_guests",
+      "users",
+      "user_settings",
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch not_handed off on its row in Evolution, Mutations, and the section is gone; to remove it for good revert night 28's commit (rouh/not_handed.py, the brief_not_handed route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawNotHanded and its helpers in briefpage.js, the .bf-nothanded-task rule in briefpage.css, this manifest) and delete the user setting not_handed."
+  }
+}

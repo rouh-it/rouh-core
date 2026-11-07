@@ -1,0 +1,41 @@
+{
+  "id": "changes",
+  "name": "Changes",
+  "title": "Changes: this Rouh's own code, its undo points, and the protected core that checks every change",
+  "aliases": [
+    "undo",
+    "undo points",
+    "put back",
+    "roll back",
+    "doctor",
+    "protected core",
+    "guard",
+    "code changes",
+    "versions of rouh"
+  ],
+  "group": "machine",
+  "route": "/anatomy/meta/changes",
+  "anatomy": {
+    "order": 35
+  },
+  "icon": "<path d=\"M4 12a8 8 0 1 0 2.3-5.6\"/><path d=\"M4 4v4h4\"/><path d=\"M12 8v4l3 2\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "asks the protected core beside this Rouh for its undo points and their state, over its socket",
+      "puts this Rouh's code back to an undo point when an administrator presses Put back",
+      "reads changes a run proposes from the shared folder /run/one/proposals into this Rouh's code, and asks the protected core to check them"
+    ],
+    "accounts": [],
+    "tables": [],
+    "jobs": [
+      "the look for proposed changes and the doctor's word, every 10 seconds where a protected core is beside this Rouh (codechanges.Watch)"
+    ],
+    "remove": "Delete rouh/codechanges.py, rouh/web/changes.py, changespage.js/.css, the changes section in rouh/templates/rouh/index.html, its two routes in rouh/project/urls.py, code_changes in rouh/runtime.py, its entry in app/runs.js and globals.d.ts, and this manifest. The protected core keeps its undo points either way."
+  }
+}

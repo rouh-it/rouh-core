@@ -1,0 +1,155 @@
+#!/bin/sh
+#
+# rouh-backup: the stack's nightly copies of Rouh's database (CONTAINERS.md, backup.daily).
+#
+# Runs in the stack's backup part, on the PostgreSQL image the release names, so its pg_dump and
+# pg_restore are the database server's own version (the base has no PostgreSQL client, and one of
+# another version may not read or write the server's dumps). The part is on the database network
+# only, has the database's password and nothing else, and writes only the backups volume, which
+# the core reads (ROUH_BACKUP_DIR) to say when the newest copy was made and to send the weekly copy
+# off the machine (rouh/offsite.py).
+#
+#   rouh-backup serve          what the part runs: a copy every day at ROUH_BACKUP_AT (UTC, 03:40 as
+#                              on the server), or at the first minute after it the machine is awake,
+#                              the newest ROUH_BACKUP_KEEP (7) kept
+#   rouh-backup now            a copy now
+#   rouh-backup list           the copies there are, newest last
+#   rouh-backup restore NAME   the database put back as it was in that copy (or "newest"); the core
+#                              must be stopped first, and this refuses while it is connected
+#
+# As root only long enough to give the volume to rouh (10001); every copy is rouh's alone (0600).
+#   docker compose exec backup rouh-backup now
+set -eu
+
+ROOT="${ROUH_BACKUP_DIR:-/backups}"
+DIR="$ROOT/daily"
+AT="${ROUH_BACKUP_AT:-03:40}"
+KEEP="${ROUH_BACKUP_KEEP:-7}"
+ME=10001
+
+if [ "$(id -u)" = 0 ]; then
+  install -d -o "$ME" -g "$ME" -m 0750 "$ROOT" "$DIR"
+  chown "$ME:$ME" "$ROOT"
+  if command -v setpriv >/dev/null 2>&1; then
+    exec setpriv --reuid="$ME" --regid="$ME" --clear-groups -- "$0" "$@"
+  elif command -v gosu >/dev/null 2>&1; then
+    exec gosu "$ME:$ME" "$0" "$@"
+  fi
+  echo "rouh-backup: neither setpriv nor gosu is in this image to stop being root with; nothing done" >&2
+  exit 1
+fi
+
+umask 077
+export HOME=/tmp
+mkdir -p "$DIR"
+case "$KEEP" in ''|*[!0-9]*) KEEP=7 ;; esac
+[ "$KEEP" -ge 1 ] || KEEP=1
+
+stamp_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+json_text() { printf '%s' "$1" | tr '\n\r\t' '   ' | sed 's/\\/\\\\/g; s/"/\\"/g' | cut -c1-400; }
+
+status() {                       # status OK FILE BYTES ERROR
+  tmp="$DIR/.last.json"
+  kept="$(ls -1 "$DIR" 2>/dev/null | grep -c '^rouh-[0-9]\{8\}-[0-9]\{6\}\.dump$' || true)"
+  printf '{"ok": %s, "at": "%s", "file": "%s", "bytes": %s, "kept": %s, "error": "%s"}\n' \
+    "$1" "$(stamp_iso)" "$2" "${3:-0}" "$kept" "$(json_text "$4")" > "$tmp"
+  mv -f "$tmp" "$DIR/last.json"
+}
+
+prune() {
+  ls -1 "$DIR" | grep '^rouh-[0-9]\{8\}-[0-9]\{6\}\.dump$' | sort -r | tail -n +"$((KEEP + 1))" |
+    while read -r old; do rm -f "$DIR/$old"; done
+}
+
+now() {
+  name="rouh-$(date -u +%Y%m%d-%H%M%S).dump"
+  part="$DIR/.$name.part"
+  if pg_dump -Fc -f "$part" 2>"$DIR/.error"; then
+    mv -f "$part" "$DIR/$name"
+    bytes="$(wc -c < "$DIR/$name" | tr -d ' ')"
+    prune
+    status true "$name" "$bytes" ""
+    rm -f "$DIR/.error"
+    echo "rouh-backup: copied the database into $name, $bytes bytes; the newest $KEEP are kept"
+  else
+    why="$(tail -c 400 "$DIR/.error" 2>/dev/null || true)"
+    rm -f "$part" "$DIR/.error"
+    status false "" 0 "pg_dump failed: $why"
+    echo "rouh-backup: the copy failed: $why" >&2
+    return 1
+  fi
+}
+
+minutes() {                      # minutes HH:MM -> minutes since midnight
+  h="${1%%:*}" m="${1##*:}"
+  echo $(( $(expr "$h" + 0) * 60 + $(expr "$m" + 0) ))
+}
+
+migrated() {                     # whether the database holds a Rouh yet (the core migrates it)
+  [ "$(psql -Atqc "select to_regclass('public.django_migrations') is not null" 2>/dev/null)" = t ]
+}
+
+serve() {
+  case "$AT" in [0-2][0-9]:[0-5][0-9]) ;; *) echo "rouh-backup: ROUH_BACKUP_AT is $AT, not HH:MM; 03:40 is used" >&2; AT=03:40 ;; esac
+  echo "rouh-backup: a copy of the database every day at $AT UTC into the backups volume, the newest $KEEP kept"
+  # The part runs this as its first process, with no init: a stop is answered here, at once.
+  trap 'exit 0' TERM INT
+  tried=0
+  while :; do
+    today="$(date -u +%Y%m%d)"
+    if [ "$(minutes "$(date -u +%H:%M)")" -ge "$(minutes "$AT")" ] \
+       && ! ls "$DIR"/rouh-"$today"-*.dump >/dev/null 2>&1 \
+       && [ $(( $(date +%s) - tried )) -ge 3600 ] && migrated; then
+      tried="$(date +%s)"
+      now || true                # tried again in an hour; last.json says why
+    fi
+    sleep 60 &
+    wait $! || true
+  done
+}
+
+list() {
+  ls -1 "$DIR" | grep '^rouh-[0-9]\{8\}-[0-9]\{6\}\.dump$' | sort | while read -r f; do
+    printf '%s  %s bytes\n' "$f" "$(wc -c < "$DIR/$f" | tr -d ' ')"
+  done
+}
+
+restore() {                      # (its own variable: now() sets $name)
+  copy="${1:-}"
+  [ "$copy" = newest ] && copy="$(ls -1 "$DIR" | grep '^rouh-[0-9]\{8\}-[0-9]\{6\}\.dump$' | sort | tail -n 1)"
+  case "$copy" in rouh-[0-9]*-[0-9]*.dump) ;; *) echo "rouh-backup: name a copy (rouh-backup list), or newest" >&2; exit 2 ;; esac
+  [ -f "$DIR/$copy" ] || { echo "rouh-backup: there is no copy called $copy" >&2; exit 2; }
+  busy="$(psql -Atqc "select count(*) from pg_stat_activity where datname = current_database() and pid <> pg_backend_pid() and backend_type = 'client backend'")"
+  if [ "$busy" != 0 ]; then
+    echo "rouh-backup: Rouh is still connected to its database ($busy connections). Stop the core first (docker compose stop core), then restore, then start it again." >&2
+    exit 1
+  fi
+  # The database as it is now is copied first, so a restore can itself be undone. Then the copy is
+  # restored into a new database, and only once that has worked is it put in the place of Rouh's
+  # own, by renaming the two: a restore that fails leaves Rouh's database exactly as it was.
+  # (pg_restore --clean over the live one cannot drop a partitioned table's constraints.)
+  db="${PGDATABASE:-rouh}" new="${PGDATABASE:-rouh}_restoring" old="${PGDATABASE:-rouh}_before_restore"
+  KEEP=$((KEEP + 1))             # so the copy made now never pushes out the one being restored
+  now >/dev/null || { echo "rouh-backup: the database as it is now could not be copied first; nothing restored" >&2; exit 1; }
+  echo "rouh-backup: the database as it was just now is kept as $(ls -1 "$DIR" | grep '^rouh-[0-9]\{8\}-[0-9]\{6\}\.dump$' | sort | tail -n 1)"
+  psql -d postgres -Atqc "drop database if exists \"$new\"" >/dev/null
+  psql -d postgres -Atqc "create database \"$new\"" >/dev/null
+  if ! pg_restore -d "$new" --no-owner --no-privileges --exit-on-error "$DIR/$copy"; then
+    psql -d postgres -Atqc "drop database if exists \"$new\"" >/dev/null || true
+    echo "rouh-backup: $copy could not be restored; Rouh's database is as it was" >&2
+    exit 1
+  fi
+  psql -d postgres -Atqc "drop database if exists \"$old\"" >/dev/null
+  psql -d postgres -Atqc "alter database \"$db\" rename to \"$old\"" >/dev/null
+  psql -d postgres -Atqc "alter database \"$new\" rename to \"$db\"" >/dev/null
+  psql -d postgres -Atqc "drop database \"$old\"" >/dev/null
+  echo "rouh-backup: the database is as it was in $copy"
+}
+
+case "${1:-}" in
+  serve) serve ;;
+  now) now ;;
+  list) list ;;
+  restore) restore "${2:-}" ;;
+  *) echo "rouh-backup serve | now | list | restore NAME|newest" >&2; exit 2 ;;
+esac

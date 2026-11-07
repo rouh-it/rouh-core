@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""rouh - Rouh's commands for a workspace, run from inside a checkout of one.
+
+    rouh objecttree create "What it is called" --type task --owner <id>
+    rouh objecttree move <id> --to <owner id>
+    rouh objecttree verify
+    rouh numbering next --at origin/main
+    rouh xray check <page>
+
+The workspace is the nearest folder up from where it is run with `_migration-map.json` in it,
+or else the one ROUH_WORKSPACE names.
+
+`objecttree` makes, moves and checks the rows in Rouh's database as well as the folders, so it
+is Rouh that runs it: this posts the words to Rouh on this machine
+(http://127.0.0.1:8021/internal/objecttree, or ROUH_URL), Rouh runs `rouh/objecttree.py`
+against this checkout, hands what it wrote to the checkout's owner, and this prints what it
+said. Until 27 October 2026 it ran the module here, with whatever python3 it found and a
+database login a job does not have, and a job could not make a step (`rouh/web/objecttreeapi.py`).
+When Rouh cannot be reached it says so and exits 2, and nothing was made.
+
+`numbering` and `xray` read only git and files, and run here, as `python -m rouh.<command>`
+from Rouh's code, which is this script's own repository.
+
+Standard library only, so it runs with any python3.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+CODE = Path(__file__).resolve().parent.parent
+LOCAL = "http://127.0.0.1:8021"
+#: Making a task reads the tree and indexes the new folder, which can take a while.
+TIMEOUT = 180
+#: The commands that need nothing but git and the files.
+HERE = ("numbering", "xray")
+
+
+def fail(message: str, code: int = 1) -> None:
+    print(f"rouh: {message}", file=sys.stderr)
+    sys.exit(code)
+
+
+def workspace() -> str:
+    here = Path.cwd().resolve()
+    for folder in (here, *here.parents):
+        if (folder / "_migration-map.json").is_file():
+            return str(folder)
+    return os.environ.get("ROUH_WORKSPACE", "").strip()
+
+
+def who() -> str:
+    run = os.environ.get("ONE_RUN", "").strip()
+    if run:
+        return f"run {run}"
+    job = os.environ.get("ROUH_JOB", "").strip()
+    return f"job {job}" if job else "a terminal on this machine"
+
+
+def worker_key() -> dict:
+    """In the containers, the key and address Rouh gave the worker (`rouh/workerkey.py`), else {}."""
+    path = os.environ.get("ROUH_WORKER_KEY_FILE", "").strip() or "/run/one/rouh-worker.json"
+    try:
+        said = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return said if isinstance(said, dict) and said.get("token") else {}
+
+
+def objecttree(words: list[str]) -> int:
+    root = workspace()
+    if not root:
+        fail("this is not inside a workspace (no _migration-map.json above here), "
+             "and ROUH_WORKSPACE names none.", 2)
+    key = worker_key()
+    url = (os.environ.get("ROUH_URL", "").strip() or key.get("url") or LOCAL).rstrip("/") + "/internal/objecttree"
+    body = {"root": root, "args": words, "by": who()}
+    if key:
+        # In the containers Rouh cannot see this checkout: the tree goes with the words, and what
+        # Rouh changed in it comes back to be made here (rouh/web/objecttreeapi.py, `_carried`).
+        body.update(tree=carry(root), first=first_commit(root))
+    data = json.dumps(body).encode()
+    headers = {"Content-Type": "application/json"}
+    if key:
+        headers["X-Rouh-Worker-Key"] = key["token"]
+    ask = urllib.request.Request(url, data=data, method="POST", headers=headers)
+    try:
+        # Never through a proxy: Rouh refuses an internal call that came through one.
+        with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(ask, timeout=TIMEOUT) as reply:
+            said = json.loads(reply.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        try:
+            said = json.loads(exc.read() or b"{}")
+        except ValueError:
+            said = {}
+        fail(f"Rouh refused it ({exc.code}): {said.get('error') or exc.reason}. "
+             "Nothing was changed.", 2)
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        fail(f"could not reach Rouh at {url} ({exc}). Nothing was changed.", 2)
+    if "changes" in said:
+        put_back(root, said)
+    sys.stdout.write(said.get("out") or "")
+    sys.stderr.write(said.get("err") or "")
+    return int(said.get("code") or 0)
+
+
+#: What a tree is made of, which is all that is carried (rouh/web/objecttreeapi.py, TREE_FILES).
+TREE_FILES = ("_migration-map.json", ".object.json", "AGENTS.md", "step.md")
+
+
+def carry(root: str) -> str:
+    """The checkout's tree, packed: only the files a tree is made of, never the rest."""
+    import base64
+    import io
+    import tarfile
+
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        for folder, dirs, files in os.walk(root):
+            dirs[:] = [d for d in dirs if d not in (".git", ".one", "node_modules")]
+            for name in files:
+                if name in TREE_FILES:
+                    path = os.path.join(folder, name)
+                    tar.add(path, arcname=os.path.relpath(path, root))
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def first_commit(root: str) -> str:
+    import subprocess
+
+    done = subprocess.run(["git", "-C", root, "rev-list", "--max-parents=0", "HEAD"],
+                          capture_output=True, text=True)
+    return done.stdout.split()[-1] if done.returncode == 0 and done.stdout.split() else ""
+
+
+def put_back(root: str, said: dict) -> None:
+    """What Rouh changed in the carried tree, made in this checkout: an object folder moved as a
+    whole (git mv, with everything in it), and each file written or removed as Rouh left it."""
+    import base64
+    import subprocess
+
+    base = Path(root).resolve()
+
+    def inside(rel: str) -> Path:
+        path = (base / rel).resolve()
+        if base not in path.parents:
+            fail(f"Rouh answered with a path outside the checkout ({rel}). Nothing more was changed.", 2)
+        return path
+
+    for change in said.get("changes") or []:
+        kind, paths = change[0], change[1:]
+        if kind == "R" and len(paths) == 2 and os.path.basename(paths[0]) == ".object.json":
+            was, now = inside(paths[0]).parent, inside(paths[1]).parent
+            if was.is_dir() and not now.exists():
+                now.parent.mkdir(parents=True, exist_ok=True)
+                moved = subprocess.run(["git", "-C", root, "mv", "--", str(was), str(now)], capture_output=True)
+                if moved.returncode:
+                    was.rename(now)
+        elif kind == "D":
+            gone = inside(paths[0])
+            if gone.is_file():
+                gone.unlink()
+    for rel, packed in (said.get("files") or {}).items():
+        path = inside(rel)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(base64.b64decode(packed))
+
+
+def here(command: str, words: list[str]) -> None:
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(CODE) + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    root = workspace()
+    if root:
+        env["ROUH_WORKSPACE"] = root
+    os.execve(sys.executable, [sys.executable, "-m", f"rouh.{command}", *words], env)
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if not args or args[0] in ("-h", "--help"):
+        print(__doc__.split("\n\n")[1])
+        return 2
+    command, words = args[0], args[1:]
+    if command == "objecttree":
+        return objecttree(words)
+    if command in HERE and re.fullmatch(r"[a-z_]+", command):
+        here(command, words)
+    fail(f"{command} is not one of Rouh's commands: objecttree, numbering, xray.", 2)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

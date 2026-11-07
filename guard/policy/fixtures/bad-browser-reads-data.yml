@@ -1,0 +1,3 @@
+services:
+  browser:
+    volumes: ["core-data:/data:ro"]

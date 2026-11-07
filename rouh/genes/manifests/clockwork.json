@@ -1,0 +1,151 @@
+{
+  "id": "clockwork",
+  "name": "Clockwork",
+  "title": "Clockwork: your reminders, and the work Rouh does at a time",
+  "aliases": [
+    "reminders",
+    "reminder",
+    "remind me",
+    "schedule",
+    "scheduled",
+    "timers",
+    "alarms",
+    "repeat",
+    "calendar",
+    "at a time",
+    "nightly"
+  ],
+  "group": "time",
+  "route": "/clockwork",
+  "icon": "<circle cx=\"12\" cy=\"13\" r=\"7.5\"/><path d=\"M12 9.3V13l2.6 1.7\"/><path d=\"M4.2 6.2l2.6-2.4M19.8 6.2l-2.6-2.4\"/>",
+  "attaches_to": [
+    "task",
+    "person"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 10,
+    "opens": "own",
+    "row": "remindersRow",
+    "controls": "remindersView",
+    "marks": [
+      {
+        "id": "remindersHint",
+        "class": "sb-row-hint"
+      }
+    ]
+  },
+  "touches": {
+    "permissions": [
+      "acts at a time on the person's behalf, and for a trusted contact only within their grants"
+    ],
+    "accounts": [
+      "Telegram (to say a reminder)",
+      "Gmail (to send one to a contact, through the outbox)"
+    ],
+    "tables": [
+      "reminders"
+    ],
+    "jobs": [
+      "the timekeeper fires every row at its time (rouh/timekeeper.py)"
+    ],
+    "remove": "Not removable without the timekeeper, which every scheduled job runs through."
+  },
+  "uses": {
+    "tools": [
+      "schedule",
+      "upcoming",
+      "change_scheduled",
+      "clockwork_for_contact"
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "clockwork.item",
+      "version": 1,
+      "name": "Clockwork items",
+      "action": "clockwork",
+      "said": "put items on Clockwork that are theirs",
+      "resource": "self",
+      "authority": "grant",
+      "legacy_grant": "clockwork",
+      "rows": true,
+      "effects": [
+        "schedule"
+      ],
+      "tools": [
+        {
+          "tool": "clockwork_for_contact",
+          "when": {
+            "action": [
+              "add"
+            ]
+          },
+          "values": {
+            "to": "to"
+          },
+          "value_defaults": {
+            "to": "owner"
+          },
+          "value_map": {
+            "to": {
+              "petar": "owner",
+              "contact": "them"
+            }
+          }
+        },
+        {
+          "tool": "clockwork_for_contact",
+          "when": {
+            "action": [
+              "change",
+              "resume"
+            ]
+          },
+          "values": {
+            "to": "to"
+          },
+          "value_map": {
+            "to": {
+              "petar": "owner",
+              "contact": "them"
+            }
+          }
+        },
+        {
+          "tool": "clockwork_for_contact",
+          "when": {
+            "action": [
+              "list",
+              "pause"
+            ]
+          },
+          "counts": false
+        }
+      ],
+      "constraints": {
+        "per_day": {
+          "type": "count",
+          "min": 1,
+          "max": 10,
+          "default": 2,
+          "said": "up to {n} new items a day"
+        },
+        "to": {
+          "type": "choice",
+          "values": {
+            "them": "to them",
+            "owner": "to you",
+            "both": "to both of you"
+          },
+          "default": [
+            "them"
+          ],
+          "said": "going {values}"
+        }
+      },
+      "about": "Each item is theirs, shows them as its owner and who it goes to, and does at its time only what their other grants allow, checked again when it runs."
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+{% extends "rouh/signin_base.html" %}
+{% comment %}The sign-in page: one email box and Continue, for the owner and every guest alike
+   (`rouh/web/auth.py`, `rouh/signin.py`). What follows is Rouh's to decide, never a choice here:
+   a passkey this browser holds for the address, else a link and a code by email, else a password.
+   No Google button and no other outside way in: Google is a source of data, never a login.
+
+   The passkey part is the script at the end: the addresses a passkey was added for in this
+   browser are kept in this browser alone (`rouh-passkeys`), so the server is never asked whether
+   an address has one.{% endcomment %}
+{% block body %}
+ <p>Sign in to carry on.</p>{% if note %}
+ <p class="{% if note_good %}good{% else %}bad{% endif %}" role="{% if note_good %}status{% else %}alert{% endif %}">{{ note }}</p>{% endif %}
+ <form class="login" method="post" action="/login" id="emailForm">
+  {% csrf_token %}<input type="hidden" name="step" value="email">{% if next_to != "/" %}
+  <input type="hidden" name="next" value="{{ next_to }}">{% endif %}
+  <div class="field">
+   <label for="email">Email</label>
+   <input id="email" name="email" type="text" autofocus autocapitalize="none" autocorrect="off"
+          autocomplete="username webauthn" inputmode="email" value="{{ email }}" required>
+  </div>
+  <button type="submit" id="continueBtn">Continue with email</button>
+ </form>
+ <div id="passkeyWay" hidden>
+  <p>This device has a passkey for <strong id="passkeyFor"></strong>.</p>
+  <button type="button" id="passkeyBtn">Sign in with your passkey</button>
+  <p class="bad" id="passkeySaid" role="alert" hidden></p>
+  <p class="back"><a href="#" id="linkInstead">Send me a link instead</a></p>
+ </div>
+ {% if phone_way and owner_way %}
+ <p>This Rouh's owner: on your computer, open Rouh, go to Settings, Connections, Phone, press <strong>Sign in on my phone</strong>, and scan the code with this phone's camera.</p>
+ {% endif %}
+<script>
+(function () {
+  'use strict';
+  var form = document.getElementById('emailForm');
+  var box = document.getElementById('email');
+  var way = document.getElementById('passkeyWay');
+  var said = document.getElementById('passkeySaid');
+  var instead = false;
+  function held() {
+    try { return JSON.parse(localStorage.getItem('rouh-passkeys') || '[]') || []; } catch (e) { return []; }
+  }
+  function b64u(buf) {
+    var s = '', b = new Uint8Array(buf);
+    for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function unb64u(t) {
+    t = t.replace(/-/g, '+').replace(/_/g, '/');
+    while (t.length % 4) t += '=';
+    var s = atob(t), out = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+    return out.buffer;
+  }
+  function csrf() { var f = form.querySelector('[name=csrfmiddlewaretoken]'); return f ? f.value : ''; }
+  form.addEventListener('submit', function (e) {
+    var email = (box.value || '').trim().toLowerCase();
+    if (instead || !window.PublicKeyCredential || held().indexOf(email) < 0) return;
+    e.preventDefault();
+    document.getElementById('passkeyFor').textContent = email;
+    form.hidden = true;
+    way.hidden = false;
+    document.getElementById('passkeyBtn').focus();
+  });
+  document.getElementById('linkInstead').addEventListener('click', function (e) {
+    e.preventDefault();
+    instead = true;
+    form.hidden = false;
+    way.hidden = true;
+    form.requestSubmit ? form.requestSubmit() : form.submit();
+  });
+  document.getElementById('passkeyBtn').addEventListener('click', function () {
+    said.hidden = true;
+    var next = (form.querySelector('[name=next]') || {}).value || '/';
+    fetch('/login/passkey/options', { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRFToken': csrf() } })
+      .then(function (r) { return r.json(); })
+      .then(function (o) {
+        return navigator.credentials.get({ publicKey: { challenge: unb64u(o.challenge), rpId: o.rpId,
+          timeout: o.timeout, userVerification: o.userVerification, allowCredentials: [] } });
+      })
+      .then(function (c) {
+        return fetch('/login/passkey/verify?next=' + encodeURIComponent(next), {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+          body: JSON.stringify({ id: c.id, clientDataJSON: b64u(c.response.clientDataJSON),
+            authenticatorData: b64u(c.response.authenticatorData), signature: b64u(c.response.signature) }) });
+      })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (got) {
+        if (got.ok) { location.assign(got.j.next || '/'); return; }
+        said.textContent = got.j.error || 'The passkey did not sign you in.';
+        said.hidden = false;
+      })
+      .catch(function () {
+        said.textContent = 'The passkey was not used. Press it again, or send yourself a link instead.';
+        said.hidden = false;
+      });
+  });
+}());
+</script>
+{% endblock %}

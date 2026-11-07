@@ -1,0 +1,50 @@
+{
+  "id": "gene-pool",
+  "name": "Gene Pool",
+  "title": "Gene Pool: joined at birth, with Outgoing genes and Incoming genes each Manual until you choose; genes other Rouhs give, picked for how you use yours, to install as they are or made different",
+  "aliases": [
+    "pool",
+    "gene pool",
+    "other rouhs' genes",
+    "genes from other rouhs",
+    "install a gene",
+    "share a gene",
+    "fork a gene",
+    "genes for you"
+  ],
+  "group": "evolution",
+  "route": "/evolution/pool",
+  "icon": "<circle cx=\"7.5\" cy=\"7\" r=\"2.4\"/><circle cx=\"16.5\" cy=\"7\" r=\"2.4\"/><path d=\"M9.9 7h4.2\"/><path d=\"M3 14.5c1.5 0 1.5-1.2 3-1.2s1.5 1.2 3 1.2 1.5-1.2 3-1.2 1.5 1.2 3 1.2 1.5-1.2 3-1.2 1.5 1.2 3 1.2\"/><path d=\"M3 19c1.5 0 1.5-1.2 3-1.2s1.5 1.2 3 1.2 1.5-1.2 3-1.2 1.5 1.2 3 1.2 1.5-1.2 3-1.2 1.5 1.2 3 1.2\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "nav": {
+    "place": "list",
+    "order": 30,
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "joins the Gene Pool by itself when this Rouh is born on rouh.land or registered there, under its own name, sending only that name and its daily public key, which rouh.land already has; joining exchanges no gene. A Rouh rouh.land does not know joins only with an invitation its staff made, by manage.py gene_pool join; every request is signed with this Rouh's own key",
+      "gives only the genes an administrator approved on Outgoing genes, or, when they chose Suggested or Automatic there, what passes every check; Manual by default; a sub-gene adding an outside account or money waits for a yes",
+      "sends with each gene it gives its identity in Rouh's code, a hash of its manifest id or key, so a Rouh built from the same code sees it as already there; never installs, proposes or auto-approves a gene another Rouh already gave from the same code",
+      "sends the Pool once a day the banded share of use, the mark and the model's score of each gene given or installed; never a chat, a message, a count or a time",
+      "asks a model which of the Pool's genes fit how you use Rouh, from your genes and their relative use (Models, Genes for you from the Gene Pool)",
+      "starts a run that builds a Pool gene into your Rouh, as it is or made different, behind its own switch and off, only when you press Install and confirm; Incoming genes is Manual by default, and Off lets nothing in"
+    ],
+    "accounts": [
+      "the Gene Pool on rouh.land's registry, once this Rouh is registered on rouh.land"
+    ],
+    "tables": [
+      "pool_membership"
+    ],
+    "jobs": [
+      "every fifteen minutes: a Rouh registered on rouh.land joined if it is not yet, and once it has: approved genes kept in sync, the catalogue read hourly, the daily report sent (genepool.tick)"
+    ],
+    "remove": "Turn its switch gene_pool off, which stops every request to the Pool; Take it out, or Decline, on Outgoing genes withdraws a gene this Rouh gave. To take it out, delete this manifest, rouh/genepool.py, rouh/web/genepool.py and genepoolpage.js, the Pool's page in evolutionpage.js and the pool part of genelogpage.css, the Sharing box on a gene log page, and drop the table pool_membership with a migration."
+  },
+  "uses": {
+    "purposes": [
+      "gene_match"
+    ]
+  }
+}

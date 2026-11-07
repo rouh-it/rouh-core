@@ -1,0 +1,4 @@
+services:
+  peek:
+    image: !!str busybox
+    network_mode: none

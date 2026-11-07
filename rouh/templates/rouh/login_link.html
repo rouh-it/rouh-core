@@ -1,0 +1,16 @@
+{% extends "rouh/signin_base.html" %}
+{% comment %}A sign-in letter's link, opened in a browser other than the one that asked for it, or
+   one that no longer works (`rouh/web/auth.py`, `link`). One press first, so a mail service that
+   opens every link to check it never uses one up.{% endcomment %}
+{% block body %}{% if bad %}
+ <h2>That link does not work</h2>
+ <p class="bad" role="alert">{{ bad }}</p>
+ <p class="back"><a href="/login">Sign in again</a></p>
+{% else %}
+ <h2>Sign in to Rouh</h2>
+ <p>Signing in as <strong>{{ email }}</strong>.</p>
+ <form method="post" action="/login/link/{{ token }}">
+  {% csrf_token %}
+  <button type="submit" autofocus>Sign in</button>
+ </form>
+{% endif %}{% endblock %}

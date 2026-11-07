@@ -1,0 +1,150 @@
+{
+  "id": "runs",
+  "name": "Metabolism",
+  "title": "Metabolism",
+  "aliases": [
+    "runs",
+    "run",
+    "everyday work",
+    "mutation runs",
+    "jobs",
+    "job",
+    "crew",
+    "workers",
+    "agents",
+    "terminal",
+    "one program"
+  ],
+  "group": "evolution",
+  "route": "/metabolism",
+  "icon": "<path d=\"M8.6 7.6 4.2 12l4.4 4.4M15.4 7.6 19.8 12l-4.4 4.4M13.6 5.6l-3.2 12.8\"/>",
+  "attaches_to": [
+    "task"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 40,
+    "opens": "own",
+    "row": "runsRow",
+    "controls": "runsView",
+    "marks": [
+      {
+        "id": "runsBadge",
+        "class": "sb-row-dot"
+      }
+    ]
+  },
+  "touches": {
+    "permissions": [
+      "starts Claude Code and Codex runs on this machine"
+    ],
+    "accounts": [],
+    "tables": [
+      "run",
+      "crewmates",
+      "crew_events",
+      "crew_tree_events",
+      "worker_outbox"
+    ],
+    "jobs": [],
+    "remove": "Not removable: runs are how Rouh's work is done."
+  },
+  "uses": {
+    "tools": [
+      "delegate_task",
+      "assistant_job",
+      "one_runs",
+      "one_start",
+      "one_say",
+      "one_stop",
+      "one_answer",
+      "one_take",
+      "one_give",
+      "what_is_running",
+      "deploy_myself"
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "work.research",
+      "version": 1,
+      "name": "Research for them",
+      "action": "research",
+      "said": "have research done for them in your workspace, filed as a Guest task, with the result sent to them",
+      "resource": "none",
+      "authority": "grant",
+      "legacy_grant": "use",
+      "rows": true,
+      "effects": [
+        "start_job"
+      ],
+      "tools": [
+        {
+          "tool": "assistant_job"
+        },
+        {
+          "tool": "check_tasks",
+          "counts": false
+        },
+        {
+          "tool": "look_at_task",
+          "counts": false
+        }
+      ],
+      "constraints": {
+        "per_day": {
+          "type": "count",
+          "min": 1,
+          "max": 10,
+          "default": 2,
+          "said": "up to {n} pieces of work a day"
+        }
+      },
+      "about": "A background job: comparisons, plans, timelines, costings, reviews of their documents. About one of your tasks it needs read on that task as well. What the job does inside its run is held by its brief, not by these checks."
+    },
+    {
+      "id": "work.job",
+      "version": 1,
+      "name": "Work for them",
+      "action": "work",
+      "said": "have work done for them in your workspace - a document, a page, a presentation - filed as a Guest task, with the result sent to them",
+      "resource": "none",
+      "authority": "grant",
+      "legacy_grant": "use",
+      "rows": true,
+      "effects": [
+        "start_job"
+      ],
+      "tools": [
+        {
+          "tool": "assistant_job"
+        },
+        {
+          "tool": "make_picture"
+        },
+        {
+          "tool": "change_picture"
+        },
+        {
+          "tool": "check_tasks",
+          "counts": false
+        },
+        {
+          "tool": "look_at_task",
+          "counts": false
+        }
+      ],
+      "constraints": {
+        "per_day": {
+          "type": "count",
+          "min": 1,
+          "max": 10,
+          "default": 2,
+          "said": "up to {n} pieces of work a day"
+        }
+      },
+      "about": "A background job, or a picture. What the job does inside its run is held by its brief, not by these checks."
+    }
+  ]
+}

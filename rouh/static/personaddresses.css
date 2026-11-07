@@ -1,0 +1,71 @@
+/* A person's email addresses as one list (personaddresses.js; rouh/person_addresses.py): the same rows on
+   the contact card and on the profile, at every width. Each row is the address with its label, where it
+   comes from and its mailbox state under it, and its silo chip at the side, which drops under the address
+   when the row is narrow. Nothing is cut: a long address wraps. */
+.pa { display: grid; gap: 6px; min-width: 0; container-type: inline-size; }
+.pa-head { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.pa-title {
+  margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--dim);
+}
+.pa-rows { list-style: none; margin: 0; padding: 0; display: grid; }
+.pa-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: start;
+  padding: 8px 0; border-top: 1px solid var(--line-soft);
+}
+.pa-rows > li:first-child { border-top: 0; }
+.pa-main { display: grid; gap: 3px; min-width: 0; }
+.pa-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; }
+.pa-addr {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 13.5px;
+  line-height: 1.45; color: var(--text); overflow-wrap: anywhere; min-width: 0;
+}
+.pa-label {
+  font-size: 11px; font-weight: 600; line-height: 1.4; color: var(--dim);
+  border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; white-space: nowrap;
+}
+.pa-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12px; line-height: 1.5; }
+.pa-from { color: var(--dimmer); }
+.pa-box { font-weight: 600; white-space: nowrap; }
+.pa-box.is-good { color: var(--good); }
+.pa-box.is-bad { color: var(--bad); }
+.pa-box.is-quiet { color: var(--dim); font-weight: 500; }
+.pa-side { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
+.pa-silo { display: inline-grid; justify-items: end; gap: 1px; min-width: 0; }
+.pa-why { font-size: 11px; color: var(--dimmer); text-align: right; }
+.pa-silo-btn {
+  appearance: none; cursor: pointer; font: inherit; padding: 4px 0; min-height: 30px;
+  background: none; border: 0; display: inline-flex; align-items: center;
+}
+.pa-silo-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 999px; }
+.pa-silo-btn:hover .silo-chip { border-color: color-mix(in srgb, var(--silo) 80%, transparent); }
+.pa-silo-btn[aria-expanded="true"] .silo-chip { box-shadow: 0 0 0 2px var(--accent-soft); }
+.pa .silo-chip.is-none { background: transparent; border-style: dashed; border-color: var(--line); color: var(--dim); }
+.pa .silo-chip.is-none .silo-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
+.pa .silo-chip.is-derived { border-style: dashed; }
+.pa-choices {
+  grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 6px 0 2px;
+}
+.pa-hint { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--dimmer); }
+.pa-btn {
+  appearance: none; cursor: pointer; font: inherit; font-size: 12.5px; white-space: nowrap; text-decoration: none;
+  display: inline-flex; align-items: center; min-height: 30px; padding: 3px 12px; border-radius: 999px; box-sizing: border-box;
+  color: var(--accent); background: transparent; border: 1px solid var(--line);
+}
+.pa-btn:hover:not([disabled]) { border-color: var(--accent); }
+.pa-btn.is-main { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+.pa-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pa-btn[disabled], .pa button[disabled] { cursor: default; opacity: 0.55; }
+.pa-empty { margin: 0; padding: 6px 0; font-size: 13px; color: var(--dimmer); }
+.pa-said { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--bad); }
+.pa-said[hidden] { display: none; }
+.pa.is-busy { opacity: 0.75; }
+/* The caller's own controls for a row (the profile's Change and Remove for the iCloud card). */
+.pa-acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+@container (max-width: 420px) {
+  .pa-row { grid-template-columns: minmax(0, 1fr); }
+  .pa-side { justify-content: flex-start; }
+  .pa-silo { justify-items: start; }
+  .pa-why { text-align: left; }
+}

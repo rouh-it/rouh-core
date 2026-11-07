@@ -1,0 +1,42 @@
+{
+  "id": "n23-doc-add",
+  "name": "Add a document",
+  "title": "Add a document: a Google Doc link pasted under a task's Documents is kept in the task's notes in one press",
+  "aliases": [
+    "add a document",
+    "add a doc to the task",
+    "link a google doc",
+    "keep this doc in the task"
+  ],
+  "group": "work",
+  "route": "/tasks",
+  "icon": "<path d=\"M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10.5a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z\"/><path d=\"M14 3.5V8h4M12 11v6M9 14h6\"/>",
+  "attaches_to": [
+    "task"
+  ],
+  "maturity": "lab",
+  "switch": "doc_add",
+  "signals": {
+    "events": {
+      "added": "You pasted a Google Doc link under a task's Documents and pressed Add"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the pasted document's name in Rouh's own Google Drive",
+      "writes the document's link into the task's AGENTS.md, under Documents added"
+    ],
+    "accounts": [
+      "Google Drive"
+    ],
+    "tables": [
+      "user_settings"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch doc_add off on its row in Evolution, Mutations, and the field is gone from task pages; to remove it for good revert night 23's commit (the add, link_of, add_link, take_link and doc_add_on parts of rouh/task_docs.py, the add route in rouh/web/task_docs.py and rouh/project/urls.py, the doc_add act in cards.js, the odoc-add code in taskpage.js and the .odoc-add rules in taskbrowser.css, this manifest). Lines it added stay, as the task's own notes."
+  }
+}

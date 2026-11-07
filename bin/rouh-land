@@ -1,0 +1,260 @@
+#!/usr/bin/env python3
+"""rouh-land: how a run's work lands in the containers, in place of land.sh (ROUH_LAND_THROUGH).
+
+On the server the one program ends a run by handing its checkout to land.sh, which replays it onto
+main and pushes. In the containers every Rouh instance runs (deploy/stack/compose.yml) a run is in
+the worker, which may write neither the workspace's main nor Rouh's code, so this takes the same
+arguments and answers in the same shape (one line of JSON last), and hands the work over instead:
+
+- **Rouh's own code** (a clone of /code, the space `rouh`): its commits go to the protected core as
+  a proposal, the way `rouh-propose` hands them, and are live only if its checks pass, as a new
+  undo point (guard/README.md). When the code that runs moved on while the run worked, its work is
+  first fitted onto it with land.sh's own replay, rerere and merge pass (``fit``), into a scratch
+  repository, so the protected core always gets one change on top of the code that runs. On the
+  Creator Rouh, whose protected core pushes a checked change to rouh-core's main and keeps that main
+  fetched into /code as refs/upstream/heads/main (guard/rouh_guard/upstream.py), the work is fitted
+  onto rouh-core's main when that is ahead (CONTAINERS.md, creator.merge-runs). Nothing else is
+  pushed anywhere.
+- **The workspace**: its commits since main go to the core as a git bundle in the shared folder
+  (`ROUH_LANDINGS_DIR`, /run/one/landings), and the core lands them onto main with land.sh itself,
+  conflicts and all (rouh/workspace_follow.py). A bundle is data: nothing of the worker's is ever
+  run by the core.
+
+It waits for the answer, as land.sh does. Standard library only.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+LANDINGS = Path(os.environ.get("ROUH_LANDINGS_DIR", "/run/one/landings"))
+PROPOSALS = Path(os.environ.get("ROUH_PROPOSALS_DIR", "/run/one/proposals"))
+CODE = os.environ.get("ROUH_APP_DIR", "/code")
+WAIT = float(os.environ.get("ROUH_LAND_WAIT", "3600"))
+FIT_WAIT = float(os.environ.get("ROUH_LAND_FIT_WAIT", "900"))
+
+
+def say(**answer) -> int:
+    answer.setdefault("landed", False)
+    # The sentence a run reads, as land.sh ends with one, and the JSON the one program reads.
+    print(f"rouh-land: {answer.get('reason') or answer.get('state')}", file=sys.stderr)
+    print(json.dumps(answer))
+    return 0 if answer.get("state") in ("landed", "nothing") else 1
+
+
+def git(*args: str, cwd: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-c", "safe.directory=*", *args], cwd=cwd, capture_output=True, text=True)
+
+
+def is_code(path: str) -> bool:
+    top = git("rev-parse", "--show-toplevel", cwd=path).stdout.strip() or path
+    return (Path(top) / "manage.py").is_file() and (Path(top) / "rouh").is_dir() and (Path(top) / "one").is_dir()
+
+
+def wait_for(result: Path) -> dict | None:
+    end = time.time() + WAIT
+    while time.time() < end:
+        try:
+            got = json.loads(result.read_text())
+            if got.get("state") == "done":
+                return got
+        except (OSError, ValueError):
+            pass
+        time.sleep(3)
+    return None
+
+
+def hand(folder: Path, bundle_of: list[str], path: str, about: dict) -> tuple[Path, Path]:
+    folder.mkdir(parents=True, exist_ok=True)
+    name = time.strftime("%Y%m%d-%H%M%S", time.gmtime()) + f"-{os.getpid()}"
+    part = folder / f"{name}.bundle.part"
+    made = git("bundle", "create", "-q", str(part), *bundle_of, cwd=path)
+    if made.returncode:
+        raise RuntimeError((made.stderr or made.stdout).strip()[:300])
+    (folder / f"{name}.json").write_text(json.dumps(about))
+    part.rename(folder / f"{name}.bundle")
+    return folder / f"{name}.bundle", folder / f"{name}.result.json"
+
+
+UPSTREAM = "refs/upstream/heads/main"
+
+
+def onto(path: str) -> tuple[str, str, str]:
+    """(the code that runs, what the work goes on top of, why not) - the Creator Rouh's
+    rouh-core main when it is ahead of the code that runs, else the code that runs."""
+    base = git("rev-parse", "HEAD", cwd=CODE).stdout.strip()
+    up = git("rev-parse", "--verify", "-q", UPSTREAM, cwd=CODE).stdout.strip()
+    if not up or up == base or not base:
+        return base, base, ""
+    if git("merge-base", "--is-ancestor", base, up, cwd=CODE).returncode == 0:
+        return base, up, ""
+    if git("merge-base", "--is-ancestor", up, base, cwd=CODE).returncode == 0:
+        return base, base, ""
+    return base, "", ("the protected core is still fitting the last change onto rouh-core's main; "
+                      "end your turn again in a few minutes")
+
+
+def fit(a, path: str, target: str) -> dict:
+    """The run's commits replayed onto `target` by land.sh itself - patch-id, rerere, the merge
+    pass - with a scratch repository standing for main, so nothing is pushed anywhere real.
+    land.sh's own answer, whose state is "landed" when the work is on top of `target`."""
+    import tempfile
+
+    land = Path(path) / "land.sh"
+    if not land.is_file():
+        return {"state": "error", "reason": "this clone has no land.sh to fit the work with"}
+    scratch = Path(tempfile.mkdtemp(prefix="rouh-fit-"))
+    try:
+        bare = scratch / "main.git"
+        git("init", "-q", "--bare", str(bare), cwd=str(scratch))
+        git("fetch", "-q", CODE, target, cwd=path)
+        made = git("push", "-q", str(bare), f"{target}:refs/heads/main", cwd=path)
+        if made.returncode:
+            return {"state": "error", "reason": "the code that runs could not be put in a scratch repository: "
+                    + made.stderr.strip()[:200]}
+        git("remote", "remove", "fit", cwd=path)
+        git("remote", "add", "fit", str(bare), cwd=path)
+        # land.sh lands a branch of a job's own, never main: the work is fitted on one, and the
+        # branch the clone was on is moved to the result after.
+        was = git("symbolic-ref", "-q", "--short", "HEAD", cwd=path).stdout.strip() or "main"
+        git("switch", "-q", "-C", f"rouh-fit/{a.run or 'run'}", cwd=path)
+        # No editor and no prompt can ever be waited on here: nobody is at this terminal.
+        env = dict(os.environ, ROUH_LAND_FIT_ONLY="1", ROUH_LAND_DIR=str(scratch / "land"),
+                   ROUH_STACK_GUARD="0", GIT_EDITOR="true", GIT_SEQUENCE_EDITOR="true", EDITOR="true",
+                   GIT_TERMINAL_PROMPT="0")
+        # In the worker land.sh hands every landing to this program (ROUH_LAND_THROUGH); here it
+        # must do the fitting itself, or the two call each other until the time runs out.
+        env.pop("ROUH_LAND_THROUGH", None)
+        args = ["bash", str(land), "--path", path, "--remote", "fit", "--target", "main", "--no-deploy",
+                "--run", a.run or "fit", "--title", a.title or "a run's change", "--quiet"]
+        if a.merge:
+            args.append("--merge")
+        if a.base:
+            args += ["--from", a.base]
+        print(f"rouh-land: fitting the work onto {target[:12]} with land.sh", file=sys.stderr, flush=True)
+        # Its output into files, not pipes, and in a session of its own, so that at the time limit
+        # everything it started ends with it and nothing left over can hold this one open.
+        out_f, err_f = scratch / "fit.out", scratch / "fit.err"
+        with open(out_f, "w") as o, open(err_f, "w") as e:
+            proc = subprocess.Popen(args, cwd=path, stdout=o, stderr=e, stdin=subprocess.DEVNULL, env=env,
+                                    start_new_session=True)
+            try:
+                proc.wait(timeout=FIT_WAIT)
+            except subprocess.TimeoutExpired:
+                left = subprocess.run(["ps", "-o", "pid,etime,args", "-g", str(proc.pid)], capture_output=True,
+                                      text=True).stdout.strip().splitlines()[1:6]
+                os.killpg(proc.pid, 9)
+                proc.wait()
+                tail = err_f.read_text(errors="replace")[-300:].strip()
+                return {"state": "error", "reason": f"land.sh did not finish fitting in {int(FIT_WAIT)} s; still running: "
+                        + " / ".join(x.strip()[:120] for x in left) + f"; it said: {tail}"}
+        done = subprocess.CompletedProcess(args, proc.returncode, out_f.read_text(errors="replace"),
+                                           err_f.read_text(errors="replace"))
+        answer = {}
+        for line in reversed(done.stdout.strip().splitlines()):
+            try:
+                answer = json.loads(line)
+                break
+            except ValueError:
+                continue
+        if not answer:
+            return {"state": "error", "reason": "land.sh said nothing readable while fitting: "
+                    + (done.stderr or done.stdout).strip()[-200:]}
+        if answer.get("state") == "landed":
+            git("switch", "-q", "-C", was, cwd=path)
+        return answer
+    finally:
+        git("remote", "remove", "fit", cwd=path)
+        subprocess.run(["rm", "-rf", str(scratch)], check=False)
+
+
+def land_code(a, path: str) -> int:
+    base, target, why = onto(path)
+    head = git("rev-parse", "HEAD", cwd=path).stdout.strip()
+    if not base or head == base or git("merge-base", "--is-ancestor", head, base, cwd=path).returncode == 0:
+        return say(state="nothing", reason="nothing new to land")
+    if not target:
+        return say(state="handback", reason=why, handback=why[0].upper() + why[1:] + ".")
+    git("fetch", "-q", CODE, target, cwd=path)
+    if git("merge-base", "--is-ancestor", target, "HEAD", cwd=path).returncode != 0:
+        # The code that runs moved on while the run worked: its commits are fitted on top of it.
+        got = fit(a, path, target)
+        if got.get("state") != "landed":
+            if got.get("state") in ("handback", "needs-person", "parked"):
+                return say(**{**got, "landed": False})
+            return say(state="error", reason="the work could not be fitted onto the code that runs: "
+                       + str(got.get("reason") or got.get("state")))
+        if got.get("already"):
+            return say(state="nothing", reason="its commits are already in the code that runs")
+        head = git("rev-parse", "HEAD", cwd=path).stdout.strip()
+    try:
+        _, result = hand(PROPOSALS, ["HEAD", f"^{base}"], path,
+                         {"why": a.title or "a run's change", "by": f"run {a.run}" if a.run else "a run"})
+    except RuntimeError as e:
+        return say(state="error", reason=f"the change could not be handed to the protected core: {e}")
+    print(f"rouh-land: handed to the protected core as {result.name.replace('.result.json', '')}; waiting for its checks",
+          file=sys.stderr, flush=True)
+    got = wait_for(result)
+    if got is None:
+        return say(state="error", reason="the protected core did not answer in an hour; Changes in Rouh says what became of it")
+    if got.get("ok"):
+        point = (got.get("point") or {}).get("n")
+        return say(state="landed", landed=True, sha=got.get("commit") or head, deployed=True, deploy="live",
+                   deploy_reason=f"live as undo point {point}: the protected core checked it and Rouh started again on it",
+                   reason=f"checked by the protected core and live as undo point {point}")
+    return say(state="error", sha=head, deployed=False,
+               reason="the protected core did not take it: " + str(got.get("refused") or got.get("error") or "no reason given"))
+
+
+def land_workspace(a, path: str) -> int:
+    target = a.target or "main"
+    fetched = git("fetch", "-q", "origin", target, cwd=path)
+    if fetched.returncode:
+        return say(state="error", reason="the workspace's main could not be read: " + fetched.stderr.strip()[:200])
+    there = f"origin/{target}"
+    if git("rev-list", "--count", f"{there}..HEAD", cwd=path).stdout.strip() in ("", "0"):
+        return say(state="nothing", reason="nothing new to land")
+    try:
+        _, result = hand(LANDINGS, ["HEAD", f"^{there}"], path,
+                         {"run": a.run, "title": a.title, "from": a.base, "target": target,
+                          "autostash": a.autostash, "merge": a.merge})
+    except RuntimeError as e:
+        return say(state="error", reason=f"the work could not be handed to Rouh: {e}")
+    got = wait_for(result)
+    if got is None:
+        return say(state="error", reason="Rouh did not land it in an hour")
+    answer = got.get("land") or {}
+    if not isinstance(answer, dict) or "state" not in answer:
+        return say(state="error", reason=str(got.get("error") or "Rouh's landing said nothing readable"))
+    print(f"rouh-land: {answer.get('reason') or answer.get('state')}", file=sys.stderr)
+    print(json.dumps(answer))
+    return 0 if answer.get("landed") else 1
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="rouh-land")
+    ap.add_argument("--path", default=".")
+    ap.add_argument("--target", default="main")
+    ap.add_argument("--run", default="")
+    ap.add_argument("--title", default="")
+    ap.add_argument("--from", dest="base", default="")
+    ap.add_argument("--land-dir", default="")
+    ap.add_argument("--beside", default="")
+    ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--autostash", action="store_true")
+    ap.add_argument("--merge", action="store_true")
+    ap.add_argument("--no-deploy", action="store_true")
+    a, _ = ap.parse_known_args()
+    path = os.path.realpath(a.path)
+    if not os.path.isdir(path):
+        return say(state="error", reason=f"{a.path} is not a folder")
+    return land_code(a, path) if is_code(path) else land_workspace(a, path)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

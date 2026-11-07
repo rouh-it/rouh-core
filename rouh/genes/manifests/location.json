@@ -1,0 +1,38 @@
+{
+  "id": "location",
+  "name": "Location and time",
+  "title": "Where you are and your time zone",
+  "aliases": [
+    "location",
+    "time zone",
+    "timezone",
+    "where i am",
+    "city"
+  ],
+  "group": "machine",
+  "route": "/anatomy/you/location",
+  "anatomy": {
+    "order": 20
+  },
+  "icon": "<path d=\"M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z\"/><circle cx=\"12\" cy=\"10\" r=\"2.3\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "user_settings"
+    ],
+    "jobs": [],
+    "remove": "the Settings group's own cards in rouh/templates/rouh/index.html and its script, rouh/location.py and this manifest."
+  },
+  "uses": {
+    "tools": [
+      "ask_for_location"
+    ]
+  }
+}

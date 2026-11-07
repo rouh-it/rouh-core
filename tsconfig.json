@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "baseUrl": ".",
+    "paths": { "app/*": ["rouh/static/app/*"] },
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["rouh/static/app.js", "rouh/static/app/**/*.js", "rouh/static/app/**/*.d.ts"]
+}

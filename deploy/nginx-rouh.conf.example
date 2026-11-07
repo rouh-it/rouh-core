@@ -1,0 +1,144 @@
+# The Rouh site: Rouh and the one program, behind nginx on port 443.
+#
+# A template. Copy it to /etc/nginx/sites-available/rouh on the machine, link
+# it from sites-enabled, and change the three lines that are the installation's
+# own: `server_name` (the address in ROUH_PUBLIC_URL, and any other name in
+# ROUH_PUBLIC_HOSTS) and the certificate's two paths. Nothing in the
+# repository reads or installs this file; each installation keeps its own
+# site file, and SETUP.md says what else an installation sets.
+#
+# As written it expects the address to be behind Cloudflare with an Origin CA
+# certificate (the zone's SSL mode Full or Full (strict), the record proxied),
+# so there is no port-80 block and nothing here renews. With a certificate of
+# another kind, change the two ssl lines and add whatever renews it.
+#
+# The voice goes over the WebSocket on this same port 443, not over WebRTC, so
+# nothing but 443 needs to be open. Rouh listens on 127.0.0.1:8021 and the one
+# program on 127.0.0.1:8031.
+#
+# `$connection_upgrade` is the usual map, kept in the machine's own
+# /etc/nginx/conf.d/upgrade_map.conf:
+#
+#     map $http_upgrade $connection_upgrade { default upgrade; "" close; }
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name rouh.example.com;
+
+    ssl_certificate     /etc/ssl/certs/rouh.example.com.crt;
+    ssl_certificate_key /etc/ssl/private/rouh.example.com.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    client_max_body_size 520M;   # attachments are capped at 512 MB in the app
+
+    # Compression (5 October 2026). The machine's nginx.conf has gzip on and
+    # nothing else, which compresses only text/html and only for a caller
+    # that is not a proxy - and everything here arrives through Cloudflare, a
+    # proxy. So the scripts and styles went out whole: app.js alone is one
+    # and a half megabytes. `gzip_proxied any` compresses for Cloudflare too,
+    # the types are every text kind Rouh serves plus the speech runtime's
+    # wasm, and brotli (libnginx-mod-http-brotli-filter, installed that day)
+    # is offered first to whoever asks for it. Level 5 of each: nearly all
+    # of the saving of the top levels, at a fraction of the work, and the
+    # hashed files are cached by Cloudflare and the browser for a year, so
+    # each is compressed rarely.
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_types text/css application/javascript text/javascript application/json
+               application/manifest+json image/svg+xml application/wasm text/plain
+               text/xml application/xml;
+    brotli on;
+    brotli_comp_level 5;
+    brotli_min_length 1024;
+    brotli_types text/css application/javascript text/javascript application/json
+                 application/manifest+json image/svg+xml application/wasm text/plain
+                 text/xml application/xml;
+
+    # Answers before the app exists, so TLS can be checked on its own.
+    location = /nginx-healthz {
+        add_header Content-Type text/plain;
+        return 200 "nginx-ok rouh $host\n";
+    }
+
+    # --- the one program (task 30, step 10) ---------------------------------
+
+    # The runs' hooks come from this machine only, straight to the program.
+    location = /one/hook { return 404; }
+
+    location = /one { return 301 /one/; }
+
+    # Exactly /one/ is Rouh's page; every address under /one/ is the
+    # program's. If Rouh does not answer, /one/ falls back to the program's
+    # own page of runs, so the runs can always be seen and stopped.
+    location = /one/ {
+        proxy_pass http://127.0.0.1:8021;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 20s;
+        proxy_intercept_errors on;
+        error_page 502 503 504 = @one_runs;
+    }
+
+    location @one_runs {
+        rewrite ^ /one/ break;
+        proxy_pass http://127.0.0.1:8031;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /one/ {
+        proxy_pass http://127.0.0.1:8031;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+    # --- end of the one program ---------------------------------------------
+
+    # Caching. Everything the page loads is at /a/<hash>/<name>, the hash
+    # being that file's own content's, and Rouh itself answers those with a
+    # year's immutable caching, which passes through the `location /` below
+    # untouched (rouh/web/assets.py). The page and every other answer say
+    # no-store themselves. /static/ is only an old bookmark's way to a file,
+    # by a name that does not change when the file does, so it is never kept.
+    location /static/ {
+        proxy_pass http://127.0.0.1:8021;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        add_header Cache-Control "no-store, must-revalidate" always;
+        add_header CDN-Cache-Control "no-store" always;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8021;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}

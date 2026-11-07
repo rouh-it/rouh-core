@@ -1,0 +1,500 @@
+/* The Heartbeat page in Settings (`heartbeatpage.js`, `rouh/heartbeat.py`), and
+   the Quests page and each quest's own (`questspage.js`, `rouh/quests.py`),
+   which share these cards.
+
+   Rouh's own tokens and nothing new, in the brief's shape: one column of
+   cards no wider than a line is comfortable to read. What waits for a yes has
+   the accent border, because it is the one thing on either page that needs
+   Petar. */
+
+.hb-view:focus { outline: none; }
+.hb-wrap { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
+.hb-body {
+  flex: 1 1 auto; min-width: 0; overflow: auto; scrollbar-width: thin;
+  padding: 2px 2px 40px;
+}
+.hb-page { max-width: 760px; display: grid; gap: 14px; }
+.hb-view :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+.hb-sec {
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel);
+  padding: 14px 16px; min-width: 0;
+}
+.hb-h {
+  margin: 0 0 10px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  font-size: 14px; font-weight: 600;
+}
+.hb-h-sub { font-weight: 400; color: var(--dim); font-size: 13px; }
+.hb-h-btn { margin-left: auto; }
+.hb-h5 {
+  margin: 14px 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--dim);
+}
+.hb-note { margin: 8px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--dimmer); }
+.hb-empty { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--dim); }
+.hb-say {
+  margin: 0; padding: 10px 12px; border-radius: var(--radius-s); font-size: 13px;
+  border: 1px solid var(--line); background: var(--panel-2);
+}
+.hb-say.bad { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); color: var(--bad); }
+
+/* Now: on or paused, with a slow pulse while it is on. */
+.hb-now > .hb-h { font-size: 16px; }
+.hb-state { margin: 0; display: flex; align-items: center; gap: 9px; font-size: 13.5px; line-height: 1.45; }
+.hb-pulse {
+  flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; background: var(--good);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--good) 60%, transparent);
+  animation: hb-pulse 2.4s ease-out infinite;
+}
+.hb-state.paused .hb-pulse { background: var(--dimmer); animation: none; box-shadow: none; }
+/* The daily cap's pause on the Beats page: first, and in full-strength text. */
+.hb-capped {
+  margin: 0 0 14px; padding: 11px 14px; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--warn, #e0a030) 45%, transparent);
+  border-left: 4px solid var(--warn, #e0a030);
+  background: color-mix(in srgb, var(--warn, #e0a030) 9%, transparent);
+}
+.hb-capped[hidden] { display: none; }
+.hb-capped-say { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.4; color: var(--text, inherit); }
+.hb-capped .hb-link { display: inline-block; margin-top: 6px; font-size: 13px; }
+.hb-capped-why { margin: 5px 0 0; font-size: 13px; line-height: 1.45; color: var(--dim, inherit); }
+@keyframes hb-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--good) 55%, transparent); }
+  70% { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .hb-pulse { animation: none; } }
+
+.hb-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.hb-stat { border: 1px solid var(--line-soft); border-radius: var(--radius-s); padding: 8px 10px; min-width: 0; }
+.hb-stat-v { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.hb-stat-l { font-size: 11.5px; color: var(--dim); margin-top: 2px; }
+.hb-stat.in .hb-stat-v { color: var(--good); }
+.hb-stat.out .hb-stat-v { color: var(--text); }
+@media (max-width: 520px) { .hb-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.hb-set { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 12px; }
+.hb-field { display: grid; gap: 4px; font-size: 12px; color: var(--dim); min-width: 0; flex: 0 1 130px; }
+.hb-field.wide { flex: 1 1 200px; }
+.hb-field input, .hb-field select {
+  height: 34px; padding: 0 10px; border-radius: var(--radius-s); border: 1px solid var(--line);
+  background: var(--panel-2); color: var(--text); font: inherit; font-size: 13.5px; min-width: 0; width: 100%;
+}
+.hb-field input:focus, .hb-field select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.hb-set > .ctl.small { height: 34px; border-radius: 999px; }
+.hb-link { display: inline-block; margin-top: 12px; font-size: 13px; color: var(--accent); text-decoration: none; }
+.hb-link:hover { text-decoration: underline; }
+
+/* What waits for a yes. */
+.hb-queue { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.hb-ask { border-top: 1px solid var(--line-soft); padding: 12px 0 4px; }
+.hb-ask:first-of-type { border-top: 0; padding-top: 2px; }
+.hb-ask.answered { opacity: 0.8; }
+.hb-ask-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 14px; line-height: 1.4; }
+.hb-num { color: var(--dim); font-variant-numeric: tabular-nums; }
+.hb-ask-what { font-weight: 600; flex: 1 1 260px; min-width: 0; }
+.hb-ask-dl { margin: 8px 0 0; display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 4px 10px; font-size: 13px; line-height: 1.45; }
+.hb-ask-dl dt { color: var(--dim); }
+.hb-ask-dl dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.hb-ask-do { display: flex; gap: 8px; margin-top: 10px; }
+.hb-ask-do .ctl.small { border-radius: 999px; min-width: 64px; }
+.hb-ask-do .hb-ask-del { margin-left: auto; }
+.hb-ask-box { flex: none; width: 16px; height: 16px; margin: 0; align-self: center; accent-color: var(--accent); }
+.hb-ask-pick { padding: 0 0 10px; }
+.hb-ask-pick .hb-ask-all { margin: 0; }
+.hb-more { margin-top: 10px; border-radius: 999px; }
+
+.hb-pill {
+  display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 500;
+  border: 1px solid var(--line); color: var(--dim); white-space: nowrap;
+}
+.hb-pill.yes { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+.hb-pill.no { color: var(--dim); }
+.hb-pill.rule { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+.hb-pill.failed { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.hb-pill.blocking { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+
+/* The beats. */
+.hb-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.hb-beat { border-top: 1px solid var(--line-soft); padding: 9px 0; min-width: 0; }
+.hb-beat:first-child { border-top: 0; padding-top: 2px; }
+.hb-beat-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 13.5px; }
+.hb-when { color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 12.5px; }
+.hb-beat-what { font-weight: 600; }
+.hb-beat.skipped .hb-beat-what { font-weight: 400; color: var(--dim); }
+.hb-beat.failed .hb-beat-what { color: var(--bad); }
+.hb-beat.running .hb-beat-what { color: var(--accent); }
+.hb-beat-nums { margin-left: auto; color: var(--dim); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.hb-beat-reason { margin: 4px 0 0; font-size: 13px; line-height: 1.45; color: var(--dim); }
+.hb-beat-said { margin: 5px 0 0; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hb-events { margin: 5px 0 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; color: var(--dim); }
+.hb-events li.seen { color: var(--dimmer); }
+.hb-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.hb-chip {
+  font-family: var(--mono); font-size: 11px; padding: 1px 7px; border-radius: 6px;
+  background: var(--panel-2); border: 1px solid var(--line-soft); color: var(--dim);
+}
+.hb-chip.held { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); text-decoration: line-through; }
+
+/* The ledger. */
+.hb-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.hb-table th { text-align: left; font-weight: 500; color: var(--dim); font-size: 12px; padding: 0 8px 6px 0; }
+.hb-table td { padding: 6px 8px 6px 0; border-top: 1px solid var(--line-soft); vertical-align: top; overflow-wrap: anywhere; }
+.hb-table .hb-amt { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; padding-right: 0; }
+.hb-table th:last-child { text-align: right; padding-right: 0; }
+.hb-table tr.in .hb-amt { color: var(--good); }
+.hb-table .hb-by { color: var(--dim); white-space: nowrap; }
+
+/* The brief. */
+.hb-part { border-top: 1px solid var(--line-soft); padding: 8px 0; }
+.hb-part:first-of-type { border-top: 0; padding-top: 0; }
+.hb-part > summary { cursor: pointer; font-size: 13.5px; font-weight: 600; display: flex; gap: 10px; align-items: baseline; }
+.hb-part > summary::-webkit-details-marker { color: var(--dim); }
+.hb-text { margin-top: 6px; font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
+
+/* In Settings: its cards are setting cards, in Settings' own column. */
+#heartbeatBody, #paymentsBody { padding: 0; overflow: visible; }
+.settings-section .hb-page { max-width: none; gap: 12px; }
+.hb-card .hb-h { margin: 0; font-size: 15px; }
+.hb-card .hb-h-sub { font-size: 12.5px; }
+.hb-say[hidden] { display: none; }
+
+/* A form in a card: rows of fields, boxes to tick, and its own Save. */
+.hb-form { display: grid; gap: 10px; min-width: 0; }
+.hb-row { display: flex; flex-wrap: wrap; gap: 10px; min-width: 0; }
+.hb-row > .hb-field { flex: 1 1 130px; }
+.hb-row > .hb-field.wide { flex: 2 1 220px; }
+.hb-form > .hb-field { flex: none; }
+.hb-field textarea {
+  width: 100%; min-width: 0; padding: 8px 10px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+  font: inherit; font-size: 13.5px; line-height: 1.45; resize: vertical;
+}
+.hb-field textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.hb-check { display: flex; align-items: flex-start; gap: 9px; font-size: 13.5px; line-height: 1.4; cursor: pointer; }
+.hb-check input { flex: 0 0 auto; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent); }
+.hb-check-help { display: block; font-size: 12px; color: var(--dimmer); }
+.hb-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.hb-actions .ctl.small { border-radius: 999px; }
+.hb-actions .hb-link { margin-top: 0; }
+.hb-card .hb-h5 { margin: 6px 0 0; }
+.ctl.small.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+
+/* The duties: a box, the words, and Remove, one under the other on a phone. */
+.hb-duty-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.hb-duty { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px 10px; align-items: start; }
+.hb-duty > input[type=checkbox] { width: 16px; height: 16px; margin: 9px 0 0; accent-color: var(--accent); }
+.hb-duty textarea {
+  width: 100%; min-width: 0; padding: 7px 10px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+  font: inherit; font-size: 13.5px; line-height: 1.45; resize: vertical; min-height: 36px;
+  overflow: hidden;
+}
+.hb-duty textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.hb-duty > .hb-pill, .hb-duty > .ctl.small { margin-top: 6px; border-radius: 999px; }
+.hb-duty:has(> input:not(:checked)) textarea { color: var(--dim); }
+@media (max-width: 520px) {
+  .hb-duty { grid-template-columns: 18px minmax(0, 1fr); }
+  .hb-duty > .hb-pill, .hb-duty > .ctl.small { grid-column: 2; justify-self: start; margin-top: 0; }
+}
+
+/* The quests it carries, by number and name. */
+.hb-work-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.hb-work {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding: 8px 0; border-top: 1px solid var(--line-soft); font-size: 13.5px;
+}
+.hb-work:first-child { border-top: 0; padding-top: 2px; }
+.hb-work input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); align-self: center; }
+.hb-work-name { color: var(--accent); text-decoration: none; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.hb-work-name:hover { text-decoration: underline; }
+.hb-work-state { color: var(--dim); font-size: 12.5px; margin-left: auto; }
+
+/* Which duty or which quest raised a beat or an approval. */
+.hb-beat-for { margin: 3px 0 0; font-size: 12.5px; color: var(--dim); }
+.hb-raised { color: var(--dim); }
+a.hb-raised.work { color: var(--accent); text-decoration: none; }
+a.hb-raised.work:hover { text-decoration: underline; }
+.hb-ask-dl dd a.hb-raised.work { overflow-wrap: anywhere; }
+
+/* A quest's page: links under its money, and editing its brief. */
+.hb-links { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; }
+.hb-links .hb-link { margin-top: 0; }
+.hb-part > .hb-edit { margin-top: 8px; border-radius: 999px; }
+.hb-brief-form { margin-top: 8px; }
+.hb-brief-form textarea, .hb-brief-form .q-title-input {
+  width: 100%; min-width: 0; padding: 8px 10px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+  font: inherit; font-size: 13.5px; line-height: 1.5; resize: vertical;
+}
+.hb-brief-form textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.hb-check + .settings-help, .hb-form > .settings-help { margin: 0; }
+
+/* A quest's page has three buttons and a long name: on a phone the
+   buttons keep the first line and the name has the whole of the line under
+   them, as on a run's page (`.run-head` in app.css). */
+@media (max-width: 899px) {
+  #workView .run-heading { flex-basis: 100%; order: 3; }
+}
+
+/* Each quest's own actions on the Heartbeat page, and on its own page. */
+.hb-work-acts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; flex-basis: 100%; padding-left: 26px; }
+.hb-work-acts .hb-link { margin-top: 0; font-size: 12.5px; }
+.hb-work-acts .ctl.small { border-radius: 999px; height: 26px; font-size: 12px; padding: 0 10px; }
+.hb-manage .hb-actions { margin-top: 10px; }
+
+/* The beats, a page of their own at /anatomy/behaviour/beats (`beatspage.js`): a table of
+   eighteen columns and the analysis above it, so it takes the whole width Anatomy has, its
+   side list put away (`settings-wide`, set in app/runs.js while it shows). */
+#beatsBody { padding: 0; overflow: visible; }
+#settingsView.settings-wide .settings-nav { display: none; }
+#settingsView.settings-wide .settings-body { max-width: none; }
+.bt-page { max-width: none; gap: 12px; }
+.bt-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.bt-title { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dim); }
+.bt-count { font-variant-numeric: tabular-nums; }
+.bt-back { margin: 0 0 0 auto; font-size: 13px; font-weight: 400; }
+.bt-i {
+  all: unset; cursor: pointer; width: 18px; height: 18px; border-radius: 50%; flex: 0 0 auto;
+  border: 1px solid var(--line); color: var(--dim); font: italic 600 11px/18px Georgia, serif;
+  text-align: center; align-self: center;
+}
+.bt-i:hover, .bt-i[aria-expanded="true"] { color: var(--text); border-color: var(--dim); }
+.bt-i:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bt-about {
+  border: 1px solid var(--line-soft); border-radius: var(--radius-s); padding: 8px 12px;
+  font-size: 13px; line-height: 1.5; color: var(--dim); max-width: 820px;
+}
+.bt-about p { margin: 4px 0; }
+
+/* The filters: a search across, then the rest in a grid that wraps to the width. */
+.bt-filters {
+  display: grid; gap: 8px 10px; align-items: end;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.bt-filters > .hb-field { flex: none; }
+.bt-filters .bt-q { grid-column: 1 / -1; }
+.bt-filters .bt-q input { font-size: 14px; }
+.bt-checks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; grid-column: 1 / -1; }
+.bt-checks .hb-check { font-size: 13px; }
+.bt-clear { margin-left: auto; border-radius: 999px; }
+
+/* The analysis: tiles of numbers, then the charts in as many columns as fit. */
+.bt-analysis { display: grid; gap: 12px; min-width: 0; }
+.bt-analysis:empty { display: none; }
+.bt-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
+.bt-tile { background: var(--panel); }
+.bt-charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+.bt-chart {
+  margin: 0; min-width: 0; background: var(--panel); border: 1px solid var(--line-soft);
+  border-radius: var(--radius-s); padding: 10px 12px; display: grid; gap: 6px; align-content: start;
+}
+.bt-models { grid-column: 1 / -1; }
+.bt-chart-h { font-size: 12.5px; font-weight: 600; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.bt-chart-sum { font-weight: 400; color: var(--dim); margin-left: auto; font-variant-numeric: tabular-nums; }
+.bt-key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--dim); }
+.bt-key-i { display: inline-flex; align-items: center; gap: 5px; }
+.bt-sw { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.bt-plot { position: relative; height: 110px; padding-top: 14px; }
+.bt-plot svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.bt-ymax { position: absolute; top: 0; left: 0; font-size: 11px; color: var(--dimmer); font-variant-numeric: tabular-nums; }
+.bt-base { stroke: var(--line); stroke-width: 1; }
+.bt-limit { stroke: var(--warn); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.bt-dash { width: 14px; height: 0; border-top: 2px dashed var(--warn); display: inline-block; }
+.bt-hit { fill: transparent; }
+.bt-hit:hover { fill: color-mix(in srgb, var(--text) 7%, transparent); }
+.s-dec { fill: var(--accent); background: var(--accent); }
+.s-slept { fill: var(--user); background: var(--user); }
+.s-code { fill: var(--dimmer); background: var(--dimmer); }
+.s-cost { fill: var(--good); background: var(--good); }
+.s-tok { fill: var(--accent); background: var(--accent); }
+.s-msg { fill: var(--user); background: var(--user); }
+.s-err { fill: var(--bad); background: var(--bad); }
+.bt-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--dimmer); font-variant-numeric: tabular-nums; }
+.bt-hbars { display: grid; gap: 6px; }
+.bt-hbar { display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 12.5px; }
+.bt-hbar.none { color: var(--dimmer); }
+.bt-hbar-t { height: 8px; border-radius: 4px; background: var(--line-soft); overflow: hidden; }
+.bt-hbar-f { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+.bt-hbar-v { font-variant-numeric: tabular-nums; color: var(--dim); white-space: nowrap; }
+.bt-mtable { min-width: 900px; }
+.bt-mtable th, .bt-mtable td { white-space: nowrap; overflow-wrap: normal; }
+.bt-mtable td.bt-made { white-space: normal; min-width: 240px; color: var(--dim); }
+
+/* The table. */
+.bt-card { gap: 8px; }
+.bt-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.bt-picked { font-size: 13px; color: var(--dim); min-width: 92px; font-variant-numeric: tabular-nums; }
+.bt-csv { margin-left: auto; text-decoration: none; display: inline-flex; align-items: center; }
+.bt-csv[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
+.bt-scroll { overflow-x: auto; scrollbar-width: thin; margin: 0 -2px; padding: 0 2px; }
+.bt-table { min-width: 1500px; }
+.bt-table th { white-space: nowrap; vertical-align: bottom; }
+.bt-table th.bt-pick, .bt-table td.bt-pick { width: 26px; padding-right: 6px; }
+.bt-table input[type=checkbox] { width: 16px; height: 16px; margin: 1px 0 0; accent-color: var(--accent); cursor: pointer; }
+.bt-sort {
+  all: unset; cursor: pointer; display: inline-flex; gap: 4px; align-items: baseline;
+  color: var(--dim); font-size: 12px; font-weight: 500; border-radius: 4px;
+}
+.bt-sort:hover, .bt-sort.on { color: var(--text); }
+.bt-sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bt-arrow { font-size: 11px; }
+.hb-table th.bt-n, .hb-table td.bt-n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bt-table th:last-child { text-align: left; padding-right: 0; }
+.bt-table td.bt-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bt-table td.bt-when { white-space: nowrap; color: var(--dim); }
+.bt-table td.bt-woke, .bt-table td.bt-stage, .bt-table td.bt-dec { min-width: 84px; overflow-wrap: normal; }
+.bt-table td.bt-woke, .bt-table td.bt-duties, .bt-table td.bt-model { color: var(--dim); }
+.bt-table td.bt-work { min-width: 96px; max-width: 180px; }
+.bt-table td.bt-sum { min-width: 280px; max-width: 520px; }
+.bt-table td.bt-duties { min-width: 110px; }
+.bt-table td.bt-model { white-space: nowrap; }
+.bt-table td.bt-err { color: var(--bad); min-width: 60px; max-width: 260px; white-space: pre-line; }
+.bt-sum-text { overflow-wrap: anywhere; white-space: pre-line; }
+.bt-sum-text.why { color: var(--dim); }
+.bt-row { cursor: pointer; }
+.bt-row:hover td { background: color-mix(in srgb, var(--text) 3%, transparent); }
+.bt-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.bt-row.code td.bt-stage, .bt-row.slept td.bt-stage { color: var(--dim); }
+.bt-row.failed td.bt-dec { color: var(--bad); }
+.bt-row.picked td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.bt-row.open td { background: color-mix(in srgb, var(--accent) 5%, transparent); border-bottom: 0; }
+.bt-pager { display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 13px; color: var(--dim); }
+.bt-pager:empty { display: none; }
+.bt-pages { font-variant-numeric: tabular-nums; }
+
+/* One beat, opened in place under its row. Sticks to the left of the scrolled table, so
+   it is read at the width of the screen rather than of the table. */
+.hb-table td.bt-detail-cell { padding: 0 0 10px; border-top: 0; }
+.bt-detail {
+  position: sticky; left: 0; box-sizing: border-box;
+  border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg-2);
+  padding: 12px; display: grid; gap: 12px; cursor: auto; white-space: normal;
+}
+.bt-d-links { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+.bt-d-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.bt-d-cols:empty { display: none; }
+.bt-d-block .hb-h5 { margin-top: 0; }
+.bt-d-text { margin: 0; font-size: 13px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.bt-rtable { min-width: 640px; }
+.bt-rtable tr.bad td { color: var(--bad); }
+.bt-rtable th, .bt-rtable td { white-space: nowrap; overflow-wrap: normal; }
+.bt-rtable td.bt-ans { min-width: 240px; white-space: pre-line; overflow-wrap: anywhere; }
+.bt-calls { margin: 0; padding-left: 22px; display: grid; gap: 6px; font-size: 13px; }
+.bt-calls li.held .bt-call-n { color: var(--bad); }
+.bt-call-n { font-family: var(--mono); font-size: 12.5px; }
+.bt-held { color: var(--bad); font-size: 12px; margin-left: 8px; }
+.bt-d-more { font-size: 12.5px; }
+.bt-d-more summary { cursor: pointer; color: var(--dim); }
+.bt-d-more summary:hover { color: var(--text); }
+.bt-pre {
+  margin: 6px 0 0; padding: 8px 10px; border-radius: 6px; background: var(--panel);
+  font: 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; overflow: auto;
+}
+.bt-note > summary { font-weight: 600; }
+
+/* The Quests page (`questspage.js`): one card a quest, its number before its
+   title and where it stands in a pill, then its money in four figures, its
+   beats in a line and its actions. */
+.q-head { align-items: center; }
+.q-num {
+  font-variant-numeric: tabular-nums; color: var(--dim); font-weight: 600;
+  border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; font-size: 12.5px;
+}
+.q-title { color: var(--text); text-decoration: none; font-size: 15px; min-width: 0; overflow-wrap: anywhere; flex: 1 1 200px; }
+.q-title:hover { color: var(--accent); text-decoration: underline; }
+.q-state.on { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+.q-state.paused, .q-state.not-carried { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+.q-row.q-ended, .q-row.q-not-carried { opacity: 0.85; }
+.q-dates { margin-top: 0; }
+.q-stats { margin-top: 10px; }
+.hb-stat.over .hb-stat-v { color: var(--bad); }
+.hb-stat.ask .hb-stat-v { color: var(--accent); }
+.q-beats { margin-top: 10px; }
+.q-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.q-acts .ctl.small, .hb-manage .ctl.small, .q-confirm .ctl.small, .q-form .ctl.small { border-radius: 999px; }
+.q-form { display: grid; gap: 10px; }
+.q-form .hb-field.wide { flex: none; }
+.q-area textarea {
+  width: 100%; min-width: 0; padding: 8px 10px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+  font: inherit; font-size: 13.5px; line-height: 1.5; resize: vertical;
+}
+.q-area textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.q-new { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.q-task .hb-link { margin-top: 8px; }
+.q-folder { margin-top: 0; }
+.q-steps { list-style: none; margin: 0; padding: 0; display: grid; }
+.q-step {
+  display: flex; align-items: baseline; gap: 10px; padding: 6px 0;
+  border-top: 1px solid var(--line-soft); font-size: 13px;
+}
+.q-step:first-child { border-top: 0; }
+.q-step-num { color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.q-step-title { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.q-step.done .hb-pill { color: var(--good); }
+.q-asks li.waiting { color: var(--text); }
+
+/* A delete, asked in place: what goes, and what becomes of its task. */
+.q-confirm {
+  border: 1px solid color-mix(in srgb, var(--bad) 45%, var(--line)); border-radius: var(--radius);
+  background: var(--panel); padding: 14px 16px; display: grid; gap: 8px;
+}
+.hb-manage .q-confirm { margin-top: 4px; }
+.q-confirm-q { margin: 0; font-size: 14px; font-weight: 600; }
+.q-confirm .hb-note { margin: 0; }
+.q-fate { border: 0; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; }
+.q-fate legend { font-size: 13px; color: var(--dim); padding: 0; margin-bottom: 4px; }
+.q-fate-opt { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: start; font-size: 13.5px; cursor: pointer; }
+.q-fate-opt input { margin: 3px 0 0; accent-color: var(--accent); }
+.q-fate-opt > span { display: grid; gap: 1px; }
+.q-fate-opt .hb-note { font-size: 12.5px; }
+.hb-work-ask:empty { display: none; }
+.hb-work-ask { flex-basis: 100%; padding-left: 26px; }
+.q-nochat { color: var(--dim); }
+
+/* The Quests layer's heading: the sword, Petar's sign for a quest, before its name. */
+#workView .q-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#workView .q-sword { flex: none; color: var(--accent); }
+#workView .q-heading > span { min-width: 0; overflow-wrap: anywhere; }
+
+/* A waiting approval drawn as its decision (`decision.js`), with the tick for Delete
+   selected above it. */
+.hb-ask-card { display: grid; gap: 6px; padding: 10px 0 4px; border-top: 1px solid var(--line-soft); }
+.hb-ask-tick { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--dim); }
+.q-sec .dq, .hb-sec .dq { margin-top: 4px; }
+
+/* A titled part of a form, such as working hours, quiet hours: heading, its help, its fields. */
+.hb-group { display: grid; gap: 8px; min-width: 0; }
+.hb-group > .settings-help { margin: 0; }
+.hb-form > .hb-group + .hb-group { margin-top: 4px; }
+
+/* What happens next on a quest, and Check now (`nextCard` in questspage.js,
+   `rouh/questcheck.py`): the state the goal map's quest steps say too. */
+.q-next { border-left: 3px solid color-mix(in srgb, var(--good) 70%, var(--line)); }
+.q-next.x-queued, .q-next.x-checking { border-left-color: var(--accent); }
+.q-next.x-paused, .q-next.x-held, .q-next.x-budget, .q-next.x-cap, .q-next.x-ended { border-left-color: var(--warn); }
+.q-next .hb-h-sub { color: var(--text); font-weight: 600; }
+.q-next.x-queued .hb-h-sub, .q-next.x-checking .hb-h-sub { color: var(--accent); }
+.q-next.x-paused .hb-h-sub, .q-next.x-held .hb-h-sub, .q-next.x-budget .hb-h-sub,
+.q-next.x-cap .hb-h-sub, .q-next.x-ended .hb-h-sub { color: var(--warn); }
+.q-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 13.5px; line-height: 1.5; }
+.q-facts dt { color: var(--dim); font-weight: 600; }
+.q-facts dd { margin: 0; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+.q-outdated { display: block; margin-top: 4px; color: var(--warn); font-weight: 600; }
+.q-small { display: block; font-size: 12px; color: var(--dimmer, var(--dim)); }
+.q-why, .q-gsteps { margin: 0; padding-left: 18px; }
+.q-why li, .q-gsteps li { margin: 0 0 3px; }
+.q-gsteps li.news > span:first-child { color: var(--warn); }
+.q-gsteps .hb-link { display: inline; margin: 0; }
+.q-check { display: grid; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.q-check-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; }
+.q-check-row .ctl.small { border-radius: 999px; flex: none; }
+.q-check-help { flex: 1 1 260px; min-width: 0; font-size: 12.5px; line-height: 1.45; color: var(--dim); }
+.q-once { color: var(--warn); font-size: 13px; }
+.q-check-no { margin: 0; }
+@media (max-width: 640px) {
+  .q-facts { grid-template-columns: 1fr; }
+  .q-facts dt { margin-top: 4px; }
+}
+.q-why li.k-deferred_outdated { color: var(--warn); }

@@ -1,0 +1,60 @@
+{
+  "id": "decisions",
+  "name": "Decisions",
+  "title": "Decisions: everything waiting on your answer",
+  "aliases": [
+    "decide",
+    "decision",
+    "approvals",
+    "approve",
+    "waiting on me",
+    "waiting on you",
+    "questions",
+    "answers",
+    "inbox",
+    "what needs me",
+    "to do"
+  ],
+  "group": "now",
+  "route": "/decisions",
+  "icon": "<path d=\"M12 3.5v4M12 7.5l-6 4.5M12 7.5l6 4.5\"/><circle cx=\"6\" cy=\"15.5\" r=\"3.2\"/><circle cx=\"18\" cy=\"15.5\" r=\"3.2\"/><path d=\"M16.6 15.6l1 1 1.8-2\"/>",
+  "attaches_to": [
+    "task",
+    "step",
+    "person",
+    "email"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 10,
+    "opens": "own",
+    "row": "decisionsRow",
+    "controls": "decisionsView",
+    "marks": [
+      {
+        "id": "decisionsHint",
+        "class": "sb-row-hint"
+      }
+    ]
+  },
+  "touches": {
+    "permissions": [
+      "answers on the person's behalf only when they press an answer"
+    ],
+    "accounts": [],
+    "tables": [
+      "decisions",
+      "decision_events",
+      "decision_gate"
+    ],
+    "jobs": [],
+    "remove": "Delete rouh/decisions.py, rouh/decision_gate.py, rouh/decision_sources.py, rouh/decision_desk.py, rouh/decision_numbers.py, rouh/web/decisions.py, decisionspage.js/.css and this manifest; every source still asks in its own place. Drop decisions, decision_events and decision_gate with a migration."
+  },
+  "uses": {
+    "tools": [
+      "decisions",
+      "answer_conflict"
+    ]
+  }
+}

@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+"""Read and change the Incubator, the one list of ideas for Rouh's new genes and mutations.
+
+    rouh-incubator list [--status new,triaged] [--category ux] [--source nightly] [--q words]
+                        [--sort score|impact|stars|confidence|frequency|pain|clarity|risk|number|newest] [--json]
+    rouh-incubator read INC-12                  one idea whole, its original words as written
+    rouh-incubator add "Title" [--text -] [--kind gene|mutation] [--gene key] [--category ux]
+                       [--tags a,b] [--source nightly|chat|person] [--ref I-180] [--link KIND LABEL HREF]
+    rouh-incubator edit INC-12 [--title ..] [--kind ..] [--gene ..] [--category ..] [--tags ..] [--notes -]
+    rouh-incubator status INC-12 parked [--note "why"]    new, triaged, go, in_build, built, parked, rejected
+    rouh-incubator merge INC-12 --into INC-3
+    rouh-incubator link INC-12 KIND LABEL [HREF]          task, step, chat, page, file, idea, request, gene, link
+    rouh-incubator import --project <id> [--nightly <ideas.md>] [--nursery <file>] [--mark]
+    rouh-incubator score INC-12                 its score, part by part, with each reason and whose it is
+    rouh-incubator set INC-12 impact 4          a part by hand: impact 1-5, confidence 0.5-1 (or 50-100),
+                                                frequency 1-4, pain 1|1.5|2, clarity 0.9-1, risk 1-1.5, stars 1-3;
+                                                "rouh" gives a part back to Rouh's value, stars 0 to its suggestion
+    rouh-incubator stars INC-12 3               the person's stars (0 clears them)
+    rouh-incubator rescore INC-12 | --all [--force]    Rouh scores it, or every idea not scored yet (or every
+                                                idea), again; a part or stars set by hand are never changed
+    rouh-incubator scoring                      how far a whole scoring has got
+
+Score = Impact² × Confidence × Frequency × Pain × Stars × Clarity ÷ Risk; no part for effort.
+A sort by score or a part is highest first; put - in front (--sort=-risk) to turn it round.
+
+Ideas are numbered INC-<n>; read and status also take an idea's name in its source (I-028, N-019).
+Setting one to go hands it to Gene therapy to be built: the one way Rouh builds anything.
+A value given as - is read from standard input.
+
+It is part of Rouh's code (`bin/`), which a run has on its PATH, like rouh-task, and reaches Rouh the
+same way: on the server http://127.0.0.1:8021/internal/incubator, which only this machine may reach,
+and in the containers the address and key Rouh gave the worker (/run/one/rouh-worker.json). Who made a
+change is the run (ONE_RUN) or the crew job (ROUH_JOB) its environment names. When Rouh cannot be
+reached it says so and exits 2, and nothing is written anywhere instead.
+
+Standard library only, so it runs with any python3.
+"""
+from __future__ import annotations
+
+import argparse
+import getpass
+import json
+import os
+import socket
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+LOCAL = "http://127.0.0.1:8021"
+
+
+def fail(message: str, code: int = 1) -> None:
+    print(f"rouh-incubator: {message}", file=sys.stderr)
+    sys.exit(code)
+
+
+def worker_key() -> dict:
+    path = os.environ.get("ROUH_WORKER_KEY_FILE", "").strip() or "/run/one/rouh-worker.json"
+    try:
+        said = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return said if isinstance(said, dict) and said.get("token") else {}
+
+
+def by() -> str:
+    run = os.environ.get("ONE_RUN", "").strip()
+    if run:
+        return f"run {run}"
+    job = os.environ.get("ROUH_JOB", "").strip()
+    if job:
+        return f"job {job}"
+    try:
+        user = getpass.getuser()
+    except Exception:
+        user = "someone"
+    return f"{user} at a terminal on {socket.gethostname()}"
+
+
+def call(payload: dict, timeout: float = 30) -> dict:
+    key = worker_key()
+    url = (os.environ.get("ROUH_URL", "").strip() or str(key.get("url") or "") or LOCAL).rstrip("/")
+    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+    if key:
+        headers["X-Rouh-Worker-Key"] = key["token"]
+    payload = dict(payload, by=by())
+    request = urllib.request.Request(url + "/internal/incubator", data=json.dumps(payload).encode("utf-8"),
+                                     headers=headers, method="POST")
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            body = response.read()
+    except urllib.error.HTTPError as exc:
+        try:
+            said = json.loads(exc.read().decode("utf-8"))
+        except ValueError:
+            said = {}
+        fail(f"{said.get('error') or f'Rouh at {url} answered {exc.code}.'} Nothing was changed.",
+             1 if exc.code in (400, 404) else 2)
+    except (urllib.error.URLError, OSError) as exc:
+        fail(f"Rouh could not be reached at {url} ({getattr(exc, 'reason', exc)}). Nothing was changed.", 2)
+    try:
+        return json.loads(body.decode("utf-8"))
+    except ValueError:
+        fail(f"Rouh at {url} gave an answer that is not JSON.", 2)
+    return {}
+
+
+def text(value):
+    return sys.stdin.read() if value == "-" else value
+
+
+def many(value):
+    return [v.strip() for v in value.split(",") if v.strip()] if value else None
+
+
+def main(argv=None) -> None:
+    p = argparse.ArgumentParser(prog="rouh-incubator", description=__doc__.split("\n\n")[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+    ls = sub.add_parser("list")
+    for name in ("status", "category", "source", "kind", "q", "tag", "sort"):
+        ls.add_argument("--" + name, default="")
+    ls.add_argument("--limit", type=int, default=0)
+    ls.add_argument("--json", action="store_true")
+    rd = sub.add_parser("read")
+    rd.add_argument("id")
+    rd.add_argument("--json", action="store_true")
+    ad = sub.add_parser("add")
+    ad.add_argument("title")
+    for name in ("text", "kind", "gene", "category", "tags", "ref"):
+        ad.add_argument("--" + name, default="")
+    ad.add_argument("--source", default="nightly")
+    ad.add_argument("--link", nargs="+", action="append", default=[], metavar="KIND LABEL [HREF]")
+    ed = sub.add_parser("edit")
+    ed.add_argument("id")
+    for name in ("title", "kind", "gene", "category", "tags", "notes"):
+        ed.add_argument("--" + name, default=None)
+    st = sub.add_parser("status")
+    st.add_argument("id")
+    st.add_argument("status")
+    st.add_argument("--note", default="")
+    mg = sub.add_parser("merge")
+    mg.add_argument("id")
+    mg.add_argument("--into", required=True)
+    lk = sub.add_parser("link")
+    lk.add_argument("id")
+    lk.add_argument("kind")
+    lk.add_argument("label")
+    lk.add_argument("href", nargs="?", default="")
+    im = sub.add_parser("import")
+    im.add_argument("--project", required=True)
+    im.add_argument("--nightly", default="")
+    im.add_argument("--nursery", default="")
+    im.add_argument("--mark", action="store_true")
+    sc = sub.add_parser("score")
+    sc.add_argument("id")
+    sc.add_argument("--json", action="store_true")
+    se = sub.add_parser("set")
+    se.add_argument("id")
+    se.add_argument("part")
+    se.add_argument("value")
+    sr = sub.add_parser("stars")
+    sr.add_argument("id")
+    sr.add_argument("stars")
+    rs = sub.add_parser("rescore")
+    rs.add_argument("id", nargs="?", default="")
+    rs.add_argument("--all", action="store_true")
+    rs.add_argument("--force", action="store_true")
+    sub.add_parser("scoring")
+    a = p.parse_args(argv)
+
+    if a.cmd == "list":
+        got = call({"action": "list", "status": many(a.status), "category": many(a.category), "source": many(a.source),
+                    "kind": a.kind if a.kind != "unknown" else "", "q": a.q, "tag": a.tag, "sort": a.sort or "number",
+                    "limit": a.limit})
+        if a.json:
+            print(json.dumps(got["ideas"], ensure_ascii=False, indent=1))
+        else:
+            print("\n".join(got["lines"]) or "No idea matches.")
+    elif a.cmd == "read":
+        got = call({"action": "read", "id": a.id})
+        print(json.dumps(got["idea"], ensure_ascii=False, indent=1) if a.json else got["text"])
+    elif a.cmd == "add":
+        links = [{"kind": l[0], "label": l[1] if len(l) > 1 else l[0], "href": l[2] if len(l) > 2 else ""} for l in a.link]
+        got = call({"action": "add", "title": a.title, "text": text(a.text) or a.title, "kind": a.kind, "gene": a.gene,
+                    "category": a.category, "tags": many(a.tags) or [], "source": a.source, "ref": a.ref, "links": links})
+        print(f"Added {got['idea']['code']}: {got['idea']['title']} ({got['idea']['category_name']}, New)")
+    elif a.cmd == "edit":
+        fields = {k: (text(v) if k == "notes" else (many(v) if k == "tags" else v))
+                  for k, v in vars(a).items() if k in ("title", "kind", "gene", "category", "tags", "notes") and v is not None}
+        got = call({"action": "edit", "id": a.id, **fields})
+        print(f"Changed {got['idea']['code']}.")
+    elif a.cmd == "status":
+        got = call({"action": "status", "id": a.id, "status": a.status, "note": a.note}, timeout=60)
+        print(got.get("said") or f"{got['idea']['code']} is {got['idea']['status_name']}.")
+    elif a.cmd == "merge":
+        got = call({"action": "merge", "id": a.id, "into": a.into})
+        print(f"{got['idea']['code']} is merged into {got['idea']['merged_into']['code']}.")
+    elif a.cmd == "link":
+        got = call({"action": "link", "id": a.id, "kind": a.kind, "label": a.label, "href": a.href})
+        print(f"Linked {got['idea']['code']}.")
+    elif a.cmd == "import":
+        got = call({"action": "import", "project": a.project, "nightly": a.nightly, "nursery": a.nursery,
+                    "mark": a.mark}, timeout=1800)
+        print(json.dumps(got["report"], ensure_ascii=False, indent=1))
+    elif a.cmd == "score":
+        got = call({"action": "score", "id": a.id})
+        print(json.dumps(got["idea"], ensure_ascii=False, indent=1) if a.json else got["text"])
+    elif a.cmd in ("set", "stars"):
+        part, value = ("stars", a.stars) if a.cmd == "stars" else (a.part, a.value)
+        value = None if str(value).lower() in ("rouh", "none", "null", "") else value
+        got = call({"action": "set", "id": a.id, "part": part, "value": value})
+        print(got["text"])
+    elif a.cmd == "rescore":
+        if not a.all and not a.id:
+            fail("say which idea, or --all.")
+        if a.all:
+            got = call({"action": "rescore", "all": True, "force": a.force})
+            s = got["scoring"]
+            print(f"Scoring {s['total']} ideas in the background; rouh-incubator scoring says how far it got."
+                  if s.get("running") else "Every idea has a score already; --force scores every one again.")
+        else:
+            got = call({"action": "rescore", "id": a.id}, timeout=700)
+            print(got["text"])
+    elif a.cmd == "scoring":
+        s = call({"action": "scoring"})["scoring"]
+        line = f"{s['scored']} of {s['all']} ideas have a score."
+        if s.get("total"):
+            line += (f" {'Running' if s.get('running') else 'The last run'}: {s.get('done', 0)} of {s['total']} scored"
+                     + (f", {s['failed']} not" if s.get("failed") else "") + ".")
+        for e in s.get("errors") or []:
+            line += f"\n  {e}"
+        print(line)
+
+
+if __name__ == "__main__":
+    main()

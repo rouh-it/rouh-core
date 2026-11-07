@@ -1,0 +1,47 @@
+{
+  "id": "n32-flight-open",
+  "name": "Flights left open",
+  "title": "Flights left open: a flight in the next two weeks that leaves your work calendar looking free, in the morning brief, with one press to block it as out of office",
+  "aliases": [
+    "flights left open",
+    "flight not blocked",
+    "block my flight",
+    "out of office for a flight",
+    "free during a flight"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<path d=\"M2.5 19h19\"/><path d=\"M3.5 13.5l3 1.2 4-1.6-5.2-5.4 2-.8 7.6 4.2 4.4-1.8c1.1-.4 2.2.3 2 1.2-.1.6-.6 1-1.2 1.3L6.9 17.1 3.5 13.5z\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "switch": "flight_open",
+  "signals": {
+    "events": {
+      "blocked": "You pressed Block it as out of office on a flight in the morning brief",
+      "put": "You pressed Not needed on a flight in the morning brief"
+    },
+    "runs": {
+      "shown": "Rouh put a flight your main calendar shows you free during in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the next fourteen days of every calendar the connected Google account sees, each time the morning brief opens",
+      "puts Google's own out-of-office on your main calendar for a flight only when you press Block it as out of office; Google declines new invitations then with a short note",
+      "keeps the flights you put away or blocked in your own settings"
+    ],
+    "accounts": [
+      "Google Calendar"
+    ],
+    "tables": [
+      "user_settings",
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch flight_open off on its row in Evolution, Mutations, and the section is gone and the route refuses; to remove it for good revert night 32's flight_open commit (rouh/flight_open.py, the brief_flight_open route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawFlightOpen and its helpers in briefpage.js and its rules in briefpage.css, this manifest) and delete the user setting flight_open. Calendar.block in rouh/google_api/calendar.py is shared with Away and focus time."
+  }
+}

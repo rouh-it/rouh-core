@@ -1,0 +1,3 @@
+# What the stack test's smoke test (tests/stack/smoke.py) needs on the test machine; never in an image.
+playwright==1.56.0
+websockets==14.1

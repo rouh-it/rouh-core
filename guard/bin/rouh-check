@@ -1,0 +1,166 @@
+#!/bin/bash
+#
+# rouh-check: what a base image must pass, with a Rouh's own code, before that
+# Rouh moves onto it (Petar, 23 October 2026). Run in a throwaway container:
+# this base, the Rouh's /code mounted read-only (or, while /code is still
+# empty, the release's copy in /opt/rouh-release), a throwaway PostgreSQL
+# beside it, no network, no keys (check-base.sh beside this, and the Mac
+# app's StackUpdater.check).
+#
+# Since 24 October 2026 it is part of the protected core (guard/, the
+# rouh-guard image), which a Rouh uses and cannot edit (task 98, step 98-23):
+# a Rouh is no longer graded only with its own copy of the security checks,
+# which it could rewrite.
+#
+#   1. The base's own parts: Python and its libraries, git, Node, Codex, and
+#      the headless browser a run proves its work with - Playwright MCP
+#      driving Debian's Chromium, asked over MCP exactly as a run asks it.
+#   2. The frozen security checks, the protected core's own copy
+#      (guard/frozen/), which ask the Rouh's code only through its check
+#      face, rouh/checkface.py.
+#   3. The Rouh's own checks, from its own code: python -m rouh.selfcheck
+#      --only own (rouh/selfcheck/own.py, where a gene adds its checks).
+#
+# Run from the base itself (/usr/local/bin/rouh-check, the stacks before the
+# protected core), where there is no frozen copy beside it, 2 and 3 are the
+# Rouh's own python -m rouh.selfcheck, security checks and all, as before.
+#
+# Prints a line per check and, last, one line of JSON after "ROUH-CHECK ":
+# {"ok", "passed", "failed": [{"name", "why"}], "gaps", "code"}. Exits 0 only
+# when everything passed. Nothing here writes to /code.
+set -uo pipefail
+
+export HOME="${ROUH_CHECK_HOME:-/tmp/rouh-check-home}" PYTHONDONTWRITEBYTECODE=1
+mkdir -p "$HOME"
+work="$(mktemp -d /tmp/rouh-check.XXXXXX)"
+fails="$work/failed.jsonl"
+: > "$fails"
+passed=0
+
+ok() { passed=$((passed + 1)); echo "ok    base: $1"; }
+bad() {
+  echo "FAIL  base: $1 - $2"
+  python3 -c 'import json,sys; print(json.dumps({"name": sys.argv[1], "group": "base", "why": sys.argv[2][:600]}))' "$1" "$2" >> "$fails"
+}
+
+if [ -f /code/manage.py ] && [ -d /code/rouh ]; then
+  code=/code; whose="this Rouh's own code"
+elif [ -f /opt/rouh-release/manage.py ]; then
+  code=/opt/rouh-release; whose="the release's code (this Rouh's code volume is still empty)"
+else
+  code=""; whose="no code"
+fi
+echo "rouh-check: base $(. /opt/rouh-base/base.env 2>/dev/null; echo "${level:-unknown}") with $whose"
+
+# --- 1. the base's own parts -------------------------------------------------------
+v="$(python -c 'import sys; print(sys.version.split()[0])' 2>&1)" && ok "Python $v" || bad "Python" "$v"
+out="$(python - <<'PY' 2>&1
+import importlib, sys
+# Every library a Rouh needs that is not pure Python, and the ones everything leans on.
+for name in ("django", "channels", "psycopg", "psycopg_pool", "uvicorn", "httpx", "anthropic", "openai",
+             "cryptography", "PIL", "pillow_heif", "numpy", "websockets", "boto3", "yaml"):
+    try:
+        importlib.import_module(name)
+    except ModuleNotFoundError:
+        if name in ("numpy", "yaml"):
+            continue
+        raise
+import pillow_heif
+assert pillow_heif.libheif_info().get("decoders"), "pillow-heif has no decoder"
+print("ok")
+PY
+)" && ok "its Python libraries load" || bad "its Python libraries load" "$out"
+git --version >/dev/null 2>&1 && ok "git $(git --version | cut -d' ' -f3)" || bad "git" "git does not run"
+out="$(node --version 2>&1)" && ok "Node $out" || bad "Node" "$out"
+out="$(codex --version 2>/dev/null | tail -1)" && ok "Codex: $out" || bad "Codex" "$out"
+
+# The headless browser, as a run uses it: Playwright MCP started the way the one
+# program starts it (ONE_PLAYWRIGHT_MCP, ONE_PLAYWRIGHT_CHROMIUM), asked over MCP
+# to open a page, and the page's title read back.
+out="$(cd "$work" && PLAYWRIGHT_MCP_EXECUTABLE_PATH="${ONE_PLAYWRIGHT_CHROMIUM:-/usr/bin/chromium}" \
+  timeout 120 node - "${ONE_PLAYWRIGHT_MCP:-@playwright/mcp@latest}" <<'JS' 2>&1
+const { spawn } = require("child_process");
+const spec = process.argv[2];
+const mcp = spawn("npx", ["--no-install", spec, "--browser=chromium", "--headless", "--isolated"],
+                  { stdio: ["pipe", "pipe", "pipe"], env: process.env });
+let buf = "", errs = "", id = 0;
+const waiting = new Map();
+mcp.stdout.on("data", d => {
+  buf += d;
+  let i;
+  while ((i = buf.indexOf("\n")) >= 0) {
+    const line = buf.slice(0, i); buf = buf.slice(i + 1);
+    try { const m = JSON.parse(line); if (waiting.has(m.id)) { waiting.get(m.id)(m); waiting.delete(m.id); } } catch (e) {}
+  }
+});
+mcp.stderr.on("data", d => { errs += d; });
+const ask = (method, params) => new Promise(res => {
+  const n = ++id; waiting.set(n, res);
+  mcp.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: n, method, params }) + "\n");
+});
+(async () => {
+  await ask("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "rouh-check", version: "1" } });
+  mcp.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n");
+  const got = await ask("tools/call", { name: "browser_navigate",
+    arguments: { url: "data:text/html,<title>rouh-check page</title><p>The headless browser works.</p>" } });
+  const text = JSON.stringify(got);
+  await ask("tools/call", { name: "browser_close", arguments: {} });
+  mcp.kill();
+  if (text.includes("rouh-check page")) { console.log("ok"); process.exit(0); }
+  console.log("the page did not open: " + text.slice(0, 300) + " " + errs.slice(-300)); process.exit(1);
+})().catch(e => { console.log(String(e) + " " + errs.slice(-300)); process.exit(1); });
+JS
+)" && ok "the headless browser opens a page over MCP (Chromium $(dpkg-query -W -f='${Version}' chromium 2>/dev/null))" \
+   || bad "the headless browser opens a page over MCP" "$out"
+
+# --- 2 and 3. the frozen security checks, and the Rouh's own checks ---------------
+guard="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+frozen="$guard/frozen/run.py"
+own=""
+results=()
+if [ -z "$code" ]; then
+  bad "this Rouh's own checks" "there is no Rouh code to check, in /code or in /opt/rouh-release"
+elif [ -f "$frozen" ]; then
+  echo "rouh-check: the protected core's frozen security checks ($(cat "$guard/VERSION" 2>/dev/null || echo unknown))"
+  ROUH_CHECK_DATA="$work/frozen" python -I "$frozen" --code "$code" 2>&1 | tee "$work/frozen.log" \
+    | grep -E '^(ok|FAIL|gap|      |refused|no database|note|[0-9]+ passed)'
+  got="$(grep '^ROUH-CHECK ' "$work/frozen.log" | tail -1 | cut -d' ' -f2-)"
+  [ -n "$got" ] && results+=("$got") \
+    || bad "the frozen security checks" "they stopped before saying how they went: $(tail -c 400 "$work/frozen.log" | tr '\n' ' ')"
+  if [ ! -f "$code/rouh/selfcheck/__init__.py" ]; then
+    # A Rouh with no checks of its own cannot be shown to work on a new base, so
+    # it is not moved onto one.
+    bad "this Rouh's own checks" "its code has no rouh/selfcheck, so nothing can show it works on this base"
+  else
+    (cd "$code" && ROUH_CHECK_DATA="$work/selfcheck" python -m rouh.selfcheck --only own) 2>&1 | tee "$work/selfcheck.log" \
+      | grep -E '^(ok|FAIL|      |refused|no database|note|[0-9]+ passed)'
+    got="$(grep '^ROUH-CHECK ' "$work/selfcheck.log" | tail -1 | cut -d' ' -f2-)"
+    [ -n "$got" ] && results+=("$got") \
+      || bad "this Rouh's own checks" "they stopped before saying how they went: $(tail -c 400 "$work/selfcheck.log" | tr '\n' ' ')"
+  fi
+elif [ ! -f "$code/rouh/selfcheck/__init__.py" ]; then
+  bad "this Rouh's own checks" "its code has no rouh/selfcheck, so nothing can show it works on this base"
+else
+  (cd "$code" && ROUH_CHECK_DATA="$work/selfcheck" python -m rouh.selfcheck) 2>&1 | tee "$work/selfcheck.log" \
+    | grep -E '^(ok|FAIL|gap|      |refused|no database|note|[0-9]+ passed)'
+  got="$(grep '^ROUH-CHECK ' "$work/selfcheck.log" | tail -1 | cut -d' ' -f2-)"
+  [ -n "$got" ] && results+=("$got") \
+    || bad "this Rouh's own checks" "they stopped before saying how they went: $(tail -c 400 "$work/selfcheck.log" | tr '\n' ' ')"
+fi
+printf '%s\n' "${results[@]}" > "$work/results.jsonl"
+
+python3 - "$fails" "$passed" "$work/results.jsonl" "$code" <<'PY'
+import json, sys
+fails = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
+passed = int(sys.argv[2])
+parts = [json.loads(l) for l in open(sys.argv[3]) if l.strip()]
+ok = not fails and bool(parts) and all(p.get("ok") for p in parts)
+gaps = []
+for p in parts:
+    gaps += [g for g in (p.get("gaps") or []) if g not in gaps]
+result = {"ok": ok, "passed": passed + sum(int(p.get("passed") or 0) for p in parts),
+          "failed": fails + [f for p in parts for f in (p.get("failed") or [])], "gaps": gaps, "code": sys.argv[4]}
+print(f"{result['passed']} passed, {len(result['failed'])} failed")
+print("ROUH-CHECK " + json.dumps(result, ensure_ascii=False))
+sys.exit(0 if result["ok"] else 1)
+PY

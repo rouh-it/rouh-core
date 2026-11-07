@@ -1,0 +1,59 @@
+#!/bin/bash
+#
+# The browser container's start, on the base image (deploy/container/Dockerfile.base), as a
+# user with nothing of anybody's: no volume but this protected core's own files, read-only.
+#
+# Rouh's core holds the keys and the database, so it runs no browser beside them. Every
+# browser it uses - the Live browser the person watches and takes over, a page read once when
+# web_fetch could not read it, a PDF of a page, a YouTube transcript - is a Playwright
+# connection to this one Chromium (rouh/browsing.py, `chromium`): Debian's own, which the base
+# keeps on Chrome's security releases, started by Playwright's own server from the Playwright
+# the base pins, so the core's Playwright and this one are always the same version. Each
+# connection sees only the contexts it made, and they are closed with it.
+#
+# The way out is the key proxy (ROUH_BROWSER_PROXY), for http, https and websockets alike,
+# loopback included (Playwright sends that through the proxy too), and the key proxy refuses
+# this machine and every private network. The network this is on has no other way out
+# (deploy/stack/compose.yml), and only the core and the key proxy are on it with it.
+#
+#   ROUH_BROWSER_PORT        the port Playwright's server listens on, 9230
+#   ROUH_BROWSER_PROXY       the way out, http://keyproxy:8080
+#   ROUH_BROWSER_EXECUTABLE  the Chromium, /usr/bin/chromium
+#
+# A Chromium that ends ends this too, so the container is started again with a new one.
+set -euo pipefail
+
+pw="$(python -I -c 'import os, playwright; print(os.path.dirname(playwright.__file__))')" \
+  || { echo "browser: the base has no Playwright for Python, so there is no browser server to start" >&2; exit 1; }
+export HOME="${HOME:-/tmp}" TMPDIR="${TMPDIR:-/tmp}"
+
+exec "$pw/driver/node" -e '
+const { chromium } = require(process.argv[1]);
+const env = process.env;
+const port = Number(env.ROUH_BROWSER_PORT || 9230);
+const proxy = env.ROUH_BROWSER_PROXY || "";
+const executablePath = env.ROUH_BROWSER_EXECUTABLE || "/usr/bin/chromium";
+(async () => {
+  if (!proxy) console.error("browser: no way out was given (ROUH_BROWSER_PROXY): pages go wherever this network lets them");
+  const server = await chromium.launchServer({
+    executablePath, headless: true, host: "0.0.0.0", port, wsPath: "/browser",
+    handleSIGINT: true, handleSIGTERM: true, handleSIGHUP: true,
+    proxy: proxy ? { server: proxy } : undefined,
+    // No /dev/shm of any size worth having; QUIC and WebRTC would go round an HTTP proxy;
+    // and a site that turns away an automated browser on sight turns away an errand.
+    args: ["--disable-dev-shm-usage", "--disable-quic",
+           "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+           "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+           "--disable-blink-features=AutomationControlled"],
+  });
+  server.on("close", (code, signal) => {
+    console.error(`browser: Chromium ended (${signal || code}), so this ends too`);
+    process.exit(1);
+  });
+  console.log(`browser: ${executablePath} for the core, at ${server.wsEndpoint()}` +
+              (proxy ? `, out through ${proxy}` : ""));
+})().catch((e) => {
+  console.error("browser: Chromium would not start: " + String(e && e.message || e).split("\n")[0]);
+  process.exit(1);
+});
+' "$pw/driver/package"

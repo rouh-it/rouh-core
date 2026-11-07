@@ -1,0 +1,57 @@
+{
+  "id": "incubator",
+  "name": "Incubator",
+  "title": "Incubator: every idea for a new gene or a mutation, in the words it was written in, until it hatches",
+  "aliases": [
+    "ideas",
+    "idea list",
+    "gene ideas",
+    "mutation ideas",
+    "gene nursery",
+    "nursery",
+    "backlog",
+    "feature ideas",
+    "incubate"
+  ],
+  "group": "evolution",
+  "route": "/evolution/incubator",
+  "icon": "<path d=\"M12 3c-3.6 0-6.5 4.6-6.5 9.4C5.5 16.6 8.4 20 12 20s6.5-3.4 6.5-7.6C18.5 7.6 15.6 3 12 3z\"/><path d=\"M8.4 12.6l1.8 1.5 1.8-2.2 1.8 2.2 1.8-1.5\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "nav": {
+    "place": "list",
+    "order": 25,
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "keeps the person's ideas for new genes and mutations, each in its original words, with links to where it came from and the history of every change",
+      "hands an idea to Gene therapy as a feedback only when the person sets it to Go, where the same converter as every feedback writes its feature request and starts its run when the board builds by itself",
+      "reads the workspace to import ideas when asked (rouh-incubator import), and renames each imported task and step with \" [in incubator]\" through the rename a person's own uses",
+      "keeps one chat of the person's for the Incubator, in which the model is told what the list holds",
+      "scores every idea with the model on \"Scoring the Incubator's ideas\" (impact, confidence, frequency, pain, clarity and risk, each with a reason, and suggested stars), from its words, category, status, sources and links, never changing its words or a part or stars the person set"
+    ],
+    "accounts": [],
+    "tables": [
+      "incubator_ideas",
+      "incubator_events"
+    ],
+    "jobs": [
+      "every fifteen minutes: ideas handed to Gene therapy moved to In build and Built as their requests are (incubator.follow_everyone)",
+      "as ideas are added, and every fifteen minutes for any idea without a score: Rouh scores them in batches (incubator_score.queue, incubator_score.sweep)"
+    ],
+    "remove": "Delete this manifest, rouh/incubator.py, rouh/incubator_import.py, rouh/incubator_score.py and its use in modeldefaults.py and model_standard.json, rouh/web/incubator.py, rouh/models/incubator.py, incubatorpage.js and incubatorpage.css, bin/rouh-incubator, the incubator tools in tools.py, the Incubator's chat block in brain.py, its page in evolutionpage.js and its addresses, and drop the tables incubator_ideas and incubator_events with a migration."
+  },
+  "uses": {
+    "tools": [
+      "incubator_list",
+      "incubator_read",
+      "incubator_add",
+      "incubator_edit",
+      "incubator_status",
+      "incubator_merge",
+      "incubator_link",
+      "incubator_score"
+    ]
+  }
+}

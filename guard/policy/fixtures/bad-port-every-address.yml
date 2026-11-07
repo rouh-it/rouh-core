@@ -1,0 +1,3 @@
+services:
+  core:
+    ports: !override ["8420:8021"]

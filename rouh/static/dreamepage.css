@@ -1,0 +1,14 @@
+/* Settings, Connections, Dreame (`dreamepage.js`, `rouh/dreame.py`).
+
+   The cards of the Heartbeat page (`heartbeatpage.css`) and the (i), the facts and the form of the
+   Slack page (`slackpage.css`, its `sk-` classes), the same component for the same thing as the
+   Philips Hue card. Its own: the sign-in sits inside the card, under a small heading. */
+
+.dreame-form { margin-top: 10px; }
+.dreame-form .hb-h { margin-bottom: 0; }
+.dreame-form .sk-guide { margin-top: 6px; justify-items: start; }
+.dreame-card > .hb-actions { margin-top: 8px; }
+/* A Mi Home sign-in Xiaomi stopped: what it asked for, and its picture when it sent one. */
+.dreame-ask { margin: 0 0 8px; }
+.dreame-captcha { display: block; max-width: 100%; height: auto; margin: 0 0 8px; border-radius: 6px;
+  background: #fff; }

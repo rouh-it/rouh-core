@@ -1,0 +1,187 @@
+/* Home (`homepage.js`): the house, at /home. Its lights, as cards the way the Hue app draws
+   rooms - the name, whether it is on and how bright, a switch and a slider - washed with the
+   colour the room's lights are showing while they are on; and every other kind of device as a
+   section of its own, which brings its own styles. `hm-head` and `hm-h` are for any of them. */
+
+.hm-view:focus { outline: none; }
+.hm-wrap { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
+.hm-body { flex: 1 1 auto; min-width: 0; overflow: auto; scrollbar-width: thin; padding: 2px 2px 48px; }
+.hm-page { display: grid; gap: 26px; max-width: 1180px; }
+.hm-section:empty { display: none; }
+
+.hm-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 4px; }
+.hm-h { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); }
+.hm-head .ctl.small { min-height: 34px; padding: 0 16px; border-radius: 999px; font-size: 13px; color: var(--text);
+  background: var(--panel-2); border: 1px solid var(--line); }
+.hm-head .ctl.small:hover { border-color: var(--dim); }
+.hm-head .ctl.small:disabled { color: var(--dim); }
+.hm-line { margin: 6px 0 0; color: var(--text); line-height: 1.45; display: flex; flex-wrap: wrap;
+  align-items: center; gap: 8px 12px; }
+.hm-line[hidden] { display: none; }
+.hm-quiet { color: var(--dim); }
+.hm-say { color: var(--warn); font-size: 13px; }
+.hm-connect { text-decoration: none; min-height: 32px; display: inline-flex; align-items: center; padding: 0 16px;
+  border-radius: 999px; }
+
+.hm-lights { display: grid; gap: 4px; }
+.hm-part { display: grid; gap: 8px; margin-top: 10px; }
+.hm-part[hidden] { display: none; }
+.hm-sub { margin: 0; font-size: 12.5px; font-weight: 500; color: var(--dim); }
+.hm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 272px), 1fr));
+  gap: 10px; align-items: start; }
+
+/* ---- a card ---- */
+
+.hm-card {
+  --t1: #ffcf8a; --t2: #ffcf8a;
+  position: relative; min-width: 0;
+  display: grid; gap: 6px;
+  padding: 10px 12px 12px;
+  border-radius: var(--radius); border: 1px solid var(--line);
+  background: var(--panel);
+  transition: background-color 320ms ease, border-color 320ms ease, box-shadow 320ms ease;
+}
+.hm-card[data-on] {
+  background:
+    linear-gradient(125deg, color-mix(in srgb, var(--t1) 30%, transparent),
+                            color-mix(in srgb, var(--t2) 12%, transparent)),
+    var(--panel);
+  border-color: color-mix(in srgb, var(--t1) 34%, var(--line));
+}
+.hm-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.hm-name {
+  appearance: none; flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: center; gap: 11px;
+  margin: -4px 0 -4px -6px; padding: 6px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--text); font: inherit; text-align: left; cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+.hm-expandable .hm-name { cursor: pointer; }
+.hm-expandable .hm-name:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.hm-name:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.hm-bulb {
+  flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--panel-2); color: var(--dim);
+  transition: background-color 320ms ease, color 320ms ease, box-shadow 320ms ease;
+}
+.hm-card[data-on] .hm-bulb {
+  background: color-mix(in srgb, var(--t1) 82%, #fff 0%); color: #1a1408;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--t1) 45%, transparent);
+}
+.hm-words { display: grid; gap: 1px; min-width: 0; }
+.hm-title { font-weight: 600; font-size: 14.5px; line-height: 1.25; overflow-wrap: anywhere; }
+.hm-state { font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.hm-card[data-on] > .hm-top .hm-state { color: color-mix(in srgb, var(--text) 78%, transparent); }
+.hm-chev { flex: 0 0 auto; margin-left: auto; color: var(--dim); display: none;
+  transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1); }
+.hm-expandable .hm-chev { display: block; }
+.hm-card.open .hm-chev { transform: rotate(180deg); }
+
+/* The switch, as a phone draws one. */
+.hm-switch {
+  appearance: none; flex: 0 0 auto; position: relative; cursor: pointer;
+  width: 50px; height: 30px; padding: 0; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel-2);
+  transition: background-color 220ms ease, border-color 220ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.hm-switch .hm-knob {
+  position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; border-radius: 50%;
+  background: #d9dee6; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  transition: transform 240ms cubic-bezier(0.32, 0.72, 0, 1), background-color 220ms ease;
+}
+.hm-switch[aria-checked="true"] { background: var(--good); border-color: var(--good); }
+.hm-switch[aria-checked="true"] .hm-knob { transform: translateX(20px); background: #fff; }
+.hm-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The slider: a thick bar filled to its value, in the colour the lights are. */
+input.hm-dim {
+  --pct: 50%; --fill: color-mix(in srgb, var(--t1) 88%, #fff 12%);
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 30px; margin: 0; padding: 0; background: transparent; cursor: pointer;
+  touch-action: pan-y;
+}
+input.hm-dim[hidden] { display: none; }
+input.hm-dim.off { --fill: var(--dimmer); }
+input.hm-dim::-webkit-slider-runnable-track {
+  height: 12px; border-radius: 999px;
+  background: linear-gradient(to right, var(--fill) 0 var(--pct), color-mix(in srgb, var(--text) 10%, transparent) var(--pct) 100%);
+}
+input.hm-dim::-moz-range-track {
+  height: 12px; border-radius: 999px;
+  background: linear-gradient(to right, var(--fill) 0 var(--pct), color-mix(in srgb, var(--text) 10%, transparent) var(--pct) 100%);
+}
+input.hm-dim::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 24px; height: 24px; margin-top: -6px; border-radius: 50%; border: 0;
+  background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+input.hm-dim::-moz-range-thumb {
+  width: 24px; height: 24px; border-radius: 50%; border: 0;
+  background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+input.hm-dim:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 999px; }
+input.hm-warm::-webkit-slider-runnable-track { background: linear-gradient(to right, var(--w1), var(--w2), var(--w3)); }
+input.hm-warm::-moz-range-track { background: linear-gradient(to right, var(--w1), var(--w2), var(--w3)); }
+
+/* ---- what opens inside it ---- */
+
+.hm-more {
+  display: grid; grid-template-rows: 0fr;
+  transition: grid-template-rows 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.hm-card.open .hm-more { grid-template-rows: 1fr; }
+.hm-more-in { min-height: 0; overflow: hidden; display: grid; gap: 12px; }
+.hm-card.open .hm-more-in { padding-top: 6px; }
+
+.hm-scenes { display: flex; flex-wrap: wrap; gap: 6px; }
+.hm-chip {
+  appearance: none; cursor: pointer; font: inherit; font-size: 13px; line-height: 1.25;
+  min-height: 34px; padding: 6px 14px; border-radius: 999px; text-align: left;
+  border: 1px solid var(--line); background: color-mix(in srgb, var(--panel-2) 80%, transparent); color: var(--text);
+  overflow-wrap: anywhere; transition: background-color 200ms ease, border-color 200ms ease;
+}
+.hm-chip:hover { border-color: var(--dim); }
+.hm-chip.on { background: var(--text); border-color: var(--text); color: var(--bg); font-weight: 600; }
+.hm-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.hm-tones { display: grid; gap: 8px; }
+.hm-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.hm-swatch {
+  appearance: none; position: relative; cursor: pointer; flex: 0 0 auto;
+  width: 30px; height: 30px; padding: 0; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--text) 18%, transparent); background: var(--c);
+}
+.hm-swatch:hover { border-color: var(--text); }
+.hm-swatch:focus-visible, .hm-other:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hm-other { background: conic-gradient(#ff3b30, #ffcc00, #34c759, #32ade6, #5856d6, #ff2d55, #ff3b30); overflow: hidden; }
+.hm-other input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+
+.hm-each { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.hm-one {
+  --t1: #ffcf8a;
+  display: grid; gap: 2px; padding: 8px 10px 4px; border-radius: 11px;
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+}
+.hm-one-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.hm-one .hm-words { flex: 1 1 auto; }
+.hm-one .hm-title { font-weight: 500; font-size: 13.5px; }
+.hm-dot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: var(--dimmer);
+  transition: background-color 320ms ease, box-shadow 320ms ease; }
+.hm-one[data-on] .hm-dot { background: var(--t1); box-shadow: 0 0 8px var(--t1); }
+.hm-one .hm-switch { transform: scale(0.9); transform-origin: right center; }
+
+/* A finger's sizes wherever there is a finger. */
+@media (pointer: coarse) {
+  .hm-head .ctl.small { min-height: 40px; padding: 0 18px; }
+  input.hm-dim { height: 40px; }
+  input.hm-dim::-webkit-slider-thumb { width: 28px; height: 28px; margin-top: -8px; }
+  input.hm-dim::-moz-range-thumb { width: 28px; height: 28px; }
+  .hm-swatch { width: 36px; height: 36px; }
+  .hm-chip { min-height: 40px; }
+  .hm-one .hm-switch { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hm-card, .hm-bulb, .hm-switch, .hm-switch .hm-knob, .hm-more, .hm-chev, .hm-chip, .hm-dot { transition: none; }
+}

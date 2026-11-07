@@ -1,0 +1,24 @@
+{% extends "rouh/signin_base.html" %}
+{% comment %}"Forgot password?": the person says who they are, and is told the
+   same thing whoever they are (`rouh/password_reset.py` says why).{% endcomment %}
+{% block title %}Forgot your password? - Rouh{% endblock %}
+{% block body %}{% if sent %}
+ <h2>Check your email</h2>
+ <p class="good" role="status">If there is a Rouh account for that, a link to set a new password is on its way. It works once, within the hour.</p>
+ <p>Rouh sends the link through the Google account connected to that Rouh account in Settings, to that Google account's own address. An account made from an invitation to a shared page gets it at the address the invitation went to. If neither is true of your account, no email can reach you: ask whoever runs your Rouh to set a new password for you.</p>
+ <p class="back"><a href="/login">Back to sign in</a></p>
+{% else %}
+ <h2>Forgot your password?</h2>
+ <p>Type your username or the email address on your account, and Rouh will email you a link to set a new password.</p>{% if note %}
+ <p class="bad" role="alert">{{ note }}</p>{% endif %}
+ <form method="post" action="/login/forgot">
+  {% csrf_token %}
+  <div class="field">
+   <label for="who">Username or email</label>
+   <input id="who" name="who" type="text" autofocus autocapitalize="none" autocorrect="off"
+          autocomplete="username" value="{{ said }}" maxlength="254" required>
+  </div>
+  <button type="submit">Email me a link</button>
+ </form>
+ <p class="back"><a href="/login">Back to sign in</a></p>
+{% endif %}{% endblock %}

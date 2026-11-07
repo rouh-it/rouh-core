@@ -1,0 +1,52 @@
+{
+  "id": "payments",
+  "name": "Payments",
+  "title": "Payments: the card vault, each card's spending caps and Stripe",
+  "aliases": [
+    "payment",
+    "card",
+    "cards",
+    "money",
+    "stripe",
+    "spending",
+    "caps",
+    "limit",
+    "card limit",
+    "budget"
+  ],
+  "group": "machine",
+  "route": "/anatomy/money/payments",
+  "anatomy": {
+    "order": 10
+  },
+  "icon": "<rect x=\"3\" y=\"5.5\" width=\"18\" height=\"13\" rx=\"2.2\"/><path d=\"M3 10h18M6.5 14.8h4\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "charges a sealed card only within that card's own caps, set here"
+    ],
+    "accounts": [
+      "Stripe"
+    ],
+    "tables": [
+      "payment_settings",
+      "payment_cards",
+      "billing_entities",
+      "card_charges",
+      "stripe_links"
+    ],
+    "jobs": [],
+    "remove": "the Settings group's own cards in rouh/templates/rouh/index.html and its script, rouh/payments.py, paymentspage.js/.css and this manifest."
+  },
+  "uses": {
+    "tools": [
+      "payments",
+      "stripe"
+    ]
+  }
+}

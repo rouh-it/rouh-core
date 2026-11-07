@@ -1,0 +1,400 @@
+/* Comments pinned to the page (comments.js, rouh/comments.py).
+
+   Everything here is drawn inside a shadow root, so a page's own styles never
+   reach it and none of these reach the page. The colours are the Ask AI
+   drawer's own (askai.css), because the two sit side by side in one floating
+   control and are one thing to the reader. */
+
+:host{
+  --s:#161b24; --p:#1b212c; --p2:#1e2530; --b:#232a35; --bs:#2f3742;
+  --t:#e7eaf0; --m:#c2cad6; --d:#8b94a3; --a:#6d5cf0; --ah:#7e6ff5;
+  --ok:#22c55e; --warn:#f5a524; --bad:#ef4444;
+  --sans:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+.cm, .cm *{ box-sizing:border-box }
+.cm{
+  position:absolute; inset:0; pointer-events:none; overflow:hidden;
+  font:13px/1.45 var(--sans); color:var(--t); letter-spacing:normal; text-align:left;
+}
+.cm button{ font:inherit; color:inherit; margin:0; cursor:pointer }
+.cm svg{ display:block }
+
+/* ---------- the floating control: comment, its options, and Ask AI ---------- */
+.dock{
+  position:absolute; z-index:8; top:5px; right:14px; height:34px; display:flex; align-items:stretch;
+  pointer-events:auto; background:var(--s); border:1px solid var(--bs); border-radius:10px;
+  box-shadow:0 4px 14px rgba(0,0,0,.28); overflow:hidden;
+}
+.dock button{ background:none; border:0; padding:0; display:grid; place-items:center;
+  color:var(--m); transition:background .12s, color .12s }
+.dock button:hover{ background:var(--p2); color:var(--t) }
+.dock button:focus-visible{ outline:2px solid var(--a); outline-offset:-2px }
+.dock .grip{ width:16px; display:grid; place-items:center; color:var(--d); cursor:grab;
+  touch-action:none; user-select:none; -webkit-user-select:none; border-right:1px solid var(--b) }
+.dock .grip:hover{ background:var(--p2); color:var(--m) }
+.dock .grip.on{ cursor:grabbing; background:var(--p2); color:var(--t) }
+.dock .grip svg{ width:6px; height:11px; fill:currentColor }
+.dock .cmt{ min-width:34px; padding:0 8px; display:flex; gap:5px; align-items:center }
+.dock .cmt svg{ width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8;
+  stroke-linecap:round; stroke-linejoin:round }
+.dock .cmt .n{ font:600 11px/1 var(--sans); color:var(--d); min-width:8px }
+.dock .cmt.on{ background:var(--a); color:#fff }
+.dock .cmt.on .n{ color:#fff }
+.dock .chev{ width:20px; border-left:1px solid var(--b) }
+.dock .chev svg{ width:10px; height:10px; fill:none; stroke:currentColor; stroke-width:2.2;
+  stroke-linecap:round; stroke-linejoin:round }
+.dock .chev[aria-expanded="true"]{ background:var(--p2); color:var(--t) }
+.dock .sep{ width:1px; background:var(--bs); margin:6px 0 }
+.dock .ask{ width:34px; color:var(--a) }
+.dock .ask:hover{ color:var(--ah) }
+.dock .ask svg{ width:17px; height:17px; fill:currentColor }
+/* History and Options, pressed through to askai.js's own buttons (comments.js,
+   "mirror"), drawn as they are there: History a line drawing, Options in the
+   purple of the parts of the page that have versions, with their number. */
+.dock .hist, .dock .opts{ width:34px }
+.dock .hist svg, .dock .opts svg{ width:17px; height:17px; fill:none; stroke:currentColor;
+  stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round }
+.dock .hist.on{ background:var(--p2); color:var(--t) }
+.dock .opts{ width:auto; padding:0 9px; display:flex; gap:5px; align-items:center; color:#b9a2ff }
+.dock .opts span{ font:700 11.5px/1 var(--mono) }
+.dock .opts:hover, .dock .opts.on{ background:#b9a2ff; color:#170d33 }
+.dock [hidden]{ display:none !important }
+/* Edit, pressed through to askai.js's own pencil: lit while the page is
+   waiting for the part to change to be pointed at. */
+.dock .edit{ width:34px }
+.dock .edit svg{ width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.9;
+  stroke-linecap:round; stroke-linejoin:round }
+.dock .edit.on, .dock .edit.on:hover{ background:#5ec2ff; color:#04121c }
+/* The highlighter, pressed through to its own button (highlights.js): a
+   marker with the colour it paints in under it, lit while it is on. */
+.dock .mark{ width:34px; border-left:1px solid var(--b) }
+.dock .mark svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8;
+  stroke-linecap:round; stroke-linejoin:round }
+.dock .mark.on, .dock .mark.on:hover{ background:var(--p2); color:var(--t) }
+/* Listen, pressed through to its own button (listen.js): a speaker, lit in
+   the colour of the part being said while the page is being read. */
+.dock .listen{ width:34px }
+.dock .listen svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8;
+  stroke-linecap:round; stroke-linejoin:round }
+.dock .listen.on, .dock .listen.on:hover{ background:#5ec2ff; color:#04121c }
+
+/* Ask AI going through the threads: under the floating control, while it runs. */
+.passbar{
+  position:absolute; z-index:8; top:46px; right:14px; display:flex; align-items:center; gap:8px;
+  padding:6px 12px 6px 9px; pointer-events:auto; max-width:calc(100% - 28px);
+  background:var(--s); border:1px solid color-mix(in srgb, var(--a) 55%, var(--bs));
+  border-radius:999px; box-shadow:0 6px 20px rgba(0,0,0,.35); color:var(--m); font-size:12.5px;
+}
+.passbar[hidden]{ display:none }
+.passbar #passWords{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.passbar .spin{ flex:none; width:16px; height:16px; color:#b5acff; animation:twinkle 1.4s ease-in-out infinite }
+.passbar .spin svg{ width:16px; height:16px; fill:currentColor }
+@keyframes twinkle{ 0%,100%{ transform:scale(.8) rotate(0); opacity:.65 } 50%{ transform:scale(1.08) rotate(20deg); opacity:1 } }
+@media (prefers-reduced-motion:reduce){ .passbar .spin{ animation:none } }
+
+/* ---------- menus: the chevron's, a thread's and a message's ---------- */
+.menu{
+  position:absolute; z-index:9; min-width:210px; padding:5px; pointer-events:auto;
+  background:var(--s); border:1px solid var(--bs); border-radius:10px;
+  box-shadow:0 12px 34px rgba(0,0,0,.45);
+}
+.menu[hidden]{ display:none }
+.menu .mi{
+  display:flex; align-items:center; gap:9px; width:100%; padding:7px 9px; border:0;
+  border-radius:7px; background:none; text-align:left; font-size:13px; color:var(--t);
+  white-space:nowrap;
+}
+.menu .mi:hover, .menu .mi:focus-visible{ background:var(--p2); outline:none }
+.menu .mi .ck{ width:15px; height:15px; flex:none; display:grid; place-items:center;
+  color:var(--a) }
+.menu .mi .ck svg{ width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:2.6;
+  stroke-linecap:round; stroke-linejoin:round; visibility:hidden }
+.menu .mi[aria-checked="true"] .ck svg{ visibility:visible }
+.menu .mi .k{ margin-left:auto; padding-left:16px; font:11px var(--mono); color:var(--d) }
+.menu .mi.ai .ck svg{ visibility:visible; fill:currentColor; stroke:none; width:15px; height:15px }
+.menu .mi.ai{ font-weight:600 }
+.menu .mi[aria-disabled="true"]{ color:var(--d); cursor:default }
+.menu .mi[aria-disabled="true"]:hover{ background:none }
+.menu .mi[hidden], .menu .hr[hidden]{ display:none }
+.menu .mi.bad{ color:#ff8a8a }
+.menu .mi.bad.sure{ background:color-mix(in srgb, var(--bad) 22%, transparent); color:#fff }
+.menu .hr{ height:1px; background:var(--b); margin:5px 2px }
+
+/* ---------- pins ---------- */
+.layer{ position:absolute; inset:0; pointer-events:none }
+.pin{
+  position:absolute; left:0; top:0; pointer-events:auto; transform:translateY(-100%);
+  cursor:pointer; outline:none;
+}
+.pin[hidden]{ display:none }
+.bubble{
+  position:relative; display:flex; align-items:flex-start; gap:9px;
+  min-width:34px; min-height:34px; padding:3px;
+  background:var(--s); border:2px solid rgba(255,255,255,.92);
+  border-radius:17px 17px 17px 4px;
+  box-shadow:0 3px 12px rgba(0,0,0,.38), 0 0 0 1px rgba(0,0,0,.18);
+  transition:opacity .15s, filter .15s, border-color .15s;
+}
+.av{
+  flex:none; width:24px; height:24px; border-radius:50%; display:grid; place-items:center;
+  font:700 10.5px/1 var(--sans); color:#fff; letter-spacing:.02em; user-select:none;
+}
+.bubble > .av{ width:24px; height:24px }
+/* Ask AI, in a thread: its sparkle, on the purple of its own button. */
+.av.ai{ background:linear-gradient(135deg, #6d5cf0, #a78bfa); color:#fff }
+.av.ai svg{ width:14px; height:14px; fill:currentColor }
+.pin:focus-visible .bubble{ border-color:var(--a) }
+.pin.on .bubble{ border-color:var(--a); box-shadow:0 0 0 3px color-mix(in srgb, var(--a) 45%, transparent),
+  0 3px 12px rgba(0,0,0,.38) }
+
+/* Hovering a pin opens it out, from its point, into the first message. */
+.peek{ display:none; width:236px; padding:1px 5px 3px 0; min-width:0 }
+.pin.peeking .bubble{ border-radius:14px 14px 14px 4px; z-index:3 }
+.pin.peeking .peek{ display:block; animation:grow .14s ease-out }
+.pin.peeking{ z-index:4 }
+@keyframes grow{ from{ opacity:0; transform:translateX(-6px) } to{ opacity:1; transform:none } }
+.peek .ph{ display:flex; align-items:baseline; gap:7px; min-width:0 }
+.peek .ph b{ font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.peek .ph span{ color:var(--d); font-size:11.5px; white-space:nowrap }
+.peek .pt{ margin-top:2px; color:var(--m); display:-webkit-box; -webkit-line-clamp:3;
+  line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere;
+  white-space:pre-wrap }
+.peek .pr{ margin-top:4px; color:var(--d); font-size:11.5px }
+.peek .gone{ margin-top:7px }
+
+/* Resolved: drawn only when resolved comments are shown, and then faded to
+   half, grey, with a tick, so it is plainly not an open one. Full strength
+   while it is hovered or open, so it can be read. */
+.pin.resolved .bubble{ opacity:.5; filter:grayscale(1) }
+.pin.resolved:hover .bubble, .pin.resolved.on .bubble, .pin.resolved.peeking .bubble{
+  opacity:1; filter:none }
+.pin .tick{
+  position:absolute; top:-7px; right:-7px; width:16px; height:16px; border-radius:50%;
+  display:none; place-items:center; background:var(--ok); border:2px solid var(--s);
+}
+.pin .tick svg{ width:9px; height:9px; fill:none; stroke:#fff; stroke-width:3.2;
+  stroke-linecap:round; stroke-linejoin:round }
+.pin.resolved .tick{ display:grid }
+
+/* Its element has gone from the page: a dashed amber edge and a mark that
+   says so, where the element used to be. */
+.pin.orphan .bubble{ border-style:dashed; border-color:var(--warn) }
+.pin .lost{
+  position:absolute; top:-7px; right:-7px; width:16px; height:16px; border-radius:50%;
+  display:none; place-items:center; background:var(--warn); border:2px solid var(--s);
+  font:800 10px/1 var(--sans); color:#1b1400;
+}
+.pin.orphan .lost{ display:grid }
+.pin.orphan.resolved .lost{ display:none }
+
+/* A pin being moved: lifted while it waits for its element, and carried
+   under the pointer while it is dragged, so what is under it can be found. */
+.pin{ touch-action:manipulation }
+.pin.moving .bubble{ border-color:var(--a); box-shadow:0 0 0 3px color-mix(in srgb, var(--a) 45%, transparent),
+  0 8px 22px rgba(0,0,0,.45); animation:lift 1s ease-in-out infinite alternate }
+.pin.dragging{ pointer-events:none; z-index:6; cursor:grabbing }
+.pin.dragging .bubble{ border-color:var(--a); box-shadow:0 10px 26px rgba(0,0,0,.5) }
+@keyframes lift{ from{ transform:translateY(0) } to{ transform:translateY(-3px) } }
+@media (prefers-reduced-motion:reduce){ .pin.moving .bubble{ animation:none } }
+.gone .fix{ margin-top:8px; width:100%; padding:6px 10px; border-radius:7px;
+  border:1px solid color-mix(in srgb, var(--warn) 60%, transparent); background:var(--p2);
+  color:#ffd592; font-size:12.5px; font-weight:600 }
+.gone .fix:hover{ background:color-mix(in srgb, var(--warn) 18%, var(--p2)) }
+
+/* The pin being written, before it is sent. */
+.pin.draft .bubble{ border-color:var(--a) }
+
+/* ---------- hovering the page in comment mode ---------- */
+.hover{
+  position:absolute; pointer-events:none; display:none; border-radius:4px;
+  outline:1.5px dashed color-mix(in srgb, var(--a) 85%, #fff);
+  background:color-mix(in srgb, var(--a) 7%, transparent);
+}
+.hover.on{ display:block }
+.hover .tag{
+  position:absolute; left:-1px; bottom:100%; margin-bottom:4px; padding:2px 6px;
+  border-radius:5px; background:var(--a); color:#fff; font:11px/1.35 var(--mono);
+  white-space:nowrap; max-width:320px; overflow:hidden; text-overflow:ellipsis;
+}
+.hover.below .tag{ bottom:auto; top:100%; margin:4px 0 0 }
+.hint{
+  position:absolute; z-index:8; left:50%; bottom:16px; transform:translateX(-50%); display:none;
+  align-items:center; gap:10px; padding:8px 8px 8px 14px; pointer-events:auto;
+  background:var(--s); border:1px solid var(--bs); border-radius:999px;
+  box-shadow:0 8px 26px rgba(0,0,0,.4); white-space:nowrap; color:var(--m);
+}
+.hint.on{ display:flex }
+/* On a phone: wrapped inside the screen, and to the right of Rouh's orb, as Edit's is. */
+@media (max-width:560px){
+  .hint{ white-space:normal; left:auto; right:12px; transform:none;
+    max-width:calc(100% - 112px); width:max-content; border-radius:16px }
+  .hint button{ flex:none }
+}
+.hint kbd{ font:11px var(--mono); padding:1px 5px; border-radius:4px; border:1px solid var(--bs);
+  color:var(--t) }
+.hint button{ border:1px solid var(--bs); background:var(--p2); border-radius:999px;
+  padding:4px 11px; font-size:12px; color:var(--t) }
+.hint button:hover{ border-color:var(--a) }
+
+/* ---------- a thread, open beside its pin, and the box a new one starts in ---------- */
+.pop{
+  position:absolute; z-index:7; width:330px; max-width:calc(100% - 16px); pointer-events:auto;
+  display:flex; flex-direction:column; max-height:min(560px, calc(100% - 16px));
+  background:var(--s); border:1px solid var(--bs); border-radius:12px;
+  box-shadow:0 18px 48px rgba(0,0,0,.5);
+}
+.pop[hidden]{ display:none }
+.pop.shake{ animation:shake .3s }
+@keyframes shake{ 25%{ transform:translateX(-5px) } 75%{ transform:translateX(5px) } }
+.pop .top{ display:contents }
+.pop .head{ flex:none; display:flex; align-items:center; gap:4px; padding:8px 8px 8px 14px;
+  border-bottom:1px solid var(--b) }
+.pop .head .t{ flex:1; font:11px var(--mono); letter-spacing:.12em; text-transform:uppercase;
+  color:var(--d) }
+.ic{
+  width:28px; height:28px; border-radius:7px; border:0; background:none; display:grid;
+  place-items:center; color:var(--m);
+}
+.ic:hover{ background:var(--p2); color:var(--t) }
+.ic:focus-visible{ outline:2px solid var(--a); outline-offset:-2px }
+.ic svg{ width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.9;
+  stroke-linecap:round; stroke-linejoin:round }
+/* Resolve says its name: it is how an item is closed, and has to be found. */
+.ic.res{ width:auto; padding:0 9px 0 6px; gap:5px; display:flex; align-items:center;
+  border:1px solid var(--bs); font-size:12px; color:var(--t) }
+.ic.res:hover{ border-color:var(--ok) }
+.ic.res .lb{ white-space:nowrap }
+.ic.res[aria-pressed="true"]{ color:var(--ok) }
+.ic.res[aria-pressed="true"] svg circle{ fill:var(--ok); stroke:var(--ok) }
+.ic.res[aria-pressed="true"] svg path{ stroke:#fff }
+
+.pop .gone{ flex:none; margin:10px 12px 0 }
+.gone{
+  padding:9px 10px; border-radius:9px; border:1px dashed color-mix(in srgb, var(--warn) 70%, transparent);
+  background:color-mix(in srgb, var(--warn) 9%, transparent); color:var(--m); font-size:12.5px;
+}
+.gone b{ color:#ffd592; font-weight:650 }
+.gone .was{ margin-top:4px; color:var(--d); font-size:11.5px; overflow-wrap:anywhere }
+.shot{
+  margin-top:8px; border-radius:7px; border:1px solid var(--bs); overflow:hidden;
+  background:var(--p); min-height:24px; position:relative;
+}
+.shot.empty{ background:var(--p); color:var(--d); padding:8px; font-size:12px }
+.pop .state{ flex:none; margin:10px 14px 0; font-size:12px; color:var(--d);
+  display:flex; align-items:center; gap:6px }
+.pop .state svg{ width:13px; height:13px; fill:none; stroke:var(--ok); stroke-width:2.6;
+  stroke-linecap:round; stroke-linejoin:round }
+
+.msgs{ flex:1 1 auto; overflow-y:auto; padding:6px 0; min-height:0 }
+.msg{ position:relative; display:flex; gap:10px; padding:8px 14px }
+.msg .body{ flex:1; min-width:0 }
+.msg .mh{ display:flex; align-items:baseline; gap:7px; padding-right:26px }
+.msg .mh b{ font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.msg .mh .when{ color:var(--d); font-size:11.5px; white-space:nowrap }
+.msg .text{ margin-top:2px; color:var(--m); white-space:pre-wrap; overflow-wrap:anywhere }
+.mention{ color:#b5acff; font-weight:600 }
+.msg .more{ position:absolute; right:8px; top:4px; width:26px; height:26px; opacity:0 }
+.msg:hover .more, .msg .more:focus-visible, .msg .more[aria-expanded="true"]{ opacity:1 }
+
+/* ---------- writing: a new comment, a reply, an edit ---------- */
+.composer{ flex:none; padding:10px 12px 12px; position:relative }
+.pop .msgs + .composer{ border-top:1px solid var(--b) }
+.box{
+  display:flex; flex-direction:column; gap:6px; padding:8px 8px 6px 10px;
+  background:var(--p); border:1px solid var(--bs); border-radius:10px;
+}
+.box:focus-within{ border-color:var(--a) }
+.box textarea{
+  display:block; width:100%; min-height:20px; max-height:160px; resize:none; border:0; outline:0;
+  padding:0; margin:0; background:none; color:var(--t); font:13.5px/1.45 var(--sans);
+}
+.box textarea::placeholder{ color:var(--d) }
+.box .bar{ display:flex; align-items:center; gap:4px }
+.box .bar .sp{ flex:1 }
+.box .at{ width:26px; height:26px; border-radius:7px; border:0; background:none; color:var(--d);
+  font:600 14px/1 var(--sans) }
+.box .at:hover{ background:var(--p2); color:var(--t) }
+.box .send{ width:28px; height:28px; border-radius:50%; border:0; display:grid; place-items:center;
+  background:var(--a); color:#fff }
+.box .send:disabled{ background:var(--bs); color:var(--d); cursor:default }
+.box .send svg{ width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2.4;
+  stroke-linecap:round; stroke-linejoin:round }
+.box .plain{ border:1px solid var(--bs); background:var(--p2); border-radius:7px; padding:4px 10px;
+  font-size:12px; color:var(--t) }
+.box .plain.go{ background:var(--a); border-color:var(--a); color:#fff }
+.composer .err{ margin-top:6px; color:#ff8a8a; font-size:12px }
+.composer .err:empty{ display:none }
+.msg .box{ margin-top:4px }
+
+/* The people who can be tagged, under the box. */
+.ments{
+  position:absolute; left:12px; right:12px; top:calc(100% - 8px); z-index:7; padding:4px;
+  max-height:220px; overflow-y:auto; background:var(--s); border:1px solid var(--bs);
+  border-radius:10px; box-shadow:0 12px 34px rgba(0,0,0,.5);
+}
+.ments.up{ top:auto; bottom:calc(100% - 6px) }
+.ments[hidden]{ display:none }
+.ments .who{ display:flex; align-items:center; gap:9px; width:100%; padding:6px 8px; border:0;
+  border-radius:7px; background:none; text-align:left; color:var(--t) }
+.ments .who.on{ background:var(--p2) }
+.ments .who .nm{ min-width:0; display:flex; flex-direction:column }
+.ments .who b{ font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.ments .who .em{ font-size:11.5px; color:var(--d); white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis }
+.ments .none{ padding:8px 10px; color:var(--d); font-size:12px }
+
+/* ---------- every comment, as a list ---------- */
+/* Under the floating control rather than over it, so the control that
+   opened it is still there to press; and under a thread opened from it,
+   which sits beside it where there is room and over it where there is not. */
+.list{
+  position:absolute; top:46px; right:0; bottom:0; width:340px; max-width:100%; z-index:6;
+  display:flex; flex-direction:column; pointer-events:auto;
+  background:var(--s); border:1px solid var(--bs); border-right:0; border-bottom:0;
+  border-top-left-radius:12px; box-shadow:-12px 0 34px rgba(0,0,0,.35);
+}
+.list[hidden]{ display:none }
+.list .head{ flex:none; display:flex; align-items:center; gap:8px; padding:10px 10px 10px 16px;
+  border-bottom:1px solid var(--b) }
+.list .head .t{ flex:1; font:11px var(--mono); letter-spacing:.14em; text-transform:uppercase;
+  color:var(--d) }
+.list .filt{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--m);
+  cursor:pointer; user-select:none }
+.list .filt input{ accent-color:var(--a); margin:0 }
+.list .items{ flex:1; overflow-y:auto; padding:6px }
+.list .item{ display:flex; gap:10px; width:100%; padding:10px; border:0; border-radius:9px;
+  background:none; text-align:left; color:var(--t) }
+.list .item:hover, .list .item.on{ background:var(--p2) }
+.list .item.resolved{ opacity:.55 }
+.list .item.resolved:hover{ opacity:1 }
+.list .item .body{ flex:1; min-width:0 }
+.list .item .mh{ display:flex; align-items:baseline; gap:7px }
+.list .item .mh b{ font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.list .item .mh .when{ color:var(--d); font-size:11.5px; white-space:nowrap }
+.list .item .text{ margin-top:2px; color:var(--m); display:-webkit-box; -webkit-line-clamp:2;
+  line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere }
+.list .item .tags{ margin-top:5px; display:flex; flex-wrap:wrap; gap:6px; font-size:11px;
+  color:var(--d) }
+.list .item .tg{ padding:1px 7px; border-radius:999px; border:1px solid var(--bs) }
+.list .item .tg.ok{ color:#86efac; border-color:color-mix(in srgb, var(--ok) 50%, transparent) }
+.list .item .tg.lost{ color:#ffd592; border-color:color-mix(in srgb, var(--warn) 55%, transparent) }
+.list .empty{ padding:24px 14px; color:var(--d); text-align:center }
+.list .sec{ padding:12px 10px 4px; font:10.5px var(--mono); letter-spacing:.12em;
+  text-transform:uppercase; color:var(--d) }
+
+/* ---------- a word about what just happened ---------- */
+.toast{
+  position:absolute; z-index:10; left:50%; bottom:18px; transform:translateX(-50%); max-width:min(460px, 92%);
+  padding:9px 14px; border-radius:10px; background:var(--s); border:1px solid var(--bs);
+  box-shadow:0 10px 30px rgba(0,0,0,.45); color:var(--m); pointer-events:auto; display:none;
+}
+.toast.on{ display:block }
+.toast.bad{ border-color:color-mix(in srgb, var(--bad) 60%, transparent); color:#ffb4b4 }
+
+@media (max-width:520px){
+  .pop{ width:calc(100% - 16px) }
+  .list{ width:100% }
+  .hint{ bottom:10px }
+  .hint .long{ display:none }
+}

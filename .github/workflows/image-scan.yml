@@ -1,0 +1,94 @@
+# A secrets scan of every layer of Rouh's published images (task 98, step 98-23).
+#
+# rouh-base is meant to be made public one day, and making a package public is the owner's
+# decision, never this workflow's: it only reports. It pulls every published level of rouh-base,
+# and rouh-guard's newest, for Intel and Arm, unpacks each layer on its own and scans it with
+# gitleaks and for the maker's own private names and addresses (deploy/container/scan-image.sh),
+# a list kept in the Actions secret SCAN_PRIVATE_NAMES and never in the repository.
+# The report is the run's summary and its artifact "image-scan"; the run fails when anything is
+# found outside libraries' own files.
+#
+# Run by hand (Actions, Image secrets scan, Run workflow), and after every published base.
+
+name: Image secrets scan
+
+on:
+  workflow_dispatch: {}
+  workflow_run:
+    workflows: ["Base image"]
+    types: [completed]
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: image-scan
+  cancel-in-progress: false
+
+env:
+  PREFIX: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  scan:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Make room
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+
+      - name: Every published level
+        id: list
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER}"
+          images=""
+          for pkg in rouh-base rouh-guard; do
+            tags="$(gh api "orgs/$owner/packages/container/$pkg/versions?per_page=100" \
+              --jq '.[].metadata.container.tags[]' 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -u || true)"
+            for t in $tags; do images="$images $PREFIX/$pkg:$t"; done
+          done
+          if [ -z "$images" ]; then
+            # The token may not list the packages; then every level the registry answers for.
+            for pkg in rouh-base rouh-guard; do
+              for line in 1.0 1.1 1.2; do
+                for n in $(seq 0 40); do
+                  docker manifest inspect "$PREFIX/$pkg:$line.$n" >/dev/null 2>&1 && images="$images $PREFIX/$pkg:$line.$n"
+                done
+              done
+            done
+          fi
+          [ -n "$images" ] || images="$PREFIX/rouh-base:latest"
+          echo "images=$images" >> "$GITHUB_OUTPUT"
+          echo "To scan:$images"
+
+      - name: Scan
+        env:
+          SCAN_PRIVATE_NAMES: ${{ secrets.SCAN_PRIVATE_NAMES }}
+          SCAN_REQUIRE_PRIVATE: "1"
+        run: |
+          set -uo pipefail
+          SCAN_DROP_IMAGES=1 deploy/container/scan-image.sh scan ${{ steps.list.outputs.images }}
+          status=$?
+          cat scan/report.md >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: image-scan
+          path: scan/
+          retention-days: 90

@@ -1,0 +1,3 @@
+#!/bin/sh
+# The one program's terminal command, on the server. Installed as /usr/local/bin/one.
+PYTHONPATH=/srv/one/app exec /srv/one/venv/bin/python -m one.cli "$@"

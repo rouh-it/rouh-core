@@ -1,0 +1,43 @@
+{
+  "id": "n31-meeting-attach",
+  "name": "Attach to a meeting",
+  "title": "Attach to a meeting: a task's Google Doc, Sheet or deck attached to the invitation of a meeting you organise about it, in one press from the task's Documents",
+  "aliases": [
+    "attach to a meeting",
+    "attach to the invite",
+    "put the document on the meeting",
+    "calendar attachment"
+  ],
+  "group": "work",
+  "route": "/tasks",
+  "icon": "<path d=\"M21 11.5l-8.5 8.5a5 5 0 0 1-7-7L14 4.5a3.3 3.3 0 0 1 4.7 4.7L10.2 17.7a1.7 1.7 0 0 1-2.4-2.4L15.5 7.6\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "lab",
+  "switch": "meeting_attach",
+  "signals": {
+    "events": {
+      "opened": "You pressed Attach to a meeting on a document in a task's Documents",
+      "attached": "You pressed Attach, and the task's document went onto a meeting's invitation"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the events of your own calendars in your Synapse Master, from today to two weeks ahead, that you organise",
+      "reads whether the meeting has the document attached already, and adds it to the invitation's attachments only when you press Attach, emailing nobody and sharing it with nobody"
+    ],
+    "accounts": [],
+    "tables": [
+      "synapse.item",
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch meeting_attach off on its row in Evolution, Mutations: no button is drawn and the route refuses. To remove it for good revert night 31's meeting_attach commit (rouh/meeting_attach.py, rouh/web/meeting_attach.py and its route in rouh/project/urls.py, its button and the Documents section drawn for it in rouh/task_docs.py, the doc_attach relay in rouh/static/app/cards.js, its handler in rouh/static/taskpage.js and rules in taskbrowser.css, Calendar.attach in rouh/google_api/calendar.py, this manifest)."
+  }
+}

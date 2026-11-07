@@ -1,0 +1,135 @@
+/* Settings, Stats (`statspage.js`, `rouh/navtaps.py`).
+
+   The cards of the Heartbeat page (`heartbeatpage.css`) with one thing of their own:
+   a bar chart drawn as a list, a row per item with its name, its bar and its count.
+   One series, so one colour, the accent; a bar of zero keeps its track, so every row
+   reads as a row even with nothing in it. */
+
+.st-bars {
+  list-style: none; margin: 4px 0 0; padding: 0;
+  display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content;
+  gap: 2px 12px; align-items: center;
+}
+.st-bar { display: contents; }
+.st-name { font-size: 13.5px; color: var(--text); white-space: nowrap; padding: 4px 0; }
+.st-track {
+  height: 14px; border-radius: 0 4px 4px 0;
+  background: var(--line-soft); overflow: hidden;
+}
+.st-fill {
+  display: block; height: 100%; min-width: 0; border-radius: 0 4px 4px 0;
+  background: var(--accent);
+}
+.st-count {
+  font-size: 13px; font-variant-numeric: tabular-nums; text-align: right;
+  color: var(--text); min-width: 2ch;
+}
+.st-bar.none .st-name, .st-bar.none .st-count { color: var(--dim); }
+.st-bar:hover .st-name, .st-bar:hover .st-count { color: var(--text); }
+.st-bar:hover .st-fill { filter: brightness(1.15); }
+
+@media (max-width: 480px) {
+  .st-bars { gap: 2px 10px; }
+  .st-name { font-size: 13px; }
+}
+
+/* The tabs over the cards: Navigation and Event log, the Decisions page's way. */
+.st-tabs {
+  display: inline-flex; justify-self: start; border: 1px solid var(--line); border-radius: 10px;
+  padding: 2px; background: var(--panel);
+}
+.st-tab {
+  min-height: 32px; padding: 4px 14px; border-radius: 8px; border: 0; background: transparent;
+  color: var(--dim); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;
+}
+.st-tab.on { background: var(--panel-2); color: var(--text); }
+.st-tab:hover { color: var(--text); }
+
+/* A row of big numbers, each with what it counts under it. */
+.st-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: 8px; }
+.st-tile {
+  padding: 10px 12px; border-radius: var(--radius-s); border: 1px solid var(--line-soft);
+  background: var(--panel-2); min-width: 0;
+}
+.st-tile-n {
+  font-size: 22px; font-weight: 650; line-height: 1.2; color: var(--text);
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.st-tile-l { font-size: 12.5px; color: var(--dim); margin-top: 2px; }
+
+.st-facts { margin: 4px 0 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; font-size: 13px; }
+.st-facts dt { color: var(--dim); }
+.st-facts dd { margin: 0; color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* A bar's name with its code under it, and a name that is a link. */
+.st-name-sub { white-space: normal; display: flex; flex-direction: column; line-height: 1.25; max-width: 30ch; }
+.st-code { font-size: 11.5px; color: var(--dim); font-family: var(--mono, ui-monospace, monospace); overflow-wrap: anywhere; }
+a.st-name { color: var(--text); text-decoration: none; }
+a.st-name:hover { text-decoration: underline; }
+
+/* Events per day: a column a day, today on the right, rounded at the top only. */
+.st-days { display: grid; gap: 4px; }
+.st-cols {
+  list-style: none; margin: 0; padding: 0; height: 120px;
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px;
+  align-items: end; border-bottom: 1px solid var(--line);
+}
+.st-col { height: 100%; display: flex; align-items: flex-end; cursor: default; }
+.st-col-bar { display: block; width: 100%; border-radius: 4px 4px 0 0; background: var(--accent); opacity: 0.75; }
+.st-col.today .st-col-bar { opacity: 1; }
+.st-col:hover .st-col-bar { opacity: 1; filter: brightness(1.15); }
+.st-axis { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--dim); }
+.st-scale { margin: 0; font-size: 12px; color: var(--dim); }
+
+/* Jobs and runs, by who started them. */
+.st-table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+.st-table th, .st-table td { padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--line-soft); }
+.st-table th:first-child { text-align: left; font-weight: 500; }
+.st-table thead th { color: var(--dim); font-weight: 600; font-size: 12px; }
+
+@media (max-width: 480px) {
+  .st-tile-n { font-size: 19px; }
+  .st-tab { min-height: 40px; }
+  .st-facts { grid-template-columns: minmax(0, 1fr); }
+  .st-facts dd { margin-bottom: 6px; }
+}
+
+/* Both levels of the navigation in one grid, so every bar lines up: a heading row
+   per group box, spanning the grid, with its presses in all; under it the box
+   itself and then its links, set in a little. */
+.st-levels { gap: 2px 12px; }
+.st-group {
+  grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px; margin-top: 10px; padding-bottom: 3px; border-bottom: 1px solid var(--line-soft);
+}
+.st-group:first-child { margin-top: 0; }
+.st-group-name { font-size: 13px; font-weight: 650; color: var(--text); letter-spacing: 0.01em; }
+.st-group-n { font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.st-levels .st-name { padding-left: 12px; }
+.st-box .st-name { color: var(--dim); font-style: italic; }
+.st-box .st-fill { background: color-mix(in srgb, var(--accent) 55%, var(--line-soft)); }
+
+/* By section or by link, a smaller pair of the same tabs. */
+.st-seg { margin: 2px 0 2px; }
+.st-seg .st-tab { min-height: 28px; font-size: 12.5px; padding: 3px 12px; }
+
+/* The flow: a column per step, a block per place, a band per move. Drawn to the
+   card's own width, with fewer steps where fewer fit (`flowChart`). */
+.st-flow { margin: 6px 0 2px; min-width: 0; }
+.st-flow svg { display: block; max-width: none; }
+.st-flow-step { font-size: 12.5px; font-weight: 650; fill: var(--text); }
+.st-flow-sub { font-size: 11.5px; fill: var(--dim); font-variant-numeric: tabular-nums; }
+.st-band { fill: var(--accent); fill-opacity: 0.22; transition: fill-opacity 0.12s; }
+.st-band:hover { fill-opacity: 0.4; }
+.st-node-box { fill: var(--panel-2); stroke: var(--line); stroke-width: 1; }
+.st-node-edge { fill: var(--accent); }
+.st-node.more .st-node-edge { fill: var(--dim); }
+.st-node:hover .st-node-box { stroke: var(--accent); }
+.st-node-name { font-size: 12.5px; font-weight: 600; fill: var(--text); }
+.st-node-n { font-size: 12px; fill: var(--dim); font-variant-numeric: tabular-nums; }
+.st-drop { fill: var(--dim); fill-opacity: 0.7; }
+
+.st-sub { margin: 10px 0 0; font-size: 12.5px; font-weight: 650; color: var(--text); }
+.st-move { display: inline-flex; gap: 6px; align-items: baseline; }
+.st-arrow { color: var(--dim); }
+.st-note { margin-top: 2px; font-size: 12px; }

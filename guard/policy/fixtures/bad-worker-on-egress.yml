@@ -1,0 +1,3 @@
+services:
+  worker:
+    networks: [workers, egress]

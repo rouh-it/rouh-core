@@ -1,0 +1,50 @@
+{
+  "id": "n29-share-ends",
+  "name": "Shared until",
+  "title": "Shared until: in the Share panel, beside each person shared with by hand, an end for the share (a day, a week, two weeks or a month), after which it is taken away by itself",
+  "aliases": [
+    "shared until",
+    "share for a while",
+    "expiring share",
+    "end the share",
+    "access ends"
+  ],
+  "group": "work",
+  "route": null,
+  "icon": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M12 7.5V12l3 2\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "lab",
+  "switch": "share_ends",
+  "signals": {
+    "events": {
+      "set": "You gave a share an end, or took its end off, with Until in the Share panel"
+    },
+    "runs": {
+      "ended": "A share you gave an end to was taken away by itself when the end came"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "press",
+    "press": "shareBtn"
+  },
+  "touches": {
+    "permissions": [
+      "keeps the end you give a share in its own table, under your own ids",
+      "takes away a share whose end has passed, exactly as setting the person to None in the Share panel does, checked every minute and as the share is opened"
+    ],
+    "accounts": [],
+    "tables": [
+      "share_ends",
+      "page_guests",
+      "analytics.event"
+    ],
+    "jobs": [
+      "every minute: shares whose end has passed are taken away"
+    ],
+    "remove": "Turn the switch share_ends off on its row in Evolution, Mutations: the Share panel has no Until and nothing is taken away; ends already set wait until it is on again. To remove it for good revert night 29's share_ends commit (rouh/share_ends.py, the ShareEnd model and migration 0223, the ends route and its lines in rouh/web/guests.py and rouh/project/urls.py, its Sweeper in rouh/runtime.py, shareUntil in rouh/static/app/runs.js and its rules in app.css, this manifest) and drop the table share_ends."
+  }
+}

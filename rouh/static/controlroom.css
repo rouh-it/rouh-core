@@ -1,0 +1,293 @@
+/* The Control Room (`controlroom.js`, `rouh/controlroom.py`): a map of what
+   is on Petar's mind, as a Mosaic or a Front page.
+
+   Rouh's own tokens, dark only. A card's left edge is its side - Work,
+   Personal or Rouh - and says nothing about its state. The warn colour is
+   what waits on his answer and nothing else. It lays itself out by the
+   width it is given rather than the window's (container queries), because
+   the canvas it sits on is a column whose width the person drags. */
+
+.cr-view {
+  --you: var(--warn, #f2b45e);
+  --side-work: #72a6f7;
+  --side-personal: #f07ea2;
+  --side-rouh: #4cc4b0;
+  /* The meter under a card, one colour per signal. */
+  --s-activity: #72a6f7; --s-waiting: #f2b45e; --s-returns: #ab8ff3;
+  --s-date: #5ec2ff; --s-tone: #f07ea2; --s-pin: #e7ecf3;
+}
+.cr-view:focus { outline: none; }
+.cr-wrap { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
+.cr-body {
+  flex: 1 1 auto; min-width: 0; overflow: auto; scrollbar-width: thin;
+  container-type: inline-size; container-name: cr;
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start;
+  padding: 2px 2px 40px;
+}
+.cr-view a { color: inherit; }
+.cr-view :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+.cr-note { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--dimmer); }
+.cr-say { margin: 0; padding: 10px 12px; border-radius: var(--radius-s); font-size: 13px; line-height: 1.45; }
+.cr-say.bad { background: rgba(255, 122, 112, 0.1); border: 1px solid rgba(255, 122, 112, 0.35); color: #ffc9c4; }
+.cr-say.warn { background: rgba(242, 180, 94, 0.08); border: 1px solid rgba(242, 180, 94, 0.3); color: #f6d7a8; }
+.cr-say.warn summary { cursor: pointer; }
+.cr-say ul { margin: 6px 0 0; padding-left: 18px; }
+.cr-link-btn {
+  appearance: none; background: none; border: 0; padding: 0; cursor: pointer; text-align: left;
+  font: inherit; color: var(--accent); text-decoration: underline; text-underline-offset: 2px;
+}
+.cr-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0;
+}
+.cr-card h4 { margin: 0; }
+.cr-naming { padding: 2px 2px 0; }
+
+/* ---- loading ---- */
+.cr-loading { display: grid; gap: 14px; padding: 8px 2px; }
+.cr-loading-say { margin: 0; color: var(--dim); font-size: 13px; }
+.cr-skel { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+.cr-skel-bar {
+  height: 200px; border-radius: var(--radius); border: 1px solid var(--line-soft);
+  background: linear-gradient(100deg, var(--panel) 30%, var(--panel-2) 50%, var(--panel) 70%);
+  background-size: 300% 100%; animation: cr-shimmer 1.6s ease-in-out infinite;
+}
+.cr-skel-bar:first-child { grid-row: span 2; height: 410px; }
+@keyframes cr-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+/* ---- the switch, the filter and the key ---- */
+.cr-map { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+.cr-tools { display: flex; gap: 8px 18px; align-items: center; flex-wrap: wrap; }
+.cr-help {
+  appearance: none; cursor: pointer; flex: 0 0 auto; margin-left: auto; width: 30px; height: 30px; padding: 0;
+  display: inline-grid; place-items: center; color: var(--dimmer); background: transparent;
+  border: 1px solid transparent; border-radius: 50%;
+}
+.cr-help svg { width: 20px; height: 20px; }
+.cr-help:hover { color: var(--text); }
+.cr-help[aria-expanded="true"] { color: var(--text); border-color: var(--line); background: var(--panel); }
+.cr-seg { display: inline-flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.cr-seg-label { font-size: 11.5px; color: var(--dimmer); margin-right: 6px; }
+.cr-seg-btn {
+  appearance: none; cursor: pointer; height: 28px; padding: 0 11px; font: inherit; font-size: 12px;
+  color: var(--dim); background: transparent; border: 1px solid var(--line); border-radius: 999px;
+}
+.cr-seg-btn:hover { color: var(--text); border-color: var(--dim); }
+.cr-seg-btn[aria-pressed="true"] { color: var(--accent-ink); background: var(--text); border-color: var(--text); font-weight: 600; }
+/* The view switch is one control of two halves, not two pills. */
+.cr-view-seg { gap: 0; }
+.cr-view-seg .cr-seg-btn { border-radius: 0; }
+.cr-view-seg .cr-seg-btn:nth-child(2) { border-radius: 999px 0 0 999px; }
+.cr-view-seg .cr-seg-btn:last-child { border-radius: 0 999px 999px 0; margin-left: -1px; }
+/* Others' tasks (`rouh/task_origin.py`): the switch beside Show, and the mark on a card or a
+   task made for somebody else, while the switch puts them on the map. */
+.cr-others-n { color: var(--dimmer); font-weight: 400; }
+.cr-seg-btn[aria-pressed="true"] .cr-others-n { color: inherit; }
+.cr-for {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px;
+  font-weight: 600; line-height: 1.5; white-space: nowrap; color: var(--s-returns);
+  background: color-mix(in srgb, var(--s-returns) 14%, transparent);
+}
+.cr-hd .cr-for, .cr-q .cr-for { margin-left: 0; }
+.cr-none { padding: 10px 0; }
+.cr-key {
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel);
+  font-size: 12.5px;
+}
+.cr-key[hidden] { display: none; }
+.cr-key-title { margin: 0 0 8px; color: var(--dim); }
+.cr-key-list { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 12px; }
+.cr-key-list dt, .cr-key-list dd { margin: 0; }
+.cr-key-k { color: var(--text); font-weight: 600; }
+.cr-key-list dd { color: var(--dim); line-height: 1.45; }
+.cr-key-foot { margin-top: 10px; }
+
+/* ---- a cluster's card ---- */
+.cr-cc {
+  position: absolute; display: flex; flex-direction: column; min-width: 0; overflow: hidden; cursor: pointer;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 13px 10px 16px; transition: border-color .12s, box-shadow .12s;
+}
+.cr-cc::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--side, var(--side-work)); }
+.cr-view [data-side="work"] { --side: var(--side-work); }
+.cr-view [data-side="personal"] { --side: var(--side-personal); }
+.cr-view [data-side="rouh"] { --side: var(--side-rouh); }
+.cr-cc:hover { border-color: var(--dimmer); box-shadow: 0 8px 24px rgba(0, 0, 0, .3); z-index: 3; }
+.cr-cc.provisional[data-kind="topic"] .cr-nm { font-style: italic; }
+/* A card's name is never cut where there is room for it (Petar, 13 October
+   2026: "these cut titles do not work for me"). It takes the whole line, with
+   nothing beside it; only a fixed-size mosaic tile that cannot hold it clamps
+   it, and opening the card shows it whole. */
+.cr-hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.cr-nm {
+  flex: 1 1 auto; min-width: 0; margin: 0; font-weight: 700; font-size: 15px; line-height: 1.2; color: var(--text);
+  overflow-wrap: break-word;
+}
+.cr-nm.two, .cr-nm.one { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.cr-nm.one { -webkit-line-clamp: 1; }
+/* What an opened topic card's subject is: a client, a person, an organisation. */
+.cr-kind-line { margin: -2px 0 2px; font-size: 12.5px; color: var(--dimmer); }
+/* Why a task, chat or meeting is in its cluster, under it in an opened one. */
+.cr-wy { display: block; font-size: 11.5px; line-height: 1.35; color: var(--dimmer); }
+.cr-ld {
+  flex: none; margin: 5px 0 7px; font-size: 13.5px; line-height: 1.35; color: var(--dim);
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
+}
+/* What the line under a name is, said in front of it. */
+.cr-ld-lab {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--dimmer); margin-right: 4px;
+}
+.cr-chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 6px; }
+.cr-chip {
+  display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11.5px; padding: 2px 8px; border-radius: 999px; color: var(--dim);
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.cr-chip.wait { color: var(--you); font-weight: 600; background: rgba(242, 180, 94, .12); border-color: rgba(242, 180, 94, .45); }
+.cr-chip.date { color: var(--text); background: var(--accent-soft); border-color: rgba(94, 194, 255, .4); }
+.cr-chip.pin { color: var(--text); }
+.cr-cols {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 4px 14px;
+  flex: 1 1 auto; min-height: 0; overflow: hidden; align-content: start;
+}
+.cr-blk { min-width: 0; }
+.cr-bt { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--dimmer); margin: 5px 0 2px; }
+.cr-blk ul { margin: 0; padding: 0; list-style: none; }
+.cr-blk li { position: relative; padding: 1.5px 0 1.5px 11px; font-size: 12.3px; line-height: 1.35; color: var(--dim); overflow-wrap: anywhere; }
+.cr-blk li::before { content: ""; position: absolute; left: 1px; top: 8px; width: 4px; height: 4px; border-radius: 50%; background: var(--dimmer); }
+.cr-blk li.w::before { background: var(--you); }
+.cr-blk li.cr-tk.pinned::before { background: var(--text); }
+.cr-blk li strong { color: var(--text); font-weight: 600; }
+.cr-in { color: var(--text) !important; text-decoration: none; }
+.cr-in:hover { color: var(--accent) !important; text-decoration: underline; text-underline-offset: 2px; }
+.cr-u { color: var(--you); font-size: 11px; }
+.cr-m { color: var(--dimmer); font-size: 11px; }
+/* A run going now. */
+.cr-blk li.cr-run.on::before { background: var(--good, #5ed39a); }
+/* A sub-chat, set in under the chat it came off, on a rail. */
+.cr-blk ul.cr-subs { margin: 3px 0 2px 1px; padding-left: 10px; border-left: 1px solid var(--line); }
+.cr-blk li.cr-sub { padding-left: 9px; }
+.cr-blk li.cr-sub::before { left: -1px; top: 9px; width: 6px; height: 1px; border-radius: 0; }
+.cr-ppl { font-size: 12px; color: var(--dim); }
+.cr-why {
+  margin-top: auto; padding-top: 6px; border-top: 1px dashed var(--line); font-size: 11px; color: var(--dimmer);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cr-meter { display: flex; gap: 2px; height: 4px; margin: 6px 0 0; border-radius: 2px; overflow: hidden; }
+.cr-meter i { display: block; height: 100%; }
+.cr-meter .m-activity { background: var(--s-activity); }
+.cr-meter .m-waiting { background: var(--s-waiting); }
+.cr-meter .m-returns { background: var(--s-returns); }
+.cr-meter .m-date { background: var(--s-date); }
+.cr-meter .m-tone { background: var(--s-tone); }
+.cr-meter .m-pin { background: var(--s-pin); }
+.cr-meter .m-rest { background: var(--panel-2); }
+.cr-cc.t-s .cr-nm { font-size: 13.5px; }
+.cr-cc.t-s .cr-ld { font-size: 12.5px; margin: 3px 0 5px; }
+.cr-cc.t-xs { padding: 8px 10px 8px 13px; }
+.cr-cc.t-xs .cr-nm { font-size: 12.5px; }
+.cr-cc.t-xs .cr-chips { margin: 4px 0 0; }
+.cr-view .gone { display: none !important; }
+
+/* ---- the mosaic ---- */
+.cr-mosaic { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+.cr-board { position: relative; height: max(520px, calc(100vh - 230px)); min-width: 0; }
+.cr-board.stack { position: static; height: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.cr-board.stack .cr-cc { position: relative; }
+
+/* ---- the quiet edge ---- */
+.cr-edge {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  padding: 8px 10px; border: 1px dashed var(--line); border-radius: 10px;
+}
+.cr-edge-lab { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--dimmer); margin-right: 4px; }
+.cr-q {
+  appearance: none; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; max-width: 100%;
+  font: inherit; font-size: 12px; padding: 3px 9px 3px 7px; border-radius: 999px;
+  color: var(--dim); background: var(--panel); border: 1px solid var(--line);
+}
+.cr-q::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--side, var(--side-work)); }
+.cr-q:hover { color: var(--text); border-color: var(--dimmer); }
+.cr-q-nm { min-width: 0; text-align: left; overflow-wrap: anywhere; }
+.cr-q small { color: var(--dimmer); white-space: nowrap; }
+
+/* ---- the front page ---- */
+.cr-front { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+.cr-mast { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; padding: 0 2px 6px; border-bottom: 2px solid var(--text); }
+.cr-mast b { font-family: Georgia, "Times New Roman", serif; font-size: 26px; letter-spacing: -.01em; }
+.cr-mast span { font-size: 12.5px; color: var(--dimmer); }
+/* Petar, 13 October 2026: the stories beside the lead were too narrow to
+   read, a name broken into "O p.". Below a wide room the lead goes across the
+   top and the stories sit two to a row under it, each about 400px on an iPad;
+   only a room wide enough for three readable columns puts the lead beside two. */
+.cr-fp { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.cr-fp .cr-cc { position: relative; }
+.cr-fp .cr-story-lead { grid-column: 1 / -1; min-height: 260px; }
+.cr-fp .cr-story-sec { min-height: 210px; }
+.cr-briefs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+.cr-briefs .cr-cc { position: relative; min-height: 130px; }
+/* A story's headline is its name. */
+.cr-fp .cr-nm, .cr-briefs .cr-nm {
+  font-family: Georgia, "Times New Roman", serif; font-weight: 600; font-size: 18px; line-height: 1.22;
+}
+.cr-story-lead .cr-nm { font-size: 26px; }
+.cr-story-brief .cr-nm { font-size: 15.5px; }
+@container cr (min-width: 1080px) {
+  .cr-fp { grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr)); }
+  .cr-fp .cr-story-lead { grid-column: 1; grid-row: 1 / span 2; min-height: 430px; }
+}
+
+/* ---- one cluster, opened ---- */
+.cr-open { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 10px; align-items: start; }
+.cr-big {
+  position: relative; display: grid; gap: 6px; align-content: start; min-width: 0;
+  padding: 14px 18px 14px 20px; border-radius: 14px; background: var(--panel); border: 1px solid var(--dimmer);
+}
+.cr-big::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; border-radius: 14px 0 0 14px; background: var(--side, var(--side-work)); }
+.cr-big-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cr-back {
+  appearance: none; cursor: pointer; height: 30px; padding: 0 12px 0 8px; font: inherit; font-size: 12.5px;
+  color: var(--dim); background: transparent; border: 1px solid var(--line); border-radius: 999px;
+}
+.cr-back:hover { color: var(--text); border-color: var(--dim); }
+.cr-size { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--dimmer); }
+.cr-big-nm { display: block; font-size: 22px; overflow: visible; }
+.cr-big-ld { font-size: 15px; -webkit-line-clamp: unset; margin: 2px 0 4px; }
+.cr-dgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 4px 18px; margin-top: 4px; }
+.cr-dgrid .cr-blk { margin-bottom: 8px; }
+.cr-dgrid .cr-blk li { font-size: 13px; }
+/* Chats, Runs and Pages, under the rest and drawn alike. */
+.cr-dlists { margin-top: 2px; padding-top: 6px; border-top: 1px solid var(--line-soft, var(--line)); }
+/* Task changes, a column of their own on the right of the opened cluster
+   (Petar, 13 October 2026); under the rest on a phone. */
+.cr-dsplit.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 34%); gap: 0 18px; align-items: start; }
+.cr-dsince { margin-top: 4px; padding-left: 16px; border-left: 1px solid var(--line); min-width: 0; }
+.cr-dsince .cr-blk { margin-bottom: 8px; }
+.cr-dsince .cr-blk li { font-size: 13px; }
+/* "12 minutes ago" is kept on one line rather than broken after its number. */
+.cr-dgrid .cr-m, .cr-dsince .cr-m { white-space: nowrap; }
+.cr-big .cr-ld-lab { font-size: 10px; }
+.cr-big .cr-why { margin-top: 6px; white-space: normal; }
+.cr-side { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cr-side .cr-cc { position: relative; }
+
+/* A narrow room, which is a phone: one column, and the opened cluster's
+   neighbours under it rather than beside it. */
+@container cr (max-width: 640px) {
+  .cr-fp { grid-template-columns: minmax(0, 1fr); }
+  .cr-fp .cr-story-lead { grid-row: auto; min-height: 0; }
+  .cr-fp .cr-story-sec, .cr-briefs .cr-cc { min-height: 0; }
+  .cr-open { grid-template-columns: minmax(0, 1fr); }
+  .cr-dsplit.two { grid-template-columns: minmax(0, 1fr); }
+  .cr-dsince { margin-top: 0; padding-left: 0; border-left: 0; }
+  .cr-big { padding: 12px 14px 12px 16px; }
+  .cr-seg-btn { height: 34px; padding: 0 12px; }
+  .cr-back { height: 38px; }
+  .cr-tools { gap: 8px 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cr-skel-bar { animation: none; }
+}

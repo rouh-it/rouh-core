@@ -1,0 +1,52 @@
+{% extends "rouh/signin_base.html" %}
+{% comment %}The link in an invitation to a shared page (`rouh/web/guests.py`).
+   The address is the invitation's and cannot be changed here: the letter went
+   to it, which is what proves it is theirs. What they give is their first
+   name and last name, both of them, and, only when this Rouh cannot send mail,
+   a password, with the rules it is held to listed under it and ticked off as
+   they type (`password_rules.html`). With mail, they sign in by email from
+   then on (`rouh/signin.py`). Or, when the invitation is gone, saying so.{% endcomment %}
+{% block title %}{% if share %}Open the {{ what }} shared with you - Rouh{% else %}That invitation is gone - Rouh{% endif %}{% endblock %}
+{% block body %}{% if not share %}
+ <h2>That invitation does not work any more</h2>
+ <p class="bad" role="alert">It is not shared with this address any more, or the link was copied down wrong.</p>
+ <p class="back"><a href="/login">Sign in</a></p>
+{% else %}
+ <h2>{{ owner }} shared a {{ what }} with you</h2>
+ <p><strong>{{ share.title|default:"A page" }}</strong></p>
+ <p>You can read it{% if what == "task" %}, its pages and its subtasks{% if share.role == "edit" or share.role == "decide" %}, and change its pages with Rouh's AI{% endif %}{% if share.role == "decide" %}, and decide for {{ owner }} there by email{% endif %}{% elif share.role == "edit" %}, ask Rouh's AI about it and change it{% else %} and ask Rouh's AI about it{% endif %}. Make your account to open it: it is for <strong>{{ share.email }}</strong>, and you sign in with that address{% if not needs_password %}, by a link Rouh emails you{% endif %}.</p>{% if problems %}
+ <div class="bad" role="alert">{% for problem in problems %}<p>{{ problem }}</p>{% endfor %}</div>{% endif %}
+ <form method="post" id="passwordForm">
+  {% csrf_token %}
+  <input type="text" name="username" value="{{ share.email }}" autocomplete="username" hidden>
+  <div class="pair">
+   <div class="field">
+    <label for="firstName">First name</label>
+    <input id="firstName" name="first_name" type="text" autocomplete="given-name" maxlength="150"
+           value="{{ first_name }}" data-name required{% if not first_name %} autofocus{% endif %}
+           {% if "first_name" in missing %}aria-invalid="true" aria-describedby="firstNameMissing"{% endif %}>
+    <p class="missing" id="firstNameMissing"{% if "first_name" not in missing %} hidden{% endif %}>Type your first name.</p>
+   </div>
+   <div class="field">
+    <label for="lastName">Last name</label>
+    <input id="lastName" name="last_name" type="text" autocomplete="family-name" maxlength="150"
+           value="{{ last_name }}" data-name required{% if first_name and not last_name %} autofocus{% endif %}
+           {% if "last_name" in missing %}aria-invalid="true" aria-describedby="lastNameMissing"{% endif %}>
+    <p class="missing" id="lastNameMissing"{% if "last_name" not in missing %} hidden{% endif %}>Type your last name.</p>
+   </div>
+  </div>
+{% if needs_password %}  <div class="field">
+   <label for="password1">Password</label>
+   <input id="password1" name="password1" type="password" autocomplete="new-password"
+          minlength="{{ min_length }}" required aria-describedby="passwordRules"{% if first_name and last_name %} autofocus{% endif %}>
+{% include "rouh/password_rules.html" %}
+  </div>
+  <div class="field">
+   <label for="password2">The same again</label>
+   <input id="password2" name="password2" type="password" autocomplete="new-password"
+          minlength="{{ min_length }}" required>
+  </div>
+  {% endif %}  <button type="submit">Make my account and open the {{ what }}</button>
+ </form>
+ <p class="back">Already have an account? <a href="/login?next=/shared/{{ share.token|urlencode }}&amp;email={{ share.email|urlencode }}">Sign in</a></p>
+{% endif %}{% endblock %}

@@ -1,0 +1,5 @@
+services:
+  worker:
+    logging:
+      driver: syslog
+      options: {syslog-address: "udp://192.0.2.1:514"}

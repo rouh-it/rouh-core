@@ -1,0 +1,238 @@
+{% extends "rouh/signin_base.html" %}
+{% comment %}A fresh installation's first run (`rouh/web/firstrun.py`), one screen at a time, each
+   at its own address: who you are, Connected (its birth on rouh.land) or a free Rouh on its own, a
+   brain. No keys or recovery words anywhere. One column, the same on a phone, a tablet and a desk. The birth service is named by
+   its address (`firstrun.service_name`), so an installation with its own shows its own. Nobody types or sees a setup code: it came in the address, which
+   the page takes it out of at once, and without it the page says in one line how to open it.{% endcomment %}
+{% block title %}{% if screen == "brain" or screen == "key" %}Give {{ name }} a brain{% elif screen == "born" and born %}{{ name }} is born{% elif screen == "born" %}Your Rouh is ready{% else %}Set up Rouh{% endif %}{% endblock %}
+{% block body %}
+ <style>
+  main{width:min(calc(100vw - 32px),440px)}
+  [hidden]{display:none!important}
+  .dots{display:flex;gap:6px;margin:2px 0 4px}
+  .dots i{width:22px;height:4px;border-radius:2px;background:#232a33}
+  .dots i.on{background:#5ec2ff}
+  h2{font-size:21px;margin:2px 0 0;line-height:1.25}
+  p.lead{color:#c5ccd6;font-size:15px}
+  .small{font-size:13px;color:#8b95a3}
+  .field .missing{margin:0}
+  .ghost{background:none;color:#8fb8ff;font-weight:500;font-size:14px;padding:8px;margin-top:0}
+  .ghost:hover{background:none;text-decoration:underline}
+  .choice{border:1.5px solid #4c8dff;border-radius:12px;padding:12px 14px;background:rgba(76,141,255,.07)}
+  .choice b{color:#e8ecf1;font-size:15px}
+  .choice ul{margin:6px 0 0;padding-left:18px;color:#c5ccd6;font-size:14px;display:grid;gap:2px}
+  .note{border-radius:12px;padding:12px 14px;background:#11151a;border:1px solid #232a33;
+        color:#c5ccd6;font-size:14px}
+  .note b{color:#e8ecf1}
+  .note.address>b:first-child{display:block;margin-bottom:4px}
+  .note.address .host{overflow-wrap:anywhere;color:#8fb8ff}
+  .info{display:inline}
+  .info summary{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;
+        border:1px solid #3a4450;color:#8fb8ff;font-size:12px;font-weight:700;cursor:pointer;
+        list-style:none;vertical-align:-3px;margin-left:4px}
+  .info summary::-webkit-details-marker{display:none}
+  .info[open] summary{background:#232a33}
+  .info p{margin-top:8px;color:#c5ccd6}
+  .bigname{font-size:17px;color:#c5ccd6}
+  .bigname b{color:#e8ecf1;font-size:22px;display:block;margin-top:2px}
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .tile{position:relative;display:grid;gap:2px;padding:14px;border-radius:12px;border:1px solid #2b333d;
+        background:#11151a;color:#e8ecf1;text-decoration:none;min-height:96px;align-content:start}
+  .tile:hover{border-color:#4c8dff;text-decoration:none}
+  .tile b{font-size:16px}
+  .tile span{font-size:13px;color:#c5ccd6}
+  .tile small{font-size:12px;color:#8b95a3}
+  .tile.ok{border-color:rgba(143,224,170,.6)}
+  .tile .ck{position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;
+            background:#8fe0aa;color:#04070c;display:grid;place-items:center;font-size:13px;font-weight:700}
+  .tile .wait{color:#f2c86b}
+  .guide{margin:0;padding-left:22px;display:grid;gap:10px;color:#c5ccd6;font-size:14px}
+  .guide b{color:#e8ecf1}
+  .guide i{color:#e8ecf1;font-style:normal;font-weight:600}
+  .out{display:inline-block;margin-top:4px;font-size:14px}
+  .checking{display:flex;gap:10px;align-items:center}
+  .spin{flex:none;width:16px;height:16px;border-radius:50%;border:2px solid #232a33;
+        border-top-color:#5ec2ff;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spin{animation:none}}
+ </style>
+{% if step %}
+ <div class="dots" aria-label="Step {{ step }} of 4">{% for n in "1234" %}<i{% if forloop.counter <= step %} class="on"{% endif %}></i>{% endfor %}</div>
+{% endif %}
+
+{% if screen == "closed" %}
+ <h2>Set up Rouh</h2>
+ <p><strong>{{ mac }}</strong></p>
+ <p>{{ docker }}</p>
+ <code>{{ command }}</code>
+
+{% elif screen == "you" %}
+ <h2>Your Rouh is about to be born.</h2>
+ <p class="lead">First, who are you?</p>
+ <form method="post" action="/setup/you" novalidate>
+  {% csrf_token %}
+  <div class="pair">
+   <div class="field">
+    <label for="firstName">First name</label>
+    <input id="firstName" name="first_name" type="text" autocomplete="given-name" maxlength="150"
+           value="{{ said.first_name }}" required{% if problems.first_name %} aria-invalid="true" aria-describedby="firstBad"{% endif %}{% if not said.first_name %} autofocus{% endif %}>
+   </div>
+   <div class="field">
+    <label for="lastName">Last name</label>
+    <input id="lastName" name="last_name" type="text" autocomplete="family-name" maxlength="150"
+           value="{{ said.last_name }}" required{% if problems.last_name %} aria-invalid="true" aria-describedby="lastBad"{% endif %}>
+   </div>
+  </div>{% if problems.first_name %}
+  <p class="missing" id="firstBad">{{ problems.first_name }}</p>{% endif %}{% if problems.last_name %}
+  <p class="missing" id="lastBad">{{ problems.last_name }}</p>{% else %}
+  <p class="small">Only one name? Put one letter in the other box.</p>{% endif %}
+  <div class="field">
+   <label for="email">Email</label>
+   <input id="email" name="email" type="email" autocomplete="email" autocapitalize="none" maxlength="254"
+          value="{{ said.email }}" required{% if problems.email %} aria-invalid="true" aria-describedby="emailBad"{% endif %}>{% if problems.email %}
+   <p class="missing" id="emailBad">{{ problems.email }}</p>{% endif %}
+   <p class="small">You sign in to this Rouh with it. Once Rouh can send email, a link to it is how you sign in.</p>
+  </div>
+  <div class="field">
+   <label for="password1">Password, for when Rouh cannot email you</label>
+   <input id="password1" name="password1" type="password" autocomplete="new-password" minlength="10"
+          required{% if problems.password %} aria-invalid="true" aria-describedby="passwordBad"{% endif %}>
+  </div>
+  <div class="field">
+   <label for="password2">The same again</label>
+   <input id="password2" name="password2" type="password" autocomplete="new-password" minlength="10" required>{% if problems.password %}
+   <p class="missing" id="passwordBad">{{ problems.password }}</p>{% endif %}
+  </div>
+  <input type="hidden" name="zone" id="zone" value="{{ said.zone }}">
+  <p class="small" id="zoneLine" hidden></p>
+  <button type="submit">Continue</button>
+ </form>
+ <script>
+  // The time zone is this computer's, so nobody is asked for it.
+  (function () {
+    var z = '';
+    try { z = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+    if (!z) return;
+    document.getElementById('zone').value = z;
+    var line = document.getElementById('zoneLine');
+    line.textContent = 'Time zone: ' + z + ', from this computer.';
+    line.hidden = false;
+  }());
+ </script>
+
+{% elif screen == "connect" %}
+ <h2>Connected, or on its own?</h2>
+ <div class="choice">
+  <b>Connected · free · recommended</b>
+  <ul>
+   <li>Security fixes as soon as they are out</li>
+   <li>Lower model prices, as {{ service }} finds them</li>
+   <li>Learns faster from what other Rouhs found</li>
+   <li>An address to reach it from your phone</li>
+  </ul>
+ </div>
+ <div class="note"><b>Your data stays yours, either way.</b> Your files, your work, what you ask and every call to a model stay private on your Rouh. {{ service }} does not own, see or control any of it. Connecting is only there to look after your Rouh itself.<details class="info"><summary aria-label="What {{ service }} gets">i</summary><p>Only your Rouh's name, your email, its version and which skills it takes.</p></details></div>
+ <form method="post" action="/setup/connect">
+  {% csrf_token %}
+  <button type="submit" name="choice" value="connected">Continue, Connected</button>
+  <button type="submit" name="choice" value="own" class="ghost">On its own (not recommended)</button>
+ </form>
+
+{% elif screen == "born" %}
+ {% if born %}<h2>Your Rouh is born!</h2>
+ <p class="bigname">{{ service }} gave it its name: <b>{{ name }}</b></p>
+ <p class="small">Birthday: {{ born_day }}, {{ born_time }} ({{ born_place }}). Its Rouh name can't be changed.</p>{% else %}<h2>Your Rouh is ready</h2>
+ <p class="lead">It is a free Rouh. It answers to Rouh, and to any nickname you give it below.</p>{% if connected %}
+ <p class="small">{{ service }} couldn't be reached just now, so it has no official name yet. Connect it later in Anatomy, Rouh Land Account, Your profile, and {{ service }} gives it its birth and its name.</p>{% else %}
+ <p class="small">It works fine on its own. Connect it to {{ service }} any time, in Anatomy, Rouh Land Account, Your profile, and it is born there and given its own name.</p>{% endif %}{% endif %}{% if born and address %}
+ <div class="note address"><b>Its address: <span class="host">{{ address }}</span></b>Kept for {{ name }} from now on. It opens to your phone when you press <b>Reach me from my phone</b> in the chat; until then nothing is open to the internet.</div>{% elif born and registered %}
+ <p class="small">{{ name }} is on {{ service }}. Its phone address is on its way, in Settings, Connections, Phone.</p>{% endif %}
+ <p class="lead"><strong>Give it human names.</strong> You can change these any time.</p>{% if problem %}
+ <div class="bad" role="alert"><p>{{ problem }}</p></div>{% endif %}
+ <form method="post" action="/setup/born">
+  {% csrf_token %}
+  <div class="pair">
+   <div class="field">
+    <label for="hFirst">First</label>
+    <input id="hFirst" name="first" type="text" maxlength="40" autocomplete="off" placeholder="e.g. Ana" value="{{ names.first }}">
+   </div>
+   <div class="field">
+    <label for="hLast">Last</label>
+    <input id="hLast" name="last" type="text" maxlength="40" autocomplete="off" placeholder="e.g. Heron" value="{{ names.last }}">
+   </div>
+  </div>
+  <div class="field">
+   <label for="hNick">Nickname</label>
+   <input id="hNick" name="nickname" type="text" maxlength="40" autocomplete="off" placeholder="e.g. Ani" value="{{ names.nickname }}">
+  </div>
+  <button type="submit">Next</button>
+ </form>
+
+{% elif screen == "brain" %}
+ <h2>Give {{ name }} a brain</h2>
+ <p class="lead">Tap a company and paste its key. One is enough.</p>
+ <div class="tiles">
+  <a class="tile{% if keys.anthropic == 'ok' %} ok{% endif %}" href="/setup/brain/anthropic">{% if keys.anthropic == 'ok' %}<span class="ck" aria-label="Works">✓</span>{% endif %}
+   <b>Anthropic</b><span>Claude · recommended</span>{% if keys.anthropic == 'no_credit' %}<small class="wait">Key right · no credit yet</small>{% else %}<small>Chat and terminals</small>{% endif %}</a>
+  <a class="tile{% if keys.openai == 'ok' %} ok{% endif %}" href="/setup/brain/openai">{% if keys.openai == 'ok' %}<span class="ck" aria-label="Works">✓</span>{% endif %}
+   <b>OpenAI</b><span>ChatGPT</span>{% if keys.openai == 'no_credit' %}<small class="wait">Key right · no credit yet</small>{% else %}<small>Chat and terminals</small>{% endif %}</a>
+ </div>{% if keys.anthropic == 'ok' or keys.openai == 'ok' %}
+ <form method="post" action="/setup/brain">
+  {% csrf_token %}<input type="hidden" name="do" value="done">
+  <button type="submit">Start talking</button>
+ </form>{% if claude_later and keys.anthropic == 'ok' %}
+ <p class="small">Have a Claude Pro or Max plan? Long jobs in Claude Code can run on it instead of your key, any time: <a href="/setup/claude">Sign in with Claude</a>.</p>{% endif %}{% endif %}
+
+{% elif screen == "key" %}
+ <h2>{% if how %}Get {% if company == "anthropic" %}a Claude{% else %}an OpenAI{% endif %} key{% else %}Your {{ c.name }} key{% endif %}</h2>
+{% if how %}
+ <p class="lead">About 10 minutes. Keep this page open.</p>
+ {% if company == "anthropic" %}
+ <ol class="guide">
+  <li><b>Make an account.</b> Open the Claude Console and press <i>Continue with Google</i>, or type your email.<br><a class="out" href="https://platform.claude.com/" target="_blank" rel="noopener noreferrer">Open the Console ↗</a></li>
+  <li><b>Buy $20 of credit.</b> Settings → Billing → <i>Buy credits</i> → 20.</li>
+  <li><b>Turn on auto reload.</b> On the same page: <i>Set up auto-reload</i>. When the balance reaches <b>$5</b>, bring it back up to <b>$20</b>. Press <i>Turn on</i>.</li>
+  <li><b>Set a monthly limit.</b> Settings → Workspaces → <i>Create workspace</i>, name it "Rouh". Open it → <i>Spend limits</i> → Monthly limit <b>$50</b>. Keys in that workspace can never spend more than this in a month.</li>
+  <li><b>Make the key.</b> Settings → API keys → <i>Create key</i>. Name: {{ name }}. Workspace: Rouh.</li>
+  <li><b>Copy it now.</b> It starts with sk-ant- and is shown only once. Paste it below.</li>
+ </ol>
+ {% else %}
+ <ol class="guide">
+  <li><b>Make an account.</b> Open the OpenAI Platform and sign up or sign in.<br><a class="out" href="https://platform.openai.com/" target="_blank" rel="noopener noreferrer">Open the Platform ↗</a></li>
+  <li><b>Buy $20 of credit.</b> Settings → Billing → <i>Add to credit balance</i> → 20.</li>
+  <li><b>Turn on auto recharge.</b> When the balance falls below <b>$5</b>, recharge it to <b>$20</b>. Set the monthly recharge limit to <b>$50</b>.</li>
+  <li><b>Make the key.</b> Settings → API keys → <i>Create new secret key</i>. Name: {{ name }}.</li>
+  <li><b>Copy it now.</b> It starts with sk- and is shown only once. Paste it below.</li>
+ </ol>
+ {% endif %}
+{% endif %}{% if problem %}
+ <div class="bad" role="alert"><p>{{ problem }}</p></div>{% endif %}{% if state == "no_credit" %}
+ <form method="post" action="/setup/brain/{{ company }}" class="check">
+  {% csrf_token %}<input type="hidden" name="do" value="again">
+  <button type="submit">Check again</button>
+ </form>{% endif %}
+ <form method="post" action="/setup/brain/{{ company }}" class="check">
+  {% csrf_token %}
+  <div class="field">
+   <label for="key">{% if state == "no_credit" %}Or paste another {{ c.name }} key{% else %}Paste it here{% endif %}</label>
+   <input id="key" name="key" type="password" autocomplete="off" autocapitalize="none" autocorrect="off"
+          spellcheck="false" placeholder="{{ c.starts }}…"{% if not how and state != "no_credit" %} autofocus{% endif %}>
+  </div>
+  <button type="submit">Check it</button>
+ </form>
+ <div class="checking" id="checking" role="status" hidden><span class="spin" aria-hidden="true"></span><p>Checking with {{ c.name }}…</p></div>
+{% if not how %}
+ <a class="ghost button" href="/setup/brain/{{ company }}/how">I don't have a key - show me how</a>{% endif %}
+ <p class="small">This step can't be skipped: without a key {{ name }} has no brain.</p>
+ <a class="back" href="/setup/brain">Back</a>
+ <script>
+  // A check takes a few seconds: the button is not pressed twice, and the page says what it is doing.
+  document.querySelectorAll('form.check').forEach(function (f) {
+    f.addEventListener('submit', function () {
+      document.querySelectorAll('form.check button').forEach(function (b) { b.disabled = true; });
+      document.getElementById('checking').hidden = false;
+    });
+  });
+ </script>
+{% endif %}
+{% endblock %}

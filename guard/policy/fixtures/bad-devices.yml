@@ -1,0 +1,4 @@
+services:
+  sidecar:
+    image: busybox
+    devices: ["/dev/sda:/dev/sda"]

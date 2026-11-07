@@ -1,0 +1,7 @@
+# Every image here has its own list beside its Dockerfile, as an allow-list:
+#
+#   deploy/container/Dockerfile.base.dockerignore   the base: its own files, no Rouh code
+#   deploy/container/Dockerfile.code.dockerignore   the code image: Rouh's code, never anybody's data
+#
+# This file is only what a build with no list of its own would get: nothing.
+*

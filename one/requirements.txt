@@ -1,0 +1,18 @@
+# The one program. Pinned, as Rouh's are, and to the same versions where the
+# two share a package, so Rouh's own server could later run inside it.
+# The web address is a Django application since 23 September 2026, the same
+# framework and the same pins as Rouh (pyproject.toml), with Channels for the
+# browser's socket. There is no database here, so no driver.
+django==5.2.17
+channels==4.3.2
+uvicorn[standard]==0.34.0
+httpx==0.28.1
+# The websocket side of uvicorn. uvicorn's own websockets implementation is
+# built on an interface the websockets package has deprecated; wsproto is not.
+wsproto==1.2.0
+# A terminal emulator in Python: the program's copy of each run's screen.
+pyte==0.8.2
+
+# Only for the tests.
+pytest==8.3.4
+websockets==14.1

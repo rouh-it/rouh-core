@@ -1,0 +1,4 @@
+services:
+  sidecar:
+    image: busybox
+    userns_mode: host

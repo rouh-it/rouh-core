@@ -1,0 +1,89 @@
+/* The Box page (`boxpage.js`): an empty box at the top to fill, and every box
+   kept under it, none of them opened. Rouh's own tokens and nothing new; the
+   fields and pills as on Thoughts. */
+
+.bx-view:focus { outline: none; }
+.bx-wrap { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
+.bx-body { flex: 1 1 auto; min-width: 0; overflow: auto; scrollbar-width: thin; padding: 2px 2px 48px; }
+.bx-page { max-width: 760px; display: grid; gap: 18px; }
+
+.bx-in {
+  width: 100%; padding: 8px 12px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+  font: inherit; font-size: 14px; line-height: 1.45; color-scheme: dark;
+}
+.bx-in::placeholder { color: var(--dimmer); }
+.bx-in:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+textarea.bx-in { resize: vertical; }
+/* A secret is dots while it is typed, unless "Show what I typed" is pressed. */
+.bx-content.is-masked { -webkit-text-security: disc; text-security: disc; }
+.bx-content { min-height: 48px; font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 13.5px; }
+
+.bx-primary.ctl { width: auto; background: var(--accent); border-color: var(--accent);
+  color: var(--accent-ink); font-weight: 650; justify-content: center; white-space: nowrap; }
+.bx-primary.ctl:hover { filter: brightness(1.08); border-color: var(--accent); }
+.bx-primary.ctl:disabled { opacity: .55; filter: none; cursor: default; }
+.bx-view .ctl:not(.small):not(.bx-primary) { width: auto; }
+
+/* The box being filled. */
+.bx-new { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--accent); border-radius: 14px;
+  background: var(--panel); box-shadow: 0 0 0 3px var(--accent-soft); }
+.bx-lede { margin: 0; color: var(--dim); font-size: 13.5px; line-height: 1.5; }
+.bx-kinds { display: inline-flex; justify-self: start; padding: 2px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel-2); }
+.bx-kind { appearance: none; cursor: pointer; border: 0; background: transparent; color: var(--dim);
+  font: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 14px; border-radius: 999px; }
+.bx-kind:hover { color: var(--text); }
+.bx-kind.on { background: var(--accent-soft); color: var(--text); }
+
+.bx-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* Every box kept. */
+.bx-kept { display: grid; gap: 8px; }
+.bx-h { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--dim); }
+.bx-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.bx-card { display: grid; gap: 8px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 14px;
+  background: var(--panel); transition: border-color .4s, box-shadow .4s; }
+.bx-card.bx-flash { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.bx-head { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.bx-pill { flex: 0 0 auto; font-size: 11.5px; font-weight: 650; padding: 0 8px; border-radius: 999px;
+  background: var(--line-soft); color: var(--dim); }
+.bx-pill-secret { color: var(--warn); }
+.bx-pill-idea { color: var(--good); }
+.bx-title { margin: 0; flex: 1 1 auto; min-width: 0; font-size: 15px; font-weight: 650; line-height: 1.35;
+  overflow-wrap: anywhere; }
+.bx-when { flex: 0 0 auto; font-size: 12px; color: var(--dimmer); font-variant-numeric: tabular-nums; }
+.bx-masked { margin: 0; display: flex; align-items: baseline; gap: 10px; color: var(--dim); font-size: 13px; }
+.bx-dots { letter-spacing: .12em; color: var(--dimmer); }
+.bx-open { margin: 0; padding: 10px 12px; border-radius: var(--radius-s); background: var(--bg);
+  border: 1px solid var(--line-soft); font-size: 13.5px; line-height: 1.5; white-space: pre-wrap;
+  overflow-wrap: anywhere; max-height: 320px; overflow: auto; }
+.bx-delete.ctl.small:hover, .bx-delete.is-sure { color: var(--bad); }
+.bx-delete.is-sure { border-color: var(--bad); }
+
+.bx-loading, .bx-empty { margin: 0; color: var(--dim); font-size: 14px; line-height: 1.5; }
+.bx-error { margin: 0; color: var(--bad); font-size: 13.5px; }
+.bx-offscreen { position: fixed; left: -9999px; top: 0; opacity: 0; }
+
+@media (max-width: 560px) {
+  .bx-new { padding: 12px; }
+  .bx-card { padding: 12px; }
+  .bx-acts .ctl.small, .bx-primary.ctl { min-height: 36px; }
+  .bx-head { flex-wrap: wrap; }
+}
+
+/* Numbers: what he says to Rouh to give it a box. */
+.bx-num { flex: 0 0 auto; align-self: center; min-width: 30px; height: 30px; padding: 0 8px; display: inline-grid;
+  place-items: center; border-radius: 9px; background: var(--accent-soft); color: var(--text); font-weight: 750;
+  font-size: 15px; font-variant-numeric: tabular-nums; text-decoration: none; }
+.bx-num:hover { outline: 1px solid var(--accent); }
+.bx-head .bx-title { align-self: center; }
+.bx-head .bx-pill, .bx-head .bx-when { align-self: center; }
+.bx-new-h { margin: 0; display: flex; align-items: baseline; gap: 10px; font-size: 15px; font-weight: 700; }
+.bx-next { font-size: 12.5px; font-weight: 600; color: var(--dim); }
+.bx-hint { margin: 0; color: var(--dim); font-size: 13px; line-height: 1.5; }
+.bx-given { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 12.5px;
+  color: var(--good); }
+.bx-link { appearance: none; cursor: pointer; border: 0; padding: 0; background: none; font: inherit;
+  color: var(--accent); }
+.bx-link:hover { text-decoration: underline; }

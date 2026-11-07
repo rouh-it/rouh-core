@@ -1,0 +1,44 @@
+{
+  "id": "rules",
+  "name": "Rules",
+  "title": "Rules: what Rouh keeps to, and its notes",
+  "aliases": [
+    "rules",
+    "memory",
+    "notes",
+    "remember",
+    "what rouh remembers",
+    "preferences"
+  ],
+  "group": "memory",
+  "route": null,
+  "icon": "<path d=\"M6 3.5h9.5L19 7v13.5H6z\"/><path d=\"M9.5 11h6M9.5 14.5h6M9.5 18h3.5\"/>",
+  "attaches_to": [
+    "person"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 20,
+    "opens": "own",
+    "row": "memoryBtn",
+    "controls": "memoryView"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "synapse.item",
+      "prompt_part"
+    ],
+    "jobs": [],
+    "remove": "Delete rouh/rules.py, rouh/web/rules.py, the Rules page and its link here, and this manifest; and the standing rules every run for the person's own work begins with: rules.run_block and its callers in rouh/starting.py (for_the_person, _with_rules), rouh/runs.py (request_of), rouh/one_jobs.py (_redo) and the night's standing_rules=True in rouh/nightly_feature.py. Every instruction a conversation is told is a rule here (rouh/prompting.py puts them together, with the table prompt_part; rouh/ruledefaults.py brings in the defaults every Rouh starts with): taking them out means giving Brain._system in rouh/brain.py a prompt of its own again."
+  },
+  "uses": {
+    "tools": [
+      "remember",
+      "forget",
+      "list_memory"
+    ]
+  }
+}

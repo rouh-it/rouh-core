@@ -1,0 +1,53 @@
+# Pairs a Rouh is never named, though each word is fine alone (rouh/names/__init__.py).
+# One pair a line, "quality nature", lower case. Real people's names, brands and other
+# names already taken, places, and pairs that read badly together. A pair whose
+# quality is one of a few words of rank or might and whose nature is one of a few
+# animals or skies is refused in the code as well (STEREOTYPE there), so that no
+# name reads as an imitation of any people's names.
+blue moon
+blue lagoon
+blue planet
+blue ridge
+golden bear
+golden goose
+silver fox
+silver lake
+silver star
+little crow
+little wolf
+little raven
+little turtle
+little bear
+iron hawk
+iron eagle
+iron horse
+spotted eagle
+spotted elk
+spotted wolf
+swift bear
+brave bear
+brave wolf
+brave eagle
+mighty mouse
+mighty duck
+happy hippo
+pacific ocean
+arctic ocean
+rocky mountain
+grand canyon
+sunny beach
+eastern star
+silent spring
+smoky salmon
+smoky trout
+smoky mackerel
+smoky herring
+smoky haddock
+tender lamb
+tender calf
+crisp apple
+fresh mint
+sweet cherry
+cute kitten
+lucky star
+northern star

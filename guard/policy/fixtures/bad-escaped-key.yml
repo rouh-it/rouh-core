@@ -1,0 +1,5 @@
+services:
+  peek:
+    image: busybox
+    network_mode: none
+    "\x65nvironment": {A: "1"}

@@ -1,0 +1,38 @@
+{
+  "_comment": [
+    "The MCP servers every agent on this machine gets, wherever it runs.",
+    "This file is the single source of truth: rouh/crew.py and one/asuser.py",
+    "both read it at launch, merge it with the checkout's own .mcp.json, and",
+    "hand the result to the agent with --mcp-config. To give every run another",
+    "server, add it here and change nothing else.",
+    "A checkout that defines the same name in its own .mcp.json keeps its own",
+    "entry: it is written over this file's in the merge (rouh/crew.py,",
+    "_merged_mcp_config, and one/asuser.py, _write_merged_mcp).",
+    "{repo} in a command, an argument or an environment value is the folder",
+    "this file is in, filled in by both readers, so a server that is a file of",
+    "this repository runs from the deployment's own copy of it, which no run",
+    "can change, wherever the run's own checkout is.",
+    "rouh is Rouh's own tools for a background job: notify_owner, which queues",
+    "an email to the person for Rouh to send (rouh/worker_mcp.py, rouh/outbox.py),",
+    "and every other tool of Rouh's a job may use, run by Rouh with its own logins",
+    "behind one permission check (rouh/job_gateway.py, rouh/job_policy.py)."
+  ],
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--browser=chromium",
+        "--headless",
+        "--isolated"
+      ]
+    },
+    "rouh": {
+      "command": "python3",
+      "args": [
+        "-I",
+        "{repo}/rouh/worker_mcp.py"
+      ]
+    }
+  }
+}

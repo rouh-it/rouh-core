@@ -1,0 +1,390 @@
+# Rouh's stack file: which containers run, and what each may see and do.
+#
+# Since 24 October 2026 (task 98, step 98-23) this file is the Rouh's own. A
+# Rouh installed from rouh.it has it in its code, /code/deploy/stack/, and may
+# change it as it changes anything else of its own: swap its database, add a
+# service, give a container more memory. No update replaces it. What it may not
+# change is the protected core's part of it (guard-init, guard, keyproxy,
+# code-install, checkdb), the walls between the parts, and the rights any part
+# gets: the app that applies it checks every resolved setting against an
+# allowed list first (guard/policy/stack-policy.json, the copy signed into the
+# release; Rouh for Mac's StackPolicy.swift, and on a Linux machine
+# rouh_guard.stackpolicy out of the release's guard image, which
+# deploy/container/linux_stack.py runs) and refuses a file with anything it
+# does not know. Nothing inside the machine can apply it: no container has the
+# Docker socket. Only Rouh for Mac does, or linux_stack.py on a Linux machine,
+# after the check.
+#
+# The images are not named here. A signed release on rouh.it names the base,
+# the protected core and PostgreSQL by digest, and the app hands them in as
+# ROUH_BASE_IMAGE, ROUH_GUARD_IMAGE and ROUH_POSTGRES_IMAGE (release.env beside
+# the person's own settings file, stack.env on a Mac, .env on Linux).
+#
+#   docker compose --env-file stack.env --env-file release.env -f compose.yml config
+#
+# The parts, and the rules they keep (deploy/container/README.md has the reasons):
+#
+#   postgres      the database. The Rouh's to swap for another.
+#   checkdb       a throwaway PostgreSQL for the guard's checks of a proposed change, on a
+#                 network of its own, in memory only.
+#   guard-init    on every start, the protected core's files into the guard-bin volume, which
+#                 every other part mounts read-only at /opt/rouh-guard.
+#   code-install  the first start only: the newest tested Rouh from rouh.it into /code.
+#   guard         the protected core: the change step with its undo points, and the doctor.
+#                 The only part besides the core that writes /code, and the only one that
+#                 puts it back.
+#   keyproxy      the model keys, added on the way out; the workers' only way out.
+#   core          Rouh itself, from /code. Holds the keys and the database's password.
+#   worker-perms  gives the worker's volumes to its user, before it starts.
+#   worker        the one program's runs, from /code read-only. Holds no key.
+#   browser       the one Chromium every browser of the core's is a connection to (the Live
+#                 browser, pages read once, PDFs, transcripts). Nothing of anybody's in it;
+#                 out only through the key proxy.
+
+name: ${ROUH_STACK_NAME:-rouh}
+
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: local
+    options:
+      max-size: 10m
+      max-file: "3"
+
+networks:
+  # PostgreSQL and the core. No way out, no worker on it.
+  db:
+    internal: true
+  # The core, the guard, the key proxy and the workers. No way out either.
+  workers:
+    internal: true
+  # The guard and its throwaway database, for checking a proposed change.
+  guard-check:
+    internal: true
+  # The key proxy's way out to the internet.
+  egress: {}
+  # The core's way out, and where its page is published from.
+  edge: {}
+  # The core and its browser, with the key proxy as the browser's only way out.
+  browser:
+    internal: true
+
+volumes:
+  pgdata: {}
+  core-data: {}
+  keys: {}
+  one-run: {}
+  worker-home: {}
+  # The workspace's main, a bare git repository: the core's alone to write; the worker reads it,
+  # and hands its runs' work to the core as git bundles in one-run (rouh/workspace_follow.py).
+  workspace: {}
+  # This Rouh's own code, a git repository. Never written by an update.
+  code: {}
+  # The libraries this Rouh adds itself (rouh-extra-pip). Never written by an update.
+  extra: {}
+  # The protected core's own files, put back whole on every start (guard-init).
+  guard-bin: {}
+  # The protected core's undo points and their history. Only the guard mounts it.
+  guard-state: {}
+  # The guard's socket. Only the guard and the core mount it.
+  guard-run: {}
+  # What the start scripts read from the guard. The guard writes it, the core and worker read it.
+  guard-signal: {}
+
+services:
+  postgres:
+    <<: *hardening
+    image: ${ROUH_POSTGRES_IMAGE:?release.env must name ROUH_POSTGRES_IMAGE}
+    environment:
+      POSTGRES_USER: rouh
+      POSTGRES_DB: rouh
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?the settings file must set POSTGRES_PASSWORD}
+    volumes:
+      # PostgreSQL 18's images keep their data under /var/lib/postgresql/18.
+      - pgdata:/var/lib/postgresql
+    networks: [db]
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rouh -d rouh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  checkdb:
+    <<: *hardening
+    image: ${ROUH_POSTGRES_IMAGE:?release.env must name ROUH_POSTGRES_IMAGE}
+    environment:
+      POSTGRES_USER: rouh
+      POSTGRES_DB: rouh
+      POSTGRES_PASSWORD: check
+    tmpfs:
+      - /var/lib/postgresql:size=2g
+    networks: [guard-check]
+    shm_size: 128m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rouh -d rouh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  guard-init:
+    <<: *hardening
+    restart: "no"
+    image: ${ROUH_GUARD_IMAGE:?release.env must name ROUH_GUARD_IMAGE}
+    user: "0:0"
+    entrypoint: ["/opt/rouh-guard/bin/rouh-guard-install", "/guard-bin"]
+    network_mode: none
+    volumes:
+      - guard-bin:/guard-bin
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    healthcheck:
+      disable: true
+
+  code-install:
+    <<: *hardening
+    restart: "no"
+    image: ${ROUH_BASE_IMAGE:?release.env must name ROUH_BASE_IMAGE}
+    user: "0:0"
+    entrypoint: ["python", "-I", "/opt/rouh-guard/bin/rouh-code-install"]
+    depends_on:
+      guard-init:
+        condition: service_completed_successfully
+      keyproxy:
+        condition: service_healthy
+    networks: [workers]
+    environment:
+      # Out only through the key proxy, as the worker; to rouh.it and to PyPI.
+      HTTPS_PROXY: http://keyproxy:8080
+      https_proxy: http://keyproxy:8080
+      NO_PROXY: keyproxy,localhost,127.0.0.1
+      ROUH_INSTALL_CODE: ${ROUH_INSTALL_CODE:-}
+      ROUH_INSTALL_URL: ${ROUH_INSTALL_URL:-https://rouh.it/mac/code/install}
+      ROUH_RELEASE_COMMIT: ${ROUH_RELEASE_COMMIT:-}
+    volumes:
+      - guard-bin:/opt/rouh-guard:ro
+      - code:/code
+      - extra:/extra
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    healthcheck:
+      disable: true
+
+  keyproxy:
+    <<: *hardening
+    image: ${ROUH_GUARD_IMAGE:?release.env must name ROUH_GUARD_IMAGE}
+    init: true
+    user: "10002:10002"
+    entrypoint: ["python", "-I", "/opt/rouh-guard/rouh_guard/keyproxy.py"]
+    networks: [workers, egress, browser]
+    volumes:
+      - keys:/keys:ro
+    environment:
+      ROUH_KEYPROXY_PORTS: ${ROUH_KEYPROXY_PORTS:-80,443}
+      # The owner's own servers a run may reach besides, host:port, comma separated (ssh to one
+      # server: sites.example.com:22). Nothing else of theirs; rouh-connect is how ssh gets there.
+      ROUH_KEYPROXY_ALLOW: ${ROUH_KEYPROXY_ALLOW:-}
+    read_only: true
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=4).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  core:
+    <<: *hardening
+    image: ${ROUH_BASE_IMAGE:?release.env must name ROUH_BASE_IMAGE}
+    init: true
+    entrypoint: ["/opt/rouh-guard/bin/rouh-core-entrypoint"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    env_file:
+      - path: ${ROUH_SETTINGS_FILE:-stack.env}
+        required: false
+    environment:
+      # Rouh's own port inside the container; ROUH_PORT in the settings file is the one published.
+      ROUH_PORT: "8021"
+      ROUH_DB_USER: rouh
+      ROUH_DB_NAME: rouh
+      ROUH_DB_PASSWORD: ${POSTGRES_PASSWORD:?the settings file must set POSTGRES_PASSWORD}
+      ROUH_PUBLIC_URL: ${ROUH_PUBLIC_URL:-http://127.0.0.1:8420}
+      ROUH_PUBLISHED_PORT: ${ROUH_PORT:-8420}
+      ROUH_GUARD_SOCKET: /run/guard/guard.sock
+      ROUH_GUARD_SIGNAL: /run/guard-signal
+      # The runs are in the worker: the key they show Rouh's internal addresses, in the volume
+      # the two share, and the name they reach Rouh by (rouh/workerkey.py).
+      ROUH_WORKER_KEY_FILE: /run/one/rouh-worker.json
+      ROUH_INTERNAL_URL: http://core:8021
+      ROUH_ALLOWED_HOSTS: core
+      # The one program's pages and its socket, passed on by Rouh to the worker, with the browser
+      # device the worker pairs for Rouh's page (rouh/onebridge.py).
+      ROUH_ONE_HTTP: http://worker:8031
+      ROUH_ONE_BROWSER: /run/one/browser.json
+      # One workspace for Rouh and its runs: main in the workspace volume, Rouh's live copy kept
+      # on it, its saves and the runs' work landed there (rouh/workspace_follow.py).
+      ROUH_WORKSPACE_ORIGIN: /workspace-origin/workspace.git
+      ROUH_WORKSPACE_FOLLOW: "1"
+      ROUH_SAVE_WORKSPACE: "1"
+      ROUH_LANDINGS_DIR: /run/one/landings
+      # Rouh's read-only shell runs its commands in the worker, which holds no key (one/shell.py).
+      ROUH_SHELL: worker
+      # Its browsers are connections to the browser container, never a browser beside the keys
+      # (rouh/browsing.py, `chromium`).
+      ROUH_BROWSER: ${ROUH_BROWSER:-1}
+      ROUH_YOUTUBE_BROWSER: ${ROUH_YOUTUBE_BROWSER:-1}
+      ROUH_BROWSER_REMOTE: ws://browser:9230/browser
+      PATH: /opt/rouh-guard/bin:/home/rouh/.local/bin:/opt/venv/bin:/extra/python3.12/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    networks: [db, workers, edge, browser]
+    # The machine itself, by name, for what Rouh reads off it on purpose: its UPS (ROUH_UPS).
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      - "127.0.0.1:${ROUH_PORT:-8420}:8021"
+    volumes:
+      - core-data:/data
+      - keys:/keys
+      - one-run:/run/one
+      - workspace:/workspace-origin
+      - code:/code
+      - extra:/extra
+      - guard-bin:/opt/rouh-guard:ro
+      - guard-run:/run/guard:ro
+      - guard-signal:/run/guard-signal:ro
+    # Root only long enough to give the volumes to their users (rouh-core-entrypoint).
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if b'\"ok\":true' in urllib.request.urlopen('http://127.0.0.1:8021/healthz', timeout=4).read() else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 180s
+
+  # Gives the worker's two volumes to its user, 10001, before it starts, and
+  # changes only what belongs to anyone else (compose.ghcr.yml has why).
+  worker-perms:
+    <<: *hardening
+    restart: "no"
+    image: ${ROUH_BASE_IMAGE:?release.env must name ROUH_BASE_IMAGE}
+    user: "0:0"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - find /home/rouh /run/one -xdev \( ! -uid 10001 -o ! -gid 10001 \) -exec chown -h 10001:10001 {} + && echo "worker-perms - the worker's volumes are 10001's"
+    network_mode: none
+    volumes:
+      - worker-home:/home/rouh
+      - one-run:/run/one
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH]
+    healthcheck:
+      disable: true
+
+  worker:
+    <<: *hardening
+    image: ${ROUH_BASE_IMAGE:?release.env must name ROUH_BASE_IMAGE}
+    init: true
+    user: "10001:10001"
+    entrypoint: ["/opt/rouh-guard/bin/rouh-workers-entrypoint"]
+    depends_on:
+      keyproxy:
+        condition: service_healthy
+      worker-perms:
+        condition: service_completed_successfully
+    networks: [workers]
+    environment:
+      # Out only through the key proxy, which adds nothing to these.
+      HTTPS_PROXY: http://keyproxy:8080
+      HTTP_PROXY: http://keyproxy:8080
+      https_proxy: http://keyproxy:8080
+      http_proxy: http://keyproxy:8080
+      NO_PROXY: core,keyproxy,localhost,127.0.0.1
+      no_proxy: core,keyproxy,localhost,127.0.0.1
+      # Runs of Codex billed to the API reach OpenAI through the proxy, which
+      # takes this stand-in off and puts the installation's key on. It is not
+      # a key: the worker never has one.
+      ONE_CODEX_API_BASE_URL: http://keyproxy:8080/openai/v1
+      OPENAI_API_KEY: via-keyproxy
+      ONE_MAX_RUNS: ${ONE_MAX_RUNS:-2}
+      # The most memory one run may hold; its holder ends a run over it, and everything the run
+      # started (one/runprocs.py: no cgroup can be had in an unprivileged container).
+      ONE_RUN_MEMORY_MAX: ${ONE_RUN_MEMORY_MAX:-4G}
+      # Blank, whatever an older base said: the program's gates read the worker's own cgroup.
+      ONE_CGROUP: ""
+      ONE_EFFORT: ${ONE_EFFORT:-xhigh}
+      ONE_PUBLIC_URL: ${ROUH_PUBLIC_URL:-http://127.0.0.1:8420}/one
+      ROUH_MODEL_PROXY: http://keyproxy:8080
+      ROUH_GUARD_SIGNAL: /run/guard-signal
+      ROUH_WORKER_KEY_FILE: /run/one/rouh-worker.json
+      # Its pages answer on the workers network, where only Rouh's core passes them on, and
+      # only to somebody signed in to Rouh (rouh/onebridge.py); its hook stays on loopback.
+      ONE_HTTP_HOST: 0.0.0.0
+      ONE_PUBLIC_HOSTS: ${ROUH_PUBLIC_HOSTS:-}
+      ONE_ALLOWED_HOSTS: worker
+      # The workspace's main, read here and written only by the core: a run's work goes to it
+      # through the core (bin/rouh-land, rouh/workspace_follow.py), and a change of Rouh's own
+      # code through the protected core (rouh-propose).
+      ONE_WORKSPACE_ORIGIN: /workspace-origin/workspace.git
+      ROUH_LAND_THROUGH: /code/bin/rouh-land
+      ONE_SHELL_FOR_ROUH: "1"
+      PATH: /opt/rouh-guard/bin:/home/rouh/.local/bin:/opt/venv/bin:/extra/python3.12/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    volumes:
+      - worker-home:/home/rouh
+      - one-run:/run/one
+      - workspace:/workspace-origin:ro
+      - code:/code:ro
+      - extra:/extra:ro
+      - guard-bin:/opt/rouh-guard:ro
+      - guard-signal:/run/guard-signal:ro
+    cap_drop: [ALL]
+    shm_size: 1g
+    # The most the worker and every run in it may hold together. Past 85% of it the one program
+    # starts no run and closes the one left unwatched longest (one/scheduler.py).
+    mem_limit: ${ROUH_WORKER_MEMORY:-6g}
+    healthcheck:
+      test: ["CMD-SHELL", "test -x /home/rouh/.local/bin/claude && test -S /run/one/one.sock"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10m
+
+  # The core's browser: Debian's Chromium behind Playwright's own server, started by the
+  # protected core (guard/bin/rouh-browser-server). No volume of anybody's, nothing written but
+  # memory, and out only through the key proxy, which refuses this machine and private networks.
+  browser:
+    <<: *hardening
+    image: ${ROUH_BASE_IMAGE:?release.env must name ROUH_BASE_IMAGE}
+    init: true
+    user: "10001:10001"
+    entrypoint: ["/opt/rouh-guard/bin/rouh-browser-server"]
+    depends_on:
+      guard-init:
+        condition: service_completed_successfully
+      keyproxy:
+        condition: service_healthy
+    networks: [browser]
+    environment:
+      HOME: /tmp
+      ROUH_BROWSER_PORT: "9230"
+      ROUH_BROWSER_PROXY: http://keyproxy:8080
+    volumes:
+      - guard-bin:/opt/rouh-guard:ro
+    tmpfs:
+      - /tmp:rw,exec,size=1g
+    read_only: true
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 9230), 4).close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 30s

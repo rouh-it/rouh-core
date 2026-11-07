@@ -1,0 +1,273 @@
+{% load rouh_assets %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>New mail</title>
+<link rel="apple-touch-icon" href="{% asset "icon-180.png" %}">
+<link rel="icon" type="image/svg+xml" href="{% asset "icon.svg" %}">
+<link rel="icon" type="image/png" sizes="192x192" href="{% asset "icon-192.png" %}">
+<!--
+  The log of new mail (`rouh/mail_alerts.py`, `MailAlerts.log_view`).
+
+  Petar, 24 September 2026 (fr_6b8861e231e4), after his second test email
+  never reached his phone: "i think i need a log of the ai decisions on the
+  emails". One row per message Rouh read for the person signed in, newest
+  first: what became of it, who it came from with the address, what Rouh did
+  about it, the note that went to the phone, the way to the conversation it
+  was handled in, and, folded, how it starts and Rouh's own words about it.
+  Since 25 September 2026 (fr_b657bd8f6100) Rouh itself handles every
+  message; rows from before then still read as the small model's decisions.
+
+  Drawn by the server, so it reads with no script at all. The script at the end
+  only asks for the same page again every fifteen seconds while it is in view,
+  so a test email shows up here while the person watches.
+
+  Everything in a row that came from an email - the name, the address, the
+  subject, the start of it - is somebody else's words, and Django escapes all
+  of it. The colours are Rouh's own, said again here because this page stands
+  alone and does not load app.css (the same set as gaps.html).
+-->
+<style>
+:root {
+  --bg: #0a0c10;
+  --panel: #12161c;
+  --panel-2: #171c24;
+  --line: #232a34;
+  --text: #e7ecf3;
+  --dim: #8d9aac;
+  --dimmer: #66758a;
+  --accent: #5ec2ff;
+  --good: #57d9a3;
+  --warn: #f2b45e;
+  --bad: #ff7a70;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --radius: 14px;
+  --radius-s: 9px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  padding: 22px 16px 48px;
+}
+.wrap { max-width: 860px; margin: 0 auto; }
+a { color: var(--accent); }
+
+header .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+h1 { font-size: 21px; font-weight: 620; letter-spacing: -0.01em; margin: 0 0 6px; }
+.sub { color: var(--dim); margin: 0; max-width: 64ch; }
+.sub b { color: var(--text); font-weight: 560; overflow-wrap: anywhere; }
+.ctl {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center;
+  padding: 5px 11px;
+  border: 1px solid var(--line); border-radius: var(--radius-s);
+  color: var(--dim); font-size: 12.5px; text-decoration: none; white-space: nowrap;
+}
+.ctl:hover { color: var(--text); border-color: var(--dim); }
+
+/* What the watch is doing, the same five lines as the card in Settings. */
+.readout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px 16px;
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.readout div { min-width: 0; }
+.readout dt { color: var(--dimmer); font-size: 11.5px; }
+.readout dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+.note { margin: 10px 0 0; color: var(--dim); }
+.note.bad { color: var(--bad); }
+
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 20px 0 12px; }
+.filters a {
+  padding: 5px 12px;
+  border: 1px solid var(--line); border-radius: 999px;
+  color: var(--dim); text-decoration: none; font-size: 13px;
+}
+.filters a span { color: var(--dimmer); margin-left: 4px; font-family: var(--mono); font-size: 12px; }
+.filters a[aria-current="page"] { color: var(--text); background: var(--panel-2); border-color: var(--dim); }
+
+ol.decisions { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.decision {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  min-width: 0;
+}
+.decision.sent { border-left-color: var(--good); }
+.decision.failed { border-left-color: var(--bad); }
+.decision.waiting { border-left-color: var(--warn); }
+.decision .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.badge { font-size: 12px; font-weight: 600; color: var(--dim); }
+.badge.sent { color: var(--good); }
+.badge.failed { color: var(--bad); }
+.badge.waiting { color: var(--warn); }
+.open { display: inline-block; margin: 8px 14px 0 0; font-size: 13px; }
+.decision time { color: var(--dimmer); font-size: 12px; }
+.subject { margin: 4px 0 0; font-size: 15px; font-weight: 580; overflow-wrap: anywhere; }
+.from { margin: 0; color: var(--dim); font-size: 13px; overflow-wrap: anywhere; }
+.k { display: block; color: var(--dimmer); font-size: 11.5px; }
+.why { margin: 8px 0 0; overflow-wrap: anywhere; }
+.error { margin: 6px 0 0; color: var(--bad); font-size: 13px; overflow-wrap: anywhere; }
+.said-note { margin: 8px 0 0; }
+pre {
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  font-family: var(--mono); font-size: 12.5px;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+details { margin: 10px 0 0; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+details dl { margin: 8px 0 0; display: grid; gap: 8px; }
+details dt { color: var(--dimmer); font-size: 11.5px; }
+details dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.quote { color: var(--text); border-left: 2px solid var(--line); padding-left: 8px; }
+.old { margin: 8px 0 0; color: var(--dimmer); font-size: 12.5px; }
+.empty {
+  margin: 0; padding: 18px 14px;
+  background: var(--panel); border: 1px dashed var(--line); border-radius: var(--radius);
+  color: var(--dim);
+}
+.older { margin-top: 14px; }
+
+/* On a phone the readout is the Settings card's: the name on the left and
+   what it says on the right, one line each, so the first email is in view. */
+@media (max-width: 520px) {
+  header .top { flex-direction: column; }
+  .readout { grid-template-columns: 1fr; gap: 6px; }
+  .readout div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .readout dt { flex: 0 0 auto; }
+  .readout dd { text-align: right; }
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="log">
+  <header>
+    <div class="top">
+      <h1>New mail</h1>
+      <a class="ctl" href="/?settings=mail">Open Settings</a>
+    </div>
+    {% if off %}
+    <p class="sub">New mail is switched off on this server: credentials cannot be encrypted here, so no mail is read.</p>
+    {% else %}
+    <p class="sub">Every new email Rouh read in <b>{{ mailbox }}</b>, newest first: what Rouh did about it, the note that went to your phone, and the conversation it was handled in. New ones show up here by themselves.</p>
+    {% endif %}
+  </header>
+
+  {% if not off %}
+  <dl class="readout">
+    <div><dt>Handling new mail</dt><dd>{% if on %}On{% else %}Off{% endif %}</dd></div>
+    <div><dt>Watch</dt><dd>{{ watching|capfirst }}</dd></div>
+    <div><dt>Last note from Gmail</dt><dd>{{ last_push|capfirst }}</dd></div>
+    <div><dt>Handled by</dt><dd class="mono">Rouh, on {{ model }}</dd></div>
+    <div><dt>Notes go to</dt><dd>{{ phone }}</dd></div>
+  </dl>
+  {% if why_not %}<p class="note">{{ why_not }}</p>{% endif %}
+  {% if trouble %}<p class="note bad">{{ trouble }}</p>{% endif %}
+  <nav class="filters" aria-label="Which messages to show">
+    <a href="{{ route }}"{% if show == "all" %} aria-current="page"{% endif %}>All<span>{{ tally.all }}</span></a>
+    <a href="{{ route }}?show=sent"{% if show == "sent" %} aria-current="page"{% endif %}>You were told, or they were answered<span>{{ tally.sent }}</span></a>
+    <a href="{{ route }}?show=quiet"{% if show == "quiet" %} aria-current="page"{% endif %}>Nothing went<span>{{ tally.quiet }}</span></a>
+  </nav>
+
+  {% if rows %}
+  <ol class="decisions">
+    {% for r in rows %}
+    <li class="decision {{ r.outcome }}" data-id="{{ r.id }}">
+      <div class="head">
+        <span class="badge {{ r.outcome }}">{{ r.said }}</span>
+        <time>{{ r.when }} · {{ r.ago }}</time>
+      </div>
+      <p class="subject">{{ r.subject|default:"(no subject)" }}</p>
+      <p class="from">From {{ r.from|default:"somebody" }}{% if r.address %} &lt;{{ r.address }}&gt;{% endif %}</p>
+      {% if r.why %}
+      <p class="why"><span class="k">{% if r.outcome == "passed" %}Why it was passed over{% elif r.legacy %}The small model's reason, from before Rouh handled mail itself{% else %}What Rouh did{% endif %}</span>{{ r.why }}</p>
+      {% endif %}
+      {% if r.from_owner or r.from_petar %}<p class="why"><span class="k">Whose words</span>Yours, from one of your own addresses and confirmed by Gmail, so Rouh took it as your instruction.</p>{% endif %}
+      {% if r.error %}<p class="error">{{ r.error }}</p>{% endif %}
+      {% if r.note %}
+      <div class="said-note"><span class="k">{% if r.sent %}The note on your phone{% else %}The note it would have sent{% endif %}</span><pre>{{ r.note }}</pre></div>
+      {% endif %}
+      {% if r.case_link %}<a class="open" href="{{ r.case_link }}">Open its case</a>{% endif %}
+      {% if r.chat_link %}<a class="open" href="{{ r.chat_link }}">Open the conversation it was handled in</a>{% endif %}
+      {% if r.detailed %}
+      <details>
+        <summary>{% if r.outcome == "passed" %}What Rouh read{% else %}How it starts, and Rouh's own words{% endif %}</summary>
+        <dl>
+          <div><dt>Gmail filed it</dt><dd>{{ r.filed|default:"-" }}</dd></div>
+          <div><dt>How it starts</dt><dd class="quote">{{ r.snippet|default:"(nothing written in it)" }}</dd></div>
+          {% if r.outcome != "passed" %}
+          <div><dt>Handled by</dt><dd class="mono">{{ r.model|default:"-" }}</dd></div>
+          <div><dt>{% if r.legacy %}Its answer, word for word{% else %}What Rouh said about it{% endif %}</dt><dd><pre>{{ r.answer|default:"(nothing yet)" }}</pre></dd></div>
+          {% endif %}
+        </dl>
+      </details>
+      {% else %}
+      <p class="old">Read before this log kept how a message starts.</p>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% if more %}<a class="ctl older" href="{{ route }}?show={{ show }}&amp;before={{ older }}">Older messages</a>{% endif %}
+  {% elif paged %}
+  <p class="empty">Nothing older than that.</p>
+  {% elif show == "all" %}
+  <p class="empty">No new mail has been read yet. Once it is on, every email that arrives in {{ mailbox }} shows up here within a few seconds, with what Rouh did about it.</p>
+  {% else %}
+  <p class="empty">None of the messages so far are of this kind.</p>
+  {% endif %}
+  {% endif %}
+</div>
+<script>
+  // Ask for this same page again every fifteen seconds while it is in view,
+  // and put what came back in place of what is here, so a test email shows up
+  // without anything being pressed. Not on an older page, whose rows do not
+  // change. A row whose details were open stays open.
+  (function () {
+    if (new URLSearchParams(location.search).get('before')) return;
+    function again() {
+      if (document.visibilityState !== 'visible') return;
+      fetch(location.href, { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.ok && !r.redirected ? r.text() : null; })
+        .then(function (text) {
+          if (!text) return;
+          var fresh = new DOMParser().parseFromString(text, 'text/html').getElementById('log');
+          var here = document.getElementById('log');
+          if (!fresh || !here || fresh.innerHTML === here.innerHTML) return;
+          var open = {};
+          here.querySelectorAll('li.decision details[open]').forEach(function (d) {
+            open[d.closest('li').getAttribute('data-id')] = true;
+          });
+          here.innerHTML = fresh.innerHTML;
+          here.querySelectorAll('li.decision').forEach(function (li) {
+            var d = li.querySelector('details');
+            if (d && open[li.getAttribute('data-id')]) d.open = true;
+          });
+        })
+        .catch(function () {});
+    }
+    setInterval(again, 15000);
+  })();
+</script>
+</body>
+</html>

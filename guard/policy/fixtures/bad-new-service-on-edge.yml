@@ -1,0 +1,4 @@
+services:
+  sidecar:
+    image: busybox
+    networks: [edge]

@@ -1,0 +1,226 @@
+{
+ "base": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+ "reference": "good-as-released",
+ "cases": {
+  "good-as-released": {
+   "ok": true,
+   "says": ""
+  },
+  "good-mongo-instead-of-postgres": {
+   "ok": true,
+   "says": ""
+  },
+  "good-more-memory": {
+   "ok": true,
+   "says": ""
+  },
+  "good-own-image-on-the-base": {
+   "ok": true,
+   "says": ""
+  },
+  "good-local-port": {
+   "ok": true,
+   "says": ""
+  },
+  "bad-privileged": {
+   "ok": false,
+   "says": "privileged"
+  },
+  "bad-host-network": {
+   "ok": false,
+   "says": "network_mode 'host'"
+  },
+  "bad-host-pid": {
+   "ok": false,
+   "says": "pid 'host'"
+  },
+  "bad-host-ipc": {
+   "ok": false,
+   "says": "ipc 'host'"
+  },
+  "bad-host-userns": {
+   "ok": false,
+   "says": "userns_mode 'host'"
+  },
+  "bad-host-cgroup": {
+   "ok": false,
+   "says": "cgroup 'host'"
+  },
+  "bad-seccomp-unconfined": {
+   "ok": false,
+   "says": "seccomp:unconfined"
+  },
+  "bad-apparmor-unconfined": {
+   "ok": false,
+   "says": "apparmor:unconfined"
+  },
+  "bad-devices": {
+   "ok": false,
+   "says": "devices"
+  },
+  "bad-sysctls": {
+   "ok": false,
+   "says": "sysctls"
+  },
+  "bad-docker-socket": {
+   "ok": false,
+   "says": "Docker socket"
+  },
+  "bad-bind-mount": {
+   "ok": false,
+   "says": "bind mount"
+  },
+  "bad-bind-disguised-as-volume": {
+   "ok": false,
+   "says": "driver_opts"
+  },
+  "bad-external-volume": {
+   "ok": false,
+   "says": "external"
+  },
+  "bad-extra-capability": {
+   "ok": false,
+   "says": "SYS_ADMIN"
+  },
+  "bad-net-admin": {
+   "ok": false,
+   "says": "NET_ADMIN"
+  },
+  "bad-port-every-address": {
+   "ok": false,
+   "says": "every address"
+  },
+  "bad-port-zeroes": {
+   "ok": false,
+   "says": "0.0.0.0"
+  },
+  "bad-guard-changed": {
+   "ok": false,
+   "says": "protected core"
+  },
+  "bad-guard-removed": {
+   "ok": false,
+   "says": "'guard' is gone"
+  },
+  "bad-keyproxy-reads-code": {
+   "ok": false,
+   "says": "protected core"
+  },
+  "bad-worker-gets-keys": {
+   "ok": false,
+   "says": "'keys'"
+  },
+  "bad-worker-writes-code": {
+   "ok": false,
+   "says": "may only read it"
+  },
+  "bad-core-reads-undo-points": {
+   "ok": false,
+   "says": "'guard-state'"
+  },
+  "bad-worker-on-egress": {
+   "ok": false,
+   "says": "egress"
+  },
+  "bad-new-service-on-edge": {
+   "ok": false,
+   "says": "edge"
+  },
+  "bad-browser-reads-data": {
+   "ok": false,
+   "says": "volumes"
+  },
+  "bad-browser-on-workers": {
+   "ok": false,
+   "says": "networks"
+  },
+  "bad-browser-way-round-the-proxy": {
+   "ok": false,
+   "says": "environment"
+  },
+  "bad-new-service-beside-the-browser": {
+   "ok": false,
+   "says": "'browser'"
+  },
+  "bad-wall-opened": {
+   "ok": false,
+   "says": "walls"
+  },
+  "bad-own-network-with-a-way-out": {
+   "ok": false,
+   "says": "not internal"
+  },
+  "bad-core-entrypoint": {
+   "ok": false,
+   "says": "entrypoint"
+  },
+  "bad-worker-as-root": {
+   "ok": false,
+   "says": "user"
+  },
+  "bad-lifecycle-hook": {
+   "ok": false,
+   "says": "post_start"
+  },
+  "bad-image-mount": {
+   "ok": false,
+   "says": "image mount"
+  },
+  "bad-volumes-from": {
+   "ok": false,
+   "says": "volumes_from"
+  },
+  "bad-build-from-elsewhere": {
+   "ok": false,
+   "says": "FROM alpine"
+  },
+  "bad-build-host-network": {
+   "ok": false,
+   "says": "network"
+  },
+  "bad-build-outside": {
+   "ok": false,
+   "says": "outside"
+  },
+  "bad-core-other-image": {
+   "ok": false,
+   "says": "debian:13"
+  },
+  "bad-env-file-from-the-machine": {
+   "ok": false,
+   "says": "outside its own folder"
+  },
+  "bad-env-file-climbing-out": {
+   "ok": false,
+   "says": "outside its own folder"
+  },
+  "bad-label-file": {
+   "ok": false,
+   "says": "'label_file'"
+  },
+  "bad-include": {
+   "ok": false,
+   "says": "'include'"
+  },
+  "bad-extends": {
+   "ok": false,
+   "says": "'extends'"
+  },
+  "bad-escaped-key": {
+   "ok": false,
+   "says": "backslash escape"
+  },
+  "bad-yaml-tag": {
+   "ok": false,
+   "says": "YAML tag"
+  },
+  "good-env-file-of-its-own": {
+   "ok": true,
+   "says": ""
+  },
+  "bad-syslog-logging": {
+   "ok": false,
+   "says": "syslog"
+  }
+ }
+}

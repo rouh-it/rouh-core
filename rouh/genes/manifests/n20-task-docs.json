@@ -1,0 +1,45 @@
+{
+  "id": "n20-task-docs",
+  "name": "The task's documents",
+  "title": "The task's documents: the Google Docs a task's notes link to, listed last on its page, each with What changed, read in place",
+  "aliases": [
+    "documents",
+    "linked docs",
+    "google docs in a task",
+    "what changed in the docs",
+    "client documents"
+  ],
+  "group": "work",
+  "route": "/tasks",
+  "icon": "<path d=\"M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10.5a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z\"/><path d=\"M14 3.5V8h4M9.5 12h5M9.5 15.5h5\"/>",
+  "attaches_to": [
+    "task",
+    "step"
+  ],
+  "maturity": "lab",
+  "switch": "task_docs",
+  "signals": {
+    "events": {
+      "what_changed": "You pressed What changed on a Google document in a task's Documents"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the notes (.md files) of a task's folder for links to Google Docs, Sheets and Slides when its page is drawn",
+      "reads each linked document's name in Google Drive when its page opens, and keeps the names for you",
+      "reads a linked document's saved versions and comments in Google Drive when you press What changed"
+    ],
+    "accounts": [
+      "Google Drive"
+    ],
+    "tables": [
+      "user_settings"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch task_docs off on its row in Evolution, Mutations, and the Documents section is gone from task pages; to remove it for good revert night 20's commit (rouh/task_docs.py, rouh/web/task_docs.py and its route in rouh/project/urls.py, its lines in rouh/objectindex.py, the doc_changes act in cards.js, the tkDocs code in taskpage.js and the .odoc rules in taskbrowser.css, this manifest)."
+  }
+}

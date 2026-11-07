@@ -1,0 +1,50 @@
+{
+  "id": "n25-not-opened",
+  "name": "Not opened yet",
+  "title": "Not opened yet: a page you shared for somebody to read, not opened after two days, in the morning brief, with Write to them",
+  "aliases": [
+    "not opened yet",
+    "not opened",
+    "did they read it",
+    "shared and not read",
+    "remind them to read"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<path d=\"M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z\"/><path d=\"M4 20L20 4\"/>",
+  "attaches_to": [
+    "task"
+  ],
+  "maturity": "lab",
+  "switch": "not_opened",
+  "signals": {
+    "events": {
+      "wrote": "You pressed Write to them on a page the morning brief said was not opened yet",
+      "opened": "You opened a page the morning brief said was not opened yet",
+      "let_be": "You pressed Let it be on a page the morning brief said was not opened yet"
+    },
+    "runs": {
+      "shown": "Rouh put a page you shared and nobody opened in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the pages and tasks you shared with somebody by hand, and when each was opened (Who opened it)",
+      "keeps the lines you let be in your own settings"
+    ],
+    "accounts": [
+      "Gmail, opened in your own browser: nothing is sent by Rouh"
+    ],
+    "tables": [
+      "page_guests",
+      "analytics.event",
+      "user_settings"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch not_opened off on its row in Evolution, Mutations, and the section is gone; to remove it for good revert night 25's commit (rouh/not_opened.py, the brief_not_opened route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawNotOpened and its helpers in briefpage.js, this manifest) and delete the user setting not_opened."
+  }
+}

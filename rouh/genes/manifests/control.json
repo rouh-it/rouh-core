@@ -1,0 +1,44 @@
+{
+  "id": "control",
+  "name": "Control room",
+  "title": "What you pinned: what each is, where you left off and what is next",
+  "aliases": [
+    "control room",
+    "pinned",
+    "in flight",
+    "deep work",
+    "where i left off",
+    "topics"
+  ],
+  "group": "work",
+  "route": "/control",
+  "icon": "<circle cx=\"4.5\" cy=\"12\" r=\"2\"/><circle cx=\"12\" cy=\"6\" r=\"2\"/><circle cx=\"12\" cy=\"18\" r=\"2\"/><circle cx=\"19.5\" cy=\"12\" r=\"2\"/><path d=\"M6.3 10.9l3.9-3.6M6.3 13.1l3.9 3.6M13.8 7.1l3.9 3.8M13.8 16.9l3.9-3.8\"/>",
+  "attaches_to": [
+    "task"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 20,
+    "opens": "own",
+    "row": "controlRow",
+    "controls": "controlView"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "task",
+      "app_state"
+    ],
+    "jobs": [
+      "the Control Room's nightly naming, on Clockwork (control_room_names)"
+    ],
+    "remove": "Delete rouh/controlroom.py, rouh/web/control.py, controlroom.js/.css, its server job in rouh/runtime.py and this manifest."
+  },
+  "uses": {
+    "jobs": [
+      "control_room_names"
+    ]
+  }
+}

@@ -1,0 +1,704 @@
+#!/usr/bin/env python3
+"""Run a trial: a made-up person tries a page of Rouh the way a real one would, and says what trips them.
+
+    rouh-trial run --url http://127.0.0.1:57425/evolution/trials --user alex --password ... \\
+                   --goal "You want to see what Rouh did for you yesterday." --job "Seeing yesterday's work" \\
+                   [--gene trials] [--persona boris] [--round 2] [--trial 12] [--desk]
+                   [--signed-out --given "Your email is ... and your password is ..."] [--review]
+                                                automatic by default: a test while building, which its builder
+                                                fixes for at most two rounds and then ships; --review only when
+                                                the person asked in their own words for someone to test it: a
+                                                report for them, and nothing is fixed until they choose
+                                                a try starting signed out: the tester signs in themselves
+                                                with what they were given, which is never kept
+    rouh-trial jobs [--persona vesela]          what is being tested, the one tried most lately first
+    rouh-trial job 3                            one job, with its tries and who did each
+    rouh-trial job-edit 3 [--name ...] [--goal ...] [--covers "what it covers"]
+    rouh-trial queue --page /evolution/trials | --gene trials --goal "You want to ..." [--persona boris]
+                     [--subject "..."] [--wait]   Rouh starts a run that stands a test world up and runs it
+    rouh-trial list [--persona vesela]          the trials, newest first
+    rouh-trial read 12                          one trial: every step, the three answers on each new screen,
+                                                and its ending
+    rouh-trial wait 12                          wait until trial 12 has ended, then read it
+    rouh-trial problems [--status open|decided|fixed|set_aside|all] [--persona boris] [--job 3]
+                        [--screen /evolution/trials] [--source owner|persona]
+                                                decided: what the person said to fix, and how
+    rouh-trial problem 7                        one problem, with every time it was seen, its discussion
+                                                and the person's decision
+    rouh-trial record "what goes wrong" --quote "the words said" [--screen /page] [--how-bad confused]
+                      [--source owner|vesela|boris]   a problem by hand, such as one of the person's confusions
+    rouh-trial sighting 7 --quote "the words said" [--source ...] [--trial 12 --step 3]
+    rouh-trial reopen 7 [--note "why"]          a closed problem that turned out not to be fixed; closing is
+                                                never by hand, only by a trial that passes
+    rouh-trial personas                         the testers, who tries every change, and who is paused
+    rouh-trial persona boris                    one tester's whole profile
+    rouh-trial tester-add --name "Mila Petrova" --profile-file mila.md [--age 33 --job "..." --city Sofia
+                          --short "one line" --them her]
+    rouh-trial tester-edit mila [--short "..." --profile-file mila.md ...]
+    rouh-trial tester-remove mila               take a tester off the list, only on the person's own words
+    rouh-trial default boris                    who tries every change, only on the person's own words
+
+`run` drives a real headless browser at a phone's size (`--desk` for a desk's) at the page given, signs in
+with the test world's own account first when it lands on the sign-in page (a person who has had Rouh for
+two weeks is signed in already), and then, step by step, shows Rouh's tester only what a person sees: a
+picture of the screen, the words on it, and a number beside each thing that can be pressed or typed in,
+with the words on that thing. The tester, on the model the Models page has for "Trials tester", says what
+it sees, thinks and does; this does it, until the tester is done or gives up, or 30 steps.
+
+It ends with PASS (the person managed it, and nothing stopped or confused them) or FAIL, the problems, and
+the trial's page in Rouh, and exits 0 for PASS, 1 for FAIL, 2 when it could not run. When the person has
+paused the tester, or all testing, it starts nothing, prints SKIPPED: skipped: tester paused, and exits 0:
+that is never a failure, and never something to work round.
+
+It is part of Rouh's code (`bin/`), which a run has on its PATH, like rouh-task, and reaches Rouh the same
+way: on the server http://127.0.0.1:8021/internal/trials, and in the containers the address and key Rouh
+gave the worker (/run/one/rouh-worker.json). The browser needs Playwright: run it from a checkout where
+`./e2e.sh` has built `.venv-e2e`, and it uses that by itself.
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import getpass
+import json
+import os
+import socket
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+LOCAL = "http://127.0.0.1:8021"
+PHONE = {"width": 390, "height": 844}
+DESK = {"width": 1440, "height": 900}
+IPHONE_UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) "
+             "Version/18.1 Mobile/15E148 Safari/604.1")
+
+
+def fail(message: str, code: int = 2) -> None:
+    print(f"rouh-trial: {message}", file=sys.stderr)
+    sys.exit(code)
+
+
+def worker_key() -> dict:
+    path = os.environ.get("ROUH_WORKER_KEY_FILE", "").strip() or "/run/one/rouh-worker.json"
+    try:
+        said = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return said if isinstance(said, dict) and said.get("token") else {}
+
+
+def by() -> str:
+    run = os.environ.get("ONE_RUN", "").strip()
+    if run:
+        return f"run {run}"
+    job = os.environ.get("ROUH_JOB", "").strip()
+    if job:
+        return f"job {job}"
+    try:
+        user = getpass.getuser()
+    except Exception:
+        user = "someone"
+    return f"{user} at a terminal on {socket.gethostname()}"
+
+
+def rouh_url() -> str:
+    return (os.environ.get("ROUH_URL", "").strip() or str(worker_key().get("url") or "") or LOCAL).rstrip("/")
+
+
+def call(payload: dict, timeout: float = 60, soft: bool = False) -> dict:
+    key = worker_key()
+    url = rouh_url()
+    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+    if key:
+        headers["X-Rouh-Worker-Key"] = key["token"]
+    payload = dict(payload, by=by())
+    request = urllib.request.Request(url + "/internal/trials", data=json.dumps(payload).encode("utf-8"),
+                                     headers=headers, method="POST")
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            body = response.read()
+    except urllib.error.HTTPError as exc:
+        try:
+            said = json.loads(exc.read().decode("utf-8"))
+        except ValueError:
+            said = {}
+        message = said.get("error") or f"Rouh at {url} answered {exc.code}."
+        if soft:
+            return {"ok": False, "error": message}
+        fail(message, 1 if exc.code in (400, 404) else 2)
+    except (urllib.error.URLError, OSError) as exc:
+        message = f"Rouh could not be reached at {url} ({getattr(exc, 'reason', exc)})."
+        if soft:
+            return {"ok": False, "error": message}
+        fail(message, 2)
+    try:
+        return json.loads(body.decode("utf-8"))
+    except ValueError:
+        fail(f"Rouh at {url} gave an answer that is not JSON.", 2)
+    return {}
+
+
+# --- what a person sees -------------------------------------------------------------------------
+
+#: Marks every thing that can be pressed or typed in that is on the screen and not covered, numbers them
+#: in the order they are on the page, and gives the words on each as they are drawn, never a hidden label.
+LOOK = r"""
+() => {
+  document.querySelectorAll('[data-trial-mark]').forEach(e => e.removeAttribute('data-trial-mark'));
+  const vw = innerWidth, vh = innerHeight;
+  const sel = 'a[href],button,input:not([type=hidden]),textarea,select,summary,[role=button],[role=link],' +
+              '[role=tab],[role=switch],[role=checkbox],[role=radio],[role=menuitem],[role=option],[contenteditable=true]';
+  const shown = el => { const st = getComputedStyle(el);
+    return st.visibility !== 'hidden' && st.display !== 'none' && parseFloat(st.opacity || '1') > 0.05; };
+  const els = [];
+  document.querySelectorAll(sel).forEach(el => {
+    if (el.disabled) return;
+    const r = el.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4 || r.bottom < 1 || r.top > vh - 1 || r.right < 1 || r.left > vw - 1) return;
+    if (!shown(el)) return;
+    const cx = Math.min(Math.max(r.left + r.width / 2, 1), vw - 1), cy = Math.min(Math.max(r.top + r.height / 2, 1), vh - 1);
+    const top = document.elementFromPoint(cx, cy);
+    const lbl = el.labels && el.labels[0];
+    if (!top || !(el === top || el.contains(top) || top.contains(el) || (lbl && lbl.contains(top)))) return;
+    if (els.some(e => e.contains(el))) return;
+    els.push(el);
+  });
+  const words = el => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  const marks = els.map((el, i) => {
+    el.setAttribute('data-trial-mark', String(i + 1));
+    const tag = el.tagName.toLowerCase(), role = el.getAttribute('role') || '', type = (el.type || '').toLowerCase();
+    let kind = 'button', said = words(el);
+    if (tag === 'a' || role === 'link') kind = 'link';
+    if (role === 'tab') kind = 'tab';
+    if (tag === 'select') { kind = 'list to choose from'; said = el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : ''; }
+    else if (tag === 'textarea' || el.isContentEditable || (tag === 'input' && !['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file'].includes(type))) {
+      kind = 'box to type in';
+      said = el.value ? 'shows: ' + String(el.value).slice(0, 120) : (el.placeholder ? 'grey words inside: ' + el.placeholder : 'empty');
+    } else if (type === 'checkbox' || role === 'switch' || role === 'checkbox') {
+      kind = role === 'switch' ? 'switch' : 'tick box';
+      const on = el.checked || el.getAttribute('aria-checked') === 'true';
+      const lab = (el.labels && el.labels[0]) ? words(el.labels[0]) : '';
+      said = (on ? 'on' : 'off') + (lab ? ', beside it: ' + lab : '');
+    } else if (type === 'radio' || role === 'radio') { kind = 'choice'; said = (el.labels && el.labels[0]) ? words(el.labels[0]) : said; }
+    else if (tag === 'input') { said = el.value || ''; }
+    const r = el.getBoundingClientRect();
+    return { n: i + 1, kind, words: said, x: Math.max(0, r.left), y: Math.max(0, r.top) };
+  });
+  const lines = [];
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    const t = node.textContent.replace(/\s+/g, ' ').trim();
+    const p = node.parentElement;
+    if (!t || !p || ['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'OPTION'].includes(p.tagName)) continue;
+    if (!shown(p)) continue;
+    const range = document.createRange(); range.selectNodeContents(node);
+    let vis = false;
+    for (const r of range.getClientRects()) {
+      if (r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < vh && r.right > 0 && r.left < vw) {
+        const top = document.elementFromPoint(Math.min(Math.max(r.left + 2, 1), vw - 1), Math.min(Math.max(r.top + r.height / 2, 1), vh - 1));
+        if (top && (p.contains(top) || top.contains(p) || top === p)) { vis = true; break; }
+      }
+    }
+    if (vis && lines[lines.length - 1] !== t) lines.push(t);
+  }
+  let box = document.elementFromPoint(vw / 2, vh / 2), scroller = null;
+  while (box && box !== document.body) {
+    const st = getComputedStyle(box);
+    if (/(auto|scroll)/.test(st.overflowY) && box.scrollHeight > box.clientHeight + 4) { scroller = box; break; }
+    box = box.parentElement;
+  }
+  const s = scroller || document.scrollingElement;
+  const atTop = s.scrollTop <= 2, atBottom = s.scrollTop + s.clientHeight >= s.scrollHeight - 4;
+  return { marks, text: lines.join('\n').slice(0, 7000), title: document.title, at_top: atTop, at_bottom: atBottom };
+}
+"""
+
+BADGES = r"""
+(marks) => {
+  const layer = document.createElement('div');
+  layer.id = 'rouh-trial-badges';
+  layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647;';
+  marks.forEach(m => {
+    const b = document.createElement('div');
+    b.textContent = String(m.n);
+    b.style.cssText = 'position:absolute;left:' + m.x + 'px;top:' + m.y + 'px;background:#ffe14d;color:#000;' +
+      'font:bold 11px/14px -apple-system,Arial,sans-serif;padding:0 3px;border-radius:3px;border:1px solid #806c00;';
+    layer.appendChild(b);
+  });
+  document.documentElement.appendChild(layer);
+}
+"""
+
+
+def settle(page) -> None:
+    try:
+        page.wait_for_load_state("networkidle", timeout=6000)
+    except Exception:
+        pass
+    page.wait_for_timeout(900)
+
+
+def look(page) -> dict:
+    seen = page.evaluate(LOOK)
+    clean = page.screenshot(type="jpeg", quality=62)
+    page.evaluate(BADGES, seen["marks"])
+    try:
+        marked = page.screenshot(type="jpeg", quality=62)
+    finally:
+        page.evaluate("() => { const l = document.getElementById('rouh-trial-badges'); if (l) l.remove(); }")
+    return {"url": page.url, "title": seen["title"], "text": seen["text"],
+            "marks": [{"n": m["n"], "kind": m["kind"], "words": m["words"]} for m in seen["marks"]],
+            "at_top": seen["at_top"], "at_bottom": seen["at_bottom"],
+            "shot": base64.b64encode(clean).decode("ascii"), "marked": base64.b64encode(marked).decode("ascii")}
+
+
+def act(page, do: dict, size: dict) -> str:
+    """Do what the tester said, the way a person's finger would. A note for the next step when it could not."""
+    action = do.get("action")
+    if action in ("scroll_down", "scroll_up"):
+        page.mouse.move(size["width"] / 2, size["height"] / 2)
+        page.mouse.wheel(0, (1 if action == "scroll_down" else -1) * size["height"] * 0.7)
+        return ""
+    if action == "back":
+        try:
+            page.go_back(timeout=8000)
+        except Exception:
+            return "Going back did nothing."
+        return ""
+    if action == "wait":
+        page.wait_for_timeout(3000)
+        return ""
+    try:
+        number = int(do.get("number"))
+    except (TypeError, ValueError):
+        return "You did not say which number to " + ("tap." if action == "tap" else "type into.")
+    target = page.locator(f'[data-trial-mark="{number}"]')
+    if target.count() == 0:
+        return f"There is no number {number} on the screen."
+    try:
+        if action == "tap":
+            target.first.click(timeout=6000)
+        elif action == "type":
+            target.first.click(timeout=6000)
+            target.first.fill(str(do.get("text") or ""), timeout=6000)
+            if do.get("enter"):
+                target.first.press("Enter")
+    except Exception as exc:
+        return f"Number {number} did not respond to that ({type(exc).__name__})."
+    return ""
+
+
+def sign_in_form(page, user: str, password: str) -> None:
+    """The test world's sign-in: an email first and then a password (since November 2026), or both at once."""
+    box = page.get_by_label("Email")
+    if box.count() == 0:
+        box = page.get_by_label("Username or email")
+    box.first.fill(user)
+    secret = page.get_by_label("Password")
+    if secret.count() == 0 or not secret.first.is_visible():
+        box.first.press("Enter")
+        secret.first.wait_for(state="visible", timeout=15000)
+    secret.first.fill(password)
+    page.get_by_role("button", name="Sign in").click()
+
+
+def sign_in(page, url: str, user: str, password: str) -> None:
+    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    settle(page)
+    if "/login" not in page.url or not user:
+        return
+    sign_in_form(page, user, password)
+    try:
+        page.wait_for_url(lambda u: "/login" not in u, timeout=20000)
+    except Exception:
+        fail("The test world's sign-in did not let it in: check --user and --password.", 2)
+    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    settle(page)
+
+
+def with_playwright() -> None:
+    """Run again under the checkout's `.venv-e2e`, which has Playwright, when this Python has not."""
+    try:
+        import playwright.sync_api  # noqa: F401
+        return
+    except ImportError:
+        pass
+    here = Path.cwd()
+    for folder in [here, *here.parents]:
+        venv = folder / ".venv-e2e" / "bin" / "python"
+        if venv.is_file() and os.environ.get("ROUH_TRIAL_REEXEC") != "1":
+            env = dict(os.environ, ROUH_TRIAL_REEXEC="1")
+            sys.exit(subprocess.call([str(venv), str(Path(__file__).resolve()), *sys.argv[1:]], env=env))
+    for venv in (Path("/opt/venv/bin/python"), Path("/var/www/rouh/.venv/bin/python")):
+        if venv.is_file() and os.environ.get("ROUH_TRIAL_REEXEC") != "1":
+            env = dict(os.environ, ROUH_TRIAL_REEXEC="1")
+            sys.exit(subprocess.call([str(venv), str(Path(__file__).resolve()), *sys.argv[1:]], env=env))
+    fail("Playwright is not here: run `./e2e.sh` in a checkout of Rouh once, then run this from it, or use "
+         "`rouh-trial queue`, which runs the trial in a run of its own.", 2)
+
+
+def where(url: str) -> str:
+    """The page's own address, without the test world's host and port."""
+    from urllib.parse import urlsplit
+
+    u = urlsplit(url)
+    return (u.path or "/") + (f"?{u.query}" if u.query else "")
+
+
+def run(a) -> int:
+    with_playwright()
+    from playwright.sync_api import sync_playwright
+
+    started = call({"action": "start", "persona": a.persona, "goal": a.goal, "subject": a.subject, "gene": a.gene,
+                    "page": where(a.url), "job": a.job, "job_no": a.job_number,
+                    "mode": "review" if a.review else "auto",
+                    "round": a.round, "first": a.first, "trial": a.trial,
+                    "run": os.environ.get("ONE_RUN", "") or os.environ.get("ROUH_JOB", "")})
+    if started.get("skipped"):
+        return skipped(started)
+    t = started["trial"]
+    name = (started.get("persona") or {}).get("first") or t.get("persona_name") or t["persona"]
+    most = min(int(a.steps or started.get("most_steps") or 30), int(started.get("most_steps") or 30))
+    print(f"Trial {t['number']}: {name} tries {t.get('job_name') or t['subject'] or a.url} (job {t.get('job')}), "
+          f"round {t['round']}.")
+    print(f"Goal: {t['goal']}")
+    size = DESK if a.desk else PHONE
+    finished = None
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            ctx = browser.new_context(
+                viewport=size, device_scale_factor=2 if not a.desk else 1, is_mobile=not a.desk,
+                has_touch=not a.desk, user_agent=IPHONE_UA if not a.desk else None, locale="en-GB",
+                timezone_id="Europe/Sofia")
+            page = ctx.new_page()
+            if a.signed_out:
+                # The tester signs in themselves, with what they were given: a first time is the thing tried.
+                page.goto(a.url, wait_until="domcontentloaded", timeout=30000)
+            else:
+                sign_in(page, a.url, a.user, a.password)
+            note = ""
+            for n in range(1, most + 1):
+                settle(page)
+                obs = look(page)
+                if note:
+                    obs["note"] = note
+                if n == most:
+                    obs["note"] = (note + " " if note else "") + "This is the last step you have time for."
+                # What they were given (a sign-in on a note) is shown only on the sign-in screen: with a
+                # password in front of it on every later screen, the tester's model said nothing at all
+                # (trials 8 and 9, the first screen after signing in).
+                if a.given and "/login" in page.url:
+                    obs["given"] = a.given
+                got = call({"action": "step", "trial": t["number"], "observation": obs}, timeout=300, soft=True)
+                if not got.get("ok") and "said nothing" in str(got.get("error") or ""):
+                    # The tester's model stopped answering (trial 17, a refusal at step 19): the try ends
+                    # there and keeps every problem found so far, rather than being thrown away as broken.
+                    print(f"  The tester stopped answering at step {n}; the try ends here with what it found.")
+                    finished = call({"action": "finish", "trial": t["number"],
+                                     "why": f"The tester stopped answering at step {n}, so the try ends there; "
+                                            "what they found until then is kept."}, timeout=300)["trial"]
+                    break
+                if not got.get("ok"):
+                    raise RuntimeError(got.get("error") or "the tester did not answer")
+                print(f"  {got['step']}. {got.get('doing') or got['do']['action']}")
+                if got.get("finished"):
+                    finished = got["finished"]
+                    break
+                note = act(page, got["do"], size)
+            browser.close()
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001 - said, and the trial is marked as one that could not finish
+        why = f"{type(exc).__name__}: {str(exc)[:300]}"
+        call({"action": "broken", "trial": t["number"], "why": why}, soft=True)
+        print(f"Trial {t['number']} could not finish: {why}")
+        return 2
+    if finished is None:
+        finished = call({"action": "finish", "trial": t["number"], "why": ""}, timeout=300)["trial"]
+    return report(finished)
+
+
+def skipped(got: dict) -> int:
+    """The tester, or all testing, is paused: no try started. Not a failure, so it exits 0 and says so."""
+    print(f"SKIPPED: {got.get('result') or 'skipped: tester paused'}")
+    print(got.get("said") or "The tester is paused, so no try was started.")
+    print("This is not a failure and blocks nothing: do not run it again or with another tester, and do not "
+          "resume anyone. Carry on, and write \"Trial: skipped: tester paused\" in your report and test results.")
+    return 0
+
+
+def report(t: dict) -> int:
+    passed = t["state"] == "passed"
+    print("")
+    if t.get("mode") == "review":
+        found = t.get("found") or []
+        print(f"REVIEW: trial {t['number']}. {t['persona_name']} managed it: {t['managed'] or 'no'}, in {t['steps']} steps, "
+              f"with {len(found)} problems.")
+        if t.get("ending"):
+            print(f"In {t['persona_name']}'s words: {t['ending']}")
+        for f in found:
+            print(f"  - Problem {f['number']} ({f['how_bad']}, step {f['step']}): {f['what']}")
+            if f.get("fix"):
+                print(f"    Suggested: {f['fix']}")
+        print(f"Its page: /evolution/trials/{t['number']}. This is a review the person asked for: fix nothing. They go "
+              "through each problem there and choose what is done, and how.")
+        return 0
+    print(("PASS" if passed else "FAIL") + f": trial {t['number']}, round {t['round']}. "
+          f"{t['persona_name']} managed it: {t['managed'] or 'no'}, in {t['steps']} steps.")
+    if t.get("ending"):
+        print(f"In {t['persona_name']}'s words: {t['ending']}")
+    if t.get("nearly_gave_up"):
+        print(f"Nearly gave up: {t['nearly_gave_up']}")
+    found = t.get("found") or []
+    if found:
+        print(f"Problems ({len(found)}):")
+        for f in found:
+            print(f"  - Problem {f['number']} ({f['how_bad']}, step {f['step']}, seen {f['count']}x): {f['what']}")
+            print(f"    \"{f['quote']}\"")
+            if f.get("decision"):
+                print(f"    The person decided: fix it like this: {f['decision']}")
+            elif f.get("awaiting_choice"):
+                print("    Found by a review the person asked for, and waiting on their choice: leave it.")
+            elif f.get("verdict") in ("not_a_problem", "wont_fix"):
+                print(f"    The person set it aside ({f['verdict_name'].lower()}): leave it.")
+            elif f.get("fix"):
+                print(f"    Suggested fix: {f['fix']}")
+    if t.get("closed"):
+        print("Closed, as it got past them: " + "; ".join(f"Problem {c['number']}" for c in t["closed"]))
+    print(f"Its page: {rouh_url()}/evolution/trials/{t['number']}  (in Rouh: /evolution/trials/{t['number']}"
+          + (f"; its job: /evolution/trials/job/{t['job']}" if t.get("job") else "") + ")")
+    if not passed:
+        left = 3 - int(t["round"])
+        print(f"Fix what tripped them and run it again with --round {t['round'] + 1}." if left > 0 else
+              "That was the last round: land it anyway. The problems stay open, and the person is told in one line.")
+    return 0 if passed else 1
+
+
+def main(argv=None) -> None:
+    p = argparse.ArgumentParser(prog="rouh-trial", description=__doc__.split("\n\n")[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+    r = sub.add_parser("run")
+    r.add_argument("--url", required=True, help="the page to begin at, in the test world")
+    r.add_argument("--goal", default="", help="one sentence, as the person would put it")
+    r.add_argument("--user", default="")
+    r.add_argument("--password", default="")
+    r.add_argument("--persona", default="")
+    r.add_argument("--subject", default="", help="what is being tried, in a few plain words")
+    r.add_argument("--gene", default="")
+    r.add_argument("--round", type=int, default=1)
+    r.add_argument("--first", type=int, default=None, help="the trial of round 1 this one follows")
+    r.add_argument("--trial", type=int, default=None, help="a trial already waiting for this run")
+    r.add_argument("--steps", type=int, default=0)
+    r.add_argument("--desk", action="store_true", help="a desk's screen instead of a phone's")
+    r.add_argument("--job", default="", help="what is being tested, in a few plain words: the job it goes into")
+    r.add_argument("--job-number", dest="job_number", type=int, default=None, help="a job already on the list")
+    r.add_argument("--signed-out", dest="signed_out", action="store_true",
+                   help="start signed out: the tester signs in themselves")
+    r.add_argument("--review", action="store_true",
+                   help="a review the person asked for: a report, and nothing is fixed until they choose")
+    r.add_argument("--given", default="", help="what the tester was given, such as their email and password; "
+                                               "shown to them at every step and never kept")
+    jb = sub.add_parser("jobs")
+    jb.add_argument("--persona", default="")
+    j1 = sub.add_parser("job")
+    j1.add_argument("job")
+    je = sub.add_parser("job-edit")
+    je.add_argument("job")
+    for name in ("name", "goal", "covers"):
+        je.add_argument("--" + name, default=None)
+    ls = sub.add_parser("list")
+    ls.add_argument("--persona", default="")
+    rd = sub.add_parser("read")
+    rd.add_argument("trial")
+    q = sub.add_parser("queue")
+    for name in ("page", "gene", "goal", "persona", "subject", "job"):
+        q.add_argument("--" + name, default="")
+    q.add_argument("--wait", action="store_true", help="wait for its result")
+    w = sub.add_parser("wait")
+    w.add_argument("trial")
+    ps = sub.add_parser("problems")
+    for name in ("status", "persona", "source", "screen", "job"):
+        ps.add_argument("--" + name, default="")
+    pr = sub.add_parser("problem")
+    pr.add_argument("problem")
+    rc = sub.add_parser("record")
+    rc.add_argument("what")
+    for name in ("quote", "screen", "source", "persona", "gene"):
+        rc.add_argument("--" + name, default="")
+    rc.add_argument("--how-bad", dest="how_bad", default="confused", choices=["blocked", "confused", "annoyed", "minor"])
+    sg = sub.add_parser("sighting")
+    sg.add_argument("problem")
+    sg.add_argument("--quote", required=True)
+    for name in ("source", "persona", "how_bad"):
+        sg.add_argument("--" + name.replace("_", "-"), dest=name, default="")
+    sg.add_argument("--trial", type=int, default=None)
+    sg.add_argument("--step", type=int, default=None)
+    ro = sub.add_parser("reopen")
+    ro.add_argument("problem")
+    ro.add_argument("--note", default="")
+    sub.add_parser("personas")
+    pe = sub.add_parser("persona")
+    pe.add_argument("name")
+    de = sub.add_parser("default")
+    de.add_argument("name")
+    for cmd in ("tester-add", "tester-edit"):
+        ta = sub.add_parser(cmd)
+        if cmd == "tester-edit":
+            ta.add_argument("tester")
+        for name in ("name", "job", "city", "short", "them", "device", "profile-file"):
+            ta.add_argument("--" + name, default="")
+        ta.add_argument("--age", type=int, default=None)
+    tr = sub.add_parser("tester-remove")
+    tr.add_argument("tester")
+    a = p.parse_args(argv)
+    if a.cmd == "run":
+        if not a.goal and not a.trial and not a.job_number:
+            fail("say the goal: --goal \"You want to ...\"", 1)
+        sys.exit(run(a))
+    if a.cmd == "jobs":
+        got = call({"action": "jobs", "persona": a.persona})
+        print("\n".join(got.get("lines") or ["No jobs yet."]))
+        return
+    if a.cmd == "job":
+        j = call({"action": "job", "job": a.job})["job"]
+        print(f"Job {j['number']}: {j['name']}. Goal: {j['goal'] or '-'}" + (f"\nCovers: {j['covers']}" if j["covers"] else ""))
+        for t in j["tries"]:
+            print(f"  Try {t['number']}: {t['persona_name']}, round {t['round']}, {t['state']}, {t['steps']} steps, "
+                  f"{t['problems']} problems ({t['open']} open)")
+        return
+    if a.cmd == "job-edit":
+        j = call({"action": "job_edit", "job": a.job, "name": a.name, "goal": a.goal, "covers": a.covers})["job"]
+        print(f"Job {j['number']}: {j['name']}. Covers: {j['covers'] or '-'}")
+        return
+    if a.cmd in ("tester-add", "tester-edit"):
+        fields = {k: getattr(a, k) for k in ("name", "job", "city", "short", "them", "device") if getattr(a, k)}
+        if a.age:
+            fields["age"] = a.age
+        if a.profile_file:
+            fields["profile"] = Path(a.profile_file).read_text(encoding="utf-8")
+        if a.cmd == "tester-add":
+            got = call({"action": "tester_add", **fields})
+        else:
+            got = call({"action": "tester_edit", "persona": a.tester, **fields})
+        t = got["tester"]
+        print(f"{t['name']} ({t['key']}): {t['short']}. Page: /evolution/trials/tester/{t['key']}")
+        return
+    if a.cmd == "tester-remove":
+        t = call({"action": "tester_remove", "persona": a.tester})["tester"]
+        print(f"{t['name']} is removed; their old tries still say who did them.")
+        return
+    if a.cmd == "list":
+        got = call({"action": "list", "persona": a.persona})
+        print("\n".join(got.get("lines") or ["No trials yet."]))
+    elif a.cmd in ("read", "wait"):
+        got = call({"action": "read", "trial": a.trial})["trial"]
+        if a.cmd == "wait":
+            got = wait_for(a.trial, got)
+        sys.exit(story(got))
+    elif a.cmd == "queue":
+        if not a.goal or not (a.page or a.gene):
+            fail("say where and what: --page /some/page (or --gene <key>) and --goal \"You want to ...\"", 1)
+        got = call({"action": "queue", "page": a.page, "gene": a.gene, "goal": a.goal, "persona": a.persona,
+                    "subject": a.subject, "job": a.job}, timeout=120)
+        if got.get("skipped"):
+            sys.exit(skipped(got))
+        t = got["trial"]
+        print(f"Trial {t['number']}: {got.get('said') or 'starting'} (run {t.get('run_id') or '?'})")
+        print(f"Its page in Rouh: /evolution/trials/{t['number']}. Read it with: rouh-trial wait {t['number']}")
+        if a.wait:
+            sys.exit(story(wait_for(t["number"], t)))
+    elif a.cmd == "problems":
+        got = call({"action": "problems", "status": a.status, "persona": a.persona, "source": a.source,
+                    "screen": a.screen, "job": a.job})
+        print("\n".join(got.get("lines") or ["No problems on the list."]))
+    elif a.cmd == "problem":
+        p = call({"action": "problem", "problem": a.problem})["problem"]
+        print(problem_text(p))
+    elif a.cmd == "record":
+        got = call({"action": "record", "what": a.what, "quote": a.quote, "screen": a.screen, "how_bad": a.how_bad,
+                    "source": a.source or ("persona" if a.persona else "owner"), "persona": a.persona, "gene": a.gene})
+        print(got["line"])
+    elif a.cmd == "sighting":
+        got = call({"action": "sighting", "problem": a.problem, "quote": a.quote, "source": a.source or
+                    ("persona" if a.persona else "owner"), "persona": a.persona, "how_bad": a.how_bad,
+                    "trial": a.trial, "step": a.step})
+        print(got["line"])
+    elif a.cmd == "reopen":
+        print(call({"action": "reopen", "problem": a.problem, "note": a.note})["line"])
+    elif a.cmd == "personas":
+        got = call({"action": "personas"})
+        if got.get("paused_all"):
+            print("ALL TESTING IS PAUSED: no tester starts a try until the person resumes it.")
+        for p in got["personas"]:
+            mark = "tries every change" if p["id"] == got["default"] else "only when asked for by name"
+            state = "PAUSED" if p.get("paused") or got.get("paused_all") else "active"
+            print(f"{p['id']}: {p['name']}, {p['short']} ({state}; {mark}; {p.get('tries', 0)} tries, "
+                  f"{p.get('problems', 0)} problems found"
+                  + (f"; {p['running']} going now" if p.get("running") else "")
+                  + (f"; {p['skipped']} skipped while paused" if p.get("skipped") else "") + ")")
+    elif a.cmd == "persona":
+        print(call({"action": "persona", "persona": a.name})["persona"]["profile"])
+    elif a.cmd == "default":
+        print(f"{call({'action': 'default', 'persona': a.name})['default']} now tries every change.")
+
+
+def wait_for(number, t: dict, most: float = 3600) -> dict:
+    """Read the trial again every 15 seconds until it has ended, for at most an hour."""
+    end = time.time() + most
+    while t.get("state") in ("queued", "running") and time.time() < end:
+        time.sleep(15)
+        t = call({"action": "read", "trial": number}, soft=True).get("trial") or t
+    return t
+
+
+def story(t: dict) -> int:
+    """One trial as text: every step, the three answers on a new screen, and how it ended."""
+    name = t.get("persona_name") or t.get("persona")
+    print(f"Trial {t['number']}: {name} tries {t.get('subject') or t.get('page')}, round {t['round']}. Goal: {t['goal']}")
+    for s in t.get("walk") or []:
+        print(f"{s['n']}. [{s.get('title') or s.get('screen')}] saw: {s['see']}")
+        print(f"   thought: {s['think']}")
+        print(f"   did: {s['does']}")
+        a = s.get("answers") or {}
+        if a:
+            clear = a.get("clear") or [True, True, True]
+            for i, (q, k) in enumerate((("What is this?", "what"), ("What do I do here?", "how"),
+                                        ("What happens when I do it?", "then"))):
+                print(f"   {q} {a.get(k) or '-'}" + ("" if clear[i] else "  (not clear to them)"))
+    if t["state"] in ("queued", "running"):
+        print(f"It is {t['state']} still.")
+        return 2
+    if t["state"] == "broken":
+        print(f"It could not finish: {t.get('why')}")
+        return 2
+    return report(t)
+
+
+def problem_text(p: dict) -> str:
+    lines = [f"Problem {p['number']} [{p.get('standing') or p['status']}] on {p.get('screen_name') or 'somewhere in Rouh'}: {p['what']} "
+             f"({p['how_bad']}, seen {p['count']}x, found by "
+             f"{'the person' if p['source'] == 'owner' else ', '.join(p['personas']) or 'a persona'})"]
+    for s in p.get("sightings") or []:
+        lines.append(f"  - \"{s['quote']}\" ({s.get('persona') or 'the person'}"
+                     + (f", trial {s['trial']} step {s['step']}" if s.get("trial") else "") + ")")
+    for k, label in (("expected", "Should have"), ("actual", "What happened"), ("fix", "Suggested fix"),
+                     ("decision", "The person decided: fix it like this")):
+        if p.get(k):
+            lines.append(f"{label}: {p[k]}")
+    if p.get("verdict"):
+        lines.append(f"The person's verdict: {p.get('verdict_name')}")
+    for n in p.get("thread") or []:
+        lines.append(f"  {'The person' if n['who'] == 'owner' else 'Rouh'}: {n['text']}")
+    if p["status"] == "closed":
+        lines.append(f"Closed: {p.get('closed_note')}" + (f" (trial {p['closed_by']})" if p.get("closed_by") else ""))
+    return "\n".join(lines)
+
+if __name__ == "__main__":
+    main()

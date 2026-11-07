@@ -1,0 +1,3 @@
+services:
+  browser:
+    networks: [browser, workers]

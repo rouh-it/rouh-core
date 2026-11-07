@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# rouh-github-grant: give Rouh's runs GitHub as you, for some hours. Run it on your Mac.
+#
+#   rouh-github-grant [HOURS]            your own token (gh auth token), 8 hours if not given, at most 72
+#   rouh-github-grant [HOURS] --token    a token you paste, or pipe in, instead (a fine-grained one)
+#   rouh-github-grant status [--details] open or not, until when, as which GitHub user (and its scopes)
+#   rouh-github-grant revoke             closed now
+#
+# The token goes over SSH to the host on standard input, never as an argument, and is kept in the
+# key proxy's keys volume beside its end time. The runs never see it: the key proxy adds it to their
+# requests to GitHub until the end, then stops, and a timer deletes it (deploy/grants/README.md).
+# Nothing takes it away when a job finishes. Rouh reads the grant itself; there is nothing to
+# tell it. It prints one line; ROUH_GRANT_QUIET=1 prints nothing but a failure (rouh-open). Settings (in ~/.config/rouh/grants.env): ROUH_HOST_SSH
+# (user@address of the machine the Rouh stack runs on), ROUH_HOST_SSH_PORT (22), ROUH_HOST_IDENTITY_FILE (the key to log in with; see install-from-mac.sh).
+set -euo pipefail
+# This installation's own values, never in the code: ~/.config/rouh/grants.env (or the file
+# ROUH_GRANTS_ENV names), lines of NAME=value; a value already set in the shell wins over the file.
+# install-from-mac.sh writes it the first time (deploy/grants/README.md, "This installation's values").
+GRANTS_ENV=${ROUH_GRANTS_ENV:-$HOME/.config/rouh/grants.env}
+if [ -f "$GRANTS_ENV" ]; then
+  while IFS='=' read -r k v; do
+    case "$k" in ROUH_[A-Z0-9_]*) [ -n "${!k:-}" ] || export "$k=$v" ;; esac
+  done < <(grep -E '^ROUH_[A-Z0-9_]+=' "$GRANTS_ENV")
+fi
+# ROUH_MOZART_* are the older names of the same three settings, still read.
+HOST=${ROUH_HOST_SSH:-${ROUH_MOZART_SSH:-}}
+PORT=${ROUH_HOST_SSH_PORT:-${ROUH_MOZART_SSH_PORT:-22}}
+[ -n "$HOST" ] || { echo "Which machine runs the Rouh stack? Set ROUH_HOST_SSH=user@address (and ROUH_HOST_SSH_PORT) in $GRANTS_ENV (deploy/grants/README.md)."; exit 1; }
+SSH_OPTS=(-o IdentitiesOnly=yes)
+KEY=${ROUH_HOST_IDENTITY_FILE:-${ROUH_MOZART_IDENTITY_FILE:-}}
+if [ -n "$KEY" ]; then
+  # shellcheck disable=SC2088  # a ~/ written in the setting, made whole here
+  case "$KEY" in "~/"*) KEY=$HOME/${KEY#"~/"} ;; esac
+  [ -f "$KEY" ] && [ -r "$KEY" ] || { echo "ROUH_HOST_IDENTITY_FILE is not a readable file: $KEY"; exit 1; }
+  SSH_OPTS+=(-i "$KEY")
+fi
+# The Mac's locale is never sent to a server. macOS's ssh sends LANG and LC_* (SendEnv in
+# /etc/ssh/ssh_config) and a Mac's shell often has LC_CTYPE=UTF-8, which is no locale on Linux:
+# the host then answered "manpath: can't set the locale". So every ssh here runs without them, and
+# the server uses its own. (An -o SendEnv=-LC_* cannot do it: the system's file adds them back.)
+ssh_clean() {
+  local v u=()
+  for v in $(compgen -e); do case "$v" in LANG|LANGUAGE|LC_*) u+=(-u "$v") ;; esac; done
+  env "${u[@]}" "$@"
+}
+remote() { ssh_clean ssh "${SSH_OPTS[@]}" -p "$PORT" -o ConnectTimeout=20 "$HOST" "sudo -n /usr/local/sbin/rouh-grant $*"; }
+usage() { sed -n '4,7p' "$0" | sed 's/^# //'; exit 2; }
+
+say_quietly() {  # the set's one line, or nothing when ROUH_GRANT_QUIET=1; a failure is always said
+  local out rc
+  rc=0; out=$("$@" 2>&1) || rc=$?
+  if [ "$rc" -ne 0 ] || [ "${ROUH_GRANT_QUIET:-}" != 1 ]; then [ -z "$out" ] || printf '%s\n' "$out"; fi
+  return $rc
+}
+
+hours=8; pasted=no
+case "${1:-}" in
+  status) [ "${2:-}" = --details ] && { remote github status --details; exit; }; remote github status; exit ;;
+  revoke) remote github revoke; exit ;;
+  -h|--help|help) usage ;;
+esac
+for a in "$@"; do
+  case "$a" in
+    --token) pasted=yes ;;
+    *) [[ "$a" =~ ^[0-9]+$ ]] && [ "$a" -ge 1 ] && [ "$a" -le 72 ] || { echo "Give a whole number of hours from 1 to 72."; exit 2; }
+       hours=$a ;;
+  esac
+done
+
+if [ "$pasted" = yes ]; then
+  if [ -t 0 ]; then
+    IFS= read -rs -p "Paste the GitHub token (it is not shown): " token; echo
+    printf '%s\n' "$token" | say_quietly remote github set "$hours"
+    unset token
+  else
+    say_quietly remote github set "$hours"
+  fi
+else
+  command -v gh >/dev/null || { echo "gh is not installed here; use --token, or: brew install gh && gh auth login"; exit 1; }
+  gh auth token >/dev/null 2>&1 || { echo "gh is not signed in here: gh auth login"; exit 1; }
+  gh auth token | say_quietly remote github set "$hours"
+fi

@@ -1,0 +1,47 @@
+{
+  "id": "genes",
+  "name": "Genes",
+  "title": "Gene Pool: this Rouh in the Gene Pool on rouh.land, and shared genes from a registry, read before they are installed, and the lab they arrive in",
+  "aliases": [
+    "gene registry",
+    "shared genes",
+    "gene lab",
+    "install a gene",
+    "blocklist",
+    "plugins",
+    "extensions",
+    "gene pool settings"
+  ],
+  "group": "machine",
+  "route": "/anatomy/rouh-land/gene-pool",
+  "anatomy": {
+    "order": 40,
+    "name": "Gene Pool"
+  },
+  "icon": "<path d=\"M7 3c0 6 10 6 10 12s-10 3-10 6\"/><path d=\"M17 3c0 6-10 6-10 12s10 3 10 6\"/><path d=\"M8.5 7h7M8.5 17h7\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "fetches a gene registry's signed index and blocklist, and a gene's files, from the address set here, hourly and when asked",
+      "installs a gene into the lab only when an administrator says yes on its page, switched off, and never runs its files",
+      "switches a gene off by itself when the registry's blocklist names it, and tells the person who installed it"
+    ],
+    "accounts": [
+      "the gene registry set in Rouh Land Account, Gene Pool (none until one is set)"
+    ],
+    "tables": [
+      "gene_registries",
+      "shared_genes",
+      "gene_lab_events"
+    ],
+    "jobs": [
+      "the gene lab's look at its registry, hourly (genelab.Watch)"
+    ],
+    "remove": "Turn the registry off in Rouh Land Account, Gene Pool and remove each gene in the lab there, then delete rouh/genelab.py, rouh/web/genes.py, genespage.js/.css, the gene-pool section in rouh/templates/rouh/index.html, the gene-pool entries in app/runs.js, the shared genes in rouh/genes (extra), and this manifest; drop the three tables with a migration."
+  }
+}

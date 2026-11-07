@@ -1,0 +1,40 @@
+{
+  "id": "n31-raise-attached",
+  "name": "What to raise reads what is attached",
+  "title": "What to raise reads what is attached: the agenda, deck or proposal attached to a meeting's invitation read with its mail before What to raise is worked out",
+  "aliases": [
+    "attached to the invite",
+    "agenda attached",
+    "meeting attachments",
+    "what to raise reads the agenda"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z\"/><path d=\"M14 3v5h5\"/><path d=\"M9 13h6M9 17h4\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "switch": "raise_attached",
+  "signals": {
+    "events": {
+      "opened": "You opened The documents attached to the invitation it read, under What to raise in the morning brief",
+      "doc": "You opened a document attached to a meeting's invitation from What to raise in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the files attached to the invitations of the meetings in your morning brief, up to three a meeting, with your connected Google account",
+      "gives their first words to the same model call What to raise already makes, as the words of whoever wrote them"
+    ],
+    "accounts": [],
+    "tables": [
+      "user_settings",
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch raise_attached off on its row in Evolution, Mutations: nothing attached is read and the list is gone. To remove it for good revert night 31's raise_attached commit (rouh/raise_attached.py, its lines in rouh/meeting_brief.py, the brief_raise_attached route in rouh/web/brief.py and rouh/project/urls.py, the attached list and raiseAttachedUsed in briefpage.js, this manifest); the attachments field of an event in rouh/google_api/calendar.py stays for Attach to a meeting."
+  }
+}

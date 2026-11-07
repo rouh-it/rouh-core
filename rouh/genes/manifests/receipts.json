@@ -1,0 +1,42 @@
+{
+  "id": "receipts",
+  "name": "Receipts",
+  "title": "Receipts: every receipt and invoice in your mail, by month",
+  "aliases": [
+    "receipt",
+    "invoices",
+    "invoice",
+    "accountant",
+    "expenses",
+    "bills"
+  ],
+  "group": "memory",
+  "route": "/receipts",
+  "icon": "<path d=\"M6 3h12v18l-2.4-1.6L13.2 21 12 20.2 10.8 21l-2.4-1.6L6 21z\"/><path d=\"M9 8h6M9 11.5h6M9 15h3.5\"/>",
+  "attaches_to": [
+    "email"
+  ],
+  "maturity": "lab",
+  "switch": "receipts",
+  "signals": {
+    "events": {
+      "month_downloaded": "You downloaded a month's receipts for the accountant"
+    }
+  },
+  "nav": {
+    "place": "list",
+    "order": 50,
+    "opens": "own",
+    "row": "receiptsRow",
+    "controls": "receiptsView"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [
+      "Gmail (read only)"
+    ],
+    "tables": [],
+    "jobs": [],
+    "remove": "Turn the switch receipts off on its row in Evolution, Mutations, and it is gone from the navigation; to remove it for good delete rouh/receipts.py, rouh/web/receipts.py, receiptspage.js/.css and this manifest."
+  }
+}

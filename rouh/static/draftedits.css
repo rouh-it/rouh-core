@@ -1,0 +1,34 @@
+/* Anatomy, Behaviour, Draft edits (`draftedits.js`, `rouh/draft_edits.py`).
+
+   The cards and rows of the Heartbeat page (`heartbeatpage.css`), with each change drawn as
+   what Rouh wrote over what was sent, and the whole email behind a closed section. */
+
+.de-to { margin-top: 2px; font-size: 12.5px; color: var(--dim); overflow-wrap: anywhere; }
+.de-changes { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.de-change {
+  display: grid; gap: 4px; padding: 8px 10px; border-radius: var(--radius-s);
+  border: 1px solid var(--line-soft); font-size: 13px; line-height: 1.45;
+}
+.de-part { font-size: 11.5px; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
+.de-side { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.de-who { font-size: 12px; color: var(--dimmer); }
+.de-text { white-space: pre-wrap; overflow-wrap: anywhere; text-decoration: none; }
+.de-was .de-text { color: var(--dim); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--bad) 70%, transparent); }
+.de-now .de-text { color: var(--text); }
+.de-now ins.de-text { background: color-mix(in srgb, var(--good) 13%, transparent); border-radius: 3px; padding: 0 2px; }
+.de-none { font-style: italic; color: var(--dimmer); }
+.de-was .de-none { text-decoration: none; }
+
+.de-foot { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-top: 8px; font-size: 13px; }
+.de-whole { flex: 1 1 100%; }
+.de-whole > summary { cursor: pointer; color: var(--dim); }
+.de-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 8px; }
+.de-col { min-width: 0; }
+.de-col-subject { font-weight: 600; margin: 2px 0 4px; overflow-wrap: anywhere; }
+.de-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.45; }
+.de-more { margin-top: 10px; justify-self: start; }
+
+@media (max-width: 480px) {
+  .de-side { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .de-two { grid-template-columns: minmax(0, 1fr); }
+}

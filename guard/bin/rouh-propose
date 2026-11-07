@@ -1,0 +1,48 @@
+#!/bin/bash
+#
+# rouh-propose "why": hand the commits of this clone of Rouh's code to the protected core, and
+# wait for its answer. For a run in the worker, which reads /code and cannot write it or reach
+# the core's socket (guard/README.md).
+#
+#   git clone /code ~/rouh-code && cd ~/rouh-code
+#   ... change, commit ...
+#   rouh-propose "Add a button to the task page"
+#
+# The commits since /code's main go into a git bundle in the shared folder /run/one/proposals;
+# Rouh (rouh/codechanges.py) reads them into /code and asks the protected core to check them.
+# Only if they pass do they go live, as a new undo point. This waits for the answer, prints it,
+# and exits 0 when the change went live.
+set -euo pipefail
+why="${1:?rouh-propose: say in a few words what the change is}"
+dir="${ROUH_PROPOSALS_DIR:-/run/one/proposals}"
+git rev-parse --git-dir >/dev/null 2>&1 || { echo "rouh-propose: run it inside a clone of Rouh's code" >&2; exit 2; }
+[ -z "$(git status --porcelain)" ] || { echo "rouh-propose: commit your changes first" >&2; exit 2; }
+code="${ROUH_APP_DIR:-/code}"
+base="$(git -c safe.directory='*' -C "$code" rev-parse HEAD)"
+git merge-base --is-ancestor "$base" HEAD || { echo "rouh-propose: this clone is not on top of the code that runs ($base); pull it first" >&2; exit 2; }
+[ "$(git rev-parse HEAD)" != "$base" ] || { echo "rouh-propose: there are no new commits to propose" >&2; exit 2; }
+mkdir -p "$dir"
+name="$(date -u +%Y%m%d-%H%M%S)-$$"
+git bundle create -q "$dir/$name.bundle.part" HEAD "^$base"
+python3 -c 'import json,sys; json.dump({"why": sys.argv[1], "by": "a run"}, open(sys.argv[2], "w"))' "$why" "$dir/$name.json"
+mv "$dir/$name.bundle.part" "$dir/$name.bundle"
+echo "rouh-propose: handed $(git rev-list --count "$base..HEAD") commits to the protected core; waiting for its checks"
+for i in $(seq 1 720); do
+  r="$dir/$name.result.json"
+  if [ -f "$r" ] && python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("state") == "done" else 1)' "$r" 2>/dev/null; then
+    python3 - "$r" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1]))
+if r.get("ok"):
+    p = r.get("point") or {}
+    print(f"rouh-propose: it is live, as undo point {p.get('n')} ({str(r.get('commit'))[:12]}). Rouh starts again on it.")
+    sys.exit(0)
+print("rouh-propose: it did not go live. " + str(r.get("refused") or r.get("error") or ""))
+sys.exit(1)
+PY
+    exit $?
+  fi
+  sleep 5
+done
+echo "rouh-propose: no answer in an hour; Changes in Rouh says what became of it" >&2
+exit 1

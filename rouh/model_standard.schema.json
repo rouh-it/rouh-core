@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rouh.land/models/standard.schema.json",
+  "title": "Rouh model standard, version 4",
+  "description": "Which models each of the two tiers holds, Smart and Cheaper, as an ordered list across Anthropic, OpenAI, Google and xAI (a Rouh asks the first one it has a key for), how deeply each model thinks, which tier each use of a model starts on and in which order it asks each tier's models, what each of the three modes (Best, Balanced, Saver) means, and the router's confidence bar. Published once at https://rouh.land/models/standard.json and fetched by every Rouh once a day (rouh/modelstandard.py). A Rouh uses what this says for everything its people have not changed themselves; what it leaves out is the Rouh's own built-in standard. A model, a use or a level a Rouh does not know is left out by that Rouh.",
+  "type": "object",
+  "required": [
+    "schema",
+    "revision",
+    "tiers",
+    "efforts",
+    "uses"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schema": {
+      "const": 4,
+      "description": "The version of this shape. A Rouh reads version 4, version 3 (one OpenAI and one Anthropic model a tier, with a main one: read as the main model, then the other, then the Rouh's own Google and xAI models), version 2 (three tiers) and version 1, refuses any other and keeps its last good standard."
+    },
+    "revision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The publisher's name for this standard, such as 2026-10-18.3. A Rouh ignores one older than the standard it was built with."
+    },
+    "published": {
+      "type": "string",
+      "description": "When it was published, ISO 8601 in UTC."
+    },
+    "tiers": {
+      "type": "object",
+      "description": "The two tiers, Cheaper and Smart. Each is an ordered list of models across the providers: a use asks the first model on the list (in its own order, `uses.<use>.order`) whose provider the Rouh has a key for, and a use tied to one provider the first of that provider's.",
+      "properties": {
+        "cheaper": {
+          "$ref": "#/$defs/tier"
+        },
+        "smart": {
+          "$ref": "#/$defs/tier"
+        }
+      },
+      "additionalProperties": false
+    },
+    "modes": {
+      "type": "object",
+      "description": "What each of the three modes means, said to the person on the Models page, and which one an organisation that has not picked is on. Best answers every chat message on Smart, Balanced has the router decide each one, Saver answers on Cheaper and pays per token for nothing above it.",
+      "properties": {
+        "default": {
+          "enum": [
+            "best",
+            "balanced",
+            "saver"
+          ]
+        },
+        "best": {
+          "type": "object",
+          "properties": {
+            "why": {
+              "type": "string"
+            }
+          }
+        },
+        "balanced": {
+          "type": "object",
+          "properties": {
+            "why": {
+              "type": "string"
+            }
+          }
+        },
+        "saver": {
+          "type": "object",
+          "properties": {
+            "why": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "router": {
+      "type": "object",
+      "description": "The router of Balanced: OpenAI's Decisions API, which says how sure it is that a message is easy.",
+      "required": [
+        "bar"
+      ],
+      "properties": {
+        "bar": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 1,
+          "description": "How sure the router must be that a message is easy before Cheaper answers it; below it, Smart answers."
+        },
+        "why": {
+          "type": "string"
+        }
+      }
+    },
+    "efforts": {
+      "type": "object",
+      "description": "How deeply each model thinks, by its id: one level per model, with the reason and the source it was taken from.",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "effort"
+        ],
+        "properties": {
+          "effort": {
+            "enum": [
+              "",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "description": "Empty for a model that takes no level at all."
+          },
+          "why": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "description": "The address of the benchmark, score card or model page it was taken from."
+          },
+          "source_title": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "uses": {
+      "type": "object",
+      "description": "The tier each use of a model starts on, by the use's id, with the reason. Only the heartbeat's wake-up check and the Decisions API's uses may be off, and only the chats are routed.",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "tier"
+        ],
+        "properties": {
+          "tier": {
+            "description": "cheaper or smart (daily and best are read as smart); off; a model's id; or a list of model ids, first asked first, for a use that starts on models of its own. A Rouh that does not know a choice keeps its own for that use.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "why": {
+            "type": "string"
+          },
+          "routed": {
+            "type": "boolean",
+            "description": "One of the chats the mode decides: Best puts it on Smart, Saver on Cheaper, and Balanced has the router decide each message; tier is what answers when the router cannot say."
+          },
+          "order": {
+            "type": "object",
+            "description": "For each tier, the order this use asks its models in: providers (anthropic, openai, google, xai) or model ids, first asked first; what it does not name keeps the tier's order after them. Set for each use on its own, so a model can move up for one use from that use's blind votes without moving for any other.",
+            "properties": {
+              "cheaper": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "smart": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    "double_calls": {
+      "type": "object",
+      "description": "The Rouh pool's double calls: the share of read-only answers that is asked of a second model too, and compared.",
+      "properties": {
+        "rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.2
+        },
+        "why": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "tier": {
+      "type": "object",
+      "required": [
+        "models"
+      ],
+      "properties": {
+        "models": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "description": "Model ids, first asked first."
+        },
+        "why": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

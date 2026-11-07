@@ -1,0 +1,53 @@
+{
+  "id": "brief",
+  "name": "Morning brief",
+  "title": "Today's calendar, weather, world news and AI, on one page",
+  "aliases": [
+    "brief",
+    "morning report",
+    "report",
+    "today",
+    "daily brief",
+    "news",
+    "weather",
+    "agenda"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<path d=\"M5.5 17a6.5 6.5 0 0 1 13 0\"/><path d=\"M3 17h18M3 20.5h18\"/><path d=\"M12 4.5v2.6M4.9 8.9l1.8 1.8M19.1 8.9l-1.8 1.8\"/>",
+  "attaches_to": [
+    "meeting"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 20,
+    "opens": "own",
+    "row": "briefRow",
+    "controls": "briefView"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [
+      "Google Calendar (the person's own connection)",
+      "Telegram (to send the link)",
+      "Slack (the organisation's app, read for the person who connected it: what waits on him)",
+      "weather and news services",
+      "r/dadjokes on Reddit (its public feed of top posts, for the dad joke)"
+    ],
+    "tables": [
+      "morning_briefs",
+      "user_settings",
+      "slack_messages (read only)"
+    ],
+    "jobs": [
+      "the morning brief, made each morning at the time set in Settings, Morning brief (rouh/morning_brief.py, Mornings)"
+    ],
+    "remove": "Remove the Mornings loop from rouh/runtime.py, then rouh/morning_brief.py, rouh/slack_brief.py, rouh/web/brief.py, briefpage.js/.css and this manifest. Old briefs stay in morning_briefs until dropped."
+  },
+  "uses": {
+    "jobs": [
+      "morning brief"
+    ]
+  }
+}

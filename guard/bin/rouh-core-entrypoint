@@ -1,0 +1,167 @@
+#!/bin/bash
+#
+# The core container's start, on the base image (deploy/container/Dockerfile.base),
+# running Rouh's own code from the code volume at /code, which code-init.sh
+# filled once and which nothing here ever writes to.
+#
+# As root, only long enough to:
+#   1. give /data to `rouh` and make the keys volume, which only the core and
+#      the key proxy mount: the folder is the core's, and its group is the
+#      proxy's (`keys`, 10002), so the proxy can read the two model keys and
+#      nothing else in it;
+#   2. keep the Anthropic and OpenAI keys the environment hands in (from the
+#      installation's .env) in that volume, where the key proxy reads them for
+#      the workers; a key added later on Rouh's page (/setup/claude) or with
+#      `rouh-keys set` lands there too;
+#   3. make the encryption key once, in the same volume, readable by `rouh` alone.
+# Then, as `rouh`: refuse plainly when /code holds no Rouh, wait for
+# PostgreSQL, run the migrations, make the empty
+# workspace on the first start, write a setup code while there is no owner
+# (`rouh/web/firstrun.py`), and start Rouh with deploy/run-server.sh.
+#
+# No key is ever printed. The setup address is, with its code, once per start
+# without an owner, for whoever installed Rouh on a server to open; nobody types
+# the code, and Rouh for Mac reads it from the file and opens the address itself.
+set -euo pipefail
+
+RUN_AS=(setpriv --reuid=10001 --regid=10001 --init-groups --)
+
+if [ "$(id -u)" = 0 ]; then
+  install -d -o 10001 -g 10001 -m 0750 /data /data/rouh /data/secrets
+  chown 10001:10001 /data
+  install -d -o 10001 -g 10002 -m 0750 /keys
+  # The extra environment's volume (rouh-extra-pip) is the core's to write.
+  [ -d /extra ] && chown 10001:10001 /extra
+  # And the workspace's main, which only the core writes (rouh/workspace_follow.py).
+  [ -d /workspace-origin ] && chown 10001:10001 /workspace-origin
+
+  keep_key() {                      # keep_key ENV_NAME file
+    local value="${!1:-}"
+    [ -n "$value" ] || return 0
+    local path="/keys/$2" tmp
+    if [ -s "$path" ] && [ "$(cat "$path")" = "$value" ]; then
+      return 0
+    fi
+    tmp="$(mktemp /keys/.new.XXXXXX)"
+    printf '%s' "$value" > "$tmp"
+    chown 10001:10002 "$tmp"
+    chmod 0440 "$tmp"
+    mv -f "$tmp" "$path"
+    echo "core: the ${1} from the environment is kept in the keys volume"
+  }
+  keep_key ANTHROPIC_API_KEY anthropic_api_key
+  keep_key OPENAI_API_KEY openai_api_key
+  # Whoever wrote them, the two model keys are the proxy's group to read.
+  for f in anthropic_api_key openai_api_key; do
+    [ -f "/keys/$f" ] && chown 10001:10002 "/keys/$f" && chmod 0440 "/keys/$f"
+  done
+
+  if [ ! -s /keys/encryption.key ]; then
+    umask 077
+    /opt/venv/bin/python -c 'import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())' \
+      > /keys/encryption.key
+    chown 10001:10001 /keys/encryption.key
+    chmod 0400 /keys/encryption.key
+    echo "core: made the encryption key, in the keys volume"
+  fi
+  exec "${RUN_AS[@]}" "$0" "$@"
+fi
+
+# --- from here on, as rouh -----------------------------------------------------
+
+read_key() { [ -r "/keys/$1" ] && tr -d '\r\n' < "/keys/$1" || true; }
+export ROUH_ENCRYPTION_KEY="$(read_key encryption.key)"
+a="$(read_key anthropic_api_key)"; [ -n "$a" ] && export ANTHROPIC_API_KEY="$a"
+o="$(read_key openai_api_key)"; [ -n "$o" ] && export OPENAI_API_KEY="$o"
+unset a o
+export ROUH_DB_PASSWORD="${ROUH_DB_PASSWORD:-${POSTGRES_PASSWORD:-}}"
+
+CODE="${ROUH_APP_DIR:-/code}"
+[ -f "$CODE/manage.py" ] && [ -d "$CODE/rouh" ] || {
+  echo "core: $CODE holds no Rouh code. The stack's code-init fills it on the first start; its log says why it did not." >&2
+  exit 1
+}
+# With a protected core beside it (the stack since 24 October 2026, guard/README.md), /code
+# runs only as an undo point the guard knows: a main moved without it is checked first, and
+# work not committed is kept on a branch of its own, before anything here reads the code.
+guard_dir="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+if [ -S "${ROUH_GUARD_SOCKET:-/run/guard/guard.sock}" ]; then
+  echo "core: asking the protected core whether this code may run"
+  python -I "$guard_dir/bin/rouh-guard" verify core | python -c 'import json,sys; r=json.load(sys.stdin); print("core: " + (r.get("said") or "it runs undo point %s" % ((r.get("point") or {}).get("n"))) if r.get("ok") else "core: the protected core said: %s" % (r.get("refused") or r.get("error")))' || true
+fi
+cd "$CODE"
+# Where a gene update will come in: a gene is a commit in /code made by this
+# Rouh (and libraries it needs go into the extra environment, rouh-extra-pip),
+# never something this start or an image brings. Nothing here changes /code.
+
+echo "core: waiting for PostgreSQL at ${ROUH_DB_HOST}"
+for i in $(seq 1 90); do
+  if python - <<'PY' 2>/dev/null
+import os, psycopg
+psycopg.connect(host=os.environ["ROUH_DB_HOST"], port=os.environ.get("ROUH_DB_PORT", "5432"),
+                dbname=os.environ.get("ROUH_DB_NAME", "rouh"), user=os.environ.get("ROUH_DB_USER", "rouh"),
+                password=os.environ.get("ROUH_DB_PASSWORD", ""), connect_timeout=3).close()
+PY
+  then break; fi
+  [ "$i" = 90 ] && { echo "core: PostgreSQL did not answer in three minutes" >&2; exit 1; }
+  sleep 2
+done
+
+echo "core: migrating the database"
+python manage.py migrate --noinput
+
+if [ ! -f /data/workspace/_migration-map.json ]; then
+  echo "core: making the empty workspace, first start only"
+  python manage.py shell -c "
+from pathlib import Path
+from rouh.management.commands.setup import Command
+Command()._workspace(Path('/data/workspace'), print)
+"
+fi
+
+# One workspace for Rouh and its runs (ROUH_WORKSPACE_ORIGIN, rouh/workspace_follow.py): its main
+# is a bare repository in the workspace volume, made from this workspace on the first start, which
+# the worker clones for the runs. Only the core writes it; the runs hand their work over as bundles.
+origin="${ROUH_WORKSPACE_ORIGIN:-}"
+if [ -n "$origin" ] && [ -d "$(dirname "$origin")" ] && [ -w "$(dirname "$origin")" ]; then
+  ws="${ROUH_WORKSPACE:-/data/workspace}"
+  wg=(git -c "safe.directory=*" -C "$ws")
+  [ -d "$origin" ] || git init -q --bare -b main "$origin"
+  [ -d "$ws/.git" ] || "${wg[@]}" init -q -b main
+  if ! git -c "safe.directory=*" --git-dir="$origin" rev-parse -q --verify refs/heads/main >/dev/null; then
+    "${wg[@]}" add -A
+    "${wg[@]}" -c user.name=Rouh -c user.email=rouh@localhost commit -q -m "The workspace, as Rouh made it" || true
+    "${wg[@]}" push -q "$origin" HEAD:refs/heads/main && echo "core: the workspace's main is made, for Rouh and its runs"
+  fi
+  "${wg[@]}" remote get-url origin >/dev/null 2>&1 || "${wg[@]}" remote add origin "$origin"
+  "${wg[@]}" fetch -q origin && "${wg[@]}" branch -q --set-upstream-to=origin/main 2>/dev/null || true
+fi
+
+owner="$(python manage.py shell -c "
+from rouh.models import User
+print('yes' if User.objects.filter(is_active=True, is_guest=False).exists() else 'no')
+" | tail -1)"
+if [ "$owner" = no ]; then
+  code_file="${ROUH_FIRST_RUN_CODE_FILE:-/data/first-run-code}"
+  if [ ! -s "$code_file" ]; then
+    umask 077
+    python -c 'import secrets; print(secrets.token_urlsafe(18))' > "$code_file"
+  fi
+  port="${ROUH_PUBLISHED_PORT:-8420}"
+  echo "core: this Rouh has no owner yet. Open http://127.0.0.1:${port}/setup?code=$(cat "$code_file")"
+fi
+
+# Rouh attaches to the one program once, when it starts, if it has been paired
+# with it (`rouh/runtime.py`), so wait a little for the worker to pair.
+for i in $(seq 1 45); do
+  [ -s "${ROUH_ONE_TOKEN}" ] && break
+  [ "$i" = 45 ] && echo "core: the worker has not paired with Rouh yet; starting without the one program"
+  sleep 2
+done
+
+# With a protected core beside it, Rouh runs under rouh-guard-run, which starts it again
+# whenever the guard puts other code in place.
+if [ -S "${ROUH_GUARD_SOCKET:-/run/guard/guard.sock}" ]; then
+  exec python -I "$guard_dir/bin/rouh-guard-run" core -- "$CODE/deploy/run-server.sh"
+fi
+exec "$CODE/deploy/run-server.sh"

@@ -1,0 +1,34 @@
+{% extends "rouh/signin_base.html" %}
+{% comment %}Setting the new password, from the link in the email
+   (`rouh/web/reset.py`). Or, when the link is no good any more, saying so
+   and offering a new one rather than a form that could never work. The rules
+   the password is held to are listed under it and ticked off as it is typed
+   (`password_rules.html`).{% endcomment %}
+{% block title %}Set a new password - Rouh{% endblock %}
+{% block body %}{% if dead %}
+ <h2>That link does not work any more</h2>
+ <p class="bad" role="alert">It has run out, it has been used already, or the password has been changed since it was sent. A link works once, within the hour after it was sent.</p>
+ <a class="button" href="/login/forgot">Send a new link</a>
+ <p class="back"><a href="/login">Back to sign in</a></p>
+{% else %}
+ <h2>Set a new password</h2>
+ <p>For the account <strong>{{ username }}</strong>. Once it is set, that account is signed out everywhere, and the old password stops working.</p>{% if problems %}
+ <div class="bad" role="alert">{% for problem in problems %}<p>{{ problem }}</p>{% endfor %}</div>{% endif %}
+ <form method="post" id="passwordForm">
+  {% csrf_token %}
+  <input type="text" name="username" value="{{ username }}" autocomplete="username" hidden>
+  <div class="field">
+   <label for="password1">New password</label>
+   <input id="password1" name="password1" type="password" autofocus autocomplete="new-password"
+          minlength="{{ min_length }}" required aria-describedby="passwordRules">
+{% include "rouh/password_rules.html" %}
+  </div>
+  <div class="field">
+   <label for="password2">The same again</label>
+   <input id="password2" name="password2" type="password" autocomplete="new-password"
+          minlength="{{ min_length }}" required>
+  </div>
+  <button type="submit">Set the new password</button>
+ </form>
+ <p class="back"><a href="/login">Back to sign in</a></p>
+{% endif %}{% endblock %}

@@ -1,0 +1,43 @@
+{
+  "id": "profile",
+  "name": "About You",
+  "title": "About You: your name, nickname, pronouns, email and password, and the contact card that is you, which holds who you are and your company",
+  "aliases": [
+    "about you",
+    "edit profile",
+    "profile",
+    "me",
+    "my name",
+    "nickname",
+    "password",
+    "change password",
+    "email",
+    "contact card",
+    "about me",
+    "anonymous"
+  ],
+  "group": "machine",
+  "route": "/anatomy/you/about-you",
+  "anatomy": {
+    "order": 10
+  },
+  "icon": "<path d=\"M4 20l1-4L16 5a2.1 2.1 0 0 1 3 3L8 19z\"/><path d=\"M14.5 6.5l3 3\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "account",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "changes the signed-in person's own name, email and password"
+    ],
+    "accounts": [],
+    "tables": [
+      "users",
+      "user_settings"
+    ],
+    "jobs": [],
+    "remove": "Delete rouh/profile.py, rouh/web/profile.py, the About You section of Anatomy, the account menu's Edit and this manifest. The contact card stays a choice in rouh/my_card.py, and who you are and your company stay on it (rouh/people.py)."
+  }
+}
