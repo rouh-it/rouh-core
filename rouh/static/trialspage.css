@@ -125,12 +125,15 @@
 .tr-sev { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; white-space: nowrap; }
 .tr-state { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
 .tr-state.is-fixed, .tr-legend .is-fixed { color: var(--st-fixed); }
+.tr-state.is-again { color: var(--st-again); }
+.tr-found-note { margin-top: 6px !important; max-width: 72ch; }
 .tr-rule { font-size: 13px; color: var(--ink-2); margin-bottom: 10px !important; }
 .tr-chain { display: flex; flex-wrap: wrap; align-items: center; row-gap: 6px; }
 .tr-chain-n { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; padding: 4px 10px; border-radius: 999px;
   border: 1.5px solid var(--line); color: var(--ink-2); background: var(--surface); }
 .tr-chain-n.done { border-color: var(--ink); color: var(--ink); }
 .tr-chain-n.ok { border-color: var(--st-fixed); color: var(--st-fixed); }
+.tr-chain-n.bad { border-color: var(--st-again); color: var(--st-again); }
 .tr-chain-ln { width: 14px; height: 2px; background: var(--line); }
 
 /* the Atlas */

@@ -56,6 +56,8 @@
   };
   var VERDICT_LINE = { not_a_problem: 'Not a problem', wont_fix: 'Won’t fix', decided: 'Decided how to fix it',
                        sent: 'Sent as feedback' };
+  // Each tester's count is of the problems they ran into, so the counts do not add up to the list.
+  var FOUND_NOTE = 'These do not add up to the total: a problem two testers both hit counts for each of them, and the ones you found yourself count for no tester.';
   var RULE = 'Fixed only when a later try passes the same screen without tripping on it. Sent is never shown as fixed.';
 
   /* ---- small things ---- */
@@ -195,12 +197,20 @@
   }
   function withIcon(node, name, text) { node.appendChild(icon(name)); if (text != null) { node.appendChild(el('span', '', text)); } return node; }
   function badChip(b) { return chip(BAD[b] || b, BAD_TONE[b] || 'slate'); }
+  /* Sent or decided, and then hit again by a later try: the fix did not hold. Read from its sightings. */
+  function seenAgain(p) {
+    if (p.standing !== 'decided' || !p.verdict_at) { return null; }
+    var later = (p.sightings || []).filter(function (x) { return x.at > p.verdict_at; });
+    return later.length ? later[0] : null;
+  }
   /* Where a problem stands, in one line with its sign. */
   function standBadge(p) {
     var s = el('span', 'tr-state');
     if (p.awaiting_choice) { return withIcon(s, 'ask', 'Waiting for your choice'); }
     if (p.standing === 'fixed') { s.classList.add('is-fixed'); return withIcon(s, 'check', p.closed_by ? 'Fixed: try ' + p.closed_by + ' got past it' : 'Fixed'); }
     if (p.standing === 'set_aside') { return withIcon(s, 'x', 'Set aside: ' + (VERDICT_LINE[p.verdict] || 'set aside')); }
+    var again = seenAgain(p);
+    if (again) { s.classList.add('is-again'); return withIcon(s, 'up', (p.verdict === 'sent' ? 'Sent' : 'Decided') + ', but seen again' + (again.trial ? ' in try ' + again.trial : '')); }
     if (p.standing === 'decided' && p.verdict === 'sent') { return withIcon(s, 'wait', 'Sent as feedback, waiting for a re-test'); }
     if (p.standing === 'decided') { return withIcon(s, 'wait', 'Decided how to fix it, waiting for a re-test'); }
     return withIcon(s, 'ask', 'Needs your decision');
@@ -216,6 +226,10 @@
       n('ok', 'check', p.closed_by ? 'Try ' + p.closed_by + ' got past it' : 'A later try got past it'); ln(); n('ok', 'check', 'Fixed');
     } else if (p.standing === 'set_aside') {
       n('done', 'x', VERDICT_LINE[p.verdict] || 'Set aside'); ln(); n('', '', 'No longer counted');
+    } else if (seenAgain(p)) {
+      var ag = seenAgain(p);
+      n('done', 'check', (p.verdict === 'sent' ? 'Sent ' : 'Decided ') + dayShort(p.verdict_at)); ln();
+      n('bad', 'up', ag.trial ? 'Try ' + ag.trial + ' hit it again' : 'Seen again ' + dayShort(ag.at)); ln(); n('bad', '', 'Not fixed');
     } else if (p.standing === 'decided') {
       n('done', 'check', (p.verdict === 'sent' ? 'Sent ' : 'Decided ') + dayShort(p.verdict_at)); ln(); n('', 'wait', 'Re-test pending'); ln(); n('', '', 'Fixed');
     } else {
@@ -416,7 +430,7 @@
   }
   function loadProblems(seq) {
     var f = S.probFilter, q = [];
-    q.push('status=' + (f.status || 'all'));
+    q.push('status=' + (f.status === 'again' ? 'decided' : f.status || 'all'));
     if (f.who === 'owner') { q.push('source=owner'); } else if (f.who) { q.push('persona=' + encodeURIComponent(f.who)); }
     if (f.job) { q.push('job=' + encodeURIComponent(f.job)); }
     return call('/problems?' + q.join('&')).then(function (j) { if (seq === S.seq) { S.data.problems = j; } });
@@ -559,6 +573,9 @@
   /* ---- the Atlas ---- */
 
   function finished(t) { return t.state === 'passed' || t.state === 'failed'; }
+  /* A try still going an hour after it began is stuck: a try takes minutes. Rouh has no way to stop one yet. */
+  function stuck(t) { return (t.state === 'running' || t.state === 'queued') && (t.started_at || t.created_at) < Date.now() / 1000 - 3600; }
+  function stuckOf(key) { return ((S.shell && S.shell.trials) || []).filter(function (t) { return stuck(t) && (!key || t.persona === key); }); }
 
   /* The verdict at the top, in a sentence: did the newest try of each job pass, who is paused, what is going. */
   function verdictLine(sh) {
@@ -572,7 +589,13 @@
       var bits = [];
       if (by.failed) { bits.push((by.failed === jobs.length ? 'The newest try of all ' + jobs.length + ' jobs' : 'The newest try of ' + by.failed + ' of ' + jobs.length + ' jobs') + ' did not pass'); }
       if (by.broken) { bits.push((bits.length ? '' : 'The newest try of ') + plural(by.broken, 'job') + (bits.length ? ' could not finish' : ' could not finish')); }
-      if (by.running || by.queued) { bits.push(plural((by.running || 0) + (by.queued || 0), 'job') + ' ' + ((by.running || 0) + (by.queued || 0) === 1 ? 'is' : 'are') + ' being tried now'); }
+      var going = jobs.filter(function (j) { return j.latest.state === 'running' || j.latest.state === 'queued'; });
+      var jammed = going.filter(function (j) { return stuck(trialOf(sh, j.latest.number) || {}); });
+      if (going.length > jammed.length) { bits.push(plural(going.length - jammed.length, 'job') + ' ' + (going.length - jammed.length === 1 ? 'is' : 'are') + ' being tried now'); }
+      if (jammed.length) {
+        var since = trialOf(sh, jammed[0].latest.number);
+        bits.push(plural(jammed.length, 'try', 'tries') + ' ' + (jammed.length === 1 ? 'has' : 'have') + ' been stuck since ' + dayShort(since.started_at || since.created_at));
+      }
       if (by.passed) { bits.push(by.passed + ' passed'); }
       parts.push('Not yet. ' + upper(bits.join(', ')) + '.');
     }
@@ -583,6 +606,8 @@
     else if (held.length) { parts.push(held.map(function (t) { return t.first; }).join(' and ') + (held.length === 1 ? ' is paused.' : ' are paused.')); }
     return parts.join(' ');
   }
+
+  function trialOf(sh, n) { return ((sh && sh.trials) || []).filter(function (t) { return t.number === n; })[0] || null; }
 
   /* Better or worse: each job's newest finished try against its own try before, never two jobs mixed. */
   function trends(sh) {
@@ -685,6 +710,7 @@
       }
       days.forEach(function (x) { var s = el('span'); var b = el('b'); b.style.height = Math.round(x[1] / most * 100) + '%'; s.appendChild(b); s.appendChild(el('span', '', String(x[0]))); bars.appendChild(s); });
       t3.appendChild(bars);
+      t3.appendChild(el('p', 'tr-cap', 'Tries each day, by date'));
     }
     tiles.appendChild(t3);
 
@@ -718,7 +744,7 @@
         m.appendChild(tt);
         m.appendChild(el('span', 'tr-lr-s', t.persona_name + ', ' + day(t.created_at)));
         m.appendChild(el('span', 'tr-lr-r' + (t.state === 'running' || t.state === 'queued' ? ' is-live' : ''),
-          t.state === 'running' ? 'Trying now' : t.state === 'queued' ? 'Waiting to start' : t.state === 'broken' ? 'Could not finish: no report'
+          stuck(t) ? 'Stuck since ' + dayShort(t.started_at || t.created_at) : t.state === 'running' ? 'Trying now' : t.state === 'queued' ? 'Waiting to start' : t.state === 'broken' ? 'Could not finish: no report'
             : t.problems ? plural(t.problems, 'problem') : t.state === 'passed' ? 'Passed, no problems' : 'No problems'));
         a.appendChild(m);
         li.appendChild(a);
@@ -818,8 +844,9 @@
     var hour = Date.now() / 1000 - 3600;
     (sh.trials || []).filter(function (t) { return t.state === 'running' || t.state === 'queued'; }).forEach(function (t) {
       var long = (t.started_at || t.created_at) < hour;
-      need('clock', long ? 'Try ' + t.number + ' has been going since ' + day(t.started_at || t.created_at) : 'Try ' + t.number + ' is going now',
-        t.persona_name + ' on ' + (t.job_name || upper(t.subject) || 'a page of Rouh') + '. Open it to watch its steps arrive.', HOME + '/' + t.number, long ? 'is-stuck' : '');
+      need('clock', long ? 'Try ' + t.number + ' stuck since ' + day(t.started_at || t.created_at) : 'Try ' + t.number + ' is going now',
+        t.persona_name + ' on ' + (t.job_name || upper(t.subject) || 'a page of Rouh') + (long ? '. A try takes minutes; this one never ended. Open it to see how far it got.'
+          : '. Open it to watch its steps arrive.'), HOME + '/' + t.number, long ? 'is-stuck' : '');
     });
     var waiting = open.filter(function (p) { return p.awaiting_choice; });
     if (waiting.length) {
@@ -1099,7 +1126,9 @@
       if (i === 0) { r.checked = true; }
       l.appendChild(r);
       l.appendChild(el('b', '', j.name));
-      l.appendChild(el('span', 'tr-dim', j.latest ? (RESULT[j.latest.state] || ['?'])[0] + ' last time' : 'Not tried yet'));
+      var lt = j.latest && trialOf(sh, j.latest.number);
+      l.appendChild(el('span', 'tr-dim', !j.latest ? 'Not tried yet' : lt && stuck(lt) ? 'Stuck since ' + dayShort(lt.started_at || lt.created_at)
+        : (RESULT[j.latest.state] || ['?'])[0] + ' last time'));
       pickJob.appendChild(l);
     });
     if (!jobs.length) { pickJob.appendChild(el('p', 'tr-empty', 'There is no job yet. A job is made the first time a change is tried.')); }
@@ -1107,13 +1136,14 @@
     var pickT = el('fieldset', 'tr-pick');
     pickT.appendChild(el('legend', 'tr-label', 'Who tries it'));
     var def = sh && sh['default'];
-    var firstFree = null;
+    var firstFree = null, anyone = null;
+    // A paused tester can be picked too: Start then resumes them first, so the button is never dead.
     testers.forEach(function (t) {
       var held = !!t.paused || !!(sh && sh.paused_all);
-      var l = el('label', 'tr-pick-t' + (held ? ' is-off' : ''));
+      var l = el('label', 'tr-pick-t');
       var r = el('input');
       r.type = 'radio'; r.name = 'tester'; r.value = t.key;
-      r.disabled = held;
+      if (!anyone || t.key === def) { anyone = r; }
       if (!held && (t.key === def || !firstFree)) { firstFree = r; }
       l.appendChild(r);
       l.appendChild(face(t, '', held));
@@ -1123,9 +1153,8 @@
       l.appendChild(w);
       pickT.appendChild(l);
     });
-    if (firstFree) { firstFree.checked = true; }
+    (firstFree || anyone || {}).checked = true;
     f.appendChild(pickT);
-    if (!firstFree && testers.length) { f.appendChild(el('p', 'tr-err-words', 'Every tester is paused. Resume one first, in the header.')); }
     var err = el('p', 'tr-err-words');
     f.appendChild(err);
     var foot = el('div', 'tr-dlg-foot');
@@ -1133,7 +1162,19 @@
     var startB = button('tr-btn tr-primary', null);
     withIcon(startB, 'phone', 'Start the trial');
     startB.type = 'submit';
-    startB.disabled = !firstFree || !jobs.length;
+    startB.disabled = !testers.length || !jobs.length;
+    function who() {
+      var k = (f.querySelector('input[name=tester]:checked') || {}).value;
+      return testers.filter(function (t) { return t.key === k; })[0] || null;
+    }
+    // Says what Start will do: resume the one picked, or all testing, when they are paused.
+    function label() {
+      var t = who();
+      startB.textContent = '';
+      withIcon(startB, 'phone', sh && sh.paused_all ? 'Resume all testing and start' : t && t.paused ? 'Resume ' + t.first + ' and start' : 'Start the trial');
+    }
+    pickT.addEventListener('change', label);
+    label();
     foot.appendChild(cancel);
     foot.appendChild(startB);
     f.appendChild(foot);
@@ -1155,7 +1196,13 @@
       if (!jn || !tk) { return; }
       startB.disabled = true;
       err.textContent = '';
-      call('/jobs/' + jn + '/run', { persona: tk }).then(function (j) {
+      var t = who();
+      var resume = sh && sh.paused_all ? call('/pause', { on: false }) : t && t.paused ? call('/testers/' + t.key + '/pause', { on: false }) : Promise.resolve();
+      resume.then(function () {
+        if (sh && sh.paused_all) { sh.paused_all = false; } else if (t) { t.paused = false; }
+        drawTop();
+        return call('/jobs/' + jn + '/run', { persona: tk });
+      }).then(function (j) {
         shut();
         S.carry = j.said || 'Starting.';
         S.shell = null;
@@ -1219,7 +1266,10 @@
       S.poll = setTimeout(function () { if (S.root && S.root.isConnected && S.sub === String(t.number)) { load(); } }, 5000);
       var live = el('div', 'tr-banner');
       live.appendChild(el('span', 'tr-live-dot'));
-      live.appendChild(el('p', '', t.state === 'queued' ? 'This try is about to start. It takes a few minutes.'
+      if (stuck(t)) { live.classList.add('is-stuck'); }
+      live.appendChild(el('p', '', stuck(t) ? 'Stuck since ' + day(t.started_at || t.created_at) + '. A try takes a few minutes, and this one ' +
+          'never ended, so it is probably stuck. Its steps so far are below.'
+        : t.state === 'queued' ? 'This try is about to start. It takes a few minutes.'
         : name + ' is trying it now. Each step appears here as it happens.'));
       head.appendChild(live);
     }
@@ -1629,7 +1679,7 @@
   /* ---- the Fix list: the problems, every job ---- */
 
   var STATUS_TABS = [['open', 'Needs your decision', 'open'], ['awaiting', 'Waiting for your choice', ''],
-                     ['decided', 'Decided, waiting for a re-test', 'decided'], ['fixed', 'Fixed', 'fixed'],
+                     ['decided', 'Decided, waiting for a re-test', 'decided'], ['again', 'Seen again', ''], ['fixed', 'Fixed', 'fixed'],
                      ['set_aside', 'Set aside', 'set_aside'], ['all', 'All', '*']];
 
   function drawProblems(root) {
@@ -1647,6 +1697,7 @@
       if (!S.error) { root.appendChild(el('p', 'tr-loading', 'Opening the problems…')); }
       return;
     }
+    if (f.status === 'again') { d = Object.assign({}, d, { problems: d.problems.filter(seenAgain) }); }
     var list = d.problems.filter(function (p) {
       return (v.screen == null || (p.screen || '') === v.screen) && (!v.bad || p.how_bad === v.bad);
     });
@@ -1659,7 +1710,7 @@
       : plural(d.problems.length, 'problem') + ': ' + tab[1].toLowerCase() + '.'));
     var who = ((d.testers || []).filter(function (t) { return t.problems; }).map(function (t) { return t.first + ' found ' + t.problems; }));
     root.appendChild(el('p', 'tr-lede', 'Worst first means how bad it was first (stopped, then confused, then annoyed, then small), ' +
-      'then how often it was seen.' + (who.length ? ' ' + who.join(', ') + '.' : '')));
+      'then how often it was seen.' + (who.length ? ' ' + who.join(', ') + '. ' + FOUND_NOTE : '')));
 
     var grid = el('div', 'tr-fixgrid');
     // Where they are: each page against how bad, a count in each cell, and pressing one shows only those.
@@ -2085,7 +2136,7 @@
     setTimeout(grow, 0);
     f.appendChild(area);
     var row = el('div', 'tr-actions tr-end-row');
-    var sendB = button('tr-btn tr-primary', S.busy === 'say' ? 'Rouh is answering…' : 'Send to Rouh');
+    var sendB = button('tr-btn tr-outline', S.busy === 'say' ? 'Rouh is answering…' : 'Send to Rouh');
     sendB.type = 'submit';
     sendB.disabled = !!S.busy;
     row.appendChild(sendB);
@@ -2177,6 +2228,7 @@
       : live.length ? (live.length === 1 ? 'One tester, testing.' : 'All ' + live.length + ' testers are testing.') : 'There are no testers.';
     var finds = live.filter(function (t) { return t.problems; }).map(function (t) { return t.first + ' found ' + t.problems; });
     root.appendChild(el('h1', 'tr-headline', head + (finds.length ? ' ' + finds.join(', ') + '.' : '')));
+    if (finds.length > 1) { root.appendChild(el('p', 'tr-dim tr-found-note', FOUND_NOTE)); }
     root.appendChild(el('p', 'tr-lede', 'The made-up people who try Rouh’s changes on their phones. Each has a whole ' +
       'life written down, and that is what they are told before every try.'));
     var row = el('div', 'tr-flex tr-cast-acts');
@@ -2223,7 +2275,9 @@
     if (held) { chips.appendChild(chip('Paused', 'amber')); }
     if (chips.childNodes.length) { li.appendChild(chips); }
     var st = el('div', 'tr-pstat');
-    [[t.tries, t.tries === 1 ? 'try' : 'tries'], [t.problems, t.problems === 1 ? 'problem found' : 'problems found'], [t.running || 0, 'going now']]
+    var jam = t.archived ? 0 : stuckOf(t.key).length;
+    [[t.tries, t.tries === 1 ? 'try' : 'tries'], [t.problems, t.problems === 1 ? 'problem found' : 'problems found'],
+     jam ? [jam, 'stuck'] : [t.running || 0, 'going now']]
       .forEach(function (x) { var dv = el('div'); dv.appendChild(el('b', '', String(x[0] || 0))); dv.appendChild(el('span', '', x[1])); st.appendChild(dv); });
     li.appendChild(st);
     if (!t.archived) {
@@ -2281,7 +2335,10 @@
           ? ' Resume all testing on the testers page to let ' + firstName + ' go again.' : '')
         : (t['default'] ? firstName + ' tries every change Rouh makes that you will see.' : firstName + ' tries only when you ask for ' +
           firstName + ' by name.')));
-      pw.appendChild(el('span', 'tr-dim', t.running
+      var jam = stuckOf(t.key);
+      pw.appendChild(el('span', 'tr-dim', jam.length ? (jam.length === 1 ? 'Try ' + jam[0].number + ' by ' + firstName + ' has been stuck since ' +
+          day(jam[0].started_at || jam[0].created_at) + ': a try takes minutes.' : jam.length + ' tries by ' + firstName + ' are stuck.')
+        : t.running
         ? (t.running === 1 ? 'A try by ' + firstName + ' is going now' : t.running + ' tries by ' + firstName + ' are going now') +
           (t.paused || t.paused_all ? '; it may finish.' : '.')
         : 'No try by ' + firstName + ' is going now.'));

@@ -231,7 +231,7 @@ def cmd_screens(a) -> int:
                     page.on("console", on_console)
                     page.on("pageerror", on_error)
                     page.on("request", on_request)
-                    page.goto(base + path, wait_until="load")
+                    _open(page, base + path)
                     page.wait_for_timeout(a.settle)
                     got = page.evaluate(CHECK_JS)
                     page.remove_listener("console", on_console)
@@ -268,6 +268,20 @@ def cmd_screens(a) -> int:
     print(f"{total} fault(s) on {len(a.paths)} screen(s) at 1440 and 390 px, dark and light."
           + ("" if total else " Now look at every screenshot yourself."))
     return 1 if total else 0
+
+
+def _open(page, url: str, tries: int = 3) -> None:
+    """Open a screen and wait for it to load, trying again when a busy machine stalls the load: on
+    7 November 2026 one load in about sixteen stalled past 30 s with the server answering in
+    milliseconds, and the whole check died on it. A screen that never loads still fails."""
+    for n in range(tries):
+        try:
+            page.goto(url, wait_until="load", timeout=45000)
+            return
+        except Exception as exc:  # noqa: BLE001 - Playwright's TimeoutError; anything else is raised on the last try
+            if n == tries - 1 or "Timeout" not in type(exc).__name__:
+                raise
+            print(f"     {url} did not finish loading in 45 s; trying again ({n + 2} of {tries})")
 
 
 def _sign_in(page, base: str, user: str, password: str) -> None:
