@@ -52,7 +52,7 @@ If you signed Docker in to `ghcr.io` for an earlier install, sign it out (`docke
 It and `mac_release.py` beside it decide which releases are trusted, so take them from the commit a release names, not from a `main` nobody has checked:
 
 ```bash
-git clone git@github.com:rouh-it/rouh-core.git ~/rouh-core   # Rouh's code, private for now: needs access to it
+git clone https://github.com/rouh-it/rouh-core.git ~/rouh-core   # Rouh's code, public since 7 November 2026
 commit="$(curl -fsS https://rouh.land/mac/release/stable.json | python3 -c 'import json,sys; print(json.loads(json.load(sys.stdin)["payload"])["commit"])')"
 git -C ~/rouh-core checkout -q "$commit"
 [ -f ~/rouh-core/deploy/container/linux_stack.py ] || git -C ~/rouh-core checkout -q main   # a release made before linux_stack.py existed has none: the one time main is used
