@@ -1054,8 +1054,8 @@ class ApprovalSource(Source):
                 project = "Metabolism"
             else:
                 context = "Heartbeat" + (f" · {a.duty}" if a.duty else "")
-                # The beat that asked, opened on the beats' page, else the heartbeat's queue.
-                link = heartbeat.beat_address(a.beat_id) if a.beat_id else "/settings/heartbeat"
+                # The beat that asked, opened on the beats' page, else the heartbeat's Today.
+                link = heartbeat.beat_address(a.beat_id) if a.beat_id else heartbeat.HOME
                 project = "Heartbeat"
             risk = risk_of_tool(a.tool, a.args)
             runs = (f"Runs {a.tool} once, with exactly what was queued, and nothing else."

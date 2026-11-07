@@ -825,6 +825,8 @@ urlpatterns = [
     re_path(r"^" + _section("trusted-contacts") + r"/(?:\d+|grants)$", views.index),
     # The beats filtered to one piece of work, or to the heartbeat's own.
     re_path(r"^" + _section("beats") + r"/(?:\d+|heartbeat)$", views.index),
+    # The heartbeat's settings, a view of its own beside Today and the beats (`heartbeatpage.js`).
+    path(_section("heartbeat") + "/settings", views.index),
     # Stats' Event log tab (`statspage.js`).
     path(_section("stats") + "/events", views.index),
     # One shared gene's page, by its registry id, <publisher>/<name> (`genespage.js`).

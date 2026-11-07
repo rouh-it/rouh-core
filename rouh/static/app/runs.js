@@ -8286,7 +8286,7 @@ drawCrumb();
 // `page` is the group of Anatomy showing, '' for the status board, and `section` the one of its
 // sections the address names, '' for the page itself (`settingsShowGroup`).
 var SETTINGS = { open: false, data: null, editingClient: false, page: '', section: '', from: null, beats: '',
-                 beatsQuery: '', stats: '', gene: '' };
+                 beatsQuery: '', stats: '', gene: '', heartbeat: '' };
 
 // The Apple Contacts card's own state (GET /api/settings/apple). Declared up
 // here with SETTINGS rather than beside its handlers, because Settings can be
@@ -8384,6 +8384,7 @@ function settingsRead(parts, old) {
   }
   var item = '';
   if (where === 'beats' && rest.length === 1 && /^(\d+|heartbeat)$/.test(rest[0])) item = rest[0];
+  else if (where === 'heartbeat' && rest.length === 1 && rest[0] === 'settings') item = rest[0];
   else if (where === 'stats' && rest.length === 1 && rest[0] === 'events') item = rest[0];
   else if (where === 'trusted-contacts' && rest.length === 1 && /^(\d+|grants)$/.test(rest[0])) item = rest[0];
   else if (where === 'gene-pool' && rest.length === 2 && /^[a-z0-9][a-z0-9_-]{0,62}$/.test(rest[0]) &&
@@ -8397,6 +8398,7 @@ function settingsRead(parts, old) {
 function settingsAddress() {
   var sec = SETTINGS.section;
   var inside = sec === 'trusted-contacts' ? TC.open : sec === 'beats' ? SETTINGS.beats
+    : sec === 'heartbeat' ? SETTINGS.heartbeat
     : sec === 'stats' ? SETTINGS.stats : sec === 'gene-pool' ? SETTINGS.gene : '';
   return '/anatomy' + (SETTINGS.page ? '/' + SETTINGS.page : '') +
     (sec ? '/' + sec + (inside ? '/' + inside : '') : '');
@@ -8436,8 +8438,9 @@ function settingsShowGroup(where, item, query) {
   // level up: from a section to its group's menu, and from a group's menu to the board.
   $('settingsTitle').textContent = (sec && sec.section.name) || settingsGroupName(page) || 'Anatomy';
   $('settingsView').classList.toggle('settings-in', !!page);
-  // The beats' table takes the whole width, its side list put away (`beatspage.js`).
-  $('settingsView').classList.toggle('settings-wide', section === 'beats');
+  // The heartbeat's three views - Today, its beats' table and its settings - take the whole
+  // width, the side list put away (`heartbeatpage.js`, `beatspage.js`).
+  $('settingsView').classList.toggle('settings-wide', section === 'beats' || section === 'heartbeat');
   var back = /** @type {HTMLAnchorElement} */ ($('settingsBack'));
   var up = section ? settingsGroupName(page) : 'Anatomy';
   back.href = section ? '/anatomy/' + page : '/anatomy';
@@ -8462,6 +8465,11 @@ function settingsShowGroup(where, item, query) {
   SETTINGS.beats = beatsFor;
   SETTINGS.beatsQuery = beatsQuery;
   if (refilter && window.RouhBeats) window.RouhBeats.shown(beatsFor, beatsQuery);
+  // The heartbeat's view: Today for '', its settings for 'settings' (`heartbeatpage.js`).
+  var hbView = section === 'heartbeat' && item === 'settings' ? 'settings' : '';
+  var reHeart = !moved && SETTINGS.open && here('heartbeat') && hbView !== SETTINGS.heartbeat;
+  SETTINGS.heartbeat = hbView;
+  if (reHeart && window.RouhHeartbeat) window.RouhHeartbeat.shown(hbView);
   // Stats' tab, `/anatomy/meta/stats/events` for the event log and the navigation's
   // taps for '' (`statspage.js`).
   var statsTab = section === 'stats' && item === 'events' ? 'events' : '';
@@ -8504,7 +8512,8 @@ function settingsPages(section) {
     if (!drawn) continue;
     if (name === section) {
       if (name === 'beats') drawn.shown(SETTINGS.beats, SETTINGS.beatsQuery);
-      else drawn.shown(name === 'stats' ? SETTINGS.stats : name === 'gene-pool' ? SETTINGS.gene : undefined);
+      else drawn.shown(name === 'stats' ? SETTINGS.stats : name === 'gene-pool' ? SETTINGS.gene :
+                       name === 'heartbeat' ? SETTINGS.heartbeat : undefined);
     } else drawn.hidden();
   }
   // The Gene Pool's first card, where this Rouh stands in the Pool (`landaccountpage.js`).
@@ -17127,6 +17136,9 @@ function workOpen(id) {
   WORK.title = '';
   if (window.RouhWork) window.RouhWork.shown(WORK.id);
   if (WORK.open) {
+    // Open already, but under another layer such as Anatomy: brought to the front, so a
+    // link to it from that layer (the heartbeat's quests and questions) does something.
+    if ($('workView').hidden || settingsViewing()) { showLayer('workView'); sidebarDone(); addrTouch(); }
     workRows();
     if (moved) addrTouch();
     return;
@@ -17197,6 +17209,9 @@ function decisionsOpen(id) {
   DECIDE.id = want;
   if (window.RouhDecisions) window.RouhDecisions.shown(DECIDE.id);
   if (DECIDE.open) {
+    // Open already, but under another layer such as Anatomy: brought to the front, so a
+    // link to it from that layer (the heartbeat's quests and questions) does something.
+    if ($('decisionsView').hidden || settingsViewing()) { showLayer('decisionsView'); sidebarDone(); addrTouch(); }
     decisionsRows();
     if (moved) addrTouch();
     return;
@@ -17802,7 +17817,18 @@ window.RouhBoxHost = {
 
 // What `heartbeatpage.js`, `paymentspage.js` and `draftedits.js` are handed: an address in
 // Rouh, such as the Heartbeat chat or a quest's page.
-window.RouhHeartbeatHost = { go: function (href) { goToAddress(href); } };
+window.RouhHeartbeatHost = {
+  go: function (href) { goToAddress(href); },
+  /* The heartbeat's own view, which the address says (`/anatomy/behaviour/heartbeat/settings`,
+     or the section alone for Today), moved to without a reload. */
+  viewed: function (view) {
+    var now = view === 'settings' ? 'settings' : '';
+    if (!sectionShows('heartbeat') || SETTINGS.heartbeat === now) return;
+    SETTINGS.heartbeat = now;
+    SETTINGS.section = 'heartbeat';
+    addrTouch();
+  }
+};
 
 // What `statspage.js` is handed: which of its tabs shows, which the address
 // says (`/settings/stats/events`, or `/settings/stats` for the navigation's).

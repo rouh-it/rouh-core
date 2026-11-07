@@ -479,8 +479,8 @@
     if (w.chat) links.appendChild(link('Open its chat', '/chat/' + encodeURIComponent(w.chat)));
     else links.appendChild(el('span', 'hb-link q-nochat', 'Its chat is made at its first beat.'));
     if (w.earlier_chat) links.appendChild(link('Its earlier beats, in the Heartbeat chat', '/chat/' + encodeURIComponent(w.earlier_chat)));
-    links.appendChild(link('Its beats, as a table', '/settings/beats/' + w.number));
-    links.appendChild(link('The heartbeat', '/settings/heartbeat'));
+    links.appendChild(link('Its beats, as a table', '/anatomy/behaviour/beats/' + w.number));
+    links.appendChild(link('The heartbeat, today', '/anatomy/behaviour/heartbeat'));
     s.appendChild(links);
     return s;
   }
@@ -827,7 +827,7 @@
       list.appendChild(li);
     });
     s.appendChild(list);
-    s.appendChild(link('Every beat on it, as a table', '/settings/beats/' + d.work.number));
+    s.appendChild(link('Every beat on it, as a table', '/anatomy/behaviour/beats/' + d.work.number));
     if (d.approvals.length) {
       s.appendChild(el('h5', 'hb-h5', 'What it asked you'));
       // What waits is a decision, drawn and answered the one way every question is

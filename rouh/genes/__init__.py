@@ -204,7 +204,9 @@ KEYS = {"id", "name", "title", "aliases", "group", "route", "icon", "attaches_to
 NEEDS_GUARD = re.compile(r"^(>=|==)?\s*\d{1,3}(\.\d{1,3}){0,2}$")
 #: A section of one of Anatomy's group pages: its place there, and, where the gene's own name
 #: is not what the section is called, the name its heading has.
-ANATOMY_KEYS = {"order", "name"}
+#: `under`: a section that is a view of another section's page (the heartbeat's beats, a view of
+#: the heartbeat), reached from that page's own tabs, so its group's menu does not list it twice.
+ANATOMY_KEYS = {"order", "name", "under"}
 NAV_KEYS = {"place", "order", "opens", "row", "press", "controls", "class", "marks", "plus", "while",
             "counts", "as"}
 #: What a link may be drawn as, in its own place and instead of one link of its own: `anatomy`
@@ -333,6 +335,8 @@ def problems(m, name: str = "") -> list[str]:
                 bad("a section of Anatomy needs a whole-number anatomy.order")
             if "name" in sec and not (isinstance(sec["name"], str) and sec["name"].strip()):
                 bad("anatomy.name is empty")
+            if "under" in sec and not (isinstance(sec["under"], str) and sec["under"].strip()):
+                bad("anatomy.under is not a section's name")
         if not placed:
             bad(f"is a section of Anatomy and its route {route!r} is not /anatomy/<group>/<section>")
     elif placed:
@@ -622,6 +626,7 @@ def anatomy(switch_on: Callable[[str], bool] = _always) -> list[dict]:
             if where and where[0] == gid and shown(m, switch_on):
                 rows.append((m["anatomy"]["order"], {"id": where[1], "gene": m["id"], "route": m["route"],
                                                      "name": m["anatomy"].get("name") or m["name"],
+                                                     "under": m["anatomy"].get("under", ""),
                                                      "about": about(m), "icon": m["icon"]}))
         out.append({"id": gid, "name": gname, "route": f"{ANATOMY_ROOT}/{gid}", "icon": ANATOMY_ICONS[gid],
                     "sections": [row for _, row in sorted(rows, key=lambda r: r[0])]})

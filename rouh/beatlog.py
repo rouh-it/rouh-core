@@ -554,7 +554,7 @@ def detail(who, ident) -> dict:
         "runs": _runs_started(calls),
         "tasks": tasks,
         "approvals": [{"id": a.id, "what": a.what, "to_whom": a.to_whom, "why": a.why, "cost": a.cost,
-                       "state": a.state, "href": "/settings/heartbeat",
+                       "state": a.state, "href": "/anatomy/behaviour/heartbeat",
                        "decision": decided.get(a.id)} for a in approvals],
     }
 

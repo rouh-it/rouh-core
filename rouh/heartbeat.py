@@ -15,7 +15,7 @@ is this one: events are the main trigger and a timer the backstop; whether a bea
 a model call at all is decided in code first; and a beat may note something silently for
 the next real turn rather than speak.
 
-**Its settings** (`config_of`, the Heartbeat page at `/settings/heartbeat`, the
+**Its settings** (`config_of`, the Heartbeat page's Settings at `/anatomy/behaviour/heartbeat/settings`, the
 `heartbeat` tool): on or off; the interval; working hours, in which the timer beats, and
 quiet hours, in which nothing beats at all, both on the owner's clock (`clock.person`); what
 wakes it - the timer, finished jobs and runs, new mail in Rouh's own inbox - with the
@@ -88,6 +88,10 @@ log = logging.getLogger("rouh.heartbeat")
 #: The first words of every beat's note, so it says what it is before anything
 #: else and the stand-in model (`rouh/testing/fake_model.py`) can tell it apart.
 NOTE_HEAD = "A heartbeat of Rouh's own, which nobody asked for."
+
+#: The heartbeat's own page, its Today view (`heartbeatpage.js`); its beats are at
+#: `/anatomy/behaviour/beats` and its settings at `/anatomy/behaviour/heartbeat/settings`.
+HOME = "/anatomy/behaviour/heartbeat"
 
 #: What the chat its own duties are done in is called.
 CHAT_TITLE = "\U0001f493 Heartbeat"
@@ -1969,7 +1973,7 @@ class Heartbeat:
         text = ("\U0001f493 Heartbeat: kept back during your quiet hours\n\n"
                 + "\n\n".join(f"{clock.clock(h.get('at'))}: {h.get('text')}" for h in held_now))
         if self.public_url:
-            text += f"\n\n{self.public_url}/settings/heartbeat"
+            text += f"\n\n{self.public_url}{HOME}"
         from .telegram import NotSent, NotSetUp
 
         try:
@@ -2597,7 +2601,120 @@ def view(who, beats: int = 60) -> dict:
             "answered": _when(a.answered_at, now) if a.answered_at else "",
             "by": raised(a.work_id, [a.duty] if a.duty else []),
         } for a in asks],
+        "days": days_of(who, row, cfg, now),
+        "carried": _cards(who, row, works),
     }
+
+
+#: How a beat ended, as the day picture on the Heartbeat page draws it, in the order its
+#: legend lists them: skipped in code, let sleep by the wake-up check, decided nothing,
+#: left a note, messaged, asked for a yes, failed, still running.
+ENDS = {"skipped": "Skipped in code", "slept": "Check let it sleep", "nothing": "Did nothing",
+        "note": "Left a note", "message": "Messaged you", "asked": "Asked for your yes",
+        "failed": "Failed", "running": "Running"}
+#: How many days the day picture can step back through, today included.
+DAYS_BACK = 7
+
+
+def asked_in(b) -> bool:
+    """Whether a beat asked for the owner's yes, from its own record: it called heartbeat_ask, or
+    a call of its was held back for a yes. Never from the queue alone, so deleting what it
+    queued does not rewrite what the beat did."""
+    return any(t.get("name") == "heartbeat_ask" or t.get("held") for t in (b.tools or []))
+
+
+def end_of(b, asked: bool) -> str:
+    """One word for how a beat ended (`ENDS`), as the day picture marks it."""
+    if b.status in ("running", "queued"):
+        return "running"
+    if b.status == "skipped":
+        return "slept" if (b.reason or "").startswith("The wake-up check") else "skipped"
+    if b.status == "failed":
+        return "failed"
+    # A message first, so the day's messages here are the Beats page's (`beatlog`).
+    if b.outcome == "telegram":
+        return "message"
+    if asked:
+        return "asked"
+    return "note" if b.outcome == "note" else "nothing"
+
+
+def _spent_between(row, start: float, end: float) -> Decimal:
+    chats = beat_chats(row)
+    if not chats:
+        return Decimal("0")
+    from django.db.models import Sum
+
+    found = _models().LLMRequest.objects.filter(
+        session_id__in=chats, started_at__gte=start, started_at__lt=end, user_id=row.user_id,
+        org_id=row.org_id).aggregate(n=Sum("cost_usd"))["n"]
+    return Decimal(found or 0)
+
+
+def days_of(who, row, cfg: dict, now: float) -> dict:
+    """The last `DAYS_BACK` days on the owner's clock, each with every beat of it placed by its
+    minute of the day, its lane (its own duties, or a quest) and how it ended, and the day's
+    spend from the log of every model request, so the page's day picture, its tiles and its
+    week of bars are one set of numbers. Today's spend is `spend` since midnight, the very
+    number the cap is held to."""
+    m = _models()
+    today = clock.moment(now).replace(hour=0, minute=0, second=0, microsecond=0)
+    starts = [(today - timedelta(days=i)) for i in range(DAYS_BACK - 1, -1, -1)]
+    first = starts[0].timestamp()
+    rows = list(m.HeartbeatBeat.objects.filter(**_whose(who), started_at__gte=first)
+                .order_by("started_at")[:3000])
+    asked = set(m.HeartbeatApproval.objects.filter(**_whose(who), beat_id__in=[b.id for b in rows])
+                .values_list("beat_id", flat=True))
+    out = []
+    for i, start in enumerate(starts):
+        a = start.timestamp()
+        b_end = starts[i + 1].timestamp() if i + 1 < len(starts) else now + 1
+        beats = []
+        for b in rows:
+            if not (a <= b.started_at < b_end):
+                continue
+            at = clock.moment(b.started_at)
+            end = end_of(b, b.id in asked or asked_in(b))
+            beats.append({"id": b.id, "min": at.hour * 60 + at.minute, "at": at.strftime("%H:%M"),
+                          "lane": b.work_id, "end": end, "woke": b.trigger,
+                          "why": (b.reason or "")[:300] if end in ("skipped", "slept", "failed") else "",
+                          "said": (b.said or "")[:300] if b.status != "skipped" else "",
+                          "cost": _dollars(b.cost) if b.cost is not None else ""})
+        counts = {k: 0 for k in ENDS}
+        for x in beats:
+            counts[x["end"]] += 1
+        spent = spend(row, a) if i + 1 == len(starts) else _spent_between(row, a, b_end)
+        out.append({"day": start.strftime("%Y-%m-%d"),
+                    "label": "Today" if i + 1 == len(starts) else
+                    "Yesterday" if i + 2 == len(starts) else start.strftime("%a %-d %b"),
+                    "short": start.strftime("%a"),
+                    "spent": _dollars(spent), "spent_value": float(spent),
+                    "beats": beats, "counts": counts})
+    local = clock.moment(now)
+    nxt = None
+    if row.state != "paused":
+        timer_at = (row.last_beat_at or row.created_at or now) + (row.interval_minutes or 30) * 60
+        at = min([t for t in (timer_at, row.due_at) if t] or [timer_at])
+        when = clock.moment(at)
+        if when.date() == local.date():
+            nxt = when.hour * 60 + when.minute
+    return {"list": out, "now_min": local.hour * 60 + local.minute, "next_min": nxt,
+            "ends": ENDS, "cap_value": float(row.daily_cap or 0),
+            "per_day": int(cfg["messages"]["per_day"])}
+
+
+def _cards(who, row, works: list) -> list:
+    """Each quest as the Heartbeat page's list of what it carries draws it: its card from the
+    Quests page (`quests.card`), with what it last cost and what waits on the owner."""
+    heart = (int(row.interval_minutes or 30), row.state == "paused")
+    out = []
+    for w in works:
+        try:
+            out.append(quests.card(who, w, heart=heart))
+        except Exception:  # a quest that cannot be read is still listed, by its summary
+            log.exception("heartbeat: quest %s could not be read for its card", w.id)
+            out.append(quests.summary(w))
+    return out
 
 
 def _when(ts: float | None, now: float) -> str:

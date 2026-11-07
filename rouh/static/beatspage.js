@@ -309,6 +309,11 @@
     body.textContent = '';
     var page = el('div', 'hb-page bt-page');
     body.appendChild(page);
+    // The heartbeat's header, as on Today and Settings: how it stands, Pause, Beat now and the
+    // three views, this one Beats (`heartbeatpage.js`).
+    var hold = el('div', 'bt-hbhead');
+    page.appendChild(hold);
+    if (window.RouhHeartbeat && window.RouhHeartbeat.mountHeader) window.RouhHeartbeat.mountHeader(hold);
     var say = el('p', 'hb-say');
     say.id = 'beatsSay';
     say.setAttribute('role', 'status');
@@ -328,8 +333,6 @@
     info.setAttribute('aria-expanded', 'false');
     h.appendChild(info);
     head.appendChild(h);
-    var back = link('The heartbeat', '/settings/heartbeat', 'hb-link bt-back');
-    head.appendChild(back);
     page.appendChild(head);
     var about = el('div', 'bt-about');
     about.id = 'beatsAbout';
@@ -358,7 +361,16 @@
     paused.hidden = true;
     page.appendChild(paused);
 
-    page.appendChild(filters());
+    // On a phone the search and filters fold away, so the numbers and the beats come first;
+    // they open by themselves when the address already filters.
+    var fold = el('details', 'bt-fold');
+    var sum = el('summary', '', 'Search and filters');
+    fold.appendChild(sum);
+    fold.appendChild(filters());
+    var narrow = (body.clientWidth || window.innerWidth) < 600;
+    var filtered = Object.keys(DEFAULTS).some(function (k) { return k !== 'page' && k !== 'sort' && k !== 'dir' && k !== 'beat' && B.f[k] && B.f[k] !== DEFAULTS[k]; });
+    fold.open = !narrow || filtered || !!B.start || !!B.end;
+    page.appendChild(fold);
 
     var stats = el('section', 'bt-analysis');
     stats.id = 'beatsAnalysis';

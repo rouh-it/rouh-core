@@ -53,6 +53,13 @@ async def _page(me) -> dict:
     pulse = _pulse()
     got["telegram"] = bool(pulse.phone and pulse.phone.configured())
     got["decisions"] = await asking(me, got.get("approvals") or [])
+    # Each one waiting goes to its own decision on the one Decisions list, where it is answered.
+    from rouh import decisions
+
+    for a in got.get("approvals") or []:
+        d = got["decisions"].get(str(a["id"]))
+        if d:
+            a["href"] = decisions.page_of(d)
     return got
 
 

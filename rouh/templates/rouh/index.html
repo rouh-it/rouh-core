@@ -2012,7 +2012,7 @@ with {% asset %}, which gives it its hashed address.
                a menu with the you items, not one single page where everything is
                put". {% endcomment %}
           {% for g in GENES.anatomy %}<nav class="anatomy-board anatomy-menu" data-group="{{ g.id }}" aria-label="{{ g.name }}" hidden>
-            {% for sec in g.sections %}<a class="anatomy-line anatomy-item" href="{{ sec.route }}" data-section="{{ sec.id }}"><svg class="anatomy-glyph" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ sec.icon|safe }}</svg><span class="anatomy-name">{{ sec.name }}</span><span class="anatomy-about">{{ sec.about }}</span><svg class="sb-chev" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></a>
+            {% for sec in g.sections %}{% if not sec.under %}<a class="anatomy-line anatomy-item" href="{{ sec.route }}" data-section="{{ sec.id }}"><svg class="anatomy-glyph" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ sec.icon|safe }}</svg><span class="anatomy-name">{{ sec.name }}</span><span class="anatomy-about">{{ sec.about }}</span><svg class="sb-chev" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></a>{% endif %}
             {% endfor %}
           </nav>
           {% endfor %}

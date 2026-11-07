@@ -9,7 +9,7 @@
     "autonomy",
     "approval queue"
   ],
-  "group": "machine",
+  "group": "work",
   "route": "/anatomy/behaviour/heartbeat",
   "anatomy": {
     "order": 40
@@ -18,7 +18,8 @@
   "attaches_to": [],
   "maturity": "accepted",
   "nav": {
-    "place": "none",
+    "place": "list",
+    "order": 45,
     "opens": "address"
   },
   "touches": {
