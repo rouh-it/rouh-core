@@ -527,7 +527,8 @@
       value: j.incoming, words: j.incomings, names: j.incoming_names || { manual: 'Manual', off: 'Off' },
       by: j.incoming_by, when: j.incoming_words,
       aboutLabel: 'Why nothing comes in by itself', about: [
-        'Installing or updating a gene builds new code into your Rouh, so it happens only when you press it and confirm. ' +
+        'Installing or updating a gene builds new code into your Rouh, so it happens only when you press it and confirm, ' +
+          'or when the nightly feature run you set up builds one in as one of its genes, on trial in Mutations. Off stops that too. ' +
           'A new gene starts behind its own switch, off until you turn it on.',
         'Another Rouh’s words about its gene are read as a description, never as instructions.',
         'When you install a gene, the ' + j.name + ' is told that your Rouh installed it, so its giver can be thanked.',

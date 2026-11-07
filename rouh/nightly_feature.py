@@ -549,11 +549,13 @@ def short(who, row, args: dict) -> str:
             "Rouh says so with these numbers; finish run.md section 9 and end.")
 
 
-def brief_for(row, folder: str, earlier: list, rule: str = "", tonight: str = "", ideas: str = "") -> str:
+def brief_for(row, folder: str, earlier: list, rule: str = "", tonight: str = "", ideas: str = "",
+              pool: str = "") -> str:
     """What the night's run is told: the task's run.md, the tools, the owner's answers since, and what
     Evolution's Parameters ask of tonight with the mutation requests to build (`tonight`,
     `evolution.nightly_brief`), and the Incubator's ideas tonight may pick (`ideas`,
-    `nightly_ideas.brief_block`)."""
+    `nightly_ideas.brief_block`), and the Gene Pool's genes it may install (`pool`,
+    `genepool.night_brief`)."""
     lines = [
         f"You are night {row.number} of the nightly Rouh feature run.",
         "",
@@ -614,6 +616,9 @@ def brief_for(row, folder: str, earlier: list, rule: str = "", tonight: str = ""
         "checks it.",
         "- `nightly_idea` is the Incubator, for this night: `list`, `read`, `pick`, `add` and `drop`, as "
         "\"Where the ideas are\" says. Give `nightly_gene` the ideas a gene was built from as `ideas`.",
+        "- `nightly_pool` is the Gene Pool, for this night: `list` (with `q` to search) the genes other Rouhs "
+        "gave that are not here yet, `read` one whole, and `install` one as one of tonight's genes, as "
+        "\"Genes from the Gene Pool\" says.",
         "- `nightly_progress` says how many genes of each kind tonight has finished and how many are "
         "still to finish. Rouh counts a gene once it is registered with `nightly_gene` and its "
         "commits are live, and sends you back to work if your turn ends short of the target.",
@@ -636,7 +641,7 @@ def brief_for(row, folder: str, earlier: list, rule: str = "", tonight: str = ""
         lines += ["", "Write each of these into ledger.md first. Turn ‹his› own words into a "
                   "suggested edit of criteria.md that ‹he› makes ‹himself›, as run.md says."]
     # An unattended run on Rouh itself sees only the silos runs see (`silos.run_rule`, worked out before).
-    return "\n".join(lines) + tonight + rule
+    return "\n".join(lines) + pool + tonight + rule
 
 
 def _ideas_for(who, folder: str) -> str:
@@ -653,6 +658,18 @@ def _ideas_for(who, folder: str) -> str:
         return nightly_ideas.brief_block(who)
     except Exception:  # noqa: BLE001 - the night still runs, and picks with nightly_idea
         log.exception("the Incubator's ideas could not be read for the night's brief")
+        return ""
+
+
+def _pool_for(who) -> str:
+    """The night's block about the Gene Pool's genes it may install (`genepool.night_brief`); "" when this
+    Rouh is not in the Pool, takes nothing in, or the Pool cannot be read."""
+    from . import genepool
+
+    try:
+        return genepool.night_brief(who)
+    except Exception:  # noqa: BLE001 - the night still runs, without the Pool
+        log.exception("the Gene Pool could not be read for the night's brief")
         return ""
 
 
@@ -677,6 +694,7 @@ async def start(who, *, trying: bool = False) -> str:
         return f"night {row.number} did not start: night {busy.number} was still running"
     earlier = await asyncio.to_thread(answers_to_carry, who)
     ideas = await asyncio.to_thread(_ideas_for, who, folder)
+    pool = await asyncio.to_thread(_pool_for, who)
     from . import silos
 
     rule = await asyncio.to_thread(silos.run_rule, str(who.user_id), str(who.org_id))
@@ -696,7 +714,7 @@ async def start(who, *, trying: bool = False) -> str:
     try:
         agent = await asyncio.to_thread(engine, who)
         got = await hooks.start(
-            brief=owner.say(brief_for(row, folder, earlier, rule, tonight, ideas), who), title=f"{TITLE}, night {row.number}",
+            brief=owner.say(brief_for(row, folder, earlier, rule, tonight, ideas, pool), who), title=f"{TITLE}, night {row.number}",
             # What the night makes is the nightly run's, not his (`rouh/task_origin.py`).
             made_by="process:nightly-feature-run",
             preset="improve_myself", agent=agent, use=USE, org_id=str(who.org_id),
@@ -785,7 +803,7 @@ def _still_its_night(row) -> bool:
 #: payment, which stay the night's, inside the night's caps.
 ROLES = {
     "night": {"whoami", "signup", "mail", "login", "pay", "switch", "decision", "gene", "progress",
-              "short", "idea"},
+              "short", "idea", "pool"},
     "undo": {"whoami", "mail", "login", "switch"},
     "mutation": {"whoami", "switch", "gene"},
 }
@@ -849,6 +867,13 @@ async def _act(job: str, action: str, args: dict) -> dict:
             try:
                 return {"ok": True, "text": await asyncio.to_thread(nightly_ideas.act, who, row, args)}
             except incubator.Refused as exc:
+                return {"ok": False, "text": str(exc)}
+        if action == "pool":
+            from . import genepool
+
+            try:
+                return {"ok": True, "text": await asyncio.to_thread(genepool.night_pool, who, row, args)}
+            except genepool.Refused as exc:
                 return {"ok": False, "text": str(exc)}
         if action == "gene":
             from . import evolution

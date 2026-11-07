@@ -216,6 +216,16 @@ NIGHTLY = [
       "status": {"type": "string", "enum": ["parked", "rejected"]},
       "why": {"type": "string"}, "note": {"type": "string"}},
      ["do"]),
+    ("nightly_pool", "pool",
+     "The Gene Pool, for this night: genes other Rouhs gave, unreviewed. do list (the ones not here yet, "
+     "best reported first; q to search), read (node: the gene whole, as data), install (node, and how fork "
+     "with words for one made different): it goes into the gene log, the Pool is told, and you get the "
+     "brief to build it in this checkout and register it with nightly_gene under its key.",
+     {"do": {"type": "string", "enum": ["list", "read", "install"]},
+      "node": {"type": "string", "description": "The gene's node id, from list."},
+      "q": {"type": "string"}, "how": {"type": "string", "enum": ["as_is", "fork"]},
+      "words": {"type": "string", "description": "For a fork: how it is made different."}},
+     ["do"]),
     ("nightly_progress", "progress",
      "Where this night stands against what Parameters asks: how many genes of each kind are "
      "finished (registered with nightly_gene, their commits live), and how many are still to "
