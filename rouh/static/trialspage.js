@@ -56,8 +56,6 @@
   };
   var VERDICT_LINE = { not_a_problem: 'Not a problem', wont_fix: 'Won’t fix', decided: 'Decided how to fix it',
                        sent: 'Sent as feedback' };
-  // Each tester's count is of the problems they ran into, so the counts do not add up to the list.
-  var FOUND_NOTE = 'These do not add up to the total: a problem two testers both hit counts for each of them, and the ones you found yourself count for no tester.';
   var RULE = 'Fixed only when a later try passes the same screen without tripping on it. Sent is never shown as fixed.';
 
   /* ---- small things ---- */
@@ -399,7 +397,8 @@
       want = Promise.all([
         loadShell(),
         q.length ? call('?' + q.join('&')) : Promise.resolve(null),
-        call('/problems?status=open')
+        call('/problems?status=open'),
+        loadAll()
       ]).then(function (got) {
         if (seq !== S.seq) { return; }
         S.data.jobs = got[1] || got[0];
@@ -407,6 +406,7 @@
       });
     } else {
       var shellFirst = S.shell ? null : loadShell().catch(function () {});
+      if (w.page === 'problems' || w.page === 'testers') { shellFirst = Promise.all([shellFirst, loadAll()]); }
       if (w.page === 'job') { want = call('/jobs/' + w.n).then(keep('job')); }
       else if (w.page === 'try') { want = call('/' + w.n).then(keep('try')); }
       else if (w.page === 'problems') { want = loadProblems(seq); }
@@ -427,6 +427,30 @@
       S.error = String((e && e.message) || e);
       draw();
     });
+  }
+  /* Every problem, for counts that must agree: seen again apart from waiting, and who found what. */
+  function loadAll() {
+    return call('/problems?status=all').then(function (j) { S.all = j.problems || []; }, function () { S.all = null; });
+  }
+  function againN() { return (S.all || []).filter(seenAgain).length; }
+  /* Who found what, adding up to the total: a problem several testers hit is said once, and the owner's own too. */
+  function foundLine(testers) {
+    var all = S.all;
+    if (!all || !all.length) { return ''; }
+    var names = {};
+    (testers || []).forEach(function (t) { names[t.key] = t.first; });
+    var per = {}, both = 0, mine = 0;
+    all.forEach(function (p) {
+      if (p.source === 'owner') { mine += 1; return; }
+      var ks = p.personas || [];
+      if (ks.length > 1) { both += 1; }
+      ks.forEach(function (k) { per[k] = (per[k] || 0) + 1; });
+    });
+    var parts = Object.keys(per).map(function (k) { return (names[k] || upper(k)) + ' found ' + per[k]; });
+    var extra = [];
+    if (both) { extra.push(both + ' found by more than one tester'); }
+    if (mine) { extra.push(mine + ' by you'); }
+    return parts.join(', ') + (extra.length ? '; ' + extra.join(' and ') : '') + ', ' + all.length + ' in all.';
   }
   function loadProblems(seq) {
     var f = S.probFilter, q = [];
@@ -656,7 +680,9 @@
     BAD_ORDER.forEach(function (b) { if (sevN[b]) { var x = el('span'); x.appendChild(shape(b)); x.appendChild(el('span', '', sevN[b] + ' ' + BAD_SHORT[b].toLowerCase())); leg.appendChild(x); } });
     t1.appendChild(leg);
     var rest = el('div', 'tr-legend');
-    if (by.decided) { rest.appendChild(withIcon(el('span'), 'wait', by.decided + ' decided, waiting for a re-test')); }
+    var ag = againN();
+    if (by.decided - ag > 0) { rest.appendChild(withIcon(el('span'), 'wait', (by.decided - ag) + ' decided, waiting for a re-test')); }
+    if (ag) { rest.appendChild(withIcon(el('span', 'is-again'), 'up', ag + ' sent, but seen again')); }
     if (by.set_aside) { rest.appendChild(withIcon(el('span'), 'x', by.set_aside + ' set aside')); }
     if (by.fixed) { rest.appendChild(withIcon(el('span', 'is-fixed'), 'check', by.fixed + ' fixed')); }
     t1.appendChild(rest);
@@ -1698,6 +1724,7 @@
       return;
     }
     if (f.status === 'again') { d = Object.assign({}, d, { problems: d.problems.filter(seenAgain) }); }
+    else if (f.status === 'decided') { d = Object.assign({}, d, { problems: d.problems.filter(function (p) { return !seenAgain(p); }) }); }
     var list = d.problems.filter(function (p) {
       return (v.screen == null || (p.screen || '') === v.screen) && (!v.bad || p.how_bad === v.bad);
     });
@@ -1708,9 +1735,9 @@
       : f.status === 'open' ? plural(d.problems.length, 'problem needs', 'problems need') + ' your decision. The worst is “' + worst.what + '”, seen ' +
         (worst.count === 1 ? 'once' : worst.count + ' times') + (worst.screen_name ? ' on ' + worst.screen_name : '') + '.'
       : plural(d.problems.length, 'problem') + ': ' + tab[1].toLowerCase() + '.'));
-    var who = ((d.testers || []).filter(function (t) { return t.problems; }).map(function (t) { return t.first + ' found ' + t.problems; }));
+    var who = foundLine(d.testers);
     root.appendChild(el('p', 'tr-lede', 'Worst first means how bad it was first (stopped, then confused, then annoyed, then small), ' +
-      'then how often it was seen.' + (who.length ? ' ' + who.join(', ') + '. ' + FOUND_NOTE : '')));
+      'then how often it was seen.' + (who ? ' ' + who : '')));
 
     var grid = el('div', 'tr-fixgrid');
     // Where they are: each page against how bad, a count in each cell, and pressing one shows only those.
@@ -1776,7 +1803,8 @@
     STATUS_TABS.forEach(function (x) {
       var b = button('tr-tab', null);
       b.appendChild(el('span', '', x[1]));
-      var n = x[2] === '*' ? (by.open || 0) + (by.decided || 0) + (by.fixed || 0) + (by.set_aside || 0) : x[2] ? by[x[2]] : null;
+      var n = x[2] === '*' ? (by.open || 0) + (by.decided || 0) + (by.fixed || 0) + (by.set_aside || 0)
+        : x[0] === 'decided' && S.all ? (by.decided || 0) - againN() : x[0] === 'again' && S.all ? againN() : x[2] ? by[x[2]] : null;
       if (n != null) { b.appendChild(el('b', '', String(n))); }
       b.setAttribute('aria-pressed', f.status === x[0] ? 'true' : 'false');
       b.addEventListener('click', function () { S.probFilter.status = x[0]; S.probView = { screen: null, bad: '', group: v.group, all: false }; reloadProblems(); });
@@ -1819,7 +1847,7 @@
   }
 
   function setView(screen, bad) { S.probView.screen = screen; S.probView.bad = bad; S.probView.all = false; draw(); }
-  function reloadProblems() { var seq = ++S.seq; draw(); loadProblems(seq).then(function () { if (seq === S.seq) { draw(); } }, fail); }
+  function reloadProblems() { var seq = ++S.seq; draw(); Promise.all([loadProblems(seq), loadAll()]).then(function () { if (seq === S.seq) { draw(); } }, fail); }
 
   function problemRows(list, d, cut) {
     var show = cut && !S.probView.all ? list.slice(0, 40) : list;
@@ -2226,9 +2254,8 @@
     var head = d.paused_all ? 'All testing is paused.' : held.length && held.length === live.length ? (live.length === 2 ? 'Both testers are paused.' : 'Every tester is paused.')
       : held.length ? held.map(function (t) { return t.first; }).join(' and ') + (held.length === 1 ? ' is paused.' : ' are paused.')
       : live.length ? (live.length === 1 ? 'One tester, testing.' : 'All ' + live.length + ' testers are testing.') : 'There are no testers.';
-    var finds = live.filter(function (t) { return t.problems; }).map(function (t) { return t.first + ' found ' + t.problems; });
-    root.appendChild(el('h1', 'tr-headline', head + (finds.length ? ' ' + finds.join(', ') + '.' : '')));
-    if (finds.length > 1) { root.appendChild(el('p', 'tr-dim tr-found-note', FOUND_NOTE)); }
+    var finds = foundLine(d.testers);
+    root.appendChild(el('h1', 'tr-headline', head + (finds ? ' ' + finds : '')));
     root.appendChild(el('p', 'tr-lede', 'The made-up people who try Rouh’s changes on their phones. Each has a whole ' +
       'life written down, and that is what they are told before every try.'));
     var row = el('div', 'tr-flex tr-cast-acts');
