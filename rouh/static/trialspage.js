@@ -914,8 +914,8 @@
       need(shape(p.how_bad, 14), p.what, s, HOME + '/problem/' + p.number);
     });
     box.appendChild(ul);
-    var more = open.length - Math.min(3, open.filter(function (p) { return !p.awaiting_choice; }).length) - waiting.length;
-    if (more > 0) { box.appendChild(link(plural(more, 'more needs', 'more need') + ' a decision in the Fix list', HOME + '/problems', 'tr-a tr-more-a')); }
+    // The whole number, the same as the Problems tile and the Fix list, never a remainder to add up.
+    if (open.length > 3) { box.appendChild(link('All ' + open.length + ' to decide, in the Fix list', HOME + '/problems', 'tr-a tr-more-a')); }
     if (!ul.childNodes.length) { box.appendChild(el('p', 'tr-empty', 'Nothing needs you right now.')); }
     return box;
   }
@@ -1814,6 +1814,7 @@
       var b = button('tr-tab', null);
       b.appendChild(el('span', '', x[1]));
       var n = x[2] === '*' ? (by.open || 0) + (by.decided || 0) + (by.fixed || 0) + (by.set_aside || 0)
+        : x[0] === 'awaiting' && S.all ? S.all.filter(function (p) { return p.awaiting_choice; }).length
         : x[0] === 'decided' && S.all ? (by.decided || 0) - againN() : x[0] === 'again' && S.all ? againN() : x[2] ? by[x[2]] : null;
       if (n != null) { b.appendChild(el('b', '', String(n))); }
       b.setAttribute('aria-pressed', f.status === x[0] ? 'true' : 'false');
