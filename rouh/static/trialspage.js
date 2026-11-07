@@ -1228,7 +1228,6 @@
       nr.appendChild(el('p', '', 'This try could not finish, so there is no report: ' + (t.why || 'something went wrong.') + ' That is not the same as no problems.'));
       head.appendChild(nr);
     } else if (t.why) { head.appendChild(el('p', 'tr-dim', t.why)); }
-    head.appendChild(modeBox(t));
     root.appendChild(head);
 
     var walk = t.walk || [];
@@ -1310,6 +1309,11 @@
     } else { end.appendChild(el('p', 'tr-dim', 'It has not ended yet.')); }
     root.appendChild(end);
 
+    // What kind of try it was, and for a review the button that starts the fixes, just above the problems
+    // it is about: above the steps it pushed the step strip off a phone's first screen.
+    var kind = el('section', 'tr-sec');
+    kind.appendChild(modeBox(t));
+    root.appendChild(kind);
     root.appendChild(tryProblems(t));
     root.appendChild(runAgain(d.personas || [], t.persona, function (persona) {
       return call('/' + t.number + '/again', { persona: persona });
