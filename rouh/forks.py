@@ -228,26 +228,77 @@ def comes_off(parent_id: str, *, through: int | None = None) -> int | None:
 def bare(chat_id: str) -> bool:
     """Whether this chat may be forked with nothing said in it yet.
 
-    A fork of nothing is a new chat, except in Synapse: a fork of the Synapse
-    chat stays on the dataset that was open when it was made
-    (`rouh/synapse/chat.py`), which a new chat would not, so it carries
-    something even when it carries no words. Petar, 4 October 2026
+    A fork of nothing is a new chat, except in two places.
+
+    Synapse: a fork of the Synapse chat stays on the dataset that was open
+    when it was made (`rouh/synapse/chat.py`), which a new chat would not, so
+    it carries something even when it carries no words. Petar, 4 October 2026
     (fr_c933c22b9bef): "I am missing the fork button on this chat for the
     synapse" - the Synapse chat, open and empty beside a dataset, had no Fork.
 
-    A task's chat is not an exception, though it is asked for the same way:
-    Petar, 29 October 2026 (fr_8ac43a9d12f1), "I am missing the fork button
-    here", on a step's page with the task's chat empty beside it. A fork is
-    owned by nothing, so the task comes along only in the words it carries;
-    with none, it would be a loose new chat that has lost the task. Start
-    chat, on the task's page, is the new chat about the task that would be.
-    Fork comes back there with the chat's first message.
+    And a task's chat, or the draft of one that nothing has been said in yet.
+    Petar asked twice: on 29 October 2026 (fr_8ac43a9d12f1), "I am missing the
+    fork button here", which was answered then by saying why not, and on
+    7 November 2026 (fr_e42a59f37d17): "I imagine I can fork even the first
+    message, because it will keep the main thread clean from the very
+    beginning". The reason it was not was that a fork is owned by nothing, so
+    the task came along only in the words it carried. It now comes along
+    without them: a fork knows the task its line of chats hangs off
+    (`task_above`), and the model in it is told so (`task_block`). So the
+    first message goes into a fork, and the task's own chat is left with
+    nothing in it, made from its draft if it was one (`make`).
     """
     if not chat_id:
         return False
     from .synapse import chat as synapse_chat
 
-    return synapse_chat.place_of_chat(chat_id) is not None
+    if synapse_chat.place_of_chat(chat_id) is not None:
+        return True
+    try:
+        return conversations.task_of(chat_id) is not None
+    except Exception:  # noqa: BLE001 - no Fork on an empty chat is the old answer, never a broken page
+        log.debug("which task chat %s is could not be read", chat_id, exc_info=True)
+        return False
+
+
+def task_above(chat_id: str):
+    """The task a fork's line of chats belongs to, or None.
+
+    A fork is owned by nothing (a task owns its chat, and the fork hangs off
+    that chat), so the task is the first chat above it that a task owns. None
+    for a chat that is not a fork, which is asked its own task instead.
+    """
+    line = lineage(chat_id)
+    if len(line) < 2:
+        return None
+    for above in reversed(line[:-1]):
+        task = conversations.task_of(above)
+        if task is not None:
+            return task
+    return None
+
+
+def task_block(chat_id: str) -> str:
+    """What the model in a fork of a task's chat is told about the task, or "".
+
+    The words a fork carries say what the task is about most of the time; a
+    fork of a task's chat with nothing said in it yet carries none, and is
+    told here which task it is part of instead.
+    """
+    if not chat_id:
+        return ""
+    try:
+        task = task_above(chat_id)
+    except Exception:  # noqa: BLE001 - a line of context is never worth a turn
+        log.exception("the task above fork %s could not be read", chat_id)
+        return ""
+    if task is None:
+        return ""
+    name = f"task {task.number}, {task.title}" if task.number is not None else task.title
+    where = f" (folder {task.folder})" if task.folder else ""
+    return (f"This conversation is a side chat, a fork, of the conversation of {name}{where}. "
+            "It is part of that task's work: what the person asks here is about that task "
+            "unless they say otherwise, and the task already exists.")
 
 
 def make(parent_id: str, before: int | None = None, *,
@@ -258,8 +309,10 @@ def make(parent_id: str, before: int | None = None, *,
     far, and nothing said after. None when there is nothing to carry - a chat
     with nothing in it, or a draft that is not a chat yet - because a fork of
     nothing is a new chat, and New chat is already a button. A Synapse chat
-    is the exception (`bare`): its fork comes off before anything, carrying
-    no words of it (`at` is None) and the dataset it was made over.
+    and a task's chat are the exceptions (`bare`): their fork comes off
+    before anything, carrying no words (`at` is None) and the dataset it was
+    made over, or the task it is part of (`task_above`). The draft of a
+    task's chat is made a chat first, empty.
 
     `before` is an exchange of the parent, and the fork comes off just above
     it: Fork on the box a message is being edited in, which asks the new
@@ -281,8 +334,18 @@ def make(parent_id: str, before: int | None = None, *,
     A fork of General answers on General's tier, and a fork of any other chat
     on the tier every other chat is on (`chatkinds.use_for`).
     """
-    if not parent_id or conversations.chat(parent_id) is None:
+    if not parent_id:
         return None
+    if conversations.chat(parent_id) is None:
+        # The draft of a task's chat is made a chat, with nothing in it, so
+        # the first message can go into a fork of it and leave it clean
+        # (`bare`). Any other draft is still a new chat, and has no fork.
+        held = conversations.draft(parent_id)
+        if not (held and held.get("task")) or before is not None or through is not None:
+            return None
+        conversations.make(parent_id)
+        if conversations.chat(parent_id) is None:
+            return None
     at = _last_message(parent_id, before, through)
     if at is None and (through is not None or not bare(parent_id)):
         return None

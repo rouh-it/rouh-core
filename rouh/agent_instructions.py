@@ -584,6 +584,11 @@ def _gene_run_parts(org: str) -> list[str]:
     from . import trials
 
     parts.append(trials.for_runs(org))
+    # The design standard (`rouh/design_standard.py`, task 169): how everything a person sees is designed,
+    # in two tiers, one direction. Always on: it is how Rouh builds, not a gene with a switch.
+    from . import design_standard
+
+    parts.append(design_standard.for_runs(org))
     # Copies kept in step, while its switch is on (`rouh/copies.py`): a gene's rule, the same way.
     from . import copies
 

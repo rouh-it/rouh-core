@@ -100,7 +100,10 @@ def with_its_task(brief: str, chat: str) -> str:
     try:
         from . import conversations
 
-        task = conversations.task_of(chat)
+        from . import forks
+
+        # A fork of a task's chat is that task's work too (`forks.task_above`).
+        task = conversations.task_of(chat) or forks.task_above(chat)
     except Exception:
         log.debug("which task chat %s is could not be read", chat, exc_info=True)
         return brief
@@ -126,7 +129,9 @@ def _task_in_play(chat: str, owner: tuple[str, str] | None) -> str:
     try:
         from . import conversations
 
-        task = conversations.task_of(chat)
+        from . import forks
+
+        task = conversations.task_of(chat) or forks.task_above(chat)
     except Exception:
         log.debug("which task chat %s is could not be read", chat, exc_info=True)
         return ""
@@ -413,6 +418,14 @@ async def start(*, brief: str, title: str = "", preset: str = "",
         from . import trials
 
         stage = await asyncio.to_thread(trials.stage_section, brief)
+        if stage:
+            brief = brief + "\n\n" + stage
+    if preset in ("improve_myself", "delegate_task"):
+        # Anything a person sees is designed by the design standard, in two tiers, one direction, and
+        # landing checks its record (`rouh/design_standard.py`, Petar, 7 November 2026, task 169).
+        from . import design_standard
+
+        stage = design_standard.stage_section(brief)
         if stage:
             brief = brief + "\n\n" + stage
     # A task Rouh made a moment ago, in the turn that is starting this, is on

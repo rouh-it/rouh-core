@@ -2416,9 +2416,13 @@ function taskMark(mk) {
 
 /* Fork, beside Send. Drawn in a chat that has something in it to fork, or
    in a Synapse chat with nothing said in it yet, whose fork still carries
-   the dataset it is made over (`bare`, fr_c933c22b9bef), and pressable once something is typed or attached - the same things Send
-   needs - and not while an answer is being written, when Send is not
-   either. */
+   the dataset it is made over (`bare`, fr_c933c22b9bef), or in a task's
+   chat, or the draft of one, with nothing said in it yet, whose fork is
+   still part of the task (fr_e42a59f37d17: "I imagine I can fork even the
+   first message, because it will keep the main thread clean from the very
+   beginning"); and pressable once something is typed or attached - the
+   same things Send needs - and not while an answer is being written, when
+   Send is not either. */
 function forkBtnPaint() {
   var b = $('forkBtn');
   // Asked from the transcript's own drawing, which can run before the
@@ -2426,8 +2430,9 @@ function forkBtnPaint() {
   if (!b || !CHATS || !ADDR) return;
   var chat = chatById(CHATS.active);
   var t = transcriptEl();
-  var can = !ADDR.front && !!chat && !chat.draft
-    && (FORKS.bare || !!(t && t.querySelector('.turn')));
+  var turns = !!(t && t.querySelector('.turn'));
+  var can = !ADDR.front && !!chat && (chat.draft ? FORKS.bare && !turns
+    : FORKS.bare || turns);
   b.hidden = !can;
   var typed = !!(input && input.value.trim()) || (shared.attached && shared.attached.length > 0);
   b.disabled = !typed || !!S.busy;

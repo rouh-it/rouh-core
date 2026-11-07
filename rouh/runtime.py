@@ -2884,8 +2884,10 @@ def fork_snapshot(active: str, tip: str = "") -> dict:
     """
     # Sent with every list of the chats, so the question "is this a chat" is
     # asked of its row alone: a draft has none, and nothing hangs off a draft.
+    # The draft of a task's chat may still be forked from its first message,
+    # which makes it a chat with nothing in it (`forks.bare`, `forks.make`).
     if not active or conversations.store().get_chat(active) is None:
-        return {"strip": [], "marks": [], "bare": False}
+        return {"strip": [], "marks": [], "bare": bool(active) and forks.bare(active)}
     laid = forks.strip(active, tip)
     strip = []
     if len(laid) > 1:

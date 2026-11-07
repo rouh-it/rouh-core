@@ -371,6 +371,16 @@ Nothing on the page asks for one until the microphone button is pressed, hold-to
 `acquireMic` and `releaseMic` in `rouh/static/app/voice.js` are the only two functions anywhere that may touch a `MediaStream`, and that is the whole of the rule.
 The orb has nothing to do with any of it: it is the picture of what the machine is doing, in both its places, and is never a control for a microphone.
 
+## Everything a person sees follows the design standard
+
+Petar, 7 November 2026 (task 169): every build, gene therapy included, designs what a person sees by one process, v2-full from design test 3, with **one** design direction, never three.
+`rouh/design_standard.py` holds it, and every agent is told it after its agent instructions; a build's brief names it again (`starting.start`).
+
+- **Two tiers, chosen by the agent, never asked.** The full tier is for a new or reworked screen: journeys first (`journeys.md`, in the person's words, always derived and never asked for), then the page structure, the full brief and the must-keep list, one direction built after reading the guide, the skill's `shoot.mjs` at 1440 and 390 px, critic rounds of the corrected critic prompt until no blocker is left (at most 3), and a handoff with tokens. Aim: about 45 to 60 minutes and about 15 dollars a screen, measured. The small tier is for a label, a button, a field or a fix: the same instructions in full, with no critic loop.
+- **The skill is the workspace's, at `.claude/skills/bb-local-design/`, and nowhere else.** `python3 tools/design/record.py skill` finds it. Anthropic's `craft.md` and the design rules of its Design type have no published licence: they are read where they are at run time and are never committed here, in a gene, or in anything the Gene Pool sends. Without them a run uses the Apache-licensed frontend-design skill and Rouh's own rules, and says so.
+- **The record, and the check before landing.** A run keeps its design record with `tools/design/record.py` in `.design/` (never committed). `screens` signs in to a test world and checks each changed screen at 1440 and 390 px, dark and light, for the faults `shoot.mjs` finds. `land.sh` (`design_guard`), and in the containers `bin/rouh-land` before it hands the work to the protected core (`design_check`), does not push a change to `rouh/static/`, `rouh/templates/` or `one/static/` without a record that passes: every journey met, no fault, and on the full tier a critic round with no blocker left and a clean prototype check. A commit that changes those files and shows nothing new says so with a line `Design: none - <why>` in its own message, which covers only that commit's files.
+- **Ask AI and the comment pass** change a page in one model call, so they are told the small tier (`FOR_PAGE_EDITS`) and cannot check widths in a browser.
+
 ## The screenshot comparisons
 
 On 5 October 2026 Petar asked for one committed suite, so that work meant to change nothing on the screen - splitting `app.js` into modules, renaming the static files by their content - can be shown to have changed nothing.

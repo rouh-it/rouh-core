@@ -192,6 +192,13 @@ def land_code(a, path: str) -> int:
         if got.get("already"):
             return say(state="nothing", reason="its commits are already in the code that runs")
         head = git("rev-parse", "HEAD", cwd=path).stdout.strip()
+    # The design standard (rouh/design_standard.py, task 169): a change to the screen goes on only with a
+    # clean design record. The record is in the run's own checkout (.design/record.json, never
+    # committed), so it is read here, in the worker, before the change leaves it; land.sh's
+    # design_guard is the same check where land.sh pushes itself.
+    refused = design_check(path, target)
+    if refused:
+        return say(state="error", sha=head, deployed=False, design=False, reason="Nothing was handed on: " + refused)
     try:
         _, result = hand(PROPOSALS, ["HEAD", f"^{base}"], path,
                          {"why": a.title or "a run's change", "by": f"run {a.run}" if a.run else "a run"})
@@ -209,6 +216,20 @@ def land_code(a, path: str) -> int:
                    reason=f"checked by the protected core and live as undo point {point}")
     return say(state="error", sha=head, deployed=False,
                reason="the protected core did not take it: " + str(got.get("refused") or got.get("error") or "no reason given"))
+
+
+def design_check(path: str, before: str) -> str:
+    """The sentence that refuses a change to the screen without a clean design record, or ""."""
+    if not (Path(path) / "rouh" / "design_standard.py").is_file():
+        return ""
+    if os.environ.get("ROUH_DESIGN_GUARD", "1") != "1":
+        return ""
+    got = subprocess.run([sys.executable, "-m", "rouh.design_standard", "check", "--repo", path, "--before", before,
+                          "--after", "HEAD", "--record", str(Path(path) / ".design" / "record.json")],
+                         cwd=path, capture_output=True, text=True)
+    said = (got.stdout.strip().splitlines() or [""])[-1]
+    print(f"rouh-land: {said}", file=sys.stderr, flush=True)
+    return said if got.returncode == 1 else ""
 
 
 def land_workspace(a, path: str) -> int:

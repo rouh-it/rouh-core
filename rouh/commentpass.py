@@ -88,7 +88,7 @@ from dataclasses import dataclass, field
 
 import anthropic
 
-from . import askai, comments, costs, llmlog, modeldefaults, pagehistory, retrying
+from . import askai, comments, costs, design_standard, llmlog, modeldefaults, pagehistory, retrying
 from .config import effort_for, model_name, takes_effort, thinking_for
 
 log = logging.getLogger("rouh.commentpass")
@@ -160,7 +160,10 @@ SYSTEM = (
     "repeat private detail from the notes, such as money, clients, investors or people, "
     "that the page itself does not show.\n\n"
     "When you have decided every thread, call answer_comments exactly once, with one entry "
-    "for every thread you were given, and write nothing after it.")
+    "for every thread you were given, and write nothing after it."
+    # A version you offer is a change to the page: the design standard's small tier
+    # (`rouh/design_standard.py`), in the same words as Ask AI's.
+    "\n\nWhen you offer one more version of a part of the page:" + design_standard.FOR_PAGE_EDITS.split(":\n", 1)[1])
 
 #: The one tool the model answers with.
 ANSWER_TOOL = {

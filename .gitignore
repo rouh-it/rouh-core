@@ -41,3 +41,9 @@ __pycache__/
 node_modules/
 .stack-test/
 .secrets/
+
+# The record of a design while a screen is built (tools/design/record.py,
+# rouh/design_standard.py): journeys, screenshots and checks, read by land.sh.
+# Never committed, and a copy of the design skill read out of the workspace,
+# whose guide is private, may sit inside it.
+/.design/

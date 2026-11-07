@@ -194,6 +194,15 @@ def _subtask_block(chat_id: str = "") -> str:
     return subtasknotes.prompt_block(chat_id)
 
 
+def _fork_task_block(chat_id: str = "") -> str:
+    """Which task a fork of a task's chat is part of, or ""."""
+    if not chat_id:
+        return ""
+    from . import forks
+
+    return forks.task_block(chat_id)
+
+
 def _task_files_block(chat_id: str = "") -> str:
     """The files uploaded to this chat's task, or ""."""
     if not chat_id:
@@ -869,6 +878,8 @@ class Brain:
                 (40, "The person's goals", "rouh/goals.py", lambda: _goals_block(chat)),
                 # A subtask's parent as background, or a task's notes from its subtasks.
                 (50, "The task's family", "rouh/subtasknotes.py", lambda: _subtask_block(chat)),
+                # A fork of a task's chat says which task it is part of, which it may carry no words of.
+                (55, "The task a fork is part of", "rouh/forks.py", lambda: _fork_task_block(chat)),
                 # The files uploaded to this chat's task: one uploaded mid-conversation is known at once.
                 (60, "The task's files", "rouh/objectindex.py", lambda: _task_files_block(chat)),
                 # A Synapse dataset's own chat says which dataset is open.

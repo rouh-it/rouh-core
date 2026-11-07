@@ -944,6 +944,37 @@ owners_guard() {
   finish 1 state=error landed=false owners=false "reason=$said"
 }
 
+# The design standard. Asked right before every push of work that changes the screen:
+# rouh/static/, rouh/templates/, one/static/ (Petar, 7 November 2026, task 169). Every
+# change a person sees follows one design process in two tiers (rouh/design_standard.py),
+# and the run keeps its record with tools/design/record.py in .design/record.json of
+# its own checkout, never committed. A change to the screen stops here when the record
+# is missing, a journey was missed, the check of the real screens at 1440 and 390 px
+# found a fault (sideways scroll, cut text, a covering panel, a page that draws almost
+# nothing, a script error, a broken image, a request to another site), a full-tier
+# design still has a critic blocker, or the screen's files changed after the check. A
+# commit line "Design: none - <why>" says a change to those files shows nothing new.
+# Standard library only; nothing is pushed and nothing is thrown away.
+design_guard() {
+  local said rc copy
+  gq cat-file -e HEAD:rouh/design_standard.py || return 0
+  [ -n "$PY" ] || return 0
+  [ "$(setting ROUH_DESIGN_GUARD 1)" = "1" ] || return 0
+  copy=$(mktemp -d 2>/dev/null) || fail "nowhere to check the design record"
+  mkdir -p "$copy/rouh" && : >"$copy/rouh/__init__.py"
+  gq show HEAD:rouh/design_standard.py >"$copy/rouh/design_standard.py" 2>/dev/null
+  said=$(cd "$copy" && "$PY" -m rouh.design_standard check --repo "$REPO" --before "$TARGET_REF" \
+    --after HEAD --record "$REPO/.design/record.json" 2>&1); rc="$?"
+  rm -rf -- "$copy"
+  if [ "$rc" = "0" ]; then
+    say "$(printf '%s\n' "$said" | grep . | tail -1)"
+    return 0
+  fi
+  said="Nothing was pushed: $(printf '%s\n' "$said" | grep . | tail -1)"
+  say "$said"
+  finish 1 state=error landed=false design=false "reason=$said"
+}
+
 # How a gene says it was used. Asked right before every push of work that touches
 # Rouh's Python or the gene registry. A gene's trial counts the times its own
 # code says it was used, which never adds up for a gene whose code never says
@@ -1683,6 +1714,7 @@ if [ -n "$ANSWER" ]; then
   host_guard
   genes_guard
   owners_guard
+  design_guard
   signals_guard
   note_landing
   ERR=$(g push -q "$REMOTE" "HEAD:$TARGET" 2>&1)
@@ -1705,7 +1737,7 @@ fi
 if [ "$(setting ROUH_LAND_FIT_ONLY 0)" = "1" ]; then
   STACK_GUARD="0"
   numbers_guard() { :; }; types_guard() { :; }; mail_guard() { :; }; llm_guard() { :; }; host_guard() { :; }
-  genes_guard() { :; }; owners_guard() { :; }; signals_guard() { :; }
+  genes_guard() { :; }; owners_guard() { :; }; signals_guard() { :; }; design_guard() { :; }
   # Nor the record of collisions Rouh keeps: that is Rouh's Python, and the worker is not Rouh.
   conflicts() { return 0; }
 fi
@@ -1830,6 +1862,7 @@ if gq merge-base --is-ancestor "$TARGET_REF" HEAD >/dev/null 2>&1; then
   host_guard
   genes_guard
   owners_guard
+  design_guard
   signals_guard
   note_landing
   ERR=$(g push -q "$REMOTE" "HEAD:$TARGET" 2>&1)
@@ -2293,6 +2326,7 @@ for try in 1 2 3; do
   host_guard
   genes_guard
   owners_guard
+  design_guard
   signals_guard
   note_landing
   PUSH_ERR=$(g push -q "$REMOTE" "HEAD:$TARGET" 2>&1)

@@ -2557,6 +2557,15 @@
     "rouh/promise_watch.py",
     "rouh/mail_promises.py"
    ]
+  },
+  "design-standard": {
+   "name": "The design standard",
+   "what": "Everything a person sees is designed one way, in two tiers chosen by the agent: journeys first, one direction, Anthropic's guide read privately at run time, a check of the screens at 1440 and 390 px, critic rounds on the full tier, and a landing that refuses a change to the screen without a clean record.",
+   "core": true,
+   "files": [
+    "rouh/design_standard.py",
+    "tools/design/**"
+   ]
   }
  }
 }
