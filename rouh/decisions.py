@@ -763,7 +763,8 @@ def lines(who) -> dict:
     got = listing(who)
     waiting = sorted(got["open"], key=line_order)
     return {"open": waiting, "snoozed": got["snoozed"], "going": got["going"],
-            "history": got["history"][:40], "counts": got["counts"], "now": got["now"]}
+            "history": got["history"][:40], "counts": got["counts"], "now": got["now"],
+            "theirs": got["theirs"]}
 
 
 def _events_of(ids) -> dict[int, list]:
@@ -831,6 +832,14 @@ def listing(who, *, history: bool = True) -> dict:
                 .order_by("-resolved_at", "-id")[:HISTORY_MOST]) if history else []
     # What a trusted contact decides is theirs, not his (`delegated`).
     theirs = delegated(who, rows)
+    # Drawn for the page's "Your delegates decide" fold, each with whose it is: shown, never
+    # counted as his (the owner, 7 November 2026, task 62, step 62-27).
+    theirs_drawn = []
+    for r in rows:
+        if r.id in theirs and r.status in ANSWERABLE:
+            d = as_dict(r)
+            d["decider"] = theirs[r.id]
+            theirs_drawn.append(d)
     rows = [r for r in rows if r.id not in theirs]
     events = _events_of([r.id for r in rows + done])
     now = time.time()
@@ -842,7 +851,7 @@ def listing(who, *, history: bool = True) -> dict:
     return {"open": open_, "snoozed": snoozed, "going": going,
             "history": history, "sources": source_names(),
             "arranged": arrange(open_), "counts": counts(who, theirs), "now": now,
-            "delegated": len(theirs)}
+            "delegated": len(theirs), "theirs": theirs_drawn}
 
 
 def _draw_listing_rows(rows, events: dict[int, list], now: float) -> tuple[list, list, list]:

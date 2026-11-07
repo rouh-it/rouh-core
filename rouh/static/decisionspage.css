@@ -1,95 +1,296 @@
-/* The Decisions page (`decisionspage.js`): one column of lines, each a link to
-   where it is decided, the same at every width. Rouh's own tokens and nothing new. */
+/* The Decisions page (`decisionspage.js`): a desk for clearing what waits on the
+   person (task 62, step 62-27). One decision in focus, the queue in lanes by the
+   cost of waiting, a toast with Undo. Rouh's own tokens (app.css): one accent,
+   --warn for what holds work up, --bad only for a risk, always with its words.
+
+   Two panes when the layer is wide enough (a container query on the body, so the
+   layer beside the conversation and the layer full width both work), one column
+   with the card first when it is not. */
 
 .dc-view:focus { outline: none; }
 .dc-wrap { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
-.dc-body { flex: 1 1 auto; min-width: 0; overflow: auto; scrollbar-width: thin; padding: 2px 2px 48px; }
-.dc-page { max-width: 820px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
-
-.dc-bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: flex-end; }
-.dc-bar .dc-find { margin-left: auto; }
-
-/* Each kind's colour: the line's rail and badge, and its chip in the filter. */
-.dl-f-person { --dl-c: #3fc1a5; }
-.dl-f-gene { --dl-c: #b58cff; }
-.dl-f-work { --dl-c: #5ea8ff; }
-.dl-f-approval { --dl-c: #f0b44c; }
-.dl-f-run { --dl-c: #9aa7b8; }
-.dl-f-memory { --dl-c: #f283c0; }
-
-/* Show only one kind. */
-.dc-filter { display: flex; flex-wrap: wrap; gap: 6px; }
-.dc-chip {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 3px 11px; border-radius: 999px;
-  border: 1px solid var(--line); background: transparent; color: var(--dim); font: inherit; font-size: 12.5px;
-  font-weight: 600; cursor: pointer;
+.dc-body {
+  flex: 1 1 auto; min-width: 0; overflow: auto; scrollbar-width: thin; padding: 2px 2px 112px;
+  container-type: inline-size; container-name: dcbody;
 }
-.dc-chip.on { color: var(--text); border-color: var(--dl-c, var(--accent)); background: color-mix(in srgb, var(--dl-c, var(--accent)) 14%, transparent); }
-.dc-chip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dl-c, var(--dim)); flex: none; }
-.dc-chip:not([class*="dl-f-"]) .dc-chip-dot { display: none; }
-.dc-chip-n { font-size: 11px; font-weight: 650; color: var(--dim); }
-.dc-chip.on .dc-chip-n { color: var(--text); }
-/* Find one by its number (42). */
-.dc-find { display: inline-flex; gap: 6px; align-items: center; }
+.dc-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; max-width: 1180px; align-content: start; }
+
+/* Buttons the page draws: the key a desk can press shown on each, hidden on a touch screen. */
+.dc-key {
+  font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #b9c4d4;
+  border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 3px 5px;
+  min-width: 18px; text-align: center; background: var(--bg-2);
+}
+@media (hover: none), (pointer: coarse) { .dc-key, .dc-desk-only { display: none; } }
+
+.dc-tool, .dc-q, .dc-alt, .dc-main, .dc-undo, .dc-ltitle, .dc-rowbtn {
+  font: inherit; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.dc-tool, .dc-q {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 12px;
+  border-radius: 10px; border: 1px solid var(--line); background: transparent; font-size: 13.5px; font-weight: 600;
+  color: var(--dim); text-decoration: none; transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+}
+.dc-tool:hover, .dc-q:hover { color: var(--text); border-color: var(--dim); }
+.dc-tool:active, .dc-q:active { background: var(--panel-2); }
+.dc-q.dc-small { min-height: 32px; padding: 4px 10px; font-size: 12.5px; }
+.dc-q[aria-pressed="true"], .dc-q[aria-expanded="true"], .dc-tool[aria-expanded="true"] { color: var(--text); border-color: var(--dim); background: var(--panel-2); }
+.dc-q:disabled, .dc-alt:disabled, .dc-main:disabled { opacity: .55; cursor: default; }
+:is(.dc-tool, .dc-q, .dc-alt, .dc-main, .dc-undo, .dc-ltitle, .dc-rowbtn, .dc-back):focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.dc-n {
+  font-size: 11.5px; font-weight: 700; color: var(--dim); background: var(--panel-2);
+  border-radius: 999px; padding: 1px 7px; font-variant-numeric: tabular-nums;
+}
+
+/* ---- the top: progress and the ways to the rest ---- */
+.dc-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 16px; align-items: center; }
+.dc-progress { display: grid; gap: 7px; min-width: 0; }
+.dc-progress-words { margin: 0; font-size: 13.5px; color: var(--dim); }
+.dc-progress-words strong { color: var(--text); font-weight: 650; }
+.dc-track { height: 6px; border-radius: 999px; background: var(--panel-2); overflow: hidden; max-width: 420px; }
+.dc-fill { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width .3s ease; }
+.dc-tools { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.dc-find { display: inline-flex; gap: 6px; }
 .dc-find input {
-  width: 13ch; min-height: 30px; padding: 3px 10px; border-radius: 8px; border: 1px solid var(--line);
-  background: var(--panel); color: var(--text); font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1.4; font-variant-numeric: tabular-nums;
+  width: 15ch; min-height: 36px; padding: 4px 10px; border-radius: 10px; border: 1px solid var(--accent);
+  background: var(--panel); color: var(--text); font: inherit; font-size: 14px; font-variant-numeric: tabular-nums;
 }
 .dc-find input::-webkit-search-cancel-button { display: none; }
-.dc-find input::placeholder { color: var(--dim); opacity: .7; }
 .dc-find input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.dc-keys {
+  grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 16px;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+}
+.dc-keyrow { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--dim); }
+.dc-keyrow .dc-key { min-width: 64px; }
+
+/* ---- the desk: the card and the queue ---- */
+.dc-desk { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+@container dcbody (min-width: 760px) {
+  .dc-desk { grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); }
+  .dc-queue { order: -1; }
+  /* Kept in sight while the queue beside it scrolls; scrolls inside itself when it is
+     taller than the window (Show everything open). */
+  .dc-card { position: sticky; top: 0; max-height: calc(100dvh - 150px); overflow: auto; scrollbar-width: thin; }
+}
+
+/* The card in focus. */
+.dc-card {
+  display: grid; gap: 16px; min-width: 0; padding: 20px 22px 18px; border-radius: 16px;
+  border: 1px solid var(--line); background: var(--panel);
+}
+.dc-card:focus { outline: none; }
+.dc-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dc-card-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.dc-kind, .dc-rowkind {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 650; color: var(--dim);
+}
+.dc-kind svg, .dc-rowkind svg { width: 15px; height: 15px; flex: none; }
+.dc-num { font-size: 12.5px; font-weight: 650; color: var(--dim); font-variant-numeric: tabular-nums; }
+.dc-flag {
+  font-size: 12px; font-weight: 650; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim);
+}
+.dc-flag-warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.dc-flag-bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.dc-place { margin-left: auto; font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.dc-what {
+  margin: -4px 0 0; font-size: 22px; line-height: 1.28; font-weight: 680; letter-spacing: -0.01em;
+  overflow-wrap: anywhere; text-wrap: pretty;
+}
+.dc-about { margin: -8px 0 0; font-size: 14px; color: var(--dim); overflow-wrap: anywhere; }
+.dc-facts { margin: 0; display: grid; gap: 10px; }
+.dc-fact { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.dc-fact dt { font-size: 13px; font-weight: 650; color: var(--dim); }
+.dc-fact dd { margin: 0; font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
+.dc-note { margin: 0; font-size: 14px; color: var(--text); }
+
+/* The answers: Rouh's pick as the one big button, the others quieter. */
+.dc-answers { display: grid; gap: 12px; padding-top: 2px; }
+.dc-pick { display: grid; gap: 8px; }
+.dc-main-words { display: grid; gap: 2px; min-width: 0; }
+.dc-pick-k { font-size: 11.5px; font-weight: 700; letter-spacing: .02em; color: color-mix(in srgb, var(--accent-ink) 72%, transparent); }
+.dc-main {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 56px;
+  padding: 10px 14px 10px 18px; border-radius: 12px; border: 1px solid var(--accent); background: var(--accent);
+  color: var(--accent-ink); font-size: 16.5px; font-weight: 700; text-align: left;
+  transition: filter .15s ease, transform .1s ease;
+}
+.dc-main:hover:not(:disabled) { filter: brightness(1.07); }
+.dc-main:active:not(:disabled) { transform: translateY(1px); }
+.dc-main .dc-bt { overflow-wrap: anywhere; }
+.dc-main .dc-key { color: var(--accent-ink); background: color-mix(in srgb, var(--accent-ink) 12%, transparent); border-color: color-mix(in srgb, var(--accent-ink) 30%, transparent); }
+.dc-why { margin: 0; font-size: 13.5px; color: var(--dim); line-height: 1.45; }
+.dc-nopick { margin: 0; font-size: 14px; color: var(--dim); }
+.dc-alts { display: flex; flex-wrap: wrap; gap: 8px; }
+.dc-alt {
+  display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px 8px 14px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--bg-2); font-size: 14.5px; font-weight: 600; text-align: left;
+  max-width: 100%; transition: border-color .15s ease, background-color .15s ease;
+}
+.dc-alt:hover:not(:disabled) { border-color: var(--dim); }
+.dc-alt:active:not(:disabled) { background: var(--panel-2); }
+.dc-alt .dc-bt { overflow-wrap: anywhere; }
+.dc-confirm { display: grid; gap: 10px; padding: 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.dc-confirm-words { margin: 0; font-size: 15px; font-weight: 600; color: var(--text); }
+.dc-confirm .dc-alt { justify-self: start; }
+
+.dc-quietwrap { display: grid; gap: 8px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
+.dc-quietrow, .dc-latermenu { display: flex; flex-wrap: wrap; gap: 8px; }
+.dc-latermenu { padding: 10px; border-radius: 12px; background: var(--bg-2); }
+.dc-later-open .dc-alts .dc-key { visibility: hidden; }
+.dc-less { justify-self: start; }
+.dc-full { border-top: 1px solid var(--line-soft); padding-top: 14px; min-width: 0; }
+/* The whole card inside the desk's card: no rail of its own, and its answers stacked. */
+.dc-full .dq { border: 0; padding: 0; background: transparent; }
+.dc-full .dq::before { display: none; }
+.dc-full .dq-opts { grid-template-columns: minmax(0, 1fr); }
+.dc-full .dq-head, .dc-full .dq-title { display: none; }
+
+/* ---- the queue ---- */
+.dc-queue { display: grid; gap: 14px; min-width: 0; align-content: start; }
+.dc-qhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dc-qtitle { margin: 0; font-size: 13px; font-weight: 700; color: var(--dim); letter-spacing: .02em; }
+.dc-lane { display: grid; gap: 6px; min-width: 0; }
+.dc-lhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.dc-ltitle {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 2px 4px; border: 0; background: none;
+  font-size: 13.5px; font-weight: 700; border-radius: 8px;
+}
+.dc-chev { display: inline-block; width: 14px; color: var(--dim); font-weight: 700; text-align: center; }
+.dc-lane-blocks .dc-ltitle > span:nth-child(2) { color: var(--warn); }
+.dc-lacts { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.dc-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.dc-row { display: flex; align-items: stretch; gap: 6px; min-width: 0; }
+.dc-check { width: 20px; height: 20px; margin: 12px 2px 0 4px; flex: none; accent-color: var(--accent); }
+.dc-rowbtn {
+  flex: 1 1 auto; min-width: 0; display: grid; gap: 3px; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid transparent; background: transparent; text-align: left; min-height: 44px;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.dc-rowbtn:hover { background: var(--panel); }
+.dc-row.on .dc-rowbtn { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.dc-rowtop { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.dc-rowkind { font-size: 12px; }
+.dc-rowkind svg { width: 13px; height: 13px; }
+.dc-rownum { font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.dc-times { font-size: 11.5px; font-weight: 700; color: var(--text); background: var(--panel-2); border-radius: 999px; padding: 1px 7px; }
+.dc-risk { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 650; color: var(--dim); }
+.dc-risk::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--bad); }
+.dc-rowwhat {
+  font-size: 14px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.dc-rowsub { font-size: 12.5px; color: var(--dim); overflow-wrap: anywhere; }
+.dc-bulk {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--line)); background: var(--panel);
+}
+.dc-bulk-n { font-size: 13px; font-weight: 650; margin-right: auto; }
+
+/* Folds under the queue: put off, and what delegates decide. */
+.dc-fold { border-top: 1px solid var(--line-soft); padding-top: 8px; }
+.dc-fold > summary {
+  display: flex; align-items: center; gap: 8px; min-height: 36px; cursor: pointer; list-style: none;
+  font-size: 13.5px; font-weight: 700; color: var(--dim); border-radius: 8px; padding: 0 4px;
+}
+.dc-fold > summary::-webkit-details-marker { display: none; }
+.dc-fold > summary::before { content: '+'; width: 14px; text-align: center; }
+.dc-fold[open] > summary::before { content: '\2212'; }
+.dc-fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dc-mini { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; }
+.dc-minirow { display: flex; align-items: center; gap: 10px; padding: 6px 4px 6px 26px; min-width: 0; }
+.dc-minimain { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.dc-minititle { font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
+.dc-minisub { font-size: 12.5px; color: var(--dim); }
+
+/* ---- nothing waits ---- */
+.dc-done { display: grid; justify-items: center; gap: 10px; text-align: center; padding: 56px 16px 24px; }
+.dc-done-mark {
+  width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--good); position: relative; margin-bottom: 6px;
+}
+.dc-done-mark::after {
+  content: ''; position: absolute; left: 19px; top: 13px; width: 12px; height: 22px;
+  border: solid var(--good); border-width: 0 3px 3px 0; transform: rotate(45deg);
+}
+.dc-done-title { margin: 0; font-size: 22px; font-weight: 680; }
+.dc-done-line { margin: 0; font-size: 15px; color: var(--dim); max-width: 46ch; }
+.dc-after { width: 100%; max-width: 520px; text-align: left; margin-top: 12px; display: grid; gap: 4px; }
+
+/* ---- decided lately ---- */
+.dc-hhead { display: flex; gap: 8px; }
+.dc-hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-width: 860px; }
+.dc-hrow {
+  display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--panel); min-width: 0;
+}
+.dc-hmain { display: grid; gap: 4px; flex: 1 1 auto; min-width: 0; }
+.dc-htop { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12.5px; color: var(--dim); }
+.dc-hwho { font-weight: 700; color: var(--text); }
+.dc-htitle { font-size: 14.5px; font-weight: 600; overflow-wrap: anywhere; }
+.dc-hsaid { font-size: 13.5px; color: var(--dim); overflow-wrap: anywhere; }
+.dc-hacts { display: flex; gap: 6px; flex: none; }
+
+/* ---- the toast ---- */
+.dc-toast {
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 5;
+  display: flex; align-items: center; gap: 12px; max-width: min(560px, calc(100% - 24px));
+  padding: 8px 8px 8px 16px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .45); font-size: 14px; animation: dc-up .2s ease;
+}
+.dc-toast-words { overflow-wrap: anywhere; }
+.dc-undo {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 12px; border-radius: 9px;
+  border: 1px solid var(--accent); background: transparent; color: var(--accent); font-weight: 700; flex: none;
+}
+.dc-count { font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--dim); min-width: 1ch; }
+@keyframes dc-up { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .dc-toast { animation: none; }
+  .dc-fill, .dc-main, .dc-rowbtn, .dc-tool, .dc-q, .dc-alt { transition: none; }
+}
 
 .dc-quiet { margin: 6px 2px; color: var(--dim); font-size: 14px; }
 .dc-error { margin: 0; color: var(--bad); font-size: 14px; }
-.dc-back { justify-self: start; color: var(--dim); text-decoration: none; font-size: 13.5px; font-weight: 600; padding: 4px 0; }
+.dc-back { justify-self: start; color: var(--dim); text-decoration: none; font-size: 13.5px; font-weight: 600; padding: 8px 0; }
 .dc-back:hover { color: var(--text); text-decoration: underline; }
-.dc-toggle .dl-list { margin-left: -19px; }
-
-/* A line: what it is, what a yes does, what waiting costs, its tags and Rouh's word. */
-.dl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
-.dl { min-width: 0; }
-.dl-a {
-  display: grid; gap: 5px; min-width: 0; padding: 12px 14px; border-radius: 14px;
-  border: 1px solid var(--line); border-left: 4px solid var(--dl-c, var(--line)); background: var(--panel);
-  color: var(--text); text-decoration: none;
-  transition: border-color .15s ease, background-color .15s ease;
-}
-.dl-a:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
-.dl-a:active { background: var(--panel-2); }
-.dl-a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.dl-top { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
-.dl-kind {
-  display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 7px; border-radius: 999px;
-  font-size: 12px; font-weight: 700; color: var(--dl-c, var(--dim));
-  background: color-mix(in srgb, var(--dl-c, var(--dim)) 14%, transparent);
-}
-.dl-kind svg { width: 14px; height: 14px; flex: none; }
-.dl-what { font-size: 15px; font-weight: 640; line-height: 1.35; overflow-wrap: anywhere; min-width: 0; }
-.dl-about { font-size: 13.5px; color: var(--text); opacity: .9; line-height: 1.4; overflow-wrap: anywhere; }
-.dl-row { display: block; font-size: 13.5px; line-height: 1.4; color: var(--text); overflow-wrap: anywhere; }
-.dl-k { color: var(--dim); font-weight: 600; margin-right: 6px; }
-.dl-held .dl-v { color: var(--warn); }
-.dl-ended { color: var(--dim); }
-.dl-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
-.dl-tag {
-  font-size: 11.5px; font-weight: 600; color: var(--dim); padding: 1px 8px; border-radius: 999px;
-  border: 1px solid var(--line-soft, var(--line)); overflow-wrap: anywhere;
-}
-.dl-rec { margin-left: auto; font-size: 12.5px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
-.dl-rec .dl-k { margin-right: 0; }
-.dl-done .dl-a { background: transparent; }
 
 /* The count on the sidebar's row: a number, red when something is urgent. */
 #decisionsHint:not(:empty) { font-weight: 650; }
 #decisionsRow.urgent #decisionsHint { color: var(--bad); }
 
+/* A phone: the card first, full width, big targets; the toast clear of Rouh's orb. */
 @media (max-width: 560px) {
-  .dc-page { gap: 12px; }
-  .dc-chip { min-height: 36px; }
-  .dc-find input { min-height: 40px; font-size: 16px; width: 13ch; }
-  .dc-find .ctl { min-height: 40px; }
-  .dl-a { padding: 12px; }
-  .dl-rec { margin-left: 0; flex-basis: 100%; }
+  .dc-page { gap: 14px; }
+  .dc-head { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .dc-tools { justify-content: flex-start; flex-wrap: nowrap; }
+  .dc-key, .dc-desk-only { display: none; }
+  .dc-tool, .dc-q { min-height: 44px; }
+  .dc-tools .dc-tool { flex: 1 1 0; justify-content: center; }
+  .dc-q.dc-small { min-height: 40px; }
+  .dc-card { padding: 16px; gap: 14px; border-radius: 14px; }
+  .dc-what { font-size: 20px; }
+  .dc-fact { grid-template-columns: 92px minmax(0, 1fr); gap: 10px; }
+  .dc-fact dt { font-size: 12.5px; }
+  .dc-fact dd { font-size: 14.5px; line-height: 1.4; }
+  .dc-facts { gap: 8px; }
+  .dc-about { font-size: 13.5px; }
+  .dc-main { min-height: 60px; font-size: 17px; }
+  .dc-card-top .dc-place { margin-left: 0; }
+  /* Rouh's menu button sits at the bottom left of a phone, always: the card's lower buttons
+     start to its right, so none is ever under it, at rest or scrolled. */
+  .dc-answers, .dc-quietwrap, .dc-less { margin-left: 52px; }
+  .dc-answers { gap: 10px; }
+  .dc-alt { min-height: 48px; flex: 1 1 auto; }
+  .dc-find input { font-size: 16px; min-height: 44px; }
+  .dc-toast { left: 88px; right: 12px; transform: none; max-width: none; justify-content: space-between; }
+  @keyframes dc-up { from { opacity: 0; } to { opacity: 1; } }
+  /* Its buttons on the right, clear of Rouh's menu button at the bottom left. */
+  .dc-hrow { flex-direction: column; }
+  .dc-hacts { align-self: flex-end; }
+  .dc-minirow { flex-wrap: wrap; }
+  .dc-minirow > .dc-q { margin-left: auto; }
 }
 
 /* The Control Room's way to it, with the count. */

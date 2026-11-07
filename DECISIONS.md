@@ -131,12 +131,28 @@ So every decision has a plain `number`, starting at 1 for each person and going 
 `decision.js` is the only drawing of a question: where it came from and its context, how soon and how risky, the question and why, what Rouh prepared, Rouh's recommendation and its reason, the answers as large buttons with what each means, Something else, what happens next, and Later (an hour, this evening, tomorrow morning, next week), "Rouh, decide this one", Dismiss and Show me the context.
 After an answer it says what was answered, by whom and where, counts down with Undo, then says what the source said.
 
-- **The Decisions page**, `/decisions`: from the sidebar's Decisions row, with its count (red when one is urgent), and from the Control Room's header. Since 18 October 2026 it is a short list of lines, with no decision drawn on it; see "A line each" below. `/decisions/<number>` (which a Telegram links to) opens the item's own page when its source has one, in place of that address, and otherwise draws that one decision in full on a page of its own.
+- **The Decisions page**, `/decisions`: from the sidebar's Decisions row, with its count (red when one is urgent), and from the Control Room's header. Since 7 November 2026 it is a desk for clearing them, one decision in focus at a time; see "The desk" below (it replaced "A line each", kept below as the record). `/decisions/<number>` (which a Telegram links to) opens the item's own page when its source has one, in place of that address, and otherwise draws that one decision in full on a page of its own.
 - **In place**, the same card: on a task's page and a goal step's page (sandboxed, so every press goes up through Rouh's page, `taskDecision` in `app/cards.js`), on the Heartbeat page and a quest's page for their approvals, and on a run's card for its question.
 - **Telegram**: a new question that is urgent and whose source does not tell the phone itself (approvals, runs and conflicts already do) drops in on his screen first as a notification that carries it, answerable there (`rouh/notices.py`, since 10 October 2026), and goes to Telegram once if that notification is left untouched, with a button for each answer when they are few and short, Later, and its address; the buttons come off once it is answered anywhere.
 - **Voice and chat**: Rouh's `decisions` tool (list, read, answer, later, delegate), and the protected built-in rule "decisions" on the Rules page (`rouh/builtin_rules_seed.py`), so "what is waiting on me" is answered from the one list.
 
+## The desk
+
+Petar, 7 November 2026 (task 62, step 62-27): "This is definitely something I avoid always ... redesign the page to serve me fully and quickly and easily and intuitively."
+So the page is no longer a list of links to other pages: it is a desk where a decision is answered in one press, the way an inbox is cleared one message at a time.
+
+- **One decision in focus** (`decisionspage.js`): its kind and number, what it is, what a yes does, what waiting costs, and Rouh's pick as the one big button with its reason under it; the other answers quieter beside it; Later (with when), You decide, Open (its own page, as the line used to), Dismiss where its source allows it, and Show everything, which draws the whole card (`decision.js`) in place for items one by one, his own words or several answers. A pick that spends, sends, publishes or cannot be undone asks once more, naming the risk.
+- **An answer moves to the next one** by itself, and a toast keeps Undo for `UNDO_SECONDS`; Later and You decide get the same toast (Later is undone with `wake`).
+- **The queue in lanes** by the cost of waiting: Holding work up (it blocks something, is urgent, or failed), Due soon (dated, today, or gated), When you have a minute, Can wait (whenever, and Synapse), Probably stale (`stale`). Can wait and Probably stale start folded, each with "Rouh decides N" (only what can be changed later and has a pick) and "Later, all". Inside a lane the server's order (`line_order`) is kept. Under the lanes, folded: Put off (with Bring back) and Your delegates decide (`lines()["theirs"]`, shown and never counted as his).
+- **Repeats folded**: decisions of the same source with the same words and answers are one row, "asked 4 times", and one answer goes to every copy; Decided lately folds them the same way. The page counts answers to give ("11 answers to give, about 2 min") and the line under its name says how many decisions wait, the number on the sidebar's row and on Now.
+- **Keys on a desk**, shown on each button and listed under "?": j and k to move, y or Enter for the pick, 1 to 9 for the other answers, s then 1 to 4 for Later, d you decide, o open, e everything, x select, u undo, / a number, Escape to close what is open. They act only while the page is open and nothing is being typed. On a phone the keys are hidden and every target is at least 44 px.
+- **Select** (x, or the Select button): several at once, then Rouh decides or Later.
+- **Decided lately**: who decided (you, Rouh for you, a delegate, closed by itself), where (Telegram, voice), when and what came back, with Undo or Open again while allowed.
+- **When nothing waits** the page says so as a finished thing: answers given today, when the first put-off one comes back, what delegates hold.
+
 ## A line each
+
+**Replaced (7 November 2026, by "The desk" above):** what follows was the page from 18 October to 7 November 2026. What a line says (`line_of`) is still the data each decision carries and what Rouh's tool reads out; the page draws it on the desk's card.
 
 Petar, 18 October 2026, approving it with "Do it": the Decisions page becomes a short list of lines, and each line is one link to the item's own page, where the real decision is made with everything there is to know.
 The generic boxes and their buttons are gone from the page, and so is a batch line such as "Mutations, 10 in one".
