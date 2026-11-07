@@ -61,6 +61,11 @@ class IncubatorIdea(models.Model):
     #: The stars, 1 to 3: the ones Rouh suggests, and the person's own, which win when set.
     stars_suggested = models.IntegerField(null=True, blank=True)
     stars_mine = models.IntegerField(null=True, blank=True)
+    #: What Rouh wrote to bring a reader up to speed (`rouh/incubator_gist.py`), written once and kept:
+    #: {"line", "problem", "helps", "in_use", "vision", "size", "size_why", "alike": [numbers], "for",
+    #: "at", "model"}. "for" is a fingerprint of the words it was written from, so a changed title or
+    #: text is summed up again; never the idea's own words, which are never changed.
+    gist = models.JSONField(default=dict, blank=True)
     #: When Rouh last scored it, and with which model.
     scored_at = models.FloatField(null=True, blank=True)
     scored_model = models.TextField(blank=True, default="")
@@ -87,7 +92,7 @@ class IncubatorEvent(models.Model):
     by = models.TextField(blank=True, default="")
     #: added, imported, edited, status, category, merged, linked, go, request, built; and for its score
     #: scored (Rouh scored it), stars, part (a part set by hand) and proposed_again (the nightly run
-    #: proposed it again, which counts as demand).
+    #: proposed it again, which counts as demand); and feedback (the person's feedback, in `note`).
     what = models.TextField()
     before = models.JSONField(default=dict, blank=True)
     after = models.JSONField(default=dict, blank=True)

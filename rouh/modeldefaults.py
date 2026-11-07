@@ -437,6 +437,13 @@ USES: tuple[Use, ...] = (
         "Writes each Incubator idea's score parts, impact, confidence, frequency, pain, clarity and "
         "risk, each with a one-line reason, and suggests its stars; never a part or stars you set.",
         purposes=("incubator_score",)),
+    # Petar, 7 November 2026: titles are too short to grasp an idea, so each is summed up once, in a line,
+    # its problem, who it helps, what it looks like in use, its vision, its size and its lookalikes
+    # (`rouh/incubator_gist.py`), kept on the idea and never written again on each view.
+    Use("incubator_gist", "Genes", "Summing up the Incubator's ideas",
+        "Writes each Incubator idea's one-line summary, its problem, who it helps, what it looks like in "
+        "use, its vision and size, and names the ideas that are the same; once per idea, never its words.",
+        purposes=("incubator_gist",)),
     # Petar, 4 November 2026: Trials (`rouh/trials/`). A made-up person tries each change a person will
     # see, one step at a time, on the Smart tier, and the problems they name are matched against the list.
     Use("trial_tester", "Genes", "Trials tester",

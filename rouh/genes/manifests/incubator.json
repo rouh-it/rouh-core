@@ -29,7 +29,9 @@
       "hands an idea to Gene therapy as a feedback only when the person sets it to Go, where the same converter as every feedback writes its feature request and starts its run when the board builds by itself",
       "reads the workspace to import ideas when asked (rouh-incubator import), and renames each imported task and step with \" [in incubator]\" through the rename a person's own uses",
       "keeps one chat of the person's for the Incubator, in which the model is told what the list holds",
-      "scores every idea with the model on \"Scoring the Incubator's ideas\" (impact, confidence, frequency, pain, clarity and risk, each with a reason, and suggested stars), from its words, category, status, sources and links, never changing its words or a part or stars the person set"
+      "scores every idea with the model on \"Scoring the Incubator's ideas\" (impact, confidence, frequency, pain, clarity and risk, each with a reason, and suggested stars), from its words, category, status, sources and links, never changing its words or a part or stars the person set",
+      "sums every idea up once with the model on \"Summing up the Incubator's ideas\" (a plain line, its problem, who it helps, what it looks like in use, its vision, its size and the ideas that are the same), kept on the idea and never its words",
+      "keeps one chat for each idea the person opens it from, kept with the idea by its number, in which the model is told that idea whole, and the person's feedback in the idea's history and notes"
     ],
     "accounts": [],
     "tables": [
@@ -38,9 +40,10 @@
     ],
     "jobs": [
       "every fifteen minutes: ideas handed to Gene therapy moved to In build and Built as their requests are (incubator.follow_everyone)",
-      "as ideas are added, and every fifteen minutes for any idea without a score: Rouh scores them in batches (incubator_score.queue, incubator_score.sweep)"
+      "as ideas are added, and every fifteen minutes for any idea without a score: Rouh scores them in batches (incubator_score.queue, incubator_score.sweep)",
+      "as ideas are added, and every fifteen minutes for any idea without a summary or whose words changed: Rouh sums them up in batches, those still to decide first (incubator_gist.write, incubator_gist.sweep)"
     ],
-    "remove": "Delete this manifest, rouh/incubator.py, rouh/incubator_import.py, rouh/incubator_score.py and its use in modeldefaults.py and model_standard.json, rouh/web/incubator.py, rouh/models/incubator.py, incubatorpage.js and incubatorpage.css, bin/rouh-incubator, the incubator tools in tools.py, the Incubator's chat block in brain.py, its page in evolutionpage.js and its addresses, and drop the tables incubator_ideas and incubator_events with a migration."
+    "remove": "Delete this manifest, rouh/incubator.py, rouh/incubator_import.py, rouh/incubator_score.py and rouh/incubator_gist.py and their uses in modeldefaults.py and model_standard.json, rouh/web/incubator.py, rouh/models/incubator.py, incubatorpage.js and incubatorpage.css, bin/rouh-incubator, the incubator tools in tools.py, the Incubator's chat block in brain.py, its page in evolutionpage.js and its addresses, and drop the tables incubator_ideas and incubator_events with a migration (the gist column with them)."
   },
   "uses": {
     "tools": [

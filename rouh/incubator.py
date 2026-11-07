@@ -273,7 +273,7 @@ def _preview(text: str) -> str:
 def view(row, *, full: bool = False, codes: dict | None = None, back: dict | None = None) -> dict:
     """One idea as the page draws it. `codes` maps a row id to its INC code, for the merged-into link;
     `back` is how often it came back (`incubator_score.came_back`), for its score's breakdown."""
-    from . import incubator_score
+    from . import incubator_gist, incubator_score
     out = {
         "id": row.id, "number": row.number, "code": code(row.number), "title": row.title,
         "kind": row.kind, "kind_name": KIND_NAMES.get(row.kind, row.kind), "gene": row.gene,
@@ -291,6 +291,10 @@ def view(row, *, full: bool = False, codes: dict | None = None, back: dict | Non
         # Its score, worked out from its parts, with the stars (`rouh/incubator_score.py`).
         **incubator_score.view_parts(row),
         "came_back": back if back is not None else {},
+        # What Rouh wrote to get a reader up to speed, once (`rouh/incubator_gist.py`), and the ideas it
+        # looks like, filled in by `listing` and `one` when they are asked for.
+        "gist": incubator_gist.view(row),
+        "alike": [],
     }
     if row.merged_into:
         out["merged_into"] = {"id": row.merged_into, "code": (codes or {}).get(row.merged_into, "")}
@@ -320,8 +324,9 @@ def facts() -> dict:
 
 def listing(who, *, q: str = "", status=None, category=None, kind=None, source=None, tag: str = "",
             since: float | None = None, until: float | None = None, sort: str = "number",
-            limit: int = 0, merged: bool = True) -> list[dict]:
-    """The person's ideas, filtered. Each filter may be one value or a list of them."""
+            limit: int = 0, merged: bool = True, alike: bool = False) -> list[dict]:
+    """The person's ideas, filtered. Each filter may be one value or a list of them. With `alike`, each
+    idea says the ideas it looks like and has not been joined to (`incubator_gist.lookalikes`)."""
     rows = _rows(who)
 
     def many(v):
@@ -363,6 +368,8 @@ def listing(who, *, q: str = "", status=None, category=None, kind=None, source=N
     codes = _codes(who) if any(r.merged_into for r in found) else {}
     back = incubator_score.came_back(who, found)
     out = [view(r, codes=codes, back=back.get(r.id)) for r in found]
+    if alike:
+        _alike_into(who, out)
     if by_score:
         # Highest first; "-impact" is lowest first. An idea not scored yet goes last either way.
         key, low = sort.lstrip("-"), sort.startswith("-")
@@ -383,6 +390,19 @@ def score_key(v: dict, key: str):
     if key == "stars":
         return v.get("stars")
     return ((v.get("parts") or {}).get(key) or {}).get("v")
+
+
+def _alike_into(who, ideas: list[dict]) -> None:
+    """Each idea's lookalikes, by number, with what the page needs to name them."""
+    from . import incubator_gist
+
+    rows = list(_rows(who))
+    near = incubator_gist.lookalikes(who, rows, apart=prefs(who).get("apart") or ())
+    by_number = {r.number: r for r in rows}
+    for v in ideas:
+        v["alike"] = [{"number": h["number"], "code": code(h["number"]), "why": h["why"],
+                       "title": by_number[h["number"]].title, "status": by_number[h["number"]].status}
+                      for h in near.get(v["id"], []) if h["number"] in by_number]
 
 
 def counts(who) -> dict:
@@ -412,6 +432,10 @@ def one(who, ident) -> dict:
     out["merged_here"] = [{"id": r.id, "code": code(r.number), "title": r.title, "source_name":
                            SOURCE_NAMES.get(r.source, r.source), "ref": r.ref}
                           for r in _rows(who).filter(merged_into=row.id).order_by("number")]
+    _alike_into(who, [out])
+    # What the person said about it, newest first, kept with the idea (`feedback`), and its own chat.
+    out["feedback"] = [h for h in reversed(out["history"]) if h["what"] == "feedback"]
+    out["chat"] = chat_id_for_idea(who, row.number)
     return out
 
 
@@ -542,6 +566,22 @@ def merge(who, ident, into, *, by: str = "you") -> dict:
 
     incubator_score.queue(who, target.id)
     return view(row, codes={target.id: code(target.number)})
+
+
+def feedback(who, ident, text: str, *, by: str = "you") -> dict:
+    """The person's feedback on an idea: kept in its history, and added to its notes with the day, so
+    Gene therapy, the scorer and the chats read it with the idea. Its original words never change."""
+    row = find(who, ident)
+    text = str(text or "").strip()
+    if not text:
+        raise Refused("Write the feedback first.")
+    text = text[:4000]
+    day = time.strftime("%d %b %Y", time.localtime()).lstrip("0")
+    row.notes = (row.notes + "\n\n" if row.notes else "") + f"Feedback, {day}: {text}"
+    row.updated_at = time.time()
+    row.save(update_fields=["notes", "updated_at"])
+    _event(who, row.id, "feedback", by=by, note=text)
+    return view(row)
 
 
 def link(who, ident, *, kind: str = "link", label: str = "", href: str = "", path: str = "",
@@ -749,15 +789,53 @@ def ensure_chat(who) -> str:
     return cid
 
 
+#: One idea's own chat is the Incubator's chat id with this and the idea's number after it.
+IDEA_CHAT = "--inc-"
+
+
+def chat_id_for_idea(who, number) -> str:
+    return f"{chat_id_for(who)}{IDEA_CHAT}{int(number)}"
+
+
+def ensure_idea_chat(who, ident) -> str:
+    """One idea's own chat, kept with it by its number, made if it is not there yet."""
+    from . import conversations
+
+    row = find(who, ident)
+    cid = chat_id_for_idea(who, row.number)
+    conversations.ensure_chat(cid, title=f"{CHAT_TITLE} {code(row.number)} {row.title}"[:120])
+    return cid
+
+
 def prompt_block(chat_id: str) -> str:
     """In the Incubator's own chat: that it is, and what the list holds now. "" in any other chat."""
     if not str(chat_id or "").startswith("incubator-"):
         return ""
     from .tenancy import Tenancy
 
-    who = Tenancy().identity_of(str(chat_id)[len("incubator-"):])
+    rest = str(chat_id)[len("incubator-"):]
+    number = None
+    if IDEA_CHAT in rest:
+        rest, _, tail = rest.partition(IDEA_CHAT)
+        number = int(tail) if tail.isdigit() else None
+    who = Tenancy().identity_of(rest)
     if who is None:
         return ""
+    about = ""
+    if number is not None:
+        try:
+            v = one(who, number)
+        except NotFound:
+            v = None
+        if v is not None:
+            g = v.get("gist") or {}
+            summary = " ".join(f"{name}: {g[k]}" for k, name in (("line", "In a line"), ("problem", "Problem"),
+                               ("helps", "Who it helps"), ("in_use", "In use"), ("vision", "Vision")) if g.get(k))
+            about = (f" This chat is about one idea, {v['code']}, kept with it: the person opened it from that idea's "
+                     "page to talk it through, give feedback or decide it. Say what you think plainly, ask what is "
+                     "unclear, and when the person gives feedback worth keeping, add it at the end of the idea's notes with "
+                     "incubator_edit, keeping every note already there word for word. " + (summary + " " if summary else "") + "The idea now:\n"
+                     + detail_for_model(v, most=8000))
     c = counts(who)
     by_status = ", ".join(f"{STATUS_NAMES[s]} {c['status'].get(s, 0)}" for s in STATUS_IDS if c["status"].get(s))
     return ("This chat is the Incubator's own chat, beside its page in Evolution: the one list of ideas for "
@@ -773,7 +851,7 @@ def prompt_block(chat_id: str) -> str:
             "Clarity ×0.9-1 and Risk ÷1-1.5, and no part for effort. The list sorts highest first. Read a score "
             "with incubator_read, and when the person gives a part or stars, set it with incubator_score; a part "
             "or stars set by hand are never changed by a re-score. "
-            f"The list now: {c['all']} ideas ({by_status or 'none yet'}).")
+            f"The list now: {c['all']} ideas ({by_status or 'none yet'})." + about)
 
 
 # --- the words the model reads ------------------------------------------------------------------------
@@ -799,6 +877,9 @@ def line_for_model(v: dict) -> str:
 
 def detail_for_model(v: dict, *, most: int = 30_000) -> str:
     lines = [line_for_model(v)]
+    g = v.get("gist") or {}
+    if g.get("line"):
+        lines.append(f"In a line (Rouh's summary): {g['line']}")
     if v.get("tags"):
         lines.append("Tags: " + ", ".join(v["tags"]))
     if v.get("notes"):
@@ -822,4 +903,4 @@ def detail_for_model(v: dict, *, most: int = 30_000) -> str:
 
 
 __all__ = ["CATEGORIES", "PREFIX", "STATUSES", "SOURCES", "NotFound", "Refused", "add", "bulk", "counts",
-           "edit", "find", "follow", "go", "link", "listing", "merge", "one", "set_status"]
+           "edit", "feedback", "find", "follow", "go", "link", "listing", "merge", "one", "set_status"]

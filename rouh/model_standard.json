@@ -708,6 +708,24 @@
         ]
       }
     },
+    "incubator_gist": {
+      "tier": "smart",
+      "why": "What the person reads to decide an idea; once per idea, a few dozen requests when every idea is summed up, then one per new idea.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
     "trial_tester": {
       "tier": "smart",
       "why": "A trial is only as good as the person it plays: one call a step, a few dozen a trial, only for changes a person sees.",

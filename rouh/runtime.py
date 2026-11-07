@@ -438,6 +438,14 @@ async def _evolution_loop() -> None:
                 await incubator_score.sweep(owner)
         except Exception:  # noqa: BLE001 - tried again on the next beat
             log.exception("the Incubator's scores could not be swept")
+        try:
+            # And any idea still without its summary is summed up, those to decide first (`rouh/incubator_gist.py`).
+            from . import incubator_gist
+
+            if owner is not None:
+                await incubator_gist.sweep(owner)
+        except Exception:  # noqa: BLE001 - tried again on the next beat
+            log.exception("the Incubator's summaries could not be swept")
         await asyncio.sleep(EVOLUTION_EVERY)
 
 

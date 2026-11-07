@@ -2139,6 +2139,8 @@
     "rouh/migrations/0227_incubator.py",
     "rouh/migrations/0230_incubator_score.py",
     "rouh/incubator_score.py",
+    "rouh/incubator_gist.py",
+    "rouh/migrations/0243_incubator_gist.py",
     "bin/rouh-incubator"
    ]
   },

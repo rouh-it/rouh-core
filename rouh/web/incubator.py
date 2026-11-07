@@ -15,6 +15,9 @@
     POST /api/incubator/prefs                the page's own settings: columns, order, widths, sort, saved views,
                                              and the filters: labels chosen and hidden, dates, search, view
     POST /api/incubator/chat                 the Incubator's own chat, made if it is not there yet
+    POST /api/incubator/<n>/chat             one idea's own chat, kept with it, made if it is not there yet
+    POST /api/incubator/<n>/feedback         {"text"}: the person's feedback, kept in its history and notes
+    POST /api/incubator/gists                write every missing summary now, in the background
 
     GET/POST /internal/incubator             the same from a job, a run or a terminal on this machine
                                              (`bin/rouh-incubator`), for the installation's one person
@@ -50,12 +53,12 @@ def _refused(exc):
 def _everything(me) -> dict:
     from rouh import incubator
 
-    from rouh import incubator_score
+    from rouh import incubator_gist, incubator_score
 
     incubator.follow(me)
-    return {"ok": True, "ideas": incubator.listing(me), "counts": incubator.counts(me),
+    return {"ok": True, "ideas": incubator.listing(me, alike=True), "counts": incubator.counts(me),
             "facts": incubator.facts(), "prefs": incubator.prefs(me), "chat": incubator.chat_id_for(me),
-            "scoring": incubator_score.progress_of(me)}
+            "scoring": incubator_score.progress_of(me), "gists": incubator_gist.progress_of(me)}
 
 
 @only("GET")
@@ -249,6 +252,42 @@ async def chat(request: HttpRequest):
     if me is None:
         return refuse("Sign in first.", 401)
     return answer({"ok": True, "chat": await asyncio.to_thread(incubator.ensure_chat, me)}, headers=NO_STORE)
+
+
+@only("POST")
+async def idea_chat(request: HttpRequest, number: int):
+    """One idea's own chat, made if need be: the page opens it beside the idea."""
+    from rouh import incubator
+
+    me = await _me(request)
+    if me is None:
+        return refuse("Sign in first.", 401)
+    try:
+        cid = await asyncio.to_thread(incubator.ensure_idea_chat, me, number)
+    except incubator.NotFound as exc:
+        return refuse(str(exc), 404)
+    return answer({"ok": True, "chat": cid}, headers=NO_STORE)
+
+
+@only("POST")
+async def feedback(request: HttpRequest, number: int):
+    from rouh import incubator
+
+    me = await _me(request)
+    if me is None:
+        return refuse("Sign in first.", 401)
+    text = str(body_of(request).get("text") or "")
+    return await _change(me, lambda: (incubator.feedback(me, number, text, by="you"), incubator.one(me, number))[1])
+
+
+@only("POST")
+async def gists(request: HttpRequest):
+    from rouh import incubator_gist
+
+    me = await _me(request)
+    if me is None:
+        return refuse("Sign in first.", 401)
+    return answer({"ok": True, "gists": await incubator_gist.start_all(me)}, headers=NO_STORE)
 
 
 # --- rouh-incubator, from this machine -----------------------------------------------------------

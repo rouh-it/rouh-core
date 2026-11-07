@@ -526,6 +526,15 @@ async def _drain() -> None:
                 await score(who, sorted(ids))
             except Exception:  # noqa: BLE001 - the beat tries again
                 log.exception("the Incubator's new ideas could not be scored")
+            try:
+                # And summed up, once, for the list's line and its preview (`rouh/incubator_gist.py`).
+                from . import incubator_gist
+
+                missing = set(await asyncio.to_thread(incubator_gist.missing_ids, who))
+                if missing & set(ids):
+                    await incubator_gist.write(who, sorted(missing & set(ids)))
+            except Exception:  # noqa: BLE001 - the beat tries again
+                log.exception("the Incubator's new ideas could not be summed up")
 
 
 def start() -> None:
