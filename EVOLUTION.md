@@ -196,6 +196,15 @@ A new version built from a mutation is a version he has not seen, so it comes to
 Migration 0191 counted a version as reviewed when its history had a decision of his (`by` "person"; Try it now's `tried` is not one), at the time and kind of the latest.
 A gene the data settles before he looks at it leaves New for Passed or Failed as before.
 
+**The journeys first** (Petar, 7 November 2026: "Next I want you to look and fix the mutations pages. Make the journeys first and then pass it on for redesign and restructuring.").
+Mutations was redesigned around eight journeys, in order of how often: what is new for me to look at; decide about a new gene; where does everything stand; is the change I asked for being built; how is this gene doing; change my mind about a gene that ended; find one gene; see what was built when and every gene in Rouh.
+So every list view opens with one sentence of what waits for him ("3 new genes wait for your first look. 2 on trial, 1 change of yours being built."), then the five lists as one strip in the order a gene goes through them, New, On trial, Passed, Rejected, Not used, each its count over its name, the one open marked, and one thin bar of their shares under it; the strip is how a list is opened, each at its own address.
+Find a gene sits under it, with Month and Gene log as plain links beside it rather than tabs of their own; a find that matches nothing in the list open says so.
+**Your changes being built** is on New and On trial whenever a change he asked for is not finished: the gene, his words and how far it has got, opening the gene's Versions, where Start now, Change and Withdraw are. Before, a change on its way was seen only on its gene's page.
+A row in New says "Day X of its N-day trial"; its answers come in two weights, the deciding ones first (Keep, or Keep with the mutation and Keep the original, and Keep in trial) and the quieter ones after (Reject…, Restart trial, Mutate…), every one still on the row, and its Keep is outlined rather than filled, so a list has no row louder than another.
+The genes nobody asked for are in New still, in a fold closed until pressed with their count on it, so forty of them never push the genes to decide about off the screen.
+A gene's page says how it is doing at the top, whichever tab is open: on trial, "On trial · day X of Y · N of M uses · ends ...", with a bar of its days; ended, its one result ("Failed: you rejected it", the reason being in the Rejected box below); and whether a change he asked for has started or is being built. The Trial tab keeps the same with its settings.
+
 **Where a gene stands**, and the list it is in:
 
 | State | Means | Switch | List |

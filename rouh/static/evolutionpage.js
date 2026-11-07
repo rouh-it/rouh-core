@@ -543,35 +543,13 @@
     if (gene) { drawGene(wrap); return; }
     var view = R.sub || 'new';
     if (isExt(view) && view.indexOf('/') > 0 && ext()) { ext().draw(wrap, view, extCtx()); return; }
-    var bar = el('div', 'evo-bar');
-    var tabs = el('div', 'evo-views');
-    tabs.setAttribute('role', 'tablist');
-    tabs.setAttribute('aria-label', 'Views of Mutations');
-    VIEWS.forEach(function (v) {
-      var n = (v[0] === 'month' || isExt(v[0])) ? '' : (muts.counts[v[0]] || 0);
-      var b = button('evo-vtab' + (view === v[0] ? ' on' : ''), v[1]);
-      b.dataset.view = v[0];
-      // A count is a badge of its own, so it never reads as part of the name.
-      if (n !== '') { b.appendChild(el('span', 'evo-count', n)); }
-      b.setAttribute('role', 'tab');
-      b.setAttribute('aria-selected', view === v[0] ? 'true' : 'false');
-      // Cmd-click, Ctrl-click or the middle button opens the view's own address in a new tab (B2).
-      function elsewhere(e) {
-        if (!(e.metaKey || e.ctrlKey || e.button === 1)) { return false; }
-        e.preventDefault();
-        window.open('/evolution/mutations/' + v[0], '_blank', 'noopener');
-        return true;
-      }
-      b.addEventListener('click', function (e) { if (!elsewhere(e)) { go('mutations', v[0]); } });
-      b.addEventListener('auxclick', elsewhere);
-      tabs.appendChild(b);
-    });
-    bar.appendChild(tabs);
-    if (isExt(view)) {
-      wrap.appendChild(bar);
-      if (ext()) { ext().draw(wrap, view, extCtx()); }
-      return;
-    }
+    /* Where everything stands, first (Petar, 7 November 2026: "Make the journeys first and then pass
+       it on for redesign and restructuring"; the journeys are in the commit that made this): one
+       sentence, then the five lists in the order a gene goes through them, each its count and its
+       name, the one open marked, and under them one bar of their shares. Month and the Gene log,
+       opened rarely, are links beside Find a gene rather than tabs of their own. */
+    wrap.appendChild(standing(muts, view));
+    var bar = el('div', 'evo-bar evo-tools');
     var find = el('input', 'evo-find');
     find.type = 'search';
     find.placeholder = 'Find a gene';
@@ -582,8 +560,20 @@
       clearTimeout(R.findTimer);
       R.findTimer = setTimeout(function () { load().then(function () { var f = document.querySelector('.evo-find'); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }); }, 250);
     });
-    bar.appendChild(find);
+    if (!isExt(view)) { bar.appendChild(find); }
+    var more = el('nav', 'evo-more');
+    more.setAttribute('aria-label', 'More of Mutations');
+    [['month', 'Month'], ['log', 'Gene log']].forEach(function (v) {
+      var a = link(v[1], '/evolution/mutations/' + v[0], 'evo-more-link');
+      if (view === v[0]) { a.setAttribute('aria-current', 'page'); }
+      more.appendChild(a);
+    });
+    bar.appendChild(more);
     wrap.appendChild(bar);
+    if (isExt(view)) {
+      if (ext()) { ext().draw(wrap, view, extCtx()); }
+      return;
+    }
     if (R.said) { wrap.appendChild(el('p', 'evo-said', R.said)); }
     if (view === 'month') { drawMonth(wrap); return; }
     var found = muts.found ? muts.found : null;
@@ -593,32 +583,36 @@
         return [g].concat(g.older || []).some(function (x) { return found.indexOf(x.id) >= 0; });
       }) : list;
     }
+    // A find that matches nothing in this list says so, rather than leaving the list blank.
+    function list(of, none, how) {
+      var got = shown(of);
+      section(wrap, '', got, how);
+      if (!of.length) { empty(wrap, none, ''); }
+      else if (!got.length) { empty(wrap, 'No gene in ' + viewName(view) + ' matches \u201c' + R.q + '\u201d.', 'Clear Find a gene to see all ' + of.length + '.'); }
+    }
     /* No lede and no line under each heading: Petar did not read them, and the rows say what each
        gene is, whether it is on and how its trial stands or ended (fr_ca2be28fa511). */
     if (view === 'passed') {
-      section(wrap, '', shown(muts.views.passed));
-      if (!muts.views.passed.length) { empty(wrap, 'No gene has passed yet.', ''); }
+      list(muts.views.passed, 'No gene has passed yet.');
       // The switches no gene has are Rouh's own and shared genes', each on or off: under Passed,
       // where the genes that stay on are.
       otherSwitches(wrap, muts.switches || []);
     } else if (view === 'unused') {
-      section(wrap, '', shown(muts.views.unused));
-      if (!muts.views.unused.length) { empty(wrap, 'No gene has gone unused in its trial.', ''); }
+      list(muts.views.unused, 'No gene has gone unused in its trial.');
     } else if (view === 'rejected') {
-      section(wrap, '', shown(muts.views.rejected));
-      if (!muts.views.rejected.length) { empty(wrap, 'You have rejected no gene.', ''); }
+      list(muts.views.rejected, 'You have rejected no gene.');
       // Beside the rejections, every gene he had mutated: a minor reject the nights weigh too
       // (fr_c6b2abc655cf), so it is found where the rejections are, labelled as a mutation.
       mutatedSection(wrap, (muts.mutated || []).filter(function (r) {
         return !found || found.indexOf(r.gene_id) >= 0 || found.indexOf(r.result_gene_id) >= 0;
       }));
     } else if (view === 'trial') {
-      section(wrap, '', shown(muts.views.trial));
-      if (!muts.views.trial.length) { empty(wrap, 'Nothing is on trial that you kept there.', ''); }
+      building(wrap, muts);
+      list(muts.views.trial, 'Nothing is on trial that you kept there.');
     } else {
+      building(wrap, muts);
       // Every answer here takes its row out in place, the rest left where they are (B1).
-      section(wrap, '', shown(muts.views['new'] || []), { place: 'new', done: leftNew });
-      if (!(muts.views['new'] || []).length) { empty(wrap, 'Nothing new to look at.', ''); }
+      list(muts.views['new'] || [], 'Nothing new to look at.', { place: 'new', done: leftNew });
       unasked(wrap, muts.unasked || []);
     }
   }
@@ -667,12 +661,92 @@
     }, function () {});
   }
 
-  /* The views' badges, changed in place. */
+  /* The five lists' counts, changed in place, with the bar of their shares and the sentence. */
   function counts(n) {
-    Array.prototype.forEach.call(document.querySelectorAll('#evolutionBody .evo-views:not(.evo-gene-tabs) [data-view]'), function (b) {
-      var badge = b.querySelector('.evo-count');
-      if (badge && n[b.dataset.view] != null) { badge.textContent = n[b.dataset.view]; }
+    var box = document.querySelector('#evolutionBody .evo-stand');
+    if (box && R.muts) { box.replaceWith(standing(R.muts, box.dataset.view)); }
+  }
+
+  var GENE_LISTS = ['new', 'trial', 'passed', 'rejected', 'unused'];
+
+  /* What the list view opens with: one sentence of what waits for him, then the five lists as one
+     strip, each its count over its name, and one thin bar of their shares under it. The strip is
+     how a list is opened; Cmd-click, Ctrl-click or the middle button opens one in a new tab (B2). */
+  function standing(muts, view) {
+    var n = muts.counts || {};
+    var box = el('div', 'evo-stand');
+    box.dataset.view = view;
+    var fresh = n['new'] || 0, trial = n.trial || 0, building = (muts.requests || []).length;
+    var head = el('p', 'evo-stand-h');
+    head.appendChild(words(fresh ? fresh + (fresh === 1 ? ' new gene waits' : ' new genes wait') + ' for your first look.'
+      : 'Nothing new to look at.'));
+    var rest = [trial + ' on trial'];
+    if (building) { rest.push(building + (building === 1 ? ' change of yours' : ' changes of yours') + ' being built'); }
+    head.appendChild(el('span', 'evo-stand-rest', ' ' + rest.join(', ') + '.'));
+    box.appendChild(head);
+    var strip = el('nav', 'evo-lists');
+    strip.setAttribute('aria-label', 'Lists of genes');
+    GENE_LISTS.forEach(function (id) {
+      var a = el('a', 'evo-list-cell');
+      a.href = '/evolution/mutations/' + id;
+      a.dataset.view = id;
+      if (view === id) { a.setAttribute('aria-current', 'page'); }
+      a.appendChild(el('b', 'evo-list-n', n[id] || 0));
+      a.appendChild(el('span', 'evo-list-name', viewName(id)));
+      a.setAttribute('aria-label', viewName(id) + ', ' + (n[id] || 0));
+      a.addEventListener('click', function (e) {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) { return; }
+        e.preventDefault();
+        go('mutations', id);
+      });
+      strip.appendChild(a);
     });
+    box.appendChild(strip);
+    var total = GENE_LISTS.reduce(function (t, id) { return t + (n[id] || 0); }, 0);
+    var share = el('div', 'evo-share');
+    share.setAttribute('aria-hidden', 'true');
+    GENE_LISTS.forEach(function (id) {
+      if (!n[id]) { return; }
+      var seg = el('i', 'evo-share-' + id);
+      seg.style.flexGrow = String(n[id]);
+      share.appendChild(seg);
+    });
+    if (total) { box.appendChild(share); }
+    return box;
+  }
+
+  /* Every change he asked for that is not finished with, on New and On trial, so whether it has
+     started, is being built or waits on him is seen without opening the gene; a row opens the
+     gene's Versions, where Start now, Change, Withdraw and Review version are. */
+  function building(wrap, muts) {
+    var list = muts.requests || [];
+    if (!list.length) { return; }
+    var names = {};
+    GENE_LISTS.forEach(function (id) {
+      ((muts.views || {})[id] || []).forEach(function (g) {
+        names[g.id] = g.name;
+        (g.older || []).forEach(function (x) { names[x.id] = g.name; });
+      });
+    });
+    wrap.appendChild(el('h4', 'evo-sec-h', 'Your changes being built \u00b7 ' + list.length));
+    var ul = el('ul', 'evo-list evo-building');
+    list.forEach(function (r) {
+      var li = el('li', 'evo-row');
+      var b = button('evo-row-btn');
+      var top = el('span', 'evo-row-top');
+      top.appendChild(el('span', 'evo-row-name', (names[r.gene] || 'A gene') + ' \u00b7 your change to version ' + r.from_version));
+      top.appendChild(chip(reqWords(r), r.result_waiting ? 'evo-state-candidate' : 'evo-req-' + r.status));
+      b.appendChild(top);
+      b.appendChild(el('span', 'evo-row-said', '\u201c' + r.words + '\u201d'));
+      var sub = el('span', 'evo-row-sub', 'Asked ' + r.made_words + ' \u00b7 ');
+      sub.appendChild(el('span', 'evo-open-hint', 'Open its versions'));
+      b.appendChild(sub);
+      b.setAttribute('aria-label', (names[r.gene] || 'A gene') + ', your change: ' + reqWords(r));
+      b.addEventListener('click', function () { openGene(r.gene, 'versions'); });
+      li.appendChild(b);
+      ul.appendChild(li);
+    });
+    wrap.appendChild(ul);
   }
 
   /* A brand-new gene nobody asked for that has no card here (one the nightly run added to the gene
@@ -680,7 +754,10 @@
      Petar, 19 October 2026 (GENES.md, "Every file belongs to a gene"). */
   function unasked(wrap, list) {
     if (!list.length) { return; }
-    wrap.appendChild(el('h4', 'evo-sec-h', 'New genes nobody asked for \u00b7 ' + list.length));
+    // In a fold closed until pressed, so thirty of them never push the genes to look at off the
+    // screen (journey 1); its count is on the fold.
+    var fold = el('details', 'evo-fold');
+    fold.appendChild(el('summary', 'evo-fold-h', 'New genes nobody asked for \u00b7 ' + list.length));
     var ul = el('ul', 'evo-list evo-unasked');
     list.forEach(function (g) {
       var li = el('li', 'evo-row');
@@ -693,7 +770,8 @@
       li.appendChild(b);
       ul.appendChild(li);
     });
-    wrap.appendChild(ul);
+    fold.appendChild(ul);
+    wrap.appendChild(fold);
   }
 
   /* ---- the outside services a gene brought in, and the other switches ----
@@ -865,6 +943,8 @@
     // On trial: its day. Passed or Failed: its result, which says Passed or Failed and who decided.
     var sub = [g.result || g.state_name];
     if (g.trial_day && g.state === 'trial') { sub.push('day ' + Math.min(g.trial_day, g.trial_of) + ' of ' + g.trial_of); }
+    // In New it is on trial too, but the list it is in says so; its row says how far its trial is.
+    if (how && how.place === 'new' && g.trial_day) { sub = ['Day ' + Math.min(g.trial_day, g.trial_of) + ' of its ' + g.trial_of + '-day trial']; }
     b.appendChild(el('span', 'evo-row-sub', sub.join(' · ')));
     b.addEventListener('click', function () { openGene(g.id); });
     li.appendChild(b);
@@ -1002,6 +1082,8 @@
     var sw = onSwitch(c);
     if (sw) { head.appendChild(sw); }
     wrap.appendChild(head);
+    var stands = geneStanding(c, p);
+    if (stands) { wrap.appendChild(stands); }
     if (R.said) { wrap.appendChild(el('p', 'evo-said', R.said)); }
     var how = { place: 'gene', page: p };
     wrap.appendChild(answers(c, how));
@@ -1053,6 +1135,43 @@
     var to = R.focus && wrap.querySelector('[data-part~="' + R.focus + '"]');
     R.focus = '';
     if (to) { requestAnimationFrame(function () { to.scrollIntoView({ block: 'start' }); }); }
+  }
+
+  /* How this gene is doing, at the top of its page whichever tab is open (journey 5): on trial,
+     day X of Y and its uses so far of those needed, with a bar of its days; ended, its one result;
+     and whether a change he asked for is on its way. The Trial tab keeps the same and its settings. */
+  function geneStanding(c, p) {
+    var t = (p.learning || {}).trial || {};
+    if (!t.on_trial && !t.outcome_said && !c.result && !c.request) { return null; }
+    var box = el('div', 'evo-standing');
+    box.setAttribute('role', 'status');
+    var line = el('p', 'evo-standing-h');
+    if (t.on_trial) {
+      var day = Math.min(t.day || 1, t.of || t.days || 1), of = t.of || t.days || 1;
+      line.appendChild(el('strong', null, (c.reviewed ? 'On trial' : 'New, on trial') + ' \u00b7 day ' + day + ' of ' + of));
+      if (t.needed) { line.appendChild(words(' \u00b7 ' + (t.uses || 0) + ' of ' + t.needed + (t.needed === 1 ? ' use' : ' uses'))); }
+      if (t.ends_words) { line.appendChild(el('span', 'evo-standing-sub', ' \u00b7 ends ' + t.ends_words)); }
+      box.appendChild(line);
+      if (of <= 60) {
+        var days = el('div', 'evo-days');
+        days.setAttribute('aria-hidden', 'true');
+        days.style.gridTemplateColumns = 'repeat(' + of + ', minmax(0, 1fr))';
+        for (var i = 1; i <= of; i++) { days.appendChild(el('i', i <= day ? 'past' : '')); }
+        box.appendChild(days);
+      }
+      if (t.extended && t.outcome_said) { box.appendChild(el('p', 'evo-standing-sub', t.outcome_said)); }
+    } else {
+      // A rejected gene's reason is in its Rejected box just below, so it is said there only.
+      line.appendChild(el('strong', null, c.rejected ? 'Failed: you rejected it' : (t.outcome_said || c.result || c.state_name)));
+      if (t.ended_words) { line.appendChild(el('span', 'evo-standing-sub', ', ' + t.ended_words)); }
+      box.appendChild(line);
+    }
+    if (c.request) {
+      box.appendChild(el('p', 'evo-standing-sub', c.request.status === 'requested'
+        ? 'Your change has not started. Start it now in Versions.'
+        : 'Your change is being built now. When it is built, the new version takes this one\u2019s place, on trial.'));
+    }
+    return box;
   }
 
   /* The labels that say how Petar uses the gene and the part of Rouh it touches, then a warning
@@ -1205,25 +1324,33 @@
       // trial as it is (Petar, 19 October 2026).
       if (!c.reviewed) { add('Keep in trial', 'keep_trial', lines.keep_trial); }
       rejectButton(acts, under, c, lines.reject, how);
-      add('Restart trial', 'restart', lines.restart);
+      add('Restart trial', 'restart', lines.restart, 'evo-act-more');
       mutateButton(acts, under, c, lines.mutate, how);
     } else if (c.state === 'kept') {
-      add('Restart trial', 'restart', lines.restart);
+      add('Restart trial', 'restart', lines.restart, 'evo-act-more');
       rejectButton(acts, under, c, lines.reject, how);
       mutateButton(acts, under, c, lines.mutate, how);
     } else if (c.state === 'off' || c.state === 'off_disuse' || c.state === 'rejected') {
       add('Turn on again', 'turn_on', lines.turn_on, 'primary');
-      add('Restart trial', 'restart', lines.restart);
+      add('Restart trial', 'restart', lines.restart, 'evo-act-more');
       // A rejected gene still here has its code in: its run did not start, and Reject tries again.
       rejectButton(acts, under, c, lines.reject, how);
       mutateButton(acts, under, c, lines.mutate, how);
     }
     // Petar, 15 October 2026: "Mutation should start right away". While his change is built the
     // gene stays as it is; the new version then takes its place, on trial.
-    if (c.request) {
+    if (c.request && !(how && how.place === 'gene')) {
       said.appendChild(el('li', null, c.request.status === 'requested'
         ? 'Your change has not started. Start it now in Versions.'
         : 'Your change is being built now. When it is built, the new version takes this one’s place, on trial. Follow it in Versions.'));
+    }
+    // A gene whose code was taken out, or is being, has nothing left to answer; its page says so
+    // rather than showing no answers at all.
+    if (!acts.firstChild && (c.state === 'removed' || c.state === 'removing')) {
+      wrap.appendChild(el('p', 'evo-hint', c.state === 'removed'
+        ? 'Its code was taken out of Rouh, so it cannot be turned on again. To have something like it, ask for it in a chat or the Incubator.'
+        : 'Its code is being taken out of Rouh. Nothing can be done with it until that run ends.'));
+      return wrap;
     }
     wrap.appendChild(acts);
     if (said.firstChild) { wrap.appendChild(said); }
@@ -1249,7 +1376,7 @@
       var open = holder.querySelector('.evo-keep');
       if (open) { open.querySelector('textarea').focus(); return; }
       holder.appendChild(keepBox(c, what, how));
-      holder.querySelector('.evo-keep textarea').focus();
+      holder.querySelector('.evo-keep textarea').focus(); holder.lastChild.scrollIntoView({ block: 'nearest' });
     });
     acts.appendChild(b);
     answerLine(said, label, line);
@@ -1294,13 +1421,13 @@
      choosing what to build (fr_509a4e1d7867), and takes its code out (fr_5654dc340c44: "Reject
      should delete the code"). Not the same as Turn off, which keeps it as it was. */
   function rejectButton(acts, said, c, line, how) {
-    var b = button('ctl small', 'Reject…', line);
+    var b = button('ctl small evo-act-more', 'Reject…', line);
     b.addEventListener('click', function () {
       var holder = acts.parentNode;
       var open = holder.querySelector('.evo-reject');
       if (open) { open.querySelector('textarea').focus(); return; }
       holder.appendChild(rejectBox(c, how));
-      holder.querySelector('.evo-reject textarea').focus();
+      holder.querySelector('.evo-reject textarea').focus(); holder.lastChild.scrollIntoView({ block: 'nearest' });
     });
     acts.appendChild(b);
     answerLine(said, 'Reject', line);
@@ -1360,7 +1487,7 @@
   }
 
   function mutateButton(acts, said, c, line, how) {
-    var b = button('ctl small', 'Mutate…', line);
+    var b = button('ctl small evo-act-more', 'Mutate…', line);
     b.addEventListener('click', function () {
       var holder = acts.parentNode;
       if (holder.querySelector('.evo-mutate')) { holder.querySelector('textarea').focus(); return; }
@@ -1369,6 +1496,7 @@
       }, how, null, c);
       holder.appendChild(box);
       box.querySelector('textarea').focus();
+      box.scrollIntoView({ block: 'nearest' });
     });
     acts.appendChild(b);
     answerLine(said, 'Mutate', line);
