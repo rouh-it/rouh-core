@@ -65,8 +65,11 @@ def _everything(me, g=None) -> dict:
 
     g = g or {}
     return {"ok": True, "jobs": trials.jobs(me, tester=g.get("persona", ""), result=g.get("result", "")),
-            "trials": trials.listing(me, limit=20), "counts": trials.counts(me), "personas": trials.personas(me),
-            "testers": trials.testers(me), "default": trials.default_persona(me), "owner": _owner_name(me),
+            # Forty of the newest tries: enough for the Atlas's latest row, its week of bars and each job's
+            # newest try against its one before (`trialspage.js`, the Page atlas design, 7 November 2026).
+            "trials": trials.listing(me, limit=40), "counts": trials.counts(me), "personas": trials.personas(me),
+            "testers": trials.testers(me), "paused_all": trials.paused_all(me) is not None,
+            "default": trials.default_persona(me), "owner": _owner_name(me),
             "rounds": trials.ROUNDS, "verdicts": trials.VERDICTS}
 
 
