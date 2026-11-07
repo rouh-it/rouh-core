@@ -347,7 +347,7 @@ def start(root, with_voice: bool = False, luna: bool = False, anthropic: bool = 
     provider's; `google` and `xai` give this installation the key the stand-in for
     Google's and xAI's Chat Completions takes (`rouh/testing/fake_compat.py`). That
     stand-in is always started and both providers are always pointed at it, so a key
-    typed into Anatomy, Rouh Land Account, Models reaches the stand-in and never Google or xAI.
+    typed into Anatomy, Behaviour, Models reaches the stand-in and never Google or xAI.
 
     An `extra_env` value of None takes that variable out of the environment
     rather than setting it to anything. `TMUX` is the one that matters: a tmux

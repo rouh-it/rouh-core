@@ -59,10 +59,10 @@ def old_address(request: HttpRequest, rest: str = ""):
 
 
 def rouh_land_return(request: HttpRequest):
-    """rouh.land sending the person back with a code (`addressing.ROUH_LAND_RETURN`): on to Rouh
-    profile with the query as it came, which `birthpage.js` reads once. Without a code it is the
-    old Birthday address, and that is not found."""
+    """rouh.land sending the person back with a code (`addressing.ROUH_LAND_RETURN`): on to Your
+    Rouh with the query as it came, which `birthpage.js` reads once and shows in its rouh.land card
+    (141-17). Without a code it is the old Birthday address, and that is not found."""
     if not any(request.GET.get(k) for k in addressing.ROUH_LAND_CARRIES):
-        raise Http404("Birthday is Rouh profile now, under Rouh Land Account.")
+        raise Http404("Birthday is Your Rouh now.")
     query = request.META.get("QUERY_STRING", "")
-    return HttpResponseRedirect(genes.BY_ID["birthday"]["route"] + "?" + query)
+    return HttpResponseRedirect(genes.ANATOMY_ROOT + "/" + genes.SECTIONS["this-rouh"] + "?" + query)

@@ -1129,7 +1129,7 @@ class Brain:
             log.warning("%s was asked for and there is no %s key; not answering", model,
                         provider_of(model))
             raise RuntimeError(f"{model_name(model)} cannot answer here: there is no "
-                               f"{PROVIDER_NAMES[provider_of(model)]} key. Add one in Anatomy, Rouh Land Account, Models.")
+                               f"{PROVIDER_NAMES[provider_of(model)]} key. Add one in Anatomy, Behaviour, Models.")
         if is_openai(model):
             if luna_ready(self.cfg):
                 from . import luna

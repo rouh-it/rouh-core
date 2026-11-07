@@ -1,18 +1,21 @@
-/* Settings, Connections, Phone, at /anatomy/connections/phone (`rouh/relay.py`, `rouh/web/relay.py`).
+/* Your Rouh, the card "Your Rouh's URL" (`rouh/relay.py`, `rouh/web/relay.py`): Connections, Phone
+   until 7 November 2026, when step 141-17 moved it to Your Rouh and Petar's Correction 1 renamed the
+   phone address its URL, with an (i) beside the title that says what kind of URL it is.
 
-   The one place a Rouh's phone address is: the address the relay gave it at birth, the
-   switch that opens it ("Reach me from my phone", where the chat's setup step sends the
-   owner), the real state of the line to the relay (Connected, Reconnecting, Connecting,
-   Off), this month's traffic beside the fair limit when the relay says it, and the QR code
-   that signs the owner in on the phone once.
+   The one place a Rouh's URL is: the address the relay gave it at birth, Turn on URL (where the
+   chat's setup step "Reach me from my phone" sends the owner), the real state of the line to the
+   relay (Connected, Reconnecting, Connecting, Off), this month's traffic beside the fair limit when
+   the relay says it, the QR code that signs the owner in on the phone once, and Turn off.
 
-   Drawn into `#phoneBody` from `/api/settings/phone`, read again every few seconds while
-   it shows and the address is on. Settings tells it when it shows and when it is left
-   (`settingsPages` in app/runs.js). */
+   Drawn into `#phoneBody` from `/api/settings/phone`, read again every few seconds while it shows
+   and the URL is on; Your Rouh (`birthpage.js`) tells it how the Rouh stands with rouh.land
+   (`land`), and it tells Your Rouh's headline and tiles what it found. Anatomy tells it when it
+   shows and when it is left (`settingsPages` in app/runs.js). */
 (function () {
   'use strict';
 
-  var P = { open: false, data: null, busy: false, error: '', link: null, timer: 0, seq: 0, seen: '', info: false };
+  var P = { open: false, data: null, busy: false, error: '', link: null, timer: 0, seq: 0, seen: '', info: false,
+            land: /** @type {{kind: string, admin: boolean, owner: string} | null} */ (null) };
   var EVERY = 3000;
 
   function $(id) { return document.getElementById(id); }
@@ -97,49 +100,45 @@
     return line;
   }
 
+  /* What Your Rouh says of its connection (`birthpage.js`), which changes what this card offers:
+     a free or disconnected Rouh has no URL, a stopped one has it off, a member presses nothing. */
+  function land() { return P.land || { kind: '', admin: true, owner: '' }; }
+  function say(text, undo) { if (window.RouhBirth && window.RouhBirth.toast) window.RouhBirth.toast(text, undo); }
+  function help(text) { return el('p', 'settings-help', text); }
+
   function draw() {
     var body = $('phoneBody');
     if (!body || !P.open) return;
     var d = P.data;
-    var page = el('div', 'hb-page');
+    var L = land();
+    var page = el('div', 'hb-page yr-url');
     if (P.error) page.appendChild(el('p', 'hb-say bad', P.error));
     if (!d) {
       if (!P.error) page.appendChild(el('p', 'hb-empty', 'Reading…'));
       body.replaceChildren(page);
+      tell();
       return;
     }
-    var s = el('section', 'setting-card hb-card ph-card');
-    s.appendChild(el('h4', 'hb-h', 'Reach me from my phone'));
+    var admin = d.admin && L.admin !== false;
     if (!d.relay) {
-      s.appendChild(el('p', 'hb-empty', 'This installation has no relay, so it has no phone address.'));
-    } else if (d.connected_choice === false) {
-      s.appendChild(el('p', 'hb-empty', 'This Rouh is on its own, so it opens no address to the internet.'));
+      page.appendChild(el('p', 'hb-empty', 'This installation has no relay, so it has no URL.'));
+    } else if (L.kind === 'free' || L.kind === 'code' || L.kind === 'disconnected' || d.connected_choice === false && !d.hostname) {
+      var none = el('div', 'yr-empty');
+      none.appendChild(el('p', '', L.kind === 'disconnected'
+        ? 'No URL while disconnected. It waits for this Rouh, and comes back when it connects again.'
+        : 'No URL yet. It comes with connecting to rouh.land, above.'));
+      none.appendChild(help(L.kind === 'disconnected' ? 'Nothing is open to the internet while it is disconnected.'
+        : 'A free Rouh opens nothing to the internet.'));
+      page.appendChild(none);
     } else if (!d.hostname) {
-      s.appendChild(el('p', 'hb-empty', d.pending || (d.connected_choice
-        ? 'Its address has not come from ' + d.service + ' yet.'
-        : 'This Rouh was set up before it could choose to be Connected, so it has no phone address yet.')));
-      if (d.claim_error) s.appendChild(el('p', 'hb-say bad', d.claim_error));
-      if (d.admin && (d.connected_choice || d.account)) {
-        // Connected, or already linked to its owner's account on the service: the address is asked for.
-        if (!d.connected_choice) {
-          s.appendChild(el('p', 'hb-note', 'It is linked to your account on ' + d.service + ', so it can have its own '
-            + 'address. Nothing is open to the internet until you then press Reach me from my phone.'));
-        }
+      page.appendChild(el('p', 'hb-empty', d.pending || 'Its URL has not come from ' + d.service + ' yet.'));
+      if (d.claim_error) page.appendChild(el('p', 'hb-say bad', d.claim_error));
+      if (admin) {
         var again = el('div', 'hb-actions');
-        again.appendChild(button(d.connected_choice ? 'Ask for it again' : 'Get its phone address',
+        again.appendChild(button(d.connected_choice ? 'Ask for it again' : 'Get its URL',
           d.connected_choice ? '' : 'primary', function () { call('POST', '/api/settings/phone/claim'); }));
-        s.appendChild(again);
-      } else if (d.admin && d.account_url) {
-        // A Rouh born before its first run asked: linked to its owner's rouh.land account the way the
-        // Rouh profile links it, keeping its name; the link gives it its address (relay.linked_later).
-        s.appendChild(el('p', 'hb-note', 'Sign in to your account on ' + d.service + ' and link this Rouh to it. '
-          + 'It keeps its name, and gets its own address. Nothing is open to the internet until you then '
-          + 'press Reach me from my phone.'));
-        var go = el('a', 'ctl small primary', 'Sign in to ' + d.service + ' to link it');
-        go.href = d.account_url + (d.account_url.indexOf('?') < 0 ? '?' : '&') + 'rouh=' + encodeURIComponent(location.origin);
-        var link = el('div', 'hb-actions');
-        link.appendChild(go);
-        s.appendChild(link);
+        page.appendChild(again);
+        page.appendChild(help('Nothing is open to the internet until you then turn it on.'));
       }
     } else {
       var addr = el('p', 'ph-address');
@@ -148,10 +147,20 @@
       a.target = '_blank';
       a.rel = 'noopener';
       addr.appendChild(a);
-      s.appendChild(addr);
-      s.appendChild(stateLine(d));
+      page.appendChild(addr);
+      if (L.kind === 'stopped') {
+        var off = el('p', 'hb-state ph-state off');
+        off.appendChild(el('span', 'hb-pulse'));
+        off.appendChild(el('b', '', 'Off'));
+        off.appendChild(el('span', 'ph-said', 'while rouh.land has stopped this Rouh.'));
+        page.appendChild(off);
+        body.replaceChildren(page);
+        tell();
+        return;
+      }
+      page.appendChild(stateLine(d));
       if (d.on && d.checked && !d.checked.ok && d.checked.error) {
-        s.appendChild(el('p', 'hb-say bad', 'Checked from outside at ' + clock(d.checked.at) + ': ' + d.checked.error + '.'));
+        page.appendChild(el('p', 'hb-say bad', 'Checked from outside at ' + clock(d.checked.at) + ': ' + d.checked.error + '.'));
       }
       if (d.on && d.limit_bytes && d.usage) {
         var used = el('div', 'ph-usage');
@@ -162,48 +171,78 @@
         fill.style.width = Math.min(100, Math.round(100 * d.usage.bytes / d.limit_bytes)) + '%';
         bar.appendChild(fill);
         used.appendChild(bar);
-        s.appendChild(used);
+        page.appendChild(used);
       }
-      if (!d.on) {
-        s.appendChild(el('p', 'hb-note', 'Nothing is open to the internet until you turn it on.'));
-      }
-      if (d.admin) {
+      if (!admin) {
+        page.appendChild(el('p', 'yr-member', 'Only ' + (L.owner || 'its owner') + ', who owns this Rouh, can change this.'));
+      } else {
         var acts = el('div', 'hb-actions');
         if (!d.on) {
-          acts.appendChild(button('Reach me from my phone', 'primary', function () {
+          acts.appendChild(button('Turn on URL', 'primary', function () {
             P.link = null;
-            call('POST', '/api/settings/phone/on').then(tick);
+            call('POST', '/api/settings/phone/on').then(function (j) {
+              if (j && !j.error) say('URL on.');
+              tick();
+            });
           }));
         } else {
           if (d.state === 'connected') {
-            acts.appendChild(button(P.link ? 'New sign-in code' : 'Sign in on my phone', 'primary', function () {
+            acts.appendChild(button(P.link ? 'New sign-in code' : 'Show sign-in code', 'primary', function () {
               call('POST', '/api/settings/phone/signin');
             }));
           }
-          acts.appendChild(button('Turn off', '', function () {
+          acts.appendChild(button('Turn off', 'yr-quiet', function () {
             P.link = null;
-            call('POST', '/api/settings/phone/off');
+            call('POST', '/api/settings/phone/off').then(function (j) {
+              if (j && !j.error) say('URL off. Phones signed in stop reaching it.');
+            });
           }));
         }
-        s.appendChild(acts);
+        page.appendChild(acts);
+        if (!d.on) page.appendChild(help('Turning it on lets your phone open this Rouh from anywhere. Only people who sign in can use it. Nothing is open to the internet until then.'));
       }
-      if (d.on && P.link && d.state === 'connected') s.appendChild(qrCard(P.link));
+      if (d.on && P.link && d.state === 'connected') page.appendChild(qrCard(P.link));
       if (d.certificate && d.certificate.until) {
         var info = el('details', 'info ph-info');
         info.open = P.info;
         info.addEventListener('toggle', function () { P.info = info.open; });
         info.appendChild(el('summary', '', 'Locked end to end'));
         info.appendChild(el('p', 'hb-note', 'Locked with its own certificate, good until ' + day(d.certificate.until)
-          + '. The relay passes it on by its name and never sees what is in it.'
+          + '. rouh.land’s relay passes it on by its name and never sees what is in it.'
           + (d.on && d.checked && d.checked.ok ? ' Checked from outside at ' + clock(d.checked.at) + '.' : '')));
-        s.appendChild(info);
+        page.appendChild(info);
       } else if (d.on && d.certificate && d.certificate.error) {
-        s.appendChild(el('p', 'hb-say bad', 'No certificate yet: ' + d.certificate.error));
+        page.appendChild(el('p', 'hb-say bad', 'No certificate yet: ' + d.certificate.error));
       }
     }
-    page.appendChild(s);
     body.replaceChildren(page);
+    tell();
   }
+
+  /* Your Rouh's headline and URL tile follow this card. */
+  function tell() { if (window.RouhBirth && window.RouhBirth.phone) window.RouhBirth.phone(P.data); }
+
+  /* The (i) beside "Your Rouh's URL" (Correction 1 of 141-17): a small popover that says what kind
+     of URL this is and what the relay is. It closes on Escape (focus back on the (i)), a click or
+     tap outside it, or the (i) again. */
+  (function info() {
+    var ib = $('yrUrlInfoBtn'), pop = $('yrUrlInfo');
+    if (!ib || !pop) return;
+    function setOpen(o) {
+      pop.hidden = !o;
+      ib.setAttribute('aria-expanded', o ? 'true' : 'false');
+      // Opened low on a phone's screen, it is brought up whole rather than left under the fold.
+      if (o && pop.scrollIntoView) pop.scrollIntoView({ block: 'nearest' });
+    }
+    ib.addEventListener('click', function (e) { e.stopPropagation(); setOpen(pop.hidden); });
+    document.addEventListener('click', function (e) {
+      var t = /** @type {Node} */ (e.target);
+      if (!pop.hidden && !pop.contains(t) && !ib.contains(t)) setOpen(false);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !pop.hidden) { e.stopPropagation(); setOpen(false); ib.focus(); }
+    }, true);
+  }());
 
   function qrCard(link) {
     var box = el('div', 'ph-qr');
@@ -243,7 +282,17 @@
     P.open = false;
     P.link = null;
     clearTimeout(P.timer);
+    var pop = $('yrUrlInfo'), ib = $('yrUrlInfoBtn');
+    if (pop) pop.hidden = true;
+    if (ib) ib.setAttribute('aria-expanded', 'false');
   }
 
-  window.RouhPhone = { shown: shownNow, hidden: hiddenNow, reload: load };
+  /** Your Rouh's connection, as birthpage.js reads it. @param {{kind: string, admin: boolean, owner: string}} L */
+  function landNow(L) {
+    var before = JSON.stringify(P.land);
+    P.land = L;
+    if (before !== JSON.stringify(L)) draw();
+  }
+
+  window.RouhPhone = { shown: shownNow, hidden: hiddenNow, reload: load, land: landNow };
 }());

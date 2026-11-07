@@ -380,6 +380,33 @@ def _sign_in_email(who) -> str:
     return signin.primary(_m().User.objects.filter(pk=who.user_id).first())
 
 
+def disconnected(row) -> float | None:
+    """When this Rouh was last disconnected from rouh.land and has not been connected since, or None."""
+    if row is None or row.registry_id:
+        return None
+    for h in reversed(row.history or []):
+        if h.get("what") == "disconnected":
+            return h.get("at") or 0.0
+        if h.get("what") in ("born", "connected"):
+            return None
+    return None
+
+
+def _owner_of(org: str) -> dict:
+    """Who owns this Rouh: its organisation's first administrator, as their name says it (7 November
+    2026, 141-17: "Owner, shown apart, never part of its name, never sent"). Only ever shown to the
+    organisation's own people."""
+    from . import owner
+
+    first = (_m().User.objects.filter(org_id=org, is_active=True, is_guest=False, is_org_admin=True)
+             .order_by("id").first())
+    if first is None:
+        return {"name": "", "user_id": ""}
+    found = owner.of(str(first.pk))
+    name = (found.full_name or found.name) if found is not None else ""
+    return {"name": name or first.get_full_name() or first.username, "user_id": str(first.pk)}
+
+
 def standing(row) -> dict:
     """This Rouh and rouh.land in one plain sentence, as {kind, said}: never a key.
 
@@ -392,7 +419,7 @@ def standing(row) -> dict:
     card = row.card if isinstance(row.card, dict) else {}
     if row.registry_id and row.key_dead_at:
         return {"kind": "stopped", "said": "rouh.land doesn't recognise this Rouh any more. It keeps working here; "
-                                           "the Gene Pool and its phone address wait until rouh.land does again."}
+                                           "the Gene Pool and its URL wait until rouh.land does again."}
     if row.registry_id:
         if card.get("warnings"):
             return {"kind": "waiting", "said": str(card["warnings"][0])}
@@ -411,6 +438,8 @@ def page(who) -> dict:
            # The email rouh.land's sign-up and sign-in open with, from Connect: the one that signs the
            # owner in here, so one email runs both (4 November 2026). It may be changed there.
            "connect_email": _sign_in_email(who), "standing": standing(row)}
+    own = _owner_of(org)
+    out["owner"] = {"name": own["name"], "you": own["user_id"] == str(who.user_id)}
     rec = _recovering(org)
     if rec is not None:
         p = rec.pending or {}
@@ -434,6 +463,7 @@ def page(who) -> dict:
         "account_email": account_email(row),
         "connected_words": _when(row.connected_at, who), "checked_words": _when(row.checked_at, who),
         "key_dead_words": _when(row.key_dead_at, who) if row.key_dead_at else "",
+        "disconnected_words": _when(disconnected(row), who) if disconnected(row) is not None else "",
         "pending": ({"request": p.get("request", ""), "due_words": _when(p.get("due_at"), who),
                      "said": p.get("said", "")} if p.get("public") else None),
         "warnings": list((row.card or {}).get("warnings") or []) if isinstance(row.card, dict) else [],

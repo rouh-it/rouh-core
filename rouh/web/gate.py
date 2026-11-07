@@ -107,7 +107,7 @@ log = logging.getLogger("rouh.gate")
 TOKEN_PATHS = frozenset({"/api/task"})
 
 OPEN_PATHS = frozenset({"/login", "/setup", "/setup/you", "/phone/in", "/login/forgot",
-                        "/login/recover", "/login/help", "/login/passkey/options", "/login/passkey/verify", "/logout", "/healthz",
+                        "/login/help", "/login/passkey/options", "/login/passkey/verify", "/logout", "/healthz",
                         "/favicon.ico", "/auth/google/callback", "/login/common-passwords",
                         "/api/hooks/meeting-library",
                         # The service worker: the same script for everybody, holding nothing of

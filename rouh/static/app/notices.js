@@ -210,7 +210,7 @@ var heardOnce = false;
  * @param {import('./protocol').FromServer<'notices'>} m */
 function noticesHeard(m) {
   // A gene the registry blocklisted, or one with an update waiting (`rouh/genelab.py`):
-  // the shared links in the navigation, and Rouh Land Account, Gene Pool, are drawn again now, so a
+  // the shared links in the navigation, and Meta, Gene registry, are drawn again now, so a
   // gene switched off by the blocklist is gone from every open tab at once.
   var known = {};
   NT.server.forEach(function (n) { known[n.id] = true; });

@@ -2029,7 +2029,7 @@ with {% asset %}, which gives it its hashed address.
                  on the contact card itself, and what they had typed here was carried there
                  (`profile.carry_to_card`). {% endcomment %}
             <section class="setting-card" aria-labelledby="profHead">
-              <h4 id="profHead">Your name and sign-in</h4>
+              <h4 id="profHead">Your name</h4>
               <p class="settings-help">How Rouh, and anyone you share a page with, sees you. Use any name you like: none of it has to be your real one.</p>
               <form id="profForm" class="setting-form prof-form" autocomplete="off" novalidate>
                 <div class="prof-two">
@@ -2059,43 +2059,9 @@ with {% asset %}, which gives it its hashed address.
                   </select>
                   <p class="settings-help">How Rouh speaks of you when it is not talking to you. With Use my name, it says your name again.</p>
                 </div>
-                <div class="field">
-                  <label for="profEmail">Contact email</label>
-                  <input id="profEmail" type="email" maxlength="254" inputmode="email" autocomplete="email"
-                         autocapitalize="off" spellcheck="false">
-                  <p class="settings-help">Mail from it is yours. The email you sign in with is under <a href="/anatomy/you/account" data-inapp>Account</a><span id="profUser" hidden></span>.</p>
-                </div>
                 <p id="profSaid" class="settings-help" role="status" hidden></p>
                 <div class="setting-actions">
                   <button type="submit" id="profSave" class="ctl small primary">Save</button>
-                </div>
-              </form>
-            </section>
-
-            {% comment %} The password: the one there is now, then the new one twice.
-                 An account made to sign in with Google has none, and sets one
-                 here without the first box. This sign-in stays; every other
-                 one is asked for the new password. {% endcomment %}
-            <section class="setting-card" aria-labelledby="pwHead">
-              <h4 id="pwHead">Password</h4>
-              <form id="pwForm" class="setting-form prof-form" autocomplete="off" novalidate>
-                <input type="text" id="pwUser" autocomplete="username" hidden readonly>
-                <div class="field" id="pwCurrentField">
-                  <label for="pwCurrent">Your password now</label>
-                  <input id="pwCurrent" type="password" autocomplete="current-password">
-                </div>
-                <div class="field">
-                  <label for="pwNew">New password</label>
-                  <input id="pwNew" type="password" autocomplete="new-password">
-                  <p class="settings-help">At least 10 characters, and not a common one.</p>
-                </div>
-                <div class="field">
-                  <label for="pwAgain">New password again</label>
-                  <input id="pwAgain" type="password" autocomplete="new-password">
-                </div>
-                <p id="pwSaid" class="settings-help" role="status" hidden></p>
-                <div class="setting-actions">
-                  <button type="submit" id="pwSave" class="ctl small">Change password</button>
                 </div>
               </form>
             </section>
@@ -3298,13 +3264,6 @@ with {% asset %}, which gives it its hashed address.
                  draws it from /api/settings/draft-edits. {% endcomment %}
             <div id="draftEditsBody" class="hb-body" aria-busy="false"></div>
           </div>
-          <div class="settings-section" data-section="phone" hidden>
-            {% comment %} The phone address on the relay (`rouh/relay.py`): the address given at
-                 birth, "Reach me from my phone" that opens it, its real state, this month's
-                 traffic and the QR code that signs the owner in on the phone. phonepage.js
-                 draws it from /api/settings/phone. {% endcomment %}
-            <div id="phoneBody" class="hb-body" aria-busy="false"></div>
-          </div>
           <div class="settings-section" data-section="cloudflare" hidden>
             {% comment %} Cloudflare's API tokens, one a zone (`rouh/cloudflare.py`). Petar,
                  12 October 2026: "create an input field where I can save the token in
@@ -3354,35 +3313,47 @@ with {% asset %}, which gives it its hashed address.
             <div id="changesBody" class="hb-body" aria-busy="false"></div>
           </div>
           <div class="settings-section" data-section="gene-pool" hidden>
-            {% comment %} Rouh Land Account, Gene Pool (Meta, Genes until 4 November 2026):
-                 first where this Rouh stands in the Gene Pool on rouh.land, drawn by
-                 landaccountpage.js from /api/birth, with the Pool's own page a
-                 press away; then shared genes from a gene registry, and the lab
+            {% comment %} Meta, Gene registry (Meta, Genes until 4 November 2026, then Rouh
+                 Land Account, Gene Pool until 7 November): where this Rouh stands in the
+                 Gene Pool is said on Your Rouh, and the Pool's own controls are in
+                 Evolution; here are shared genes from a gene registry, and the lab
                  they arrive in (`rouh/genelab.py`). Off until a registry and its
                  public key are set here. A gene's contract is drawn before it is
                  installed, it is installed only on a press here, switched off, and
                  it is removed with a check that nothing is left. genespage.js
                  draws it from /api/settings/genes, and one gene at
-                 /anatomy/rouh-land/gene-pool/<publisher>/<name>. {% endcomment %}
-            <div id="poolStandBody" class="hb-body" aria-busy="false"></div>
+                 /anatomy/meta/gene-pool/<publisher>/<name>. {% endcomment %}
             <div id="genesBody" class="hb-body" aria-busy="false"></div>
           </div>
 
-          <div class="settings-section" data-section="your-profile" hidden>
-            {% comment %} Rouh Land Account, Your profile: whether you have a rouh.land account
-                 this Rouh knows of and whether it is connected to it, what is wrong if
-                 anything is, and the one action that fits (`rouh/landaccount.py`).
-                 landaccountpage.js draws it from /api/rouh-land/account. {% endcomment %}
-            <div id="landAccountBody" class="hb-body" aria-busy="false"></div>
-          </div>
-
-          <div class="settings-section" data-section="rouh-profile" hidden>
-            {% comment %} Rouh Land Account, Rouh profile (Meta, Birthday until 4 November
-                 2026). A free Rouh and what this person calls it; once connected to rouh.land, the
-                 official name rouh.land gave it at its birth, its birthday, what this person
-                 calls it, and one plain line about rouh.land. No key and no recovery word
-                 (`rouh/birth.py`). birthpage.js draws it from /api/birth. {% endcomment %}
-            <div id="birthBody" class="hb-body" aria-busy="false"></div>
+          <div class="settings-section" data-section="this-rouh" hidden>
+            {% comment %} Your Rouh (141-17, 7 November 2026: "one home for each journey"): one
+                 page about the Rouh itself. Rouh profile, Your profile's connection and
+                 Connections, Phone until then. A headline sentence and three tiles (Name,
+                 rouh.land, URL) say whether it is connected and fine; then, only when
+                 something is wrong, one sentence and one button; then its cards: rouh.land
+                 (connect, connect now with the code rouh.land sent back, try again,
+                 disconnect with a sheet), Your Rouh's URL (phonepage.js, with an (i) that
+                 says what kind of URL it is and what the relay is), Name (official name,
+                 what you call it, owner) and What others can see. birthpage.js draws all
+                 but the URL card from /api/birth and /api/rouh-land/account. {% endcomment %}
+            <div id="birthBody" class="hb-body yr-page" aria-busy="false"></div>
+            <section class="setting-card hb-card yr-card" id="yrUrl" aria-labelledby="yrUrlH">
+              <div class="yr-infowrap">
+                <h4 class="hb-h" id="yrUrlH">Your Rouh’s URL</h4>
+                <button type="button" class="yr-info" id="yrUrlInfoBtn" aria-label="What kind of URL is this?" aria-expanded="false" aria-controls="yrUrlInfo"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7.5v.01"/></svg></button>
+                <span class="yr-where"><svg class="yr-globe" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5s1.2-6.2 3.6-8.5z"/></svg>through rouh.land’s relay</span>
+                <div class="yr-pop" id="yrUrlInfo" role="region" aria-label="About this URL" hidden>
+                  <p class="yr-pop-t">What kind of URL is this?</p>
+                  <p>This is your Rouh’s own web address. It works through a <b>relay</b>: a small server on rouh.land that only passes your connection along, still locked, and cannot read it.</p>
+                  <p>That way you can reach your Rouh from your phone without opening your computer to the internet. Nothing is reachable until you turn it on.</p>
+                </div>
+              </div>
+              <div id="phoneBody" class="hb-body" aria-busy="false"></div>
+            </section>
+            <div id="yrAfter" class="hb-body yr-page"></div>
+            <dialog id="yrSheet" class="yr-sheet" aria-labelledby="yrSheetH"></dialog>
+            <div id="yrToast" class="yr-toast" role="status" aria-live="polite" hidden></div>
           </div>
 
           <div class="settings-section" data-section="offline" hidden>
@@ -3437,6 +3408,35 @@ with {% asset %}, which gives it its hashed address.
                  password where they have one: drawn by signinpage.js from /api/sign-in/me
                  (`rouh/web/signin.py`). {% endcomment %}
             <div id="signInBody"></div>
+            {% comment %} The password: the one there is now, then the new one twice.
+                 An account made to sign in with Google has none, and sets one
+                 here without the first box. This sign-in stays; every other
+                 one is asked for the new password. {% endcomment %}
+            <section class="setting-card" aria-labelledby="pwHead">
+              <h4 id="pwHead">Password</h4>
+              <p class="settings-help" id="pwWhy">Kept as a backup, for when this Rouh can’t send you email.</p>
+              <form id="pwForm" class="setting-form prof-form" autocomplete="off" novalidate>
+                <input type="text" id="pwUser" autocomplete="username" hidden readonly>
+                <div class="field" id="pwCurrentField">
+                  <label for="pwCurrent">Your password now</label>
+                  <input id="pwCurrent" type="password" autocomplete="current-password">
+                </div>
+                <div class="field">
+                  <label for="pwNew">New password</label>
+                  <input id="pwNew" type="password" autocomplete="new-password">
+                  <p class="settings-help">At least 10 characters, and not a common one.</p>
+                </div>
+                <div class="field">
+                  <label for="pwAgain">New password again</label>
+                  <input id="pwAgain" type="password" autocomplete="new-password">
+                </div>
+                <p id="pwSaid" class="settings-help" role="status" hidden></p>
+                <div class="setting-actions">
+                  <button type="submit" id="pwSave" class="ctl small">Change password</button>
+                </div>
+              </form>
+            </section>
+
             <section class="setting-card">
               <h4>Signed in</h4>
               <dl class="readout">
@@ -3446,7 +3446,10 @@ with {% asset %}, which gives it its hashed address.
                 <button id="signOutBtn" class="ctl small" type="submit">Sign out</button>
               </form>
             </section>
-
+            {% comment %} Your rouh.land account (141-17): whether you have one and this Rouh is
+                 in it, what rouh.land keeps about you, what is public, and what is done only
+                 on rouh.land. landaccountpage.js draws it from /api/rouh-land/account. {% endcomment %}
+            <div id="landAccountBody" class="hb-body" aria-busy="false"></div>
           </div>
         </div>
       </div>

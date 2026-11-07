@@ -3,7 +3,7 @@
 Petar, 24 October 2026, the design agreed in chat that day, and what it decided here:
 
 - **Four providers**: Anthropic, OpenAI, Google (Gemini) and xAI (Grok). Google's and
-  xAI's keys are typed into Anatomy, Rouh Land Account, Models (`rouh/providerkeys.py`); every call still
+  xAI's keys are typed into Anatomy, Behaviour, Models (`rouh/providerkeys.py`); every call still
   goes through the LLM service with its cost written down (`rouh/llm.py`, principle D3).
 - **Each tier is an ordered list of models across the providers**, not one OpenAI and
   one Anthropic model with a main one, and so is a use on a model of its own (Custom).
@@ -1623,7 +1623,7 @@ def said(org_id: str | None = None, cfg=None) -> str:
     lines = [f"The mode is {MODE_NAMES[now.mode]} [{now.mode}]: {mode_said[now.mode]}. The modes are "
              "best, balanced and saver.",
              "This Rouh can ask " + (", ".join(keys) if keys else "no provider at all")
-             + " (a provider is asked only with a key; Google's and xAI's are typed into Anatomy, Rouh Land Account, Models). "
+             + " (a provider is asked only with a key; Google's and xAI's are typed into Anatomy, Behaviour, Models). "
              "Each tier is an ordered list of models across providers, and a use asks the first one "
              "on its list it has a key for.",
              f"The service's standard is {now.doc.get('revision')}.", box_said("tiers"), box_said("uses"),

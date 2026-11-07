@@ -126,7 +126,7 @@ End your reply with exactly one line of JSON and nothing after it, one of:
 
 #: The file in the landing directory that says which model Rouh's merge pass
 #: runs on. ``land.sh`` runs in any checkout as any user and cannot read Rouh's
-#: database, so Rouh writes its pick there (Anatomy, Rouh Land Account, Models, "Merging a clash")
+#: database, so Rouh writes its pick there (Anatomy, Behaviour, Models, "Merging a clash")
 #: when it starts and whenever the pick changes (`modeldefaults`).
 MERGE_PICK = "merge-pass.json"
 

@@ -1,5 +1,7 @@
-/* Anatomy, You, Account: the email that signs you in, your passkeys, and your password where you
-   have one (`rouh/web/signin.py`, `rouh/signin.py`); and, on a guest's contact card, the owner's
+/* Anatomy, You, Your account (Account until 7 November 2026, 141-17): a headline sentence, the
+   email that signs you in and your passkeys (`rouh/web/signin.py`, `rouh/signin.py`); the password
+   card under it is the page's own (About You's until then), and the rouh.land account card is
+   landaccountpage.js's. And, on a guest's contact card, the owner's
    two ways to get that guest back in (window.RouhGuestSignIn).
 
    Petar, 4 November 2026: "passkey/face/touch should be extra, not default", and "if you are
@@ -10,7 +12,6 @@
    - Add a passkey, and each passkey with Remove. A passkey added here is remembered in this browser
      (`rouh-passkeys`, the addresses only), so the sign-in page offers it first on this device and
      never has to ask the server whether an address has one;
-   - Change password, only for an account that has one.
 
    The Sign out form under it is the page's own, a form so it works with no script at all. */
 (function () {
@@ -133,9 +134,21 @@
     var d = S.data;
     if (!d) { body.appendChild(el('p', 'settings-help', 'Reading…')); return; }
 
+    // The headline: the one email, and where it signs you in (141-17).
+    var head = el('p', 'yr-headline');
+    head.appendChild(document.createTextNode('You sign in with '));
+    head.appendChild(el('strong', 'yr-break', d.email || 'no email yet'));
+    head.appendChild(document.createTextNode(d.connected ? ', here and on rouh.land.'
+      : d.can_send ? '. A sign-in link comes to it.' : ' and your password. This Rouh can\u2019t send email yet.'));
+    body.insertBefore(head, body.firstChild);
+    // The password card under this one is the page's own: what it is for depends on the mail.
+    var why = $('pwWhy');
+    if (why) why.textContent = d.can_send ? 'Kept as a backup, for when this Rouh can\u2019t send you email.'
+      : 'This Rouh can\u2019t send email yet, so this is how you sign in.';
+
     var mail = el('section', 'setting-card');
     mail.id = 'signInEmailCard';
-    mail.appendChild(el('h4', null, 'Your email'));
+    mail.appendChild(el('h4', null, 'How you sign in'));
     var dl = el('dl', 'readout');
     var row = el('div');
     row.appendChild(el('dt', null, 'Email'));
@@ -145,8 +158,9 @@
     mail.appendChild(el('p', 'settings-help', d.label + '.' + (d.former.length
       ? ' ' + d.former.join(', ') + ' still works too, until you first sign in with ' + d.email + '.' : '')));
     if (d.connected) {
-      var a = el('a', 'ctl small', 'Change it on rouh.land');
+      var a = el('a', 'ctl small', 'Change email on rouh.land');
       a.href = d.account_url; a.target = '_blank'; a.rel = 'noopener';
+      a.setAttribute('aria-label', 'Change email on rouh.land (opens in a new tab)');
       var acts = el('div', 'setting-actions'); acts.appendChild(a); mail.appendChild(acts);
     } else if (!d.guest) {
       if (!S.editing) {
@@ -188,9 +202,10 @@
 
     var keys = el('section', 'setting-card');
     keys.id = 'signInPasskeys';
-    keys.appendChild(el('h4', null, 'Passkeys'));
+    keys.appendChild(el('h4', null, 'Passkeys for this Rouh'));
     keys.appendChild(el('p', 'settings-help', 'An extra way in, with your face, fingerprint or device code. Your email ' +
-      'always works too. On a device with a passkey, the sign-in page offers it first.'));
+      'always works too. On a device with a passkey, the sign-in page offers it first. Passkeys for rouh.land are ' +
+      'separate, kept on rouh.land.'));
     var list = el('ul', 'signin-keys');
     d.passkeys.forEach(function (p) {
       var li = el('li');
@@ -205,38 +220,12 @@
     });
     if (d.passkeys.length) keys.appendChild(list);
     var ka = el('div', 'setting-actions');
-    var add = button(S.busy ? 'Working…' : 'Add a passkey', 'primary', addPasskey);
+    var add = button(S.busy ? 'Working…' : 'Add a passkey', '', addPasskey);
     add.disabled = S.busy;
     ka.appendChild(add);
     keys.appendChild(ka);
     body.appendChild(keys);
 
-    if (d.has_password) {
-      var pwc = el('section', 'setting-card');
-      pwc.id = 'signInPassword';
-      pwc.appendChild(el('h4', null, 'Password'));
-      pwc.appendChild(el('p', 'settings-help', d.can_send
-        ? 'Kept for when this Rouh cannot email you. Signing in by email does not need it.'
-        : 'This Rouh cannot send email yet, so this is how you sign in.'));
-      var pf = el('form', 'setting-form');
-      [['signInPwNow', 'Password now', 'current-password'], ['signInPwNew', 'New password', 'new-password'],
-       ['signInPwAgain', 'The same again', 'new-password']].forEach(function (x) {
-        var fl = el('div', 'field');
-        var lb = el('label', null, x[1]); lb.htmlFor = x[0];
-        var ip = el('input'); ip.id = x[0]; ip.type = 'password'; ip.autocomplete = x[2];
-        fl.appendChild(lb); fl.appendChild(ip); pf.appendChild(fl);
-      });
-      var pa = el('div', 'setting-actions');
-      var pb = el('button', 'ctl small', 'Change password'); pb.type = 'submit';
-      pa.appendChild(pb); pf.appendChild(pa);
-      pf.addEventListener('submit', function (e) {
-        e.preventDefault();
-        done(call('/api/settings/profile/password', { current: $('signInPwNow').value, new: $('signInPwNew').value,
-                                                      again: $('signInPwAgain').value })).then(load);
-      });
-      pwc.appendChild(pf);
-      body.appendChild(pwc);
-    }
   }
 
   window.RouhSignIn = {

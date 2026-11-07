@@ -1,4 +1,4 @@
-/* Rouh Land Account, Gene Pool, at /anatomy/rouh-land/gene-pool (`rouh/genelab.py`, `rouh/web/genes.py`;
+/* Meta, Gene registry (Rouh Land Account, Gene Pool until 7 November 2026), at /anatomy/meta/gene-pool (`rouh/genelab.py`, `rouh/web/genes.py`;
    Meta, Genes until 4 November 2026).
 
    Shared genes from a gene registry, and the lab they arrive in. Petar, 12
@@ -109,7 +109,7 @@
   }
   function load() { return call('GET', '/api/settings/genes'); }
   /* The section's own address, as the server says it (`genelab.public`, from its manifest). */
-  function here() { return (G.data && G.data.route) || '/anatomy/rouh-land/gene-pool'; }
+  function here() { return (G.data && G.data.route) || '/anatomy/meta/gene-pool'; }
   function post(url, body) {
     G.said = ''; G.error = ''; G.asking = '';
     return call('POST', url, body);

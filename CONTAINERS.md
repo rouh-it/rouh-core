@@ -107,7 +107,7 @@ A new feature adds its row and its check in the commit that adds it.
 | `meetings` | The meeting library | untested | works | a meeting made in the library's stand-in, its webhook taken (`meetings.webhook`), then `meeting_search` finds it |
 | `meetings.webhook` | The meeting library's webhook | untested | works | a post to `/api/hooks/meeting-library` through the published port: signed with the settings file's secret it is taken, signed wrongly it is a 401 |
 | `voice.speak` | Rouh speaks its answers | untested | works | spoken replies on over the page's socket (`set_mode`), and an answer's audio reaches the page from the stand-in for ElevenLabs, which was asked to say it |
-| `phone.relay` | The phone address through rouh.land's relay | untested | manual | a person, below: the stack test's Rouh is born On its own, and the relay's side (frps, its claim endpoint) and Let's Encrypt are rouh.land's and the internet's, with no stand-in here |
+| `phone.relay` | Your Rouh's URL through rouh.land's relay (the phone address until 7 November 2026) | untested | manual | a person, below: the stack test's Rouh is born On its own, and the relay's side (frps, its claim endpoint) and Let's Encrypt are rouh.land's and the internet's, with no stand-in here |
 
 ## The one program and its runs
 
@@ -215,10 +215,10 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `page.stats` | Stats | untested | works | its page, its Event log tab and `/api/settings/stats` |
 | `gene.event-log` | The event log of what the person does | untested | works | an event the page sends is taken and counted on Stats' Event log |
 | `gene.llm-request-log` | The log of every request made of a model | untested | works | a turn's request is in the day's usage and in the turn records' export |
-| `page.rouh-land-account` | Your profile (Rouh Land Account): whether you have a rouh.land account and whether this Rouh is connected to it | untested | works | its page and `/api/rouh-land/account`: a free Rouh, not connected, nothing wrong, and none of the Rouh's own fields |
+| `page.rouh-land-account` | Your rouh.land account (You, Your account; Your profile until 7 November 2026): whether you have a rouh.land account and whether this Rouh is connected to it | untested | works | Your account's page and `/api/rouh-land/account`: a free Rouh, not connected, nothing wrong, and none of the Rouh's own fields |
 | `page.build` | This build (Meta): the session, version, commit and its day | untested | works | its page carries the session, version and commit |
-| `page.birthday` | Rouh profile (Rouh Land Account; Birthday until 4 November 2026) | untested | works | set up on its own it is a free Rouh: no birth, no name, its nickname kept, one plain line |
-| `page.genes` | Gene Pool (Rouh Land Account): shared genes and the registry | untested | works | its page and `/api/settings/genes` |
+| `page.birthday` | Your Rouh (Rouh profile until 7 November 2026; Birthday until 4 November) | untested | works | set up on its own it is a free Rouh: no birth, no name, its nickname kept, one plain line |
+| `page.genes` | Gene registry (Meta; Rouh Land Account, Gene Pool until 7 November 2026): shared genes and the registry | untested | works | its page and `/api/settings/genes` |
 | `page.home` | Home: lights and the vacuum | untested | works | `/home`, and its lights and vacuum say they are not connected |
 | `page.metabolism` | Metabolism: runs, work and spend | untested | works | `/metabolism`, the work asked for and the spend |
 | `page.gaps` | The agent loop gaps page | untested | works | `/gaps` and its list |
@@ -362,8 +362,8 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 Only a person can check these, so the stack test does not; each is done by hand before a release, in the order given.
 
 - **The microphone** (`voice.listen`): on the computer the stack runs on, open `http://127.0.0.1:8420`, press the microphone, say "What time is it?", and see the words appear and an answer spoken. A browser opens a microphone only for a real press, and only a real voice tests the turn marks.
-- **A real phone** (`phone.real`): with the phone address on (Settings, Connections, Phone, Reach me from my phone), open the address on an iPhone in Safari, add it to the Home Screen, open it from there, and speak one sentence. The relay, the certificate and iOS's own microphone rules are only met there.
-- **The phone address** (`phone.relay`): on a Rouh whose first run chose Connected, open Settings, Connections, Phone: it shows the address on the relay's domain (a Rouh set up before the first run asked, such as the Creator Rouh, is linked to its owner's rouh.land account first: Sign in to rouh.land to link it there, or Get its phone address when it is in the account already; it keeps its name, and the address comes). Press Reach me from my phone, wait for it to say the address is open, and open that address from a phone on its mobile data, not the house's network: Rouh's sign-in page answers over HTTPS with a valid certificate. The relay's side and Let's Encrypt are only met there.
+- **A real phone** (`phone.real`): with the URL on (Anatomy, Your Rouh, Turn on URL), open the address on an iPhone in Safari, add it to the Home Screen, open it from there, and speak one sentence. The relay, the certificate and iOS's own microphone rules are only met there.
+- **Your Rouh's URL** (`phone.relay`): on a Rouh whose first run chose Connected, open Anatomy, Your Rouh: its URL card shows the address on the relay's domain (a Rouh set up before the first run asked, such as the Creator Rouh, is connected to its owner's rouh.land account first, on the same page's rouh.land card, or Get its URL when it is in the account already; it keeps its name, and the address comes). Press Turn on URL, wait for it to say the address is open, and open that address from a phone on its mobile data, not the house's network: Rouh's sign-in page answers over HTTPS with a valid certificate. The relay's side and Let's Encrypt are only met there.
 
 ## Totals
 

@@ -1,7 +1,7 @@
 {
   "id": "genes",
   "name": "Genes",
-  "title": "Gene Pool: this Rouh in the Gene Pool on rouh.land, and shared genes from a registry, read before they are installed, and the lab they arrive in",
+  "title": "Gene registry: shared genes from a gene registry of your own, read before they are installed, and the lab they arrive in (the Gene Pool's own controls are in Evolution)",
   "aliases": [
     "gene registry",
     "shared genes",
@@ -13,10 +13,10 @@
     "gene pool settings"
   ],
   "group": "machine",
-  "route": "/anatomy/rouh-land/gene-pool",
+  "route": "/anatomy/meta/gene-pool",
   "anatomy": {
-    "order": 40,
-    "name": "Gene Pool"
+    "order": 30,
+    "name": "Gene registry"
   },
   "icon": "<path d=\"M7 3c0 6 10 6 10 12s-10 3-10 6\"/><path d=\"M17 3c0 6-10 6-10 12s10 3 10 6\"/><path d=\"M8.5 7h7M8.5 17h7\"/>",
   "attaches_to": [],
@@ -32,7 +32,7 @@
       "switches a gene off by itself when the registry's blocklist names it, and tells the person who installed it"
     ],
     "accounts": [
-      "the gene registry set in Rouh Land Account, Gene Pool (none until one is set)"
+      "the gene registry set in Meta, Gene registry (none until one is set)"
     ],
     "tables": [
       "gene_registries",

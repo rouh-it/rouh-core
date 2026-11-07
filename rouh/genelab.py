@@ -10,7 +10,7 @@ touches is shown before it is installed, as information, never as a gate. The re
 each signed with its Ed25519 key. This is the receiving end.
 
 **Off until a person points it somewhere.** An organisation with no registry address asks
-nothing of anybody. Rouh Land Account, Gene Pool takes the address and the registry's public key, which
+nothing of anybody. Meta, Gene registry takes the address and the registry's public key, which
 is pinned there: a list whose signature does not hold against that key is refused, and so
 is one older than the list already kept (a replayed blocklist would otherwise lift a block),
 and one of the wrong kind (the blocklist passed off as the index, both being signed by the
@@ -159,7 +159,7 @@ def nav_key(gene: str) -> str:
 
 
 def route_for(gene: str) -> str:
-    """A shared gene's own page: under Rouh Land Account, Gene Pool, wherever its manifest puts it
+    """A shared gene's own page: under Meta, Gene registry, wherever its manifest puts it
     (Meta, Genes until 4 November 2026)."""
     from . import genes
 
@@ -704,7 +704,7 @@ def _belongs_to_another(org: str, item: str, gene: str, now: dict, before: dict)
 def _listed(org: str, gene: str, version: str) -> tuple[dict, dict]:
     row = _registry(org)
     if row is None or not row.url:
-        raise Refused("Rouh is not pointed at a gene registry. Set one in Anatomy, Rouh Land Account, Gene Pool, first.")
+        raise Refused("Rouh is not pointed at a gene registry. Set one in Anatomy, Meta, Gene registry, first.")
     if not GENE_ID.match(gene):
         raise Refused(f"{gene[:80]!r} is not a gene's id.")
     versions = catalogue(row.index).get(gene) or []
@@ -871,7 +871,7 @@ def set_lab(who, on: bool) -> dict:
 
 def shared_manifests(org: str | None, *, everything: bool = False) -> list[dict]:
     """The lab's genes as manifests the navigation and Search can draw (`rouh/genes`): each
-    behind its own switch, a lab, marked shared, opening its page in Rouh Land Account, Gene Pool. With
+    behind its own switch, a lab, marked shared, opening its page in Meta, Gene registry. With
     the lab switched off there are none. `everything` is every gene in the lab, for the check."""
     if not org:
         return []
@@ -918,7 +918,7 @@ def _installed_view(g, org: str) -> dict:
 
 
 def public(who) -> dict:
-    """Everything Rouh Land Account, Gene Pool draws, for this organisation."""
+    """Everything Meta, Gene registry draws, for this organisation."""
     org = _org(who)
     row = _registry(org)
     found = catalogue(row.index) if row else {}

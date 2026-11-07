@@ -121,21 +121,21 @@
  </script>
 
 {% elif screen == "connect" %}
- <h2>Connected, or on its own?</h2>
+ <h2>Connect to {{ service }}, or keep it free?</h2>
  <div class="choice">
-  <b>Connected · free · recommended</b>
+  <b>Connected to {{ service }} · free · recommended</b>
   <ul>
    <li>Security fixes as soon as they are out</li>
    <li>Lower model prices, as {{ service }} finds them</li>
    <li>Learns faster from what other Rouhs found</li>
-   <li>An address to reach it from your phone</li>
+   <li>Its own URL, to reach it from your phone</li>
   </ul>
  </div>
  <div class="note"><b>Your data stays yours, either way.</b> Your files, your work, what you ask and every call to a model stay private on your Rouh. {{ service }} does not own, see or control any of it. Connecting is only there to look after your Rouh itself.<details class="info"><summary aria-label="What {{ service }} gets">i</summary><p>Only your Rouh's name, your email, its version and which skills it takes.</p></details></div>
  <form method="post" action="/setup/connect">
   {% csrf_token %}
-  <button type="submit" name="choice" value="connected">Continue, Connected</button>
-  <button type="submit" name="choice" value="own" class="ghost">On its own (not recommended)</button>
+  <button type="submit" name="choice" value="connected">Connect to {{ service }}</button>
+  <button type="submit" name="choice" value="own" class="ghost">Keep it free for now</button>
  </form>
 
 {% elif screen == "born" %}
@@ -143,10 +143,10 @@
  <p class="bigname">{{ service }} gave it its name: <b>{{ name }}</b></p>
  <p class="small">Birthday: {{ born_day }}, {{ born_time }} ({{ born_place }}). Its Rouh name can't be changed.</p>{% else %}<h2>Your Rouh is ready</h2>
  <p class="lead">It is a free Rouh. It answers to Rouh, and to any nickname you give it below.</p>{% if connected %}
- <p class="small">{{ service }} couldn't be reached just now, so it has no official name yet. Connect it later in Anatomy, Rouh Land Account, Your profile, and {{ service }} gives it its birth and its name.</p>{% else %}
- <p class="small">It works fine on its own. Connect it to {{ service }} any time, in Anatomy, Rouh Land Account, Your profile, and it is born there and given its own name.</p>{% endif %}{% endif %}{% if born and address %}
- <div class="note address"><b>Its address: <span class="host">{{ address }}</span></b>Kept for {{ name }} from now on. It opens to your phone when you press <b>Reach me from my phone</b> in the chat; until then nothing is open to the internet.</div>{% elif born and registered %}
- <p class="small">{{ name }} is on {{ service }}. Its phone address is on its way, in Settings, Connections, Phone.</p>{% endif %}
+ <p class="small">{{ service }} couldn't be reached just now, so it has no official name yet. Connect it later in Anatomy, Your Rouh, and {{ service }} gives it its birth and its name.</p>{% else %}
+ <p class="small">It works fine on its own. Connect it to {{ service }} any time, in Anatomy, Your Rouh, and it is born there and given its own name.</p>{% endif %}{% endif %}{% if born and address %}
+ <div class="note address"><b>Its URL: <span class="host">{{ address }}</span></b>Kept for {{ name }} from now on: its own web address, through {{ service }}'s relay, which only passes the connection along, still locked. It opens to your phone when you press <b>Turn on URL</b> on Your Rouh, or <b>Reach me from my phone</b> in the chat; until then nothing is open to the internet.</div>{% elif born and registered %}
+ <p class="small">{{ name }} is on {{ service }}. Its URL is on its way, on Anatomy, Your Rouh.</p>{% endif %}
  <p class="lead"><strong>Give it human names.</strong> You can change these any time.</p>{% if problem %}
  <div class="bad" role="alert"><p>{{ problem }}</p></div>{% endif %}
  <form method="post" action="/setup/born">

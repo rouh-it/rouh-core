@@ -336,8 +336,8 @@ SETTINGS = "/settings"
 #: Where rouh.land sends the person back to with a code: a birth or connect code (`?birth=`), or
 #: the id of the new key they asked for (`?recovery=`). rouh.land's site writes this path itself
 #: (its `birth/views.py`, `account` and `_back`) and accepts no other, so it stays its address
-#: although Rouh profile, Birthday until 4 November 2026, moved to Rouh Land Account. It is not
-#: a page: only a return carrying one of those two is sent on to Rouh profile; anything else
+#: although Birthday moved (Rouh profile from 4 November 2026, Your Rouh since 7 November). It is not
+#: a page: only a return carrying one of those two is sent on to Your Rouh; anything else
 #: here is not found (`web/anatomy.rouh_land_return`), as every other old address of a moved
 #: section is (`genes.MOVED`).
 ROUH_LAND_RETURN = "/anatomy/meta/birthday"

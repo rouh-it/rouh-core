@@ -1486,7 +1486,7 @@ class ToolRegistry:
             "'cheaper' and 'smart' (Daily and Best before 23 October 2026, both now Smart). Each "
             "tier is an ordered list of models across four providers, Anthropic, OpenAI, Google "
             "(Gemini) and xAI (Grok), and a use asks the first model on it whose provider has a key "
-            "here (Google's and xAI's keys are typed into Anatomy, Rouh Land Account, Models); a use that can only ask "
+            "here (Google's and xAI's keys are typed into Anatomy, Behaviour, Models); a use that can only ask "
             "one provider asks that provider's first model. Every use of a model is on one of the two tiers, or on a model of its "
             "own (Custom, an ordered list too), named by its id in 'which': 'general' (Rouh, this conversation, and its "
             "forks), 'chats' (every other chat), chat titles, filing, Clockwork's titles and words, "

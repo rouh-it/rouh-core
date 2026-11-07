@@ -317,13 +317,14 @@ function tryThis(say) {
   try { box.setSelectionRange(say.length, say.length); } catch (err) {}
 }
 
-/* With a phone address from the relay (`rouh/relay.py`), the phone's step is its own page:
-   the address, the switch that opens it and the QR code, in Settings, Connections, Phone. */
+/* With a URL from the relay (`rouh/relay.py`), the phone's step is its own page: the URL, the
+   switch that opens it and the QR code, on Your Rouh (its URL card). The step keeps its words,
+   "Reach me from my phone", since they name the goal (141-17, Correction 1). */
 function phoneStep(item) {
   var host = ($('welcomeTry') || { dataset: {} }).dataset.phone;
   if (item.kind !== 'phone' || !host) return item;
   return { kind: 'phone', head: item.head, say: host + ': open it, then scan the code with your phone',
-           settings: 'phone' };
+           settings: 'this-rouh' };
 }
 
 function tryCard(item) {

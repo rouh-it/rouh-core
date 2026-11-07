@@ -2,7 +2,7 @@
 and on it only what needs the person's attention now.
 
 Petar, 14 October 2026 (card 1554): Anatomy is one place in five groups, You, Connections,
-Behaviour, Money and Meta, with Rouh Land Account the sixth since 4 November 2026, and its front is a status board rather than a list of tiles: a
+Behaviour, Money and Meta, with Your Rouh the sixth (Rouh Land Account from 4 to 7 November 2026), and its front is a status board rather than a list of tiles: a
 connection that has to be made again, a card near its cap or about to expire, the heartbeat
 paused. A group with nothing to say is "all fine", which the page says; nothing here says it.
 
@@ -54,13 +54,13 @@ def _location(me) -> list[tuple[str, str]]:
     return [] if location.get(me) else [("location", "No location kept")]
 
 
-# --- Rouh Land Account ---------------------------------------------------------------------
+# --- Your Rouh ---------------------------------------------------------------------
 
 def _your_profile(me) -> list[tuple[str, str]]:
     """Not connected to a rouh.land account, or something wrong between this Rouh and rouh.land."""
     from . import landaccount
 
-    return [("your-profile", said) for said in landaccount.attention(me)]
+    return [("this-rouh", said) for said in landaccount.attention(me)]
 
 
 # --- Connections ----------------------------------------------------------------------------
@@ -172,7 +172,7 @@ def _dreame(me) -> list[tuple[str, str]]:
     return [("dreame", "The Dreame robot needs signing in again")]
 
 
-# --- Rouh Land Account, Models ---------------------------------------------------------------
+# --- Behaviour, Models ---------------------------------------------------------------
 
 def _models(me) -> list[tuple[str, str]]:
     """A tier none of whose models can be asked here: no provider on its list has a key."""
@@ -247,7 +247,7 @@ def _services(me) -> list[tuple[str, str]]:
     return [("services", said) for said in services.attention(me)]
 
 
-# --- Rouh Land Account, Gene Pool -------------------------------------------------------------
+# --- Meta, Gene registry -------------------------------------------------------------
 
 def _genes(me) -> list[tuple[str, str]]:
     from .models import GeneRegistry, SharedGene
@@ -286,7 +286,7 @@ def _changes(me) -> list[tuple[str, str]]:
 
 
 def _birthday(me) -> list[tuple[str, str]]:
-    """Rouh profile's line on the board: only when something is wrong or waits, in plain words.
+    """Your Rouh's line on the board about its name and keys: only when something is wrong or waits, in plain words.
     A free Rouh is fine as it is (4 November 2026), and no key is ever named."""
     from . import birth
 
@@ -295,9 +295,9 @@ def _birthday(me) -> list[tuple[str, str]]:
         return []
     kind = birth.standing(row)["kind"]
     if kind == "stopped":
-        return [("rouh-profile", "rouh.land doesn't recognise this Rouh any more")]
+        return [("this-rouh", "rouh.land stopped this Rouh")]
     if kind == "waiting" or (row.pending or {}).get("request"):
-        return [("rouh-profile", "Something waits on rouh.land")]
+        return [("this-rouh", "Something waits on rouh.land")]
     return []
 
 
@@ -307,7 +307,7 @@ def _birthday(me) -> list[tuple[str, str]]:
 #: the page under Behaviour (`app/runs.js`).
 CHECKS = {
     "location": _location,
-    "your-profile": _your_profile,
+    "this-rouh": lambda me: list(dict.fromkeys(_your_profile(me) + _birthday(me))),
     "email": _email,
     "telegram": _telegram,
     "apple": _apple,
@@ -322,7 +322,6 @@ CHECKS = {
     "gene-pool": _genes,
     "changes": _changes,
     "services": _services,
-    "rouh-profile": _birthday,
 }
 
 

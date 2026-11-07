@@ -19,7 +19,7 @@ import { BRIEF, briefOpen, briefViewing, CANVAS, canvasDoc, controlOpen, control
   EVO, evolutionOpen, evolutionViewing,
   BOX, boxOpen, boxViewing,
   crumbLevels, goalsOpen, goalsViewing, goNow, MEMORY, memoryAddress, memoryOpen, memoryViewing, ONE, remindersOpen,
-  remindersViewing, renderThreads, runsOpen, RUNSVIEW, runsViewing, SETTINGS, settingsAddress, settingsGroupName,
+  remindersViewing, renderThreads, runsOpen, RUNSVIEW, runsViewing, SETTINGS, settingsAddress, settingsGroupName, anatomyOnly,
   settingsOpen, settingsRead, settingsViewing, SYNAPSE, synapseOpen, synapseViewing, TASK_PREFIX, tasksOpen,
   TASKS_VIEW, tasksViewing, TC, tcAddAsked, tcPerson, threadName, wsProjects } from 'app/runs.js';
 import { chatById, CHATS, chatShow, forkTip, showCrumb } from 'app/chats.js';
@@ -714,6 +714,8 @@ function addrName() {
     var opened = SETTINGS.section === 'trusted-contacts' && TC.open && tcPerson(TC.open);
     if (opened) return (opened.name || 'Trusted contact') + ' - Trusted contacts';
     // A section is a page of its own inside its group: "Payments - Money".
+    // A group with one section is that section's page, named once (Your Rouh).
+    if (SETTINGS.section && anatomyOnly(SETTINGS.page) === SETTINGS.section) return settingsGroupName(SETTINGS.page);
     if (SETTINGS.section) return settingsGroupName(SETTINGS.section) + ' - ' + settingsGroupName(SETTINGS.page);
     return settingsGroupName(SETTINGS.page) || 'Anatomy';
   }

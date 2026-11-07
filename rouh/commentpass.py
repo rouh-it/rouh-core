@@ -322,7 +322,7 @@ async def start(cfg, store: askai.Threads, place: comments.Place, me: comments.P
         if not cfg.anthropic_api_key and not (await asyncio.to_thread(
                 modeldefaults.use_pair, "comment_pass", place.org_id, cfg)).model:
             raise comments.Refused("Rouh has no key for any model Ask AI can ask, so it cannot "
-                                   "answer the comments. Add one in Anatomy, Rouh Land Account, Models.", 503)
+                                   "answer the comments. Add one in Anatomy, Behaviour, Models.", 503)
         if most_a_day and await asyncio.to_thread(askai.asked_lately, who) >= most_a_day:
             raise comments.Refused(f"That is {most_a_day} questions to Ask AI in the last "
                                    "day, which is as many as can be asked here in a day. Try "

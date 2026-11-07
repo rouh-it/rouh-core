@@ -1,7 +1,7 @@
 {
   "id": "phone",
-  "name": "Phone",
-  "title": "Phone: this Rouh's own address on the relay, locked end to end, opened from the chat",
+  "name": "Your Rouh's URL",
+  "title": "Your Rouh's URL: its own web address through rouh.land's relay, locked end to end, off until the owner turns it on, with an (i) saying what kind of URL it is; on Your Rouh",
   "aliases": [
     "phone",
     "relay",
@@ -10,13 +10,14 @@
     "frp",
     "tunnel",
     "certificate",
-    "lets encrypt"
+    "lets encrypt",
+    "url",
+    "your rouh's url",
+    "web address",
+    "turn on url"
   ],
   "group": "machine",
-  "route": "/anatomy/connections/phone",
-  "anatomy": {
-    "order": 22
-  },
+  "route": "/anatomy/your-rouh",
   "icon": "<rect x=\"7\" y=\"2.5\" width=\"10\" height=\"19\" rx=\"2.5\"/><path d=\"M11 18.5h2\"/>",
   "attaches_to": [],
   "maturity": "accepted",
@@ -36,7 +37,7 @@
     ],
     "tables": [],
     "jobs": [],
-    "remove": "the Settings section in rouh/templates/rouh/index.html, phonepage.js/.css, rouh/relay.py, rouh/acme.py, rouh/web/relay.py and its routes, the relay lines in rouh/web/gate.py, rouh/web/auth.py, rouh/web/firstrun.py and rouh/runtime.py, phone_in.html, frpc in deploy/container/Dockerfile.base and this manifest; delete the data folder's relay/."
+    "remove": "the phoneBody box in Your Rouh's section of rouh/templates/rouh/index.html, phonepage.js/.css, rouh/relay.py, rouh/acme.py, rouh/web/relay.py and its routes, the relay lines in rouh/web/gate.py, rouh/web/auth.py, rouh/web/firstrun.py and rouh/runtime.py, phone_in.html, frpc in deploy/container/Dockerfile.base and this manifest; delete the data folder's relay/."
   },
   "uses": {
     "tools": []

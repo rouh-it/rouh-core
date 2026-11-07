@@ -1078,7 +1078,7 @@
     var where = el('p', 'syn-note');
     where.appendChild(document.createTextNode('Which model does each job is set on the '));
     var link = el('a', null, 'Models page');
-    link.setAttribute('href', (window.RouhNav && window.RouhNav.route('models')) || '/anatomy/rouh-land/models');
+    link.setAttribute('href', (window.RouhNav && window.RouhNav.route('models')) || '/anatomy/behaviour/models');
     where.appendChild(link);
     where.appendChild(document.createTextNode(', under Synapse. Embeddings stay with each dataset, under Tune > Vectors.'));
     models.appendChild(where);

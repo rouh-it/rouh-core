@@ -191,7 +191,7 @@ function navWire(rows) {
 }
 
 /* The shared genes' links drawn again from the server, after one of them was
-   switched on or off in Rouh Land Account, Gene Pool (`genespage.js`, `rouh/genelab.py`).
+   switched on or off in Meta, Gene registry (`genespage.js`, `rouh/genelab.py`).
    They stand last in their groups, so only they are taken out and put back;
    Rouh's own links, and what is bound to them, are left as they are. */
 function navRefresh() {

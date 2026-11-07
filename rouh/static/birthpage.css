@@ -1,58 +1,185 @@
-/* Anatomy, Rouh Land Account, Rouh profile (`birthpage.js`, `rouh/birth.py`).
+/* Anatomy, Your Rouh (`birthpage.js`, `phonepage.js`), and the rouh.land account card on You,
+   Your account (`landaccountpage.js`): step 141-17's design built into Rouh's own look. The cards
+   are Anatomy's (`.setting-card`, `.hb-card`), the colours Rouh's tokens (`app.css`): the one
+   accent, and good, warn and bad only beside a shape (a dot, a diamond, a ring) and a word. */
 
-   The cards of the Heartbeat page (`heartbeatpage.css`) with a few of its own: the Rouh's name
-   large, the two ways to be born side by side, and the twelve recovery words with their QR. */
+/* The page: a headline sentence, then the tiles, then the cards. */
+.yr-page { display: grid; gap: 12px; }
+.yr-page > .hb-page { gap: 12px; }
+#birthBody { padding-bottom: 0; }
+#birthBody + .yr-card { margin: 12px 2px; }
+#yrAfter { padding-top: 0; }
+.yr-headline { margin: 0; font-size: 17px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+.yr-headline strong { font-weight: 650; }
+.yr-break { overflow-wrap: anywhere; }
+.yr-lede { margin: 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.yr-jump { margin: -2px 0 0; font-size: 13px; }
 
-.bd-name { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 680; letter-spacing: -0.01em; overflow-wrap: anywhere; }
-.bd-sub { margin: 4px 0 0; color: var(--dim); font-size: 13.5px; }
-.bd-second { margin: 8px 0 0; font-size: 13.5px; line-height: 1.45; }
+/* Three tiles, Name, rouh.land and URL, each a link to its card. */
+.yr-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.yr-tile {
+  display: grid; gap: 4px; min-height: 44px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--panel); color: var(--text); text-decoration: none; min-width: 0; transition: border-color 160ms ease;
+}
+.yr-tile:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.yr-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.yr-tile-k { font-size: 12px; color: var(--dim); }
+.yr-tile-v { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 620; overflow-wrap: anywhere; min-width: 0; }
+.yr-tile-s { font-size: 12.5px; color: var(--dim); overflow-wrap: anywhere; }
+/* State as a shape and a word, never colour alone: a dot is fine, a diamond a warning, a ring a
+   problem, a dashed ring off or none. */
+.yr-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 1.5px dashed var(--dimmer); }
+.st-good .yr-dot { border: 0; background: var(--good); }
+.st-warn .yr-dot { border: 0; border-radius: 1px; background: var(--warn); transform: rotate(45deg) scale(.85); }
+.st-bad .yr-dot { border: 2.5px solid var(--bad); background: transparent; }
+
+/* Needs you: one sentence and one action, only when something is wrong. */
+.yr-needs {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: start;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2);
+}
+.yr-needs.warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.yr-needs.warn .yr-ic { color: var(--warn); }
+.yr-needs.bad { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); }
+.yr-needs.bad .yr-ic { color: var(--bad); }
+.yr-needs.wait .yr-ic { color: var(--accent); }
+.yr-ic { margin-top: 1px; }
+.yr-needs-words p { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--dim); overflow-wrap: anywhere; }
+.yr-needs-words .yr-needs-t { color: var(--text); font-weight: 620; font-size: 14px; margin-bottom: 2px; }
+.yr-needs-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* The cards. "talks to rouh.land", "on rouh.land": the globe says what reaches rouh.land. */
+.yr-card { scroll-margin-top: 12px; }
+.yr-card .hb-h:focus { outline: none; }
+.yr-where {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 400; color: var(--dim);
+}
+.yr-globe { flex: none; }
+.yr-card .hb-actions { margin-top: 2px; flex-wrap: wrap; }
+.yr-card a.ctl { text-decoration: none; white-space: normal; text-align: center; max-width: 100%; }
+/* The buttons of the page: at least 44 px high to press on a phone. */
+.yr-card .ctl.small, .yr-needs .ctl.small, .yr-sheet .ctl.small {
+  min-height: 44px; padding: 8px 14px; font-size: 13.5px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.ctl.small.yr-quiet { color: var(--accent); border-color: var(--line); }
+.ctl.small.yr-quiet:hover { color: var(--text); }
+.yr-card .ctl:focus-visible, .yr-needs .ctl:focus-visible, .yr-sheet .ctl:focus-visible, .bd-inline:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.yr-out { flex: none; }
+.yr-warnline { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--warn); overflow-wrap: anywhere; }
+.yr-member { margin: 0; font-size: 13px; color: var(--dim); }
+.yr-subhead { margin: 6px 0 0; font-size: 13.5px; font-weight: 620; }
+
+/* What connecting gives, sends and keeps private; and the Disconnect sheet's three. */
+.yr-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.yr-three > div { min-width: 0; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: var(--radius-s); }
+.yr-three-h { margin: 0 0 6px; font-size: 12.5px; font-weight: 620; color: var(--dim); }
+.yr-three ul { margin: 0; padding-left: 16px; display: grid; gap: 4px; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+
+/* A term and its value, its help under the value. */
+.yr-rows { margin: 0; display: grid; gap: 12px; }
+.yr-rows > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.yr-rows dt { font-size: 13px; color: var(--dim); }
+.yr-rows dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; min-width: 0; }
+.yr-rows dd .settings-help { margin: 4px 0 0; }
+.yr-rows dd .hb-actions { margin-top: 8px; }
+.yr-lock {
+  display: inline-block; margin-left: 8px; padding: 1px 7px; border: 1px solid var(--line); border-radius: 999px;
+  font-size: 11.5px; color: var(--dim); vertical-align: 1px;
+}
+.bd-name { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 680; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.bd-name.yr-free { color: var(--dim); }
+.bd-sub { margin: 0; color: var(--dim); font-size: 13.5px; line-height: 1.45; }
+.bd-second { margin: 0; font-size: 13.5px; line-height: 1.45; }
 .bd-second-name { font-weight: 640; }
-.bd-lead { margin: 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
-.bd-warn { margin: 0; font-size: 13px; line-height: 1.45; color: var(--warn); overflow-wrap: anywhere; }
-.bd-alert { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
-.bd-words-wait { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
-
-.bd-ways { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.bd-way { display: grid; gap: 6px; align-content: start; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: var(--radius-s); min-width: 0; }
-.bd-way .ctl { justify-self: start; text-decoration: none; }
-.bd-way-h { margin: 0; font-size: 14px; }
-.hb-actions a.ctl { text-decoration: none; }
-
-.bd-words-row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
-.bd-wordlist {
-  flex: 1 1 280px; min-width: 0; margin: 0; padding: 0; list-style: none; counter-reset: bdw;
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;
-}
-.bd-word {
-  counter-increment: bdw; padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--radius-s);
-  font-family: var(--mono); font-size: 14px; background: var(--bg); min-width: 0; overflow-wrap: anywhere;
-}
-.bd-word::before { content: counter(bdw) ". "; color: var(--dim); font-size: 12px; }
-.bd-qr { flex: none; width: 172px; padding: 6px; background: #fff; border-radius: var(--radius-s); line-height: 0; }
-.bd-qr svg { width: 100%; height: auto; }
-
-.bd-check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
-.bd-since { flex: 0 1 180px; }
-.bd-mono { font-family: var(--mono); font-size: 12.5px; }
-.bd-dl { grid-template-columns: 96px minmax(0, 1fr); }
-.bd-more { display: grid; gap: 8px; }
-.bd-keys .brown-toggle, .bd-reg .brown-toggle, .bd-incoming .brown-toggle, .bd-how .brown-toggle { margin-top: 8px; }
-/* The sentence under the nickname: across the whole form, under the box it is about. */
-.hb-form .bd-nick-help { flex: 1 1 100%; margin: -2px 0 0; }
-/* A link inside a sentence (Your profile, from the rouh.land card). */
 .bd-inline { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
-/* Keys and recovery: one closed section at the bottom, its cards inside it. */
-.bd-keys-section { margin-top: 4px; }
-.bd-keys-section > .brown-toggle-body { display: grid; gap: 12px; }
-.bd-keys-section > .brown-toggle-body > .settings-help:first-child { margin: 0; }
-.hb-form textarea {
-  font: inherit; font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--line);
-  border-radius: var(--radius-s); padding: 7px 9px; width: 100%; min-width: 0; resize: vertical;
-}
 
-@media (max-width: 560px) {
-  .bd-ways { grid-template-columns: minmax(0, 1fr); }
-  .bd-wordlist { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .bd-qr { width: 150px; }
-  .bd-name { font-size: 24px; }
+/* What you call it, being changed. */
+.yr-nick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; }
+.yr-nick .field { min-width: 0; }
+.yr-nick .settings-help, .yr-nick .hb-actions { grid-column: 1 / -1; margin: 0; }
+.yr-nick input { width: 100%; min-height: 44px; }
+
+/* What others can see: the public card, and what is never public. */
+.yr-public { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.yr-pubcard { padding: 12px 14px; border: 1px dashed var(--line); border-radius: var(--radius-s); background: var(--bg-2); min-width: 0; }
+.yr-pubcard p { margin: 0; font-size: 13.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.yr-pubcard ul { margin: 6px 0 0; padding-left: 16px; font-size: 13px; color: var(--dim); }
+.yr-pub-k { margin: 0 0 8px; font-size: 12px; color: var(--dimmer); }
+.yr-pubcard .yr-pub-k { margin-bottom: 6px; }
+.yr-pub-name { font-size: 16px !important; font-weight: 650; }
+.yr-never { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13.5px; }
+.yr-never li { display: flex; gap: 8px; align-items: flex-start; overflow-wrap: anywhere; }
+.yr-never svg { flex: none; margin-top: 2px; color: var(--good); }
+
+/* Done on rouh.land (You, Your account). */
+.yr-there { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.yr-there li { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 6px 0; border-top: 1px solid var(--line-soft); font-size: 13.5px; }
+.yr-there li:first-child { border-top: 0; }
+
+/* Your Rouh's URL: its title, the (i) beside it and the popover the (i) opens (Correction 1). */
+.yr-infowrap { position: relative; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.yr-infowrap .hb-h { margin: 0; }
+.yr-info {
+  width: 44px; height: 44px; margin: -10px 0 -10px -6px; display: inline-grid; place-items: center; border: 0; border-radius: 50%;
+  background: transparent; color: var(--dim); cursor: pointer; transition: color 150ms ease;
 }
+.yr-info:hover, .yr-info[aria-expanded="true"] { color: var(--accent); }
+.yr-info:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+.yr-pop {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 5; width: min(380px, calc(100vw - 72px));
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2);
+  box-shadow: var(--shadow); color: var(--dim); font-size: 13.5px; line-height: 1.5;
+}
+.yr-pop p { margin: 0 0 8px; }
+.yr-pop p:last-child { margin-bottom: 0; }
+.yr-pop b, .yr-pop .yr-pop-t { color: var(--text); }
+.yr-pop .yr-pop-t { font-weight: 620; }
+.yr-url { gap: 10px; }
+.yr-empty p { margin: 0; font-size: 14px; }
+.yr-empty .settings-help { margin-top: 4px; font-size: 13px; }
+
+/* The Disconnect sheet. */
+.yr-sheet {
+  width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; padding: 20px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--text);
+  box-shadow: var(--shadow);
+}
+.yr-sheet::backdrop { background: rgba(0, 0, 0, 0.55); }
+.yr-sheet-h { margin: 0 0 6px; font-size: 18px; line-height: 1.3; overflow-wrap: anywhere; }
+.yr-sheet .yr-lede { color: var(--dim); margin-bottom: 12px; }
+.yr-sheet .hb-actions { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* A toast for what a press did. */
+.yr-toast {
+  position: fixed; left: 50%; bottom: 24px; z-index: 60; transform: translate(-50%, 8px); opacity: 0;
+  max-width: calc(100vw - 32px); padding: 10px 16px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--panel-2); color: var(--text); font-size: 13.5px; box-shadow: var(--shadow);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+.yr-toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-width: 720px) {
+  .yr-tiles { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .yr-tile { grid-template-columns: 84px minmax(0, 1fr); grid-template-areas: "k v" "k s"; column-gap: 10px; padding: 10px 12px; }
+  .yr-tile-k { grid-area: k; align-self: center; }
+  .yr-tile-v { grid-area: v; }
+  .yr-tile-s { grid-area: s; }
+  .yr-three, .yr-public { grid-template-columns: minmax(0, 1fr); }
+  .yr-rows > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .yr-nick { grid-template-columns: minmax(0, 1fr); }
+  .yr-needs { grid-template-columns: auto minmax(0, 1fr); }
+  .yr-needs-acts { grid-column: 1 / -1; }
+  .bd-name { font-size: 22px; }
+  .yr-headline { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .yr-tile, .yr-info, .yr-toast { transition: none; }
+}
+/* The URL card's body is a drawn body inside a card: no page's end below it. */
+#yrUrl > #phoneBody { padding: 0; overflow: visible; }
+/* You, Your account: its headline and its cards (`signinpage.js`) with the same gap as the page's own. */
+#signInBody { display: grid; gap: 12px; }
+#signInBody .yr-headline { margin-bottom: 2px; }

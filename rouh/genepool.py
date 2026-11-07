@@ -1783,4 +1783,4 @@ def _born(org: str) -> dict:
 
     row = birth.current(org)
     return {"born": row is not None, "name": row.name if row else "", "registered": bool(row and row.registry_id),
-            "route": genes.BY_ID["birthday"]["route"]}
+            "route": genes.ANATOMY_ROOT + "/" + genes.SECTIONS["this-rouh"]}

@@ -1,21 +1,18 @@
 {% extends "rouh/signin_base.html" %}
-{% comment %}Other ways in, for this Rouh's owner, when the email does not arrive and there is no
-   password (`rouh/web/auth.py`, `help_page`): the twelve recovery words, and, on the machine
-   itself, the one-time link an administrator makes there.{% endcomment %}
+{% comment %}Other ways in, for this Rouh's owner, when the email does not arrive (`rouh/web/auth.py`,
+   `help_page`): the sign-in link again, the password, and, on the machine itself, the one-time link
+   an administrator makes there. No recovery words: Petar, 7 November 2026 (141-17, Correction 2),
+   "don't show recovery words at all. we completely removed that functionality".{% endcomment %}
 {% block title %}Other ways in - Rouh{% endblock %}
 {% block body %}
  <h2>Other ways in</h2>
  <p>For this Rouh's owner. A guest asks the person who invited them.</p>
- <form method="post" action="/login/recover">
-  {% csrf_token %}{% if next_to != "/" %}<input type="hidden" name="next" value="{{ next_to }}">{% endif %}
-  <div class="field">
-   <label for="words">Its twelve recovery words</label>
-   <input id="words" name="words" type="text" autocapitalize="none" autocorrect="off" autocomplete="off" required>
-  </div>
-  <button type="submit" class="second">Sign in with the recovery words</button>
- </form>
- <p>On the machine Rouh runs on, an administrator can make a one-time sign-in link for your email:</p>
- <code>{{ command }}</code>
+ <ol class="ways" style="padding-left:20px;display:grid;gap:10px">
+  <li><b>A sign-in link to your email.</b> Check your spam folder, then ask for a new one: each link works once, and only the newest. <a href="/login{% if next_to != "/" %}?next={{ next_to|urlencode }}{% endif %}">Send me a new link</a></li>
+  <li><b>Your password,</b> if you set one. It is asked for when this Rouh cannot send email.</li>
+  <li><b>On the machine Rouh runs on,</b> an administrator can make a one-time sign-in link for your email:
+   <code>{{ command }}</code></li>
+ </ol>
  {% if owner_way %}<p>{{ owner_way.mac }}</p>{% endif %}
  <p class="back"><a href="/login">Back to sign in</a></p>
 {% endblock %}

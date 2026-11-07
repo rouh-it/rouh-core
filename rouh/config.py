@@ -308,7 +308,7 @@ OPENAI_CHOICES = (
 #: Gemini API models and pricing pages (ai.google.dev/gemini-api/docs/models and /pricing,
 #: last updated 22 October 2026) and xAI's models page (docs.x.ai/docs/models). Both are
 #: asked through their OpenAI-compatible Chat Completions endpoints (`rouh/llm.py`,
-#: `rouh/compat.py`), with a key the organisation types into Anatomy, Rouh Land Account, Models
+#: `rouh/compat.py`), with a key the organisation types into Anatomy, Behaviour, Models
 #: (`rouh/providerkeys.py`).
 GOOGLE_CHOICES = (
     ("gemini-4-argon", "Gemini 4 Argon"),
@@ -606,7 +606,7 @@ class Config:
     #: anywhere changes.
     openai_api_key: str = field(default_factory=lambda: _env("OPENAI_API_KEY"))
     #: Google's Gemini API key and xAI's, as this installation's own, from its environment.
-    #: An organisation types its own into Anatomy, Rouh Land Account, Models, which is used first and kept
+    #: An organisation types its own into Anatomy, Behaviour, Models, which is used first and kept
     #: sealed (`rouh/providerkeys.py`). Empty: only what Settings holds.
     google_api_key: str = field(default_factory=lambda: _env("GEMINI_API_KEY"))
     xai_api_key: str = field(default_factory=lambda: _env("XAI_API_KEY"))

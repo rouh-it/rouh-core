@@ -228,7 +228,7 @@ def friendly(exc, model: str) -> str:
     who = PROVIDER_NAMES.get(provider_of(model), "The provider")
     status = retrying.status_of(exc)
     if status in (401, 403):
-        return f"My {who} API key is not being accepted. Check it in Anatomy, Rouh Land Account, Models."
+        return f"My {who} API key is not being accepted. Check it in Anatomy, Behaviour, Models."
     if status == 404:
         return f"{model_name(model)} is not available to my {who} API key."
     if status == 429:

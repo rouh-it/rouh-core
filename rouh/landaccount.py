@@ -1,5 +1,7 @@
-"""Rouh Land Account, Your profile: the person's rouh.land account, as far as this Rouh knows it
-(`/anatomy/rouh-land/your-profile`, `landaccountpage.js`).
+"""The person's rouh.land account, as far as this Rouh knows it: on Your Rouh, whether this Rouh is
+connected to it and what is wrong between them (`birthpage.js`), and on You, Your account, the
+account itself (`landaccountpage.js`). Rouh Land Account, Your profile from 4 to 7 November 2026,
+when step 141-17 gave each journey one home.
 
 Petar, 4 November 2026: "in the settings it needs to be clear what is relevant to rouh.land. so
 maybe we should have one separate section Rouh Land Account. in it: - Your Profile with email for
@@ -98,9 +100,11 @@ def page(who) -> dict:
     out = {"admin": bool(getattr(who, "is_admin", False)), "born": row is not None,
            "connected": False, "has_account": False, "email": "", "role": "",
            "sign_in_email": mine, "sign_in_label": "Signs you in to this Rouh",
-           "door": door, "account_url": door + "account/", "problem": None, "check_due": False}
+           "door": door, "account_url": door + "account/", "problem": None, "check_due": False,
+           "rouh_name": "", "owner": birth._owner_of(org)["name"]}
     if row is None:
         return out
+    out["rouh_name"] = row.name
     payload = row.card.get("payload") if isinstance(row.card, dict) else None
     payload = payload if isinstance(payload, dict) else {}
     connected = bool(row.registry_id)
@@ -143,10 +147,10 @@ def attention(who) -> list[str]:
     if row is None:
         return []  # Not born yet, said once, by Rouh profile.
     if not row.registry_id or not birth._in_account(row):
-        return ["Not connected to a rouh.land account"]
+        return ["Disconnected from rouh.land" if birth.disconnected(row) else "Not connected to a rouh.land account"]
     said = problem(row)
     if said is None:
         return []
-    return ["rouh.land no longer accepts this Rouh's key" if said["kind"] == "key"
-            else "rouh.land could not be reached" if said["kind"] == "unreachable"
+    return ["rouh.land stopped this Rouh" if said["kind"] == "key"
+            else "Can't reach rouh.land" if said["kind"] == "unreachable"
             else "rouh.land did not accept the last check"]

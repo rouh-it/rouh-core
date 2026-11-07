@@ -9,7 +9,6 @@
                                    the quiet fallback under "Can't get the email?" when it can
     GET/POST /login/link/<token>   the letter's link: in at once in the browser that asked, after
                                    one press anywhere else (so a mail scanner never uses it up)
-    POST /login/recover            the owner's twelve recovery words, when no mail and no password
     POST /login/passkey/options    a challenge for a passkey this device holds
     POST /login/passkey/verify     the passkey's answer
     POST /logout                   sign out
@@ -263,39 +262,6 @@ async def help_page(request: HttpRequest) -> HttpResponse:
     command = COMMAND_DOCKER if firstrun.code_file() else COMMAND
     return await asyncio.to_thread(_page, request, "rouh/login_help.html", command=command,
                                    next_to=request.GET.get("next", ""))
-
-
-async def recover(request: HttpRequest) -> HttpResponse:
-    """The owner's way in with no mail and no password: the Rouh's twelve recovery words."""
-    if request.method != "POST":
-        return HttpResponseRedirect("/login", status=303)
-    back = next_page(request.POST.get("next", ""))
-    locked = await _locked(request, "recovery-words")
-    if locked:
-        return await asyncio.to_thread(_page, request, "rouh/login_password.html", status=429, next_to=back,
-                                       note=locked, open_fallback=True)
-    owner = await asyncio.to_thread(_owner_by_words, request.POST.get("words", ""))
-    if owner is None:
-        await _refused(request, "recovery-words")
-        return await asyncio.to_thread(_page, request, "rouh/login_password.html", status=401, next_to=back,
-                                       note="Those are not this Rouh's recovery words.", open_fallback=True)
-    return await _in(request, owner, back, "its recovery words")
-
-
-def _owner_by_words(words: str):
-    from rouh import birth
-
-    owner = firstrun.the_owner()
-    if owner is None:
-        return None
-    row = birth.current(str(owner.org_id or ""))
-    if row is None or not row.recovery_public:
-        return None
-    try:
-        _seed, pub = birth._recovery_from(words)
-    except birth.Refused:
-        return None
-    return owner if pub == row.recovery_public else None
 
 
 # --- passkeys ----------------------------------------------------------------------------------------

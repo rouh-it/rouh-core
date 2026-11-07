@@ -132,7 +132,6 @@ urlpatterns = [
     # --- signing in -----------------------------------------------------------
     path("login", auth.login),
     path("login/link/<str:token>", auth.link),
-    path("login/recover", auth.recover),
     path("login/help", auth.help_page),
     path("login/passkey/options", auth.passkey_options),
     path("login/passkey/verify", auth.passkey_verify),

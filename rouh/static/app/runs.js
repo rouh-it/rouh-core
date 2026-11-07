@@ -8400,8 +8400,16 @@ function settingsAddress() {
   var inside = sec === 'trusted-contacts' ? TC.open : sec === 'beats' ? SETTINGS.beats
     : sec === 'heartbeat' ? SETTINGS.heartbeat
     : sec === 'stats' ? SETTINGS.stats : sec === 'gene-pool' ? SETTINGS.gene : '';
+  // A group with one section is that section's page, at the group's own address (Your Rouh).
+  if (sec && !inside && anatomyOnly(SETTINGS.page) === sec) return '/anatomy/' + SETTINGS.page;
   return '/anatomy' + (SETTINGS.page ? '/' + SETTINGS.page : '') +
     (sec ? '/' + sec + (inside ? '/' + inside : '') : '');
+}
+
+/** The one section of a group that has only one, which its page is, or ''. @param {string} id */
+function anatomyOnly(id) {
+  var group = anatomyGroup(id);
+  return group && group.sections.length === 1 ? group.sections[0].id : '';
 }
 
 /** Whether a section is the page that shows now. @param {string} id */
@@ -8414,6 +8422,7 @@ function sectionShows(id) {
    whichever page is showing, so each card behaves exactly as it did on Settings' one long
    page. */
 function settingsShowGroup(where, item, query) {
+  if (anatomyOnly(where)) where = anatomyOnly(where);
   var sec = anatomySection(where);
   var page = sec ? sec.group : anatomyGroup(where) ? where : '';
   var section = sec ? where : '';
@@ -8442,8 +8451,10 @@ function settingsShowGroup(where, item, query) {
   // width, the side list put away (`heartbeatpage.js`, `beatspage.js`).
   $('settingsView').classList.toggle('settings-wide', section === 'beats' || section === 'heartbeat');
   var back = /** @type {HTMLAnchorElement} */ ($('settingsBack'));
-  var up = section ? settingsGroupName(page) : 'Anatomy';
-  back.href = section ? '/anatomy/' + page : '/anatomy';
+  // From the page of a group with one section, Back goes to the board: its menu would list only it.
+  var alone = !!section && anatomyOnly(page) === section;
+  var up = section && !alone ? settingsGroupName(page) : 'Anatomy';
+  back.href = section && !alone ? '/anatomy/' + page : '/anatomy';
   back.title = up;
   back.setAttribute('aria-label', 'Back to ' + up);
   /** @type {HTMLElement} */ (back.querySelector('span')).textContent = up;
@@ -8476,7 +8487,7 @@ function settingsShowGroup(where, item, query) {
   var retab = !moved && SETTINGS.open && here('stats') && statsTab !== SETTINGS.stats;
   SETTINGS.stats = statsTab;
   if (retab && window.RouhStats) window.RouhStats.shown(statsTab);
-  // One shared gene's page, `/anatomy/rouh-land/gene-pool/<publisher>/<name>` (`genespage.js`),
+  // One shared gene's page, `/anatomy/meta/gene-pool/<publisher>/<name>` (`genespage.js`),
   // or the registry and the lab for ''.
   var geneNow = section === 'gene-pool' ? String(item || '') : '';
   var regene = !moved && SETTINGS.open && here('gene-pool') && geneNow !== SETTINGS.gene;
@@ -8486,6 +8497,9 @@ function settingsShowGroup(where, item, query) {
   // a moment ago on another page: read it again on the way in, and the
   // profile with it, whose name may follow the card.
   if (moved && here('about-you') && SETTINGS.open) { meLoad(); profLoad(); }
+  // Your account has the password card (About You's until 7 November 2026, 141-17), which the
+  // profile says whether to change or to set.
+  if (moved && here('account') && SETTINGS.open) profLoad();
   // The sections drawn by pages of their own read them on the way in and stop
   // looking once they are left (`heartbeatpage.js`, `paymentspage.js`, ...).
   if (moved || !SETTINGS.open) settingsPages(section);
@@ -8502,11 +8516,11 @@ function settingsShowGroup(where, item, query) {
 function settingsPages(section) {
   var pages = { heartbeat: window.RouhHeartbeat, beats: window.RouhBeats, payments: window.RouhPayments,
                 shipping: window.RouhShipping, services: window.RouhServices, signups: window.RouhSignups,
-                cloudflare: window.RouhCloudflare, phone: window.RouhPhone, slack: window.RouhSlack, hue: window.RouhHue, dreame: window.RouhDreame,
+                cloudflare: window.RouhCloudflare, slack: window.RouhSlack, hue: window.RouhHue, dreame: window.RouhDreame,
                 'draft-edits': window.RouhDraftEdits,
                 'gene-pool': window.RouhGenes, changes: window.RouhChanges, silos: window.RouhSilos,
-                stats: window.RouhStats, offline: window.RouhOfflinePanel, 'rouh-profile': window.RouhBirth,
-                'your-profile': window.RouhLandAccount, account: window.RouhSignIn };
+                stats: window.RouhStats, offline: window.RouhOfflinePanel, 'this-rouh': window.RouhBirth,
+                account: window.RouhSignIn };
   for (var name in pages) {
     var drawn = pages[name];
     if (!drawn) continue;
@@ -8516,9 +8530,12 @@ function settingsPages(section) {
                        name === 'heartbeat' ? SETTINGS.heartbeat : undefined);
     } else drawn.hidden();
   }
-  // The Gene Pool's first card, where this Rouh stands in the Pool (`landaccountpage.js`).
-  var stand = window.RouhPoolStand;
-  if (stand) { if (section === 'gene-pool') stand.shown(); else stand.hidden(); }
+  // Your Rouh is drawn by three: its own page (`birthpage.js`), its URL card (`phonepage.js`), and
+  // You, Your account's rouh.land card (`landaccountpage.js`), which shows with Your account.
+  var phone = window.RouhPhone;
+  if (phone) { if (section === 'this-rouh') phone.shown(); else phone.hidden(); }
+  var land = window.RouhLandAccount;
+  if (land) { if (section === 'account') land.shown(); else land.hidden(); }
 }
 
 /* A section, or a card in one, brought to the top of the page and held there while the
@@ -8961,7 +8978,8 @@ $('settingsNav').addEventListener('click', function (e) {
 $('settingsBack').addEventListener('click', function (e) {
   if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
   e.preventDefault();
-  settingsOpen(SETTINGS.section ? SETTINGS.page : '');
+  // A section that is its group's only one goes back to the board: its group's menu would be itself.
+  settingsOpen(SETTINGS.section && anatomyOnly(SETTINGS.page) !== SETTINGS.section ? SETTINGS.page : '');
 });
 
 // A line of the status board opens its group's menu, and a line of a menu its
@@ -10294,7 +10312,6 @@ function profDraw(fields) {
     /** @type {HTMLInputElement} */ ($('profFirst')).value = d.first_name || '';
     /** @type {HTMLInputElement} */ ($('profLast')).value = d.last_name || '';
     /** @type {HTMLInputElement} */ ($('profNick')).value = d.nickname || '';
-    /** @type {HTMLInputElement} */ ($('profEmail')).value = d.email || '';
     /** @type {HTMLSelectElement} */ ($('profPronouns')).value = d.pronouns || '';
   }
   // Who you are and your company: your own contact's, under Contact card (`profile.py`).
@@ -10312,7 +10329,6 @@ function profDraw(fields) {
     ? 'Your name comes from your contact card, ' + (d.card.name || 'below') + '. To type your own, turn off keeping it in step, under Contact card.'
     : '';
   $('profFromCard').hidden = !following;
-  $('profUser').textContent = d.username || '';
   /** @type {HTMLInputElement} */ ($('pwUser')).value = d.username || '';
   /** @type {HTMLInputElement} */ ($('profFollow')).checked = !!d.follow_card;
   $('pwCurrentField').hidden = !d.has_password;
@@ -10325,7 +10341,6 @@ $('profForm').addEventListener('submit', function (e) {
   if (PROF.busy) return;
   var body = {
     nickname: /** @type {HTMLInputElement} */ ($('profNick')).value,
-    email: /** @type {HTMLInputElement} */ ($('profEmail')).value,
     pronouns: /** @type {HTMLSelectElement} */ ($('profPronouns')).value
   };
   if (!(PROF.data && PROF.data.card && PROF.data.follow_card)) {
@@ -17842,7 +17857,7 @@ window.RouhStatsHost = {
   }
 };
 
-/* What Rouh Land Account, Gene Pool is handed (`genespage.js`): going to a gene's own page, or back to the list. */
+/* What Meta, Gene registry is handed (`genespage.js`): going to a gene's own page, or back to the list. */
 window.RouhGenesHost = {
   go: function (href) { goToAddress(href); }
 };
@@ -17962,7 +17977,7 @@ export { applyObjects, applyWorkspace, ASK, askDelete, askFromPage, BRIEF, brief
   remindersOpen, remindersViewing, renderProjects, renderThreads, ROWMENU, rowMenuShow,
   rowsFollowSidebar, runHosts, runKind, runsClose, runsInTab, runsOpen, RUNSVIEW, runsTab,
   runsViewing, SETTINGS, settingsAddress, settingsClose,
-  settingsGroupName, settingsOpen, settingsRead, settingsViewing, sharePanelOpen, tcAddAsked, SHARES, sharesClose,
+  anatomyOnly, settingsGroupName, settingsOpen, settingsRead, settingsViewing, sharePanelOpen, tcAddAsked, SHARES, sharesClose,
   SYNAPSE, synapseClose, synapseOpen, synapseViewing, TASK_PREFIX, TASKS, TASKS_VIEW,
   tasksClose, tasksFrame, tasksOpen, tasksUp, tasksViewing, taskUrl, taskWords, TC, tcPerson,
   threadName, threadUnread, whenWords, wsProjects };

@@ -1706,7 +1706,7 @@ async def answer(cfg, threads: Threads, who, doc: str, asked: dict, *,
             modeldefaults.use_pair, "askai", page_org or modeldefaults.org_now(who), cfg)).model:
         yield _event({"type": "error",
                       "message": "Rouh has no key for any model Ask AI can ask, so it cannot answer. "
-                                 "Add one in Anatomy, Rouh Land Account, Models."})
+                                 "Add one in Anatomy, Behaviour, Models."})
         yield _event({"type": "done", "threadId": thread_id})
         return
 

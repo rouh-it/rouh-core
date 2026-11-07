@@ -1,20 +1,2 @@
-/* Rouh Land Account, Your profile, and the Gene Pool's standing card (`landaccountpage.js`,
-   `rouh/landaccount.py`). The cards are Anatomy's own (`.setting-card`, `.hb-card`); only the
-   readouts' spacing is this page's. */
-.la-card .la-readout { margin: 10px 0 4px; }
-.la-card .la-readout + .la-readout { margin-top: 2px; }
-.la-card .la-readout dd { overflow-wrap: anywhere; }
-.la-card .hb-actions { margin-top: 12px; }
-/* Two drawn bodies in one section (the Gene Pool): one gap between them, a card's, not two pages' ends. */
-#poolStandBody { padding-bottom: 0; }
-#poolStandBody + #genesBody { padding-top: 12px; }
-/* Something wrong between this Rouh and rouh.land: the sentence, and the one thing to do. */
-.la-card .la-problem { margin: 8px 0 4px; }
-.la-card .la-problem .hb-say { margin: 0 0 6px; }
-.la-card .la-problem .hb-actions { margin-top: 6px; }
-/* The one main action may be long words: it wraps rather than running off a phone. */
-.la-card a.ctl.la-go { white-space: normal; text-align: center; max-width: 100%; }
-/* Manage your account: a quiet link, not a call to action, and what it opens beside it. */
-.la-card .la-quiet { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
-.la-card .la-note { color: var(--dim); font-size: 12.5px; margin-left: 8px; }
-.la-card .la-problem .hb-actions + .settings-help { margin-top: 6px; }
+/* You, Your account, the rouh.land account card (`landaccountpage.js`): its look is Your Rouh's,
+   in birthpage.css (`.yr-*`), since both are step 141-17's one design. */

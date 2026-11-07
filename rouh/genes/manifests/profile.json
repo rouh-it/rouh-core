@@ -1,7 +1,7 @@
 {
   "id": "profile",
   "name": "About You",
-  "title": "About You: your name, nickname, pronouns, email and password, and the contact card that is you, which holds who you are and your company",
+  "title": "About You: your name, nickname and pronouns, and the contact card that is you, which holds who you are and your company",
   "aliases": [
     "about you",
     "edit profile",

@@ -1,4 +1,4 @@
-"""Rouh Land Account, Gene Pool, at /anatomy/rouh-land/gene-pool: shared genes from a registry, and
+"""Meta, Gene registry, at /anatomy/meta/gene-pool: shared genes from a registry, and
 the lab (`rouh/genelab.py`). Meta, Genes until 4 November 2026.
 
     GET  /api/settings/genes                    the registry, its genes, the lab, its history

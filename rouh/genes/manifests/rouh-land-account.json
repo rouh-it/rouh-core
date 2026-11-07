@@ -1,7 +1,7 @@
 {
   "id": "rouh-land-account",
-  "name": "Your profile",
-  "title": "Your profile: whether you have a rouh.land account and whether this Rouh is connected to it, what is wrong between them if anything is, and the one way to connect it",
+  "name": "rouh.land account",
+  "title": "Your rouh.land account: whether this Rouh is connected to one and what is wrong between them if anything is (on Your Rouh), and the person's own rouh.land account, what it keeps and what is done only there (on You, Your account)",
   "aliases": [
     "rouh.land",
     "rouh.land account",
@@ -13,10 +13,7 @@
     "reconnect rouh.land"
   ],
   "group": "machine",
-  "route": "/anatomy/rouh-land/your-profile",
-  "anatomy": {
-    "order": 10
-  },
+  "route": "/anatomy/your-rouh",
   "icon": "<circle cx=\"12\" cy=\"8.5\" r=\"3.4\"/><path d=\"M5.5 20a6.5 6.5 0 0 1 9.4-5.8\"/><circle cx=\"17.5\" cy=\"17.5\" r=\"3.5\"/><path d=\"M14 17.5h7M17.5 14c1 1 1.4 2.2 1.4 3.5s-.4 2.5-1.4 3.5\"/>",
   "attaches_to": [],
   "maturity": "accepted",
@@ -36,6 +33,6 @@
       "rouh_birth"
     ],
     "jobs": [],
-    "remove": "Delete this manifest, rouh/landaccount.py, rouh/web/landaccount.py and its route, landaccountpage.js and landaccountpage.css, the your-profile section in rouh/templates/rouh/index.html, its line in app/runs.js's settingsPages and its line in rouh/anatomy.py's CHECKS. What it shows is still on Rouh profile."
+    "remove": "Delete this manifest, rouh/landaccount.py, rouh/web/landaccount.py and its routes, landaccountpage.js and landaccountpage.css, the landAccountBody box in the account section of rouh/templates/rouh/index.html, its line in app/runs.js's settingsPages, and the rouh.land lines birthpage.js draws on Your Rouh from /api/rouh-land/account. Your Rouh then shows only what /api/birth says."
   }
 }

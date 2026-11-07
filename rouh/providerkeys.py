@@ -7,7 +7,7 @@ provider has one).
 
 - **Anthropic and OpenAI** are this installation's own keys, from its environment
   (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`), as they always were.
-- **Google and xAI** are typed into Anatomy, Rouh Land Account, Models, by an administrator of the
+- **Google and xAI** are typed into Anatomy, Behaviour, Models, by an administrator of the
   organisation, and kept sealed with this instance's key (`rouh/encryption.py`), one row
   per organisation and provider (`ModelProviderKey`). The page is only ever told whether
   one is set, its last four characters, who saved it and when: nothing gives a key back.

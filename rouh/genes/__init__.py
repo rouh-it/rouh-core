@@ -77,14 +77,18 @@ COUNTED_GROUP = "now"
 #: Anatomy's own groups, each a page at `/anatomy/<group>` that stacks its sections one after
 #: another, in this order. Petar, 14 October 2026 (card 1554): Anatomy is one link that replaces
 #: Settings and the links beside it that repeated Settings' pages, "keep 5 groups please", and
-#: "lets rename machinery to meta". The sixth, Rouh Land Account, since 4 November 2026: "in the
-#: settings it needs to be clear what is relevant to rouh.land. so maybe we should have one
-#: separate section Rouh Land Account": the rouh.land account, the Rouh's own profile there (its
-#: birth), Models and the Gene Pool. `/anatomy` itself is the status board.
+#: "lets rename machinery to meta". The sixth, Rouh Land Account, from 4 November 2026 ("in the
+#: settings it needs to be clear what is relevant to rouh.land"), is **Your Rouh** since 7
+#: November 2026 (task 141, step 141-17, "one home for each journey"): one page about the Rouh
+#: itself - its state, its rouh.land connection, its URL, its name and what others can see -
+#: while the person's own sign-in and rouh.land account are You, Your account, Models went to
+#: Behaviour and the gene registry to Meta. What touches rouh.land carries the globe and the
+#: words "rouh.land" on the page. A group with one section is that section's page
+#: (`/anatomy/your-rouh`). `/anatomy` itself is the status board.
 ANATOMY_ROOT = "/anatomy"
 ANATOMY: tuple[tuple[str, str], ...] = (
     ("you", "You"),
-    ("rouh-land", "Rouh Land Account"),
+    ("your-rouh", "Your Rouh"),
     ("connections", "Connections"),
     ("behaviour", "Behaviour"),
     ("money", "Money"),
@@ -94,12 +98,12 @@ ANATOMY_IDS: tuple[str, ...] = tuple(g for g, _ in ANATOMY)
 #: Each of Anatomy's groups' own glyph, on its link in the navigation, its line on the status
 #: board and its row in the side list, held to the same contract as a gene's icon (Petar, 15
 #: October 2026: "put some icons around"). You a person in a circle, Connections two links of a
-#: chain, Behaviour a dial, Money a banknote, Meta an i for what is about Rouh itself, and Rouh
-#: Land Account a globe, the place every Rouh is known by.
+#: chain, Behaviour a dial, Money a banknote, Meta an i for what is about Rouh itself, and Your
+#: Rouh a globe, the place every Rouh is known by.
 ANATOMY_ICONS: dict[str, str] = {
     "you": '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="10" r="2.9"/>'
            '<path d="M6.8 18.2a6 6 0 0 1 10.4 0"/>',
-    "rouh-land": '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/>'
+    "your-rouh": '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/>'
                  '<path d="M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5s1.2-6.2 3.6-8.5z"/>',
     "connections": '<path d="M10.2 13.8a3.8 3.8 0 0 0 5.4 0l3-3a3.8 3.8 0 0 0-5.4-5.4l-1.1 1.1"/>'
                    '<path d="M13.8 10.2a3.8 3.8 0 0 0-5.4 0l-3 3a3.8 3.8 0 0 0 5.4 5.4l1.1-1.1"/>',
@@ -120,8 +124,10 @@ SECTION_ROUTE = re.compile(r"^/anatomy/([a-z][a-z-]{0,30})/([a-z][a-z0-9-]{0,40}
 #: have. The page is told them too (`for_page`), so a link to one inside it is not opened as
 #: somewhere else. Birthday is Rouh profile now, and Genes the Gene Pool.
 #: You, Profile is About You since the same day (`/anatomy/you/about-you`), and its old name
-#: goes nowhere too.
-MOVED: frozenset[str] = frozenset({"models", "birthday", "genes", "trusted-contacts", "offline", "profile"})
+#: goes nowhere too. On 7 November 2026 (141-17) Your profile, Rouh profile and Phone became the
+#: one page Your Rouh, and their old names go nowhere either.
+MOVED: frozenset[str] = frozenset({"models", "birthday", "genes", "trusted-contacts", "offline", "profile",
+                                   "your-profile", "rouh-profile", "phone"})
 
 #: What a gene may later be shown as a tab on. Declared now, drawn later.
 ATTACHES: tuple[str, ...] = ("task", "step", "person", "meeting", "email")

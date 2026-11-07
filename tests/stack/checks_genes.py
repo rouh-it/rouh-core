@@ -233,18 +233,20 @@ def anatomy_page(s: Stack) -> None:
     page(s, "/anatomy")
     groups = api(s, "/api/anatomy", "groups")["groups"]
     expect(len(groups) == 6, f"Anatomy has {len(groups)} groups, not six")
-    for g in ("you", "rouh-land", "connections", "behaviour", "money", "meta"):
+    for g in ("you", "your-rouh", "connections", "behaviour", "money", "meta"):
         page(s, f"/anatomy/{g}")
     # What moved on 4 November 2026 left nothing behind: its old addresses are not found, and
     # rouh.land's own return address answers only a return with a code (`addressing.ROUH_LAND_RETURN`).
-    for old in ("/anatomy/meta/birthday", "/anatomy/behaviour/models", "/anatomy/meta/genes", "/anatomy/meta/offline",
+    for old in ("/anatomy/meta/birthday", "/anatomy/rouh-land/models", "/anatomy/meta/genes", "/anatomy/meta/offline",
+                "/anatomy/rouh-land/your-profile", "/anatomy/rouh-land/rouh-profile", "/anatomy/connections/phone",
+                "/anatomy/rouh-land/gene-pool", "/login/recover",
                 "/anatomy/connections/trusted-contacts", "/settings/models", "/settings/birthday", "/settings/genes",
                 "/settings/trusted-contacts", "/settings/offline", "/anatomy/you/profile", "/settings/profile"):
         code, body, _ = s.get(old, follow=False)
         expect(code == 404, f"{old} answered {code}, not 404: {body[:200]}")
     code, _, headers = s.get("/anatomy/meta/birthday?birth=abc", follow=False)
     where = {k.lower(): v for k, v in headers.items()}.get("location", "")
-    expect(code in (301, 302) and where.startswith("/anatomy/rouh-land/rouh-profile?birth=abc"),
+    expect(code in (301, 302) and where.startswith("/anatomy/your-rouh?birth=abc"),
            f"rouh.land's return answered {code} {where}")
 
 
@@ -297,8 +299,8 @@ def silos_page(s: Stack) -> None:
 
 @check("page.models")
 def models_page(s: Stack) -> None:
-    """Anatomy, Rouh Land Account, Models: the mode, the tiers and every use, as the page draws them."""
-    page(s, "/anatomy/rouh-land/models")
+    """Anatomy, Behaviour, Models: the mode, the tiers and every use, as the page draws them."""
+    page(s, "/anatomy/behaviour/models")
     got = api(s, "/api/settings/models", "mode", "modes")
     expect(got["mode"] in [m.get("id") for m in got["modes"]], f"the mode is not one of the modes: {got['mode']}")
 
@@ -366,9 +368,9 @@ def event_log(s: Stack) -> None:
 
 @check("page.birthday")
 def birthday_page(s: Stack) -> None:
-    """Rouh Land Account, Rouh profile. The stack's first run picks On its own, so this is a free
+    """Your Rouh (Rouh profile until 7 November 2026). The stack's first run picks On its own, so this is a free
     Rouh (4 November 2026): no birth, no name, no keys, a nickname that is kept, and one line."""
-    page(s, "/anatomy/rouh-land/rouh-profile")
+    page(s, "/anatomy/your-rouh")
     got = api(s, "/api/birth", "born", "standing")
     expect(got["born"] is False and got["standing"]["kind"] == "free",
            f"a Rouh set up on its own is not a free Rouh: {json.dumps(got)[:300]}")
@@ -379,17 +381,17 @@ def birthday_page(s: Stack) -> None:
 
 @check("page.genes")
 def genes_page(s: Stack) -> None:
-    """Rouh Land Account, Gene Pool: the shared genes installed, those there are, and the registry."""
-    page(s, "/anatomy/rouh-land/gene-pool")
+    """Meta, Gene registry: the shared genes installed, those there are, and the registry."""
+    page(s, "/anatomy/meta/gene-pool")
     got = api(s, "/api/settings/genes", "registry", "installed", "available", "route")
-    expect(got["route"] == "/anatomy/rouh-land/gene-pool", f"a shared gene's page is under {got['route']}")
+    expect(got["route"] == "/anatomy/meta/gene-pool", f"a shared gene's page is under {got['route']}")
 
 
 @check("page.rouh-land-account")
 def rouh_land_account_page(s: Stack) -> None:
-    """Rouh Land Account, Your profile: whether you have a rouh.land account and whether this Rouh is
-    connected to it, and nothing of the Rouh's own."""
-    page(s, "/anatomy/rouh-land/your-profile")
+    """Your rouh.land account (You, Your account; on Your Rouh, its connection): whether you have a
+    rouh.land account and whether this Rouh is connected to it, and no key or id of the Rouh's."""
+    page(s, "/anatomy/you/account")
     got = api(s, "/api/rouh-land/account", "born", "connected", "has_account", "email", "role", "door",
               "account_url", "problem")
     expect(got["born"] is False, f"Your profile says a free Rouh is born: {json.dumps(got)[:300]}")

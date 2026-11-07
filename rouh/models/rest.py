@@ -323,7 +323,7 @@ class ModelDefaults(models.Model):
 
 
 class ModelProviderKey(models.Model):
-    """An organisation's own key for a model provider, typed into Anatomy, Rouh Land Account, Models
+    """An organisation's own key for a model provider, typed into Anatomy, Behaviour, Models
     (`rouh/providerkeys.py`): Google's Gemini API key or xAI's. Sealed with this instance's
     key (`rouh/encryption.py`) and never given back: the page is told only its last four."""
 
@@ -2322,7 +2322,7 @@ class GeneRegistry(models.Model):
     """The gene registry an organisation fetches shared genes from, and the key it pins.
 
     No row, or a row with no address, is the lab switched off: Rouh asks no registry
-    anything until a person points it at one in Rouh Land Account, Gene Pool. What was last fetched is
+    anything until a person points it at one in Meta, Gene registry. What was last fetched is
     kept here only after its signature held against the pinned key.
     """
 

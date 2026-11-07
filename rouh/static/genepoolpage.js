@@ -155,8 +155,8 @@
     var p = el('p', st.state === 'member' ? 'glog-meta pool-standing' : 'pool-closed pool-standing', st.said || '');
     if (st.state === 'unborn' || st.state === 'independent' || st.state === 'dead') {
       p.appendChild(document.createTextNode(' '));
-      var a = el('a', 'evo-link', 'Its Rouh profile');
-      a.href = (j.born && j.born.route) || '/anatomy/rouh-land/rouh-profile';
+      var a = el('a', 'evo-link', 'Your Rouh');
+      a.href = (j.born && j.born.route) || '/anatomy/your-rouh';
       p.appendChild(a);
     }
     wrap.appendChild(p);
