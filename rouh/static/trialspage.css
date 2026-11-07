@@ -229,6 +229,7 @@ a.tr-need:hover { border-color: var(--ink-2); }
 .tr-lcol-bar.is-passed { background: var(--st-fixed); }
 .tr-lcol-bar.is-failed { background: var(--s-blocked); }
 .tr-lcol-bar.is-broken { height: 18px; background: none; border: 1.5px dashed var(--ink-2); border-bottom: 0; }
+.tr-lcol-bar.is-stuck { height: 22px; background: none; border: 2px dashed var(--s-blocked); border-bottom: 0; }
 .tr-lcol-bar.is-running, .tr-lcol-bar.is-queued { height: 22px; background: none; border: 2px dashed var(--accent); border-bottom: 0; }
 .tr-lcol-lab { color: var(--ink-2); white-space: nowrap; }
 .tr-lcol:hover .tr-lcol-lab { color: var(--accent); text-decoration: underline; }

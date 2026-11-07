@@ -999,16 +999,17 @@
     // The ladder: each try a column, its height the number of problems it found.
     var lad = el('section', 'tr-ladder-sec');
     lad.appendChild(el('h2', 'tr-h3', 'Each try, oldest to newest'));
-    lad.appendChild(el('p', 'tr-cap', 'The height is how many problems the try found. A dashed one gave no report, or is still going.'));
+    lad.appendChild(el('p', 'tr-cap', 'The height is how many problems the try found. A dashed one gave no report, is stuck, or is still going.'));
     var wrapL = el('div', 'tr-ladder-wrap');
     var cols = el('div', 'tr-lcols');
     var most = Math.max.apply(null, [1].concat(j.tries.map(function (t) { return foundN(t); })));
     j.tries.slice().reverse().forEach(function (t) {
       var col = link('', HOME + '/' + t.number, 'tr-lcol');
-      col.setAttribute('aria-label', 'Try ' + t.number + ' by ' + t.persona_name + ': ' + (RESULT[t.state] || ['?'])[0] + ', ' + plural(foundN(t), 'problem'));
-      var n = t.state === 'broken' ? 'no report' : t.state === 'running' || t.state === 'queued' ? 'going' : String(foundN(t));
+      col.setAttribute('aria-label', 'Try ' + t.number + ' by ' + t.persona_name + ': ' + (stuck(t) ? 'stuck since ' + dayShort(t.started_at || t.created_at)
+        : (RESULT[t.state] || ['?'])[0]) + ', ' + plural(foundN(t), 'problem'));
+      var n = t.state === 'broken' ? 'no report' : stuck(t) ? 'stuck' : t.state === 'running' || t.state === 'queued' ? 'going' : String(foundN(t));
       col.appendChild(el('span', 'tr-lcol-n' + (/\D/.test(n) ? ' is-word' : ''), n));
-      var bar = el('span', 'tr-lcol-bar is-' + t.state);
+      var bar = el('span', 'tr-lcol-bar is-' + (stuck(t) ? 'stuck' : t.state));
       if (t.state !== 'broken' && t.state !== 'running' && t.state !== 'queued') { bar.style.height = Math.max(3, Math.round(foundN(t) / most * 110)) + 'px'; }
       col.appendChild(bar);
       col.appendChild(face(testerOf(t.persona) || { key: t.persona, name: t.persona_name }, 'xs'));
@@ -1930,7 +1931,7 @@
     meta.appendChild(el('span', '', (p.count === 1 ? 'Seen once' : 'Seen ' + p.count + ' times') +
       (p.source === 'owner' ? ', found by you' : (p.personas || []).length ? ' by ' + names(p.personas, (S.shell && S.shell.testers) || []) : '')));
     meta.appendChild(standBadge(p));
-    meta.appendChild(el('span', 'tr-dim', 'Number ' + p.number + ' on the list of every problem'));
+    meta.appendChild(el('span', 'tr-dim', 'Problem ' + p.number));
     root.appendChild(meta);
     // On a phone the decisions sit here, under the title: a bar at the bottom would cover Rouh's own menu button.
     root.appendChild(decide(p, 'inline'));
