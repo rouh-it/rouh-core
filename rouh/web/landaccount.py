@@ -6,6 +6,9 @@
     POST /api/rouh-land/account/check   the page's own ask of rouh.land, as it opens (at most once
                                         in five minutes) or `{"retry": true}` beside an error;
                                         answers what GET does. An administrator's.
+    POST /api/rouh-land/account/confirm a Connected Rouh in no account asks rouh.land, again, to
+                                        email the owner the link that confirms their email and makes
+                                        their rouh.land account (step 176-16). An administrator's.
 
 Reading is anybody's signed in.
 """
@@ -39,4 +42,17 @@ async def check(request: HttpRequest):
         got = await sync_to_async(landaccount.check_now)(me, retry=bool(body_of(request).get("retry")))
     except birth.Refused as exc:
         return refuse(str(exc), 403)
+    return answer(got, headers=NO_STORE)
+
+
+async def confirm(request: HttpRequest):
+    me = await sync_to_async(who)(request)
+    if me is None:
+        return refuse("Sign in to Rouh first.", 401)
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    try:
+        got = await sync_to_async(landaccount.ask_again)(me)
+    except birth.Refused as exc:
+        return refuse(str(exc), 400)
     return answer(got, headers=NO_STORE)

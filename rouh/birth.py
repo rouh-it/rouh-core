@@ -793,6 +793,48 @@ def in_account(row) -> bool:
     return bool(row is not None and row.registry_id) and (_in_account(row) or bool(account_email(row)))
 
 
+def ask_account(org: str, email: str) -> dict:
+    """Ask rouh.land to email this Connected Rouh's owner a link that confirms their email, makes
+    their rouh.land account if there is none, and puts this Rouh in it (Petar, 8 November 2026,
+    task 176, step 176-16: "you are either connected and you can use the Gene Pool, or you are
+    disconnected and you have no access to benefits"). Before this a Connected first run registered
+    the Rouh with no account, and the email typed in the setup never reached rouh.land, so Sign in
+    there said there was no account. Raises Refused, in words, when it did not go."""
+    row = current(org)
+    if row is None or not row.registry_id:
+        raise Refused("This Rouh is not connected to rouh.land.")
+    if in_account(row):
+        return {"ok": True, "in_account": True, "said": "This Rouh is in your rouh.land account already."}
+    email = str(email or "").strip().lower()[:254]
+    if "@" not in email:
+        raise Refused("There is no email to send the link to.")
+    try:
+        got = _call(row.registry_url, row.registry_key, "POST", "api/account", {"email": email},
+                    seed=_seed_of(row), public=row.daily_public, rouh_id=row.registry_id)
+    except Refused as exc:
+        if "in an account already" in str(exc):
+            check(org, force=True)
+            return {"ok": True, "in_account": True, "said": "This Rouh is in a rouh.land account already."}
+        raise
+    _event(row, "account-asked", f"rouh.land emailed {email} a link to confirm it and make the rouh.land account.")
+    days = int(got.get("days") or 3)
+    return {"ok": True, "email": email, "said": f"rouh.land emailed {email} a link. Press it to confirm your email: "
+                                              f"that makes your rouh.land account. It works for {days} days."}
+
+
+def account_asked(row) -> str:
+    """The email rouh.land was last asked to confirm for this Rouh's account, while it is in none."""
+    if row is None or not row.registry_id or in_account(row):
+        return ""
+    for h in reversed(row.history or []):
+        if h.get("what") == "account-asked":
+            m = re.search(r"emailed (\S+@\S+) a link", str(h.get("said") or ""))
+            return m.group(1) if m else ""
+        if h.get("what") in ("born", "connected", "disconnected"):
+            return ""
+    return ""
+
+
 def sign_in_letter(org: str, to: str, link: str, code: str) -> None:
     """Ask rouh.land to send one sign-in letter for this Rouh, from noreply@rouh.land (`signin.send`).
     rouh.land sends only sign-in letters, only for a Rouh in an account, and keeps its own limits.

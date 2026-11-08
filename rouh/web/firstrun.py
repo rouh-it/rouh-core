@@ -13,9 +13,11 @@ and a restart of Rouh land where the person was:
    Before the owner is made the choice is kept in the browser's session.
    Connected is its birth: once the owner is made it is registered at once on
    the birth service (``ROUH_BIRTH_URL``, rouh.land unless an installation names
-   its own) with no code and no account, which gives it its official name
-   (`birth.be_born`), and asks the relay for its own phone address
-   (`rouh/relay.py`). Independent: no name, no keys, only the nickname its person
+   its own), which gives it its official name (`birth.be_born`), asks the relay
+   for its own phone address (`rouh/relay.py`), and asks rouh.land to email the
+   owner's address a link that confirms it and makes their rouh.land account with
+   this Rouh in it (`birth.ask_account`, step 176-16): Connected is the account,
+   Independent has none. Independent: no name, no keys, only the nickname its person
    gives it (Petar, 4 November 2026). If rouh.land cannot be reached, a Connected
    choice stays independent too, and is connected later on Your profile. What the
    independent kind is called is `birth.INDEPENDENT`, and nowhere else.
@@ -529,6 +531,18 @@ def _choose(user, connected: bool) -> None:
     except birth.Refused as exc:
         log.info("first run: Connected, but not registered on rouh.land: %s", exc)
         return
+    # Connected is the owner's rouh.land account (Petar, 8 November 2026, step 176-16): rouh.land
+    # emails the address typed on the you screen a link that confirms it and makes the account with
+    # this Rouh in it. Without it the email never reached rouh.land and its Sign in said "no account".
+    from rouh import signin
+
+    email = signin.primary(user) or (user.email or "")
+    try:
+        birth.ask_account(str(user.org_id), email)
+        _save(user, account_email=email, account_problem="")
+    except birth.Refused as exc:
+        log.info("first run: Connected, but rouh.land did not email the account link: %s", exc)
+        _save(user, account_email=email, account_problem=str(exc))
     # Its own address on the relay, asked for now, and open as soon as it is granted (Petar,
     # 8 November 2026: "the relay should be working immediately at the registration", `rouh/relay.py`).
     from rouh import relay
@@ -592,6 +606,9 @@ def _born_values(user) -> dict:
                       "nickname": nick.nickname if nick else ""},
             "connected": bool(record(user).get("connected")), "registered": bool(row and row.registry_id),
             "service": service_name(),
+            # The rouh.land account: emailed to confirm (step 176-16), or why the email did not go.
+            "account_email": record(user).get("account_email", "") if row and row.registry_id else "",
+            "account_problem": record(user).get("account_problem", "") if row and row.registry_id else "",
             "address": _address_at_birth(user)}
 
 

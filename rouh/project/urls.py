@@ -328,6 +328,7 @@ urlpatterns = [
     # A Rouh's birth: its own name, its keys, rouh.land (`rouh/web/birth.py`, task 141).
     path("api/rouh-land/account", landaccount_web.page),
     path("api/rouh-land/account/check", landaccount_web.check),
+    path("api/rouh-land/account/confirm", landaccount_web.confirm),
     # Signing in, from the signed-in side (`rouh/web/signin.py`): Anatomy, You, Account, and a guest's card.
     path("api/sign-in/me", signin_web.me_state),
     path("api/sign-in/email", signin_web.change_email),

@@ -46,6 +46,13 @@ ROLE_KEYS = ("owner_role", "account_role", "role")
 #: How long after a check the page's own check is not asked again: opening the page twice in a
 #: minute is one question to rouh.land, not two. A retry pressed beside an error always asks.
 RECHECK = 5 * 60
+#: The same while a Connected Rouh's account waits on the link emailed to its owner (step 176-16):
+#: they may have pressed it a moment ago, so the card asks again sooner.
+RECHECK_WAITING = 10
+
+
+def _recheck(row) -> int:
+    return RECHECK_WAITING if row is not None and row.registry_id and not birth.in_account(row) else RECHECK
 
 
 def _first(payload: dict, keys: tuple[str, ...], inside: str) -> str:
@@ -101,7 +108,10 @@ def page(who) -> dict:
            "connected": False, "has_account": False, "email": "", "role": "",
            "sign_in_email": mine, "sign_in_label": "Signs you in to this Rouh",
            "door": door, "account_url": door + "account/", "problem": None, "check_due": False,
-           "rouh_name": "", "owner": birth._owner_of(org)["name"]}
+           "rouh_name": "", "owner": birth._owner_of(org)["name"],
+           # A Connected Rouh in no account yet: the email rouh.land was asked to confirm, and
+           # whether it may be asked again from here (step 176-16).
+           "waiting_email": "", "can_confirm": False}
     if row is None:
         return out
     out["rouh_name"] = row.name
@@ -117,11 +127,27 @@ def page(who) -> dict:
         "email": _first(payload, EMAIL_KEYS, "email") if in_account else "",
         "role": _first(payload, ROLE_KEYS, "role") if in_account else "",
         "problem": problem(row),
-        "check_due": connected and out["admin"] and not (row.checked_at and birth._now() - row.checked_at < RECHECK),
+        "check_due": connected and out["admin"] and not (row.checked_at and birth._now() - row.checked_at < _recheck(row)),
     })
     if in_account:
         out["sign_in_label"] = "Signs you in to this Rouh and rouh.land"
+    elif connected and not row.key_dead_at:
+        out["waiting_email"] = birth.account_asked(row)
+        out["can_confirm"] = out["admin"]
     return out
+
+
+def ask_again(who) -> dict:
+    """Send the confirm-your-email link again, to the email that signs this person in: Connected is
+    the rouh.land account (step 176-16). An administrator's. Answers what `page` does, with `said`."""
+    if not getattr(who, "is_admin", False):
+        raise birth.Refused("Only an administrator of this Rouh asks rouh.land.")
+    from . import signin
+    from .models import User
+
+    email = signin.primary(User.objects.filter(pk=who.user_id).first())
+    got = birth.ask_account(str(who.org_id), email)
+    return {**page(who), "said": got.get("said", "")}
 
 
 def check_now(who, *, retry: bool = False) -> dict:
@@ -130,7 +156,7 @@ def check_now(who, *, retry: bool = False) -> dict:
     if not getattr(who, "is_admin", False):
         raise birth.Refused("Only an administrator of this Rouh asks rouh.land.")
     row = birth.current(str(who.org_id))
-    if row is not None and row.registry_id and (retry or not (row.checked_at and birth._now() - row.checked_at < RECHECK)):
+    if row is not None and row.registry_id and (retry or not (row.checked_at and birth._now() - row.checked_at < _recheck(row))):
         birth.check(str(who.org_id), force=True)
         try:
             # A new key waiting there is asked after too; what it says is Rouh profile's to show.
@@ -146,7 +172,7 @@ def attention(who) -> list[str]:
     row = birth.current(str(who.org_id))
     if row is None:
         return []  # Not born yet, said once, by Rouh profile.
-    if not row.registry_id or not birth._in_account(row):
+    if not row.registry_id or not birth.in_account(row):
         return ["Disconnected from rouh.land" if birth.disconnected(row) else "Not connected to a rouh.land account"]
     said = problem(row)
     if said is None:

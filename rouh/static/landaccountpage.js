@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  var A = { open: false, data: null, error: '' };
+  var A = { open: false, data: null, error: '', said: '', sending: false, checked: false };
   var OUT = '<svg class="yr-out" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" ' +
     'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/>' +
     '<path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
@@ -73,8 +73,22 @@
           return j;
         });
       })
-      .then(function (j) { if (j) { A.data = j; A.error = ''; } draw(); })
+      .then(function (j) {
+        if (j) { A.data = j; A.error = ''; }
+        draw();
+        // Ask rouh.land once as the card opens, when a check is due: an account confirmed by the
+        // emailed link a moment ago shows as connected now, not hours later (step 176-16).
+        if (j && j.check_due && !A.checked) { A.checked = true; checkNow(); }
+      })
       .catch(function (e) { A.error = e.message || 'Rouh could not be reached.'; draw(); });
+  }
+  function checkNow() {
+    fetch('/api/rouh-land/account/check', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                                            headers: { 'Content-Type': 'application/json', 'X-Time-Zone': zone(),
+                                                       'X-CSRFToken': csrfToken() }, body: '{}' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { if (j && A.open) { A.data = j; draw(); } })
+      .catch(function () {});
   }
 
   function draw() {
@@ -106,6 +120,14 @@
     if (d.connected) {
       lede.appendChild(el('strong', null, 'Connected. '));
       lede.appendChild(document.createTextNode((d.rouh_name || 'This Rouh') + ' is your Rouh on rouh.land.'));
+    } else if (d.can_confirm) {
+      // Connected, and the account waits on the emailed link (task 176, step 176-16).
+      lede.appendChild(el('strong', null, d.waiting_email ? 'Waiting for your email. ' : 'Not made yet. '));
+      lede.appendChild(document.createTextNode(d.waiting_email
+        ? 'rouh.land sent a link to ' + d.waiting_email + '. Press it to make your rouh.land account, with '
+          + (d.rouh_name || 'this Rouh') + ' in it. Then Sign in on rouh.land works with that email.'
+        : (d.rouh_name || 'This Rouh') + ' is connected. Your rouh.land account is made when you confirm your email, '
+          + (d.sign_in_email || '') + ', from a link rouh.land emails you.'));
     } else {
       lede.appendChild(el('strong', null, 'None linked. '));
       lede.appendChild(document.createTextNode('You get one when you connect your Rouh, on '));
@@ -118,6 +140,18 @@
         : 'Nothing about you'],
       ['Public', d.connected ? 'Nothing about you. Only your Rouh’s public card, which Your Rouh shows' : 'Nothing'],
     ]));
+    if (d.can_confirm) {
+      var b = el('button', 'ctl small', A.sending ? 'Sending…' : (d.waiting_email ? 'Send the link again' : 'Email me the link'));
+      b.type = 'button';
+      b.disabled = A.sending;
+      b.addEventListener('click', confirmAgain);
+      s.appendChild(b);
+      if (A.said) {
+        var said = el('p', 'hb-say', A.said);
+        said.setAttribute('role', 'status');
+        s.appendChild(said);
+      }
+    }
     if (!d.connected) return;
     s.appendChild(el('p', 'yr-subhead', 'Done on rouh.land'));
     var ul = el('ul', 'yr-there');
@@ -133,9 +167,29 @@
     s.appendChild(ul);
   }
 
+  function csrfToken() {
+    var found = /(?:^|;\s*)rouh_csrftoken=([^;]+)/.exec(document.cookie || '');
+    return found ? decodeURIComponent(found[1]) : '';
+  }
+  function confirmAgain() {
+    A.sending = true; A.said = ''; draw();
+    fetch('/api/rouh-land/account/confirm', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                                              headers: { 'Content-Type': 'application/json', 'X-Time-Zone': zone(),
+                                                         'X-CSRFToken': csrfToken() },
+                                              body: '{}' })
+      .then(function (r) {
+        return r.json().catch(function () { return null; }).then(function (j) {
+          if (!r.ok) throw new Error((j && j.error) || 'The server said ' + r.status + '.');
+          return j;
+        });
+      })
+      .then(function (j) { A.sending = false; if (j) { A.data = j; A.said = j.said || ''; } draw(); })
+      .catch(function (e) { A.sending = false; A.said = e.message || 'Rouh could not be reached.'; draw(); });
+  }
+
   window.RouhLandAccount = {
     shown: function () { A.open = true; draw(); load(); },
-    hidden: function () { A.open = false; A.error = ''; },
+    hidden: function () { A.open = false; A.error = ''; A.checked = false; },
     reload: load,
   };
 })();
