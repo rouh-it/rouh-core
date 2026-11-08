@@ -1199,6 +1199,11 @@ def _read_calendar_link(a):
     return "Reading a calendar's link", _arg(a, "words") or ""
 
 
+@_step("reply_times")
+def _reply_times(a):
+    return "Counting reply times", _arg(a, "who") or ""
+
+
 @_step("meeting_hours")
 def _meeting_hours(a):
     return "Counting your meeting time", _arg(a, "company") or _arg(a, "person") or ""

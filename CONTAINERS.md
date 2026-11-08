@@ -351,6 +351,10 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `gene.not-answered` | Invitations you have not answered | untested | works | an invitation of somebody else's tomorrow that the owner has not answered, put on the stand-in's calendar, is found for the brief, and Yes answers it there |
 | `gene.meeting-hours` | Where your meeting time went, by company | untested | works | `meeting_hours` counts two meetings with one company put on the stand-in's calendar last week, and leaves out one the owner declined |
 | `gene.meeting-soon` | You meet them soon | untested | works | an opened email whose sender is a guest of a meeting in three days on the stand-in's calendar gets the line naming that meeting |
+| `gene.got-it` | Got it on Telegram | untested | works | a message written to the bot on the stand-in phone is marked 👀 there by Rouh |
+| `gene.gone-quiet` | Gone quiet | untested | works | a company met every week until seven weeks ago on the stand-in's calendar, with nothing booked, is named for the brief |
+| `gene.reply-times` | Reply times with a company | untested | works | `reply_times` counts a company's email delivered to the stand-in's inbox and says it is still waiting on the owner |
+| `gene.waiting-too` | Also waiting on you | untested | works | an opened email names the same sender's other email in the stand-in's inbox that is still waiting on the owner |
 | `gene.their-language` | In their language | untested | works | `send_mail` in English to somebody whose own email is in Bulgarian is held, saying Bulgarian |
 | `gene.my-word` | Your word, by mail | untested | works | a promise in the owner's sent mail, by a day now passed, with no email to that person since, is found for the brief |
 | `gene.promised-to-you` | Promised to you by mail | untested | works | `promised_to_you` finds a promise by a day now passed, from somebody who has not written since |

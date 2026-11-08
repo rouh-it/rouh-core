@@ -2397,6 +2397,10 @@ function inboxBlock(b) {
   // or somebody else on the email, said under its headers, with Open the meeting.
   var soonRow = el('div', 'ib-soon');
   soonRow.hidden = true;
+  // Also waiting on you (night 36, rouh/waiting_too.py): the sender's other conversations whose last
+  // word is still theirs, said under the headers, each with Open.
+  var tooRow = el('div', 'ib-soon ib-too');
+  tooRow.hidden = true;
   // If it does not come (night 36, rouh/promise_watch.py): on an email promising something by a day,
   // one press has Rouh look for it the morning after and say only if nothing came.
   var watchRow = el('div', 'ib-remind ib-watch');
@@ -2411,6 +2415,7 @@ function inboxBlock(b) {
   mail.appendChild(subject);
   mail.appendChild(heads);
   mail.appendChild(soonRow);
+  mail.appendChild(tooRow);
   mail.appendChild(acts);
   mail.appendChild(unsubRow);
   mail.appendChild(remindRow);
@@ -2590,7 +2595,33 @@ function inboxBlock(b) {
     drawUnsub(msg);
     drawRemind(msg);
     drawSoon(msg);
+    drawToo(msg);
     drawWatch(msg);
+  }
+
+  /** @param {any} msg */
+  function drawToo(msg) {
+    tooRow.textContent = '';
+    var t = msg && msg.waiting_too;
+    var others = (t && t.others) || [];
+    tooRow.hidden = !others.length;
+    others.forEach(function (/** @type {any} */ o) {
+      var line = el('p', 'ib-soon-line');
+      line.appendChild(el('span', 'ib-soon-note', o.said + '.'));
+      if (o.link) {
+        var open = el('a', 'ib-soon-link', 'Open');
+        open.href = o.link;
+        open.target = '_blank';
+        open.rel = 'noopener';
+        open.title = 'Opens that conversation in Gmail';
+        open.setAttribute('aria-label', 'Open: ' + o.said);
+        open.addEventListener('click', function () {
+          inboxAsk(token, 'waiting_too', { id: msg.id }, function () {});
+        });
+        line.appendChild(open);
+      }
+      tooRow.appendChild(line);
+    });
   }
 
   /** @param {any} msg */

@@ -957,7 +957,30 @@ class Mailroom:
             watch = None
         if watch:
             shown = dict(shown, watch=watch)
+        # Also waiting on you (night 36, `rouh/waiting_too.py`): the sender's other emails unanswered.
+        from . import waiting_too
+
+        try:
+            who = self._owner(sealed)
+            own = [self.google.address() or ""] + [one.email for one in
+                                                   await asyncio.to_thread(inboxes.theirs, who)]
+            too = await waiting_too.shown(who, found, own=own)
+        except Exception as exc:  # noqa: BLE001 - the message opens all the same
+            log.info("the sender's other emails could not be read: %s", exc)
+            too = None
+        if too:
+            shown = dict(shown, waiting_too=too)
         return shown
+
+    async def waiting_too(self, sealed: dict | None) -> Answer:
+        """Open pressed on an email's Also waiting on you line: counted, nothing changed."""
+        from . import waiting_too
+
+        who = self._owner(sealed)
+        if not await asyncio.to_thread(waiting_too.on, who):
+            return Answer(False, why="Also waiting on you is switched off.")
+        await asyncio.to_thread(waiting_too.opened, who)
+        return Answer(True, said={"counted": True})
 
     async def meeting_soon(self, sealed: dict | None) -> Answer:
         """Open the meeting pressed on an email's You meet them soon line: counted, nothing changed."""
@@ -1175,7 +1198,7 @@ def serve(room: Mailroom) -> None:
 
 #: What the page may ask of a card.
 ASKS = {"list", "open", "archive", "unarchive", "read", "unread", "compose", "send",
-        "unsubscribe", "remind", "meeting_soon", "watch"}
+        "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too"}
 
 
 async def press(msg: dict, who) -> Answer:
@@ -1210,7 +1233,7 @@ async def press(msg: dict, who) -> Answer:
     message_id = composing.one_line(msg.get("id"))[:200]
     if what != "list" and not message_id:
         return Answer(False, why="Say which message.")
-    if theirs and what not in ("list", "open", "unsubscribe", "remind", "meeting_soon", "watch"):
+    if theirs and what not in ("list", "open", "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too"):
         # The person's own inbox is connected read-only (`rouh/inboxes.py`):
         # the card has no such button, and a page that asks anyway is told why.
         return Answer(False, why="This inbox is connected read-only, so it can be read "
@@ -1240,6 +1263,11 @@ async def press(msg: dict, who) -> Answer:
         if what == "meeting_soon":
             # Open the meeting, counted: nothing in the mailbox, so a read-only one allows it too.
             done = await ROOM.meeting_soon(sealed)
+            done.chat = chat
+            return done
+        if what == "waiting_too":
+            # Open on Also waiting on you, counted: nothing in the mailbox changes.
+            done = await ROOM.waiting_too(sealed)
             done.chat = chat
             return done
         if what == "watch":

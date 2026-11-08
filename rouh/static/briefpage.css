@@ -916,3 +916,8 @@ a.bf-prep-subj:hover { text-decoration: underline; }
 .bf-invite-done { margin-top: 8px; color: var(--good); }
 .bf-noplace-lead { margin-bottom: 12px; }
 .bf-noplace-done { margin-top: 8px; color: var(--good); }
+/* Gone quiet (`rouh/gone_quiet.py`): each meeting's day takes the width its weekday and date need,
+   and the title wraps rather than being cut, since it is the one thing that says what it was. */
+.bf-quiet-line .bf-raise-mail { grid-template-columns: 6.6em minmax(0, 1fr); }
+.bf-quiet-line .bf-prep-subj { white-space: normal; font-weight: 400; overflow-wrap: anywhere; }
+.bf-quiet-line .bf-ghost-head { margin-top: 4px; }

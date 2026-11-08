@@ -1,0 +1,47 @@
+{
+  "id": "n37-gone-quiet",
+  "name": "Gone quiet",
+  "title": "Gone quiet: the morning brief names the companies and people you met regularly who have stopped meeting you, with nothing booked",
+  "aliases": [
+    "gone quiet",
+    "who have I stopped meeting",
+    "lost touch",
+    "who went quiet",
+    "clients I have not met"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<circle cx=\"8\" cy=\"8\" r=\"3.2\"/><path d=\"M2.5 19c.5-3.3 2.8-5.5 5.5-5.5s5 2.2 5.5 5.5\"/><circle cx=\"17\" cy=\"9\" r=\"2.6\" stroke-dasharray=\"2 2\"/><path d=\"M15.5 14.2c2.6.2 4.6 2.2 5 4.8\" stroke-dasharray=\"2 2\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "switch": "gone_quiet",
+  "signals": {
+    "events": {
+      "wrote": "You pressed Write to them on a company that has gone quiet, in the morning brief",
+      "put": "You pressed Not now on a company that has gone quiet, in the morning brief"
+    },
+    "runs": {
+      "shown": "Rouh named a company you used to meet regularly that has gone quiet, in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads your main calendar's meetings of the last 180 days and the next 60 each time the morning brief opens",
+      "opens a new email in your own Gmail only when you press Write to them; nothing is written or sent by Rouh",
+      "keeps the lines you put away in your own settings"
+    ],
+    "accounts": [
+      "Google Calendar"
+    ],
+    "tables": [
+      "user_settings",
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch gone_quiet off on its row in Evolution, Mutations, and the section is gone and the route refuses; to remove it for good revert night 36's commit for it (rouh/gone_quiet.py, the brief_gone_quiet route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawGoneQuiet and its helpers in briefpage.js, this manifest) and delete the user setting gone_quiet."
+  }
+}

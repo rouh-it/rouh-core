@@ -2579,6 +2579,53 @@
     "rouh/design_standard.py",
     "tools/design/**"
    ]
+  },
+  "n37-got-it": {
+   "name": "Got it on Telegram",
+   "what": "Every message you write to Rouh on Telegram is marked 👀 the moment Rouh takes it, before any answer starts, so you see at a glance it arrived.",
+   "switch": "got_it",
+   "signals": {
+    "events": {
+     "marked": "You wrote to Rouh on Telegram and it marked your message 👀 as taken"
+    }
+   },
+   "files": [
+    "rouh/got_it.py"
+   ]
+  },
+  "n37-gone-quiet": {
+   "files": [
+    "rouh/gone_quiet.py"
+   ]
+  },
+  "n37-reply-times": {
+   "name": "Reply times with a company",
+   "what": "Asked how quickly you and a company (or a person) answer each other's email, Rouh counts the conversations in your mailboxes: the usual time each side takes, your slowest answers, and what is still waiting on either side.",
+   "switch": "reply_times",
+   "signals": {
+    "events": {
+     "asked": "You asked Rouh how quickly you and a company answer each other's email, and it counted your mailboxes"
+    }
+   },
+   "files": [
+    "rouh/reply_times.py"
+   ]
+  },
+  "n37-waiting-too": {
+   "name": "Also waiting on you",
+   "what": "An email opened on the inbox card names the sender's other conversations whose last word is still theirs, with Open, so answering one does not leave the other waiting.",
+   "switch": "waiting_too",
+   "signals": {
+    "events": {
+     "opened": "You pressed Open on another email of the sender's still waiting on you, on the inbox card"
+    },
+    "runs": {
+     "shown": "Rouh said on an email you opened that its sender has other emails waiting on you"
+    }
+   },
+   "files": [
+    "rouh/waiting_too.py"
+   ]
   }
  }
 }

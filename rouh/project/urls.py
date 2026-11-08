@@ -705,6 +705,7 @@ urlpatterns = [
     path("api/brief/no_place", brief.brief_no_place),
     path("api/brief/not_said_yes", brief.brief_not_said_yes),
     path("api/brief/not_answered", brief.brief_not_answered),
+    path("api/brief/gone_quiet", brief.brief_gone_quiet),
     path("api/brief/raise_attached", brief.brief_raise_attached),
     path("api/brief/next_meeting", brief.brief_next_meeting),
     path("api/brief/day/<str:day>", brief.brief_day),

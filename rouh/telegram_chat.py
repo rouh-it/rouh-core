@@ -932,6 +932,8 @@ class PhoneChat:
             return
         if got and any(_album(u) for u in got):
             got = await self._settled(asked, offset, got)
+        if got:
+            await self._got_it(got, offset is None)
         i = 0
         while i < len(got):
             batch = [got[i]]
@@ -972,6 +974,26 @@ class PhoneChat:
                                   _who(message))
             if messages:
                 await self.answer(messages, last)
+
+    async def _got_it(self, got: list[dict], first_start: bool) -> None:
+        """Got it (`rouh/got_it.py`): each of his messages in this round marked 👀 before any of
+        them is answered. Never holds an answer up: anything that goes wrong is passed over."""
+        from . import got_it
+
+        try:
+            messages = [u["message"] for u in got if isinstance(u.get("message"), dict)
+                        and self.mine(u["message"])]
+            messages = [m for m in (self._taken({"message": m}, first_start) for m in messages)
+                        if m is not None]
+            if not messages:
+                return
+            who = await asyncio.to_thread(self.owner)
+            if who is not None:
+                await got_it.mark(self.telegram, messages, who)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("telegram: the messages could not be marked as taken")
 
     @staticmethod
     def _after(updates: list[dict], offset: int | None) -> list[dict]:

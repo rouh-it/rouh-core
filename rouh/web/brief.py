@@ -77,7 +77,7 @@ import logging
 from asgiref.sync import sync_to_async
 from django.http import HttpRequest
 
-from rouh import (birthdays, flight_open, my_word, host_admits, invite_missing, no_place, not_answered, not_said_yes, raise_attached, location, meeting_brief, meeting_prep, morning_brief, new_comments,
+from rouh import (birthdays, flight_open, gone_quiet, my_word, host_admits, invite_missing, no_place, not_answered, not_said_yes, raise_attached, location, meeting_brief, meeting_prep, morning_brief, new_comments,
                   next_meeting, not_handed, not_opened, task_dates, notes_missing, one_thing, others_changed, owed_to_you,
                   shared_with_you, slack_brief, talk_deck)
 
@@ -211,6 +211,8 @@ async def _with_one_thing(me, brief: dict) -> dict:
     # And an invitation of somebody else's today or tomorrow he never answered
     # (`rouh/not_answered.py`).
     await not_answered.again(me, brief, getattr(runtime, "brief_google", None))
+    # And the companies he met regularly who have stopped, with nothing booked (`rouh/gone_quiet.py`).
+    await gone_quiet.again(me, brief, getattr(runtime, "brief_google", None))
     return {**brief, "one_thing": await sync_to_async(one_thing.chosen)(me),
             "second_zone": second.key if second else ""}
 
@@ -835,6 +837,25 @@ async def brief_no_place(request: HttpRequest):
     except Exception as exc:  # noqa: BLE001 - said, and nothing kept
         log.warning("a Meet link could not be added: %r", exc)
         return refuse("Google would not add a Meet link: " + str(exc)[:200], 502)
+    return answer(done, headers=NO_STORE)
+
+
+@only("POST")
+async def brief_gone_quiet(request: HttpRequest):
+    """Gone quiet: Not now, Undo, or Write to them pressed (`rouh/gone_quiet.py`)."""
+    me = await sync_to_async(who)(request)
+    if me is None:
+        return refuse("sign in", 401)
+    sent = body_of(request)
+    key, act = str(sent.get("key") or "")[:120], str(sent.get("act") or "")
+    if act not in gone_quiet.ACTS or not key:
+        return refuse("Which line, and what to do with it.", 400)
+    if not await sync_to_async(gone_quiet.on)(me):
+        return refuse("Gone quiet is switched off.", 400)
+    try:
+        done = await sync_to_async(gone_quiet.act)(me, key, act)
+    except gone_quiet.Refused as exc:
+        return refuse(str(exc), 400)
     return answer(done, headers=NO_STORE)
 
 

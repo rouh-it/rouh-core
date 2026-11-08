@@ -31,7 +31,7 @@ from datetime import datetime, timedelta
 from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, calendar_away, clock, demo,
                composing, conversations, filing, imaging, inbox, inbox_grants, inboxes,
                inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, meeting_hours, meet_link, no_place,
-               calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer,
+               calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer, reply_times,
                their_clock, their_hours, unread_lists, their_language, promised_to_you,
                goals, heartbeat, linkedin, llmlog, location, machine_load, mail_attachments, mail_pictures,
                doc_pictures, doc_suggestions, drive_copy, drive_files, page_asks, page_comments, sheet_tabs, sheet_write, slide_write,
@@ -6949,6 +6949,8 @@ class ToolRegistry:
                   self._block_my_time)
         # Waiting on your answer (night 34, `rouh/to_answer.py`): the emails the person has not answered.
         self._own(to_answer.TOOL_NAME, to_answer.DESCRIPTION, to_answer.SCHEMA, self._to_answer)
+        # Reply times with a company, both ways (night 36, `rouh/reply_times.py`).
+        self._own(reply_times.TOOL_NAME, reply_times.DESCRIPTION, reply_times.SCHEMA, self._reply_times)
         # Newsletters you never open (night 35, `rouh/unread_lists.py`): lists left unread, stopped in a word.
         self._own(unread_lists.TOOL_NAME, unread_lists.DESCRIPTION, unread_lists.SCHEMA, self._unread_lists)
         # Promised to you by mail (night 36, `rouh/promised_to_you.py`): what people promised by email.
@@ -9903,6 +9905,22 @@ class ToolRegistry:
 
         await asyncio.to_thread(evolution.used, to_answer.SWITCH, "asked", who=who,
                                 detail=f"{count} waiting")
+        return untrusted.wrap(said, untrusted.SOURCES["read_recent_mail"])
+
+    async def _reply_times(self, args, emit):
+        """Reply times with a company, both ways (night 36, `rouh/reply_times.py`)."""
+        who = self.google.person()
+        if not await asyncio.to_thread(reply_times.on, who):
+            return untrusted.ours("Counting reply times is switched off (Reply times, in Evolution, "
+                                  "Mutations).")
+        if _in_case():
+            return untrusted.ours("The person's mail is counted only for the person, not in a "
+                                  "contact's case.")
+        said, count = await reply_times.answer(who, args or {}, clock.zone_of(who))
+        from . import evolution
+
+        await asyncio.to_thread(evolution.used, reply_times.SWITCH, "asked", who=who,
+                                detail=f"{count} conversations counted")
         return untrusted.wrap(said, untrusted.SOURCES["read_recent_mail"])
 
     async def _promised_to_you(self, args, emit):

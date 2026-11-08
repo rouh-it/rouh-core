@@ -133,6 +133,8 @@ REBUTTON = "editMessageReplyMarkup"
 ME = "getMe"
 LINK = "createChatInviteLink"
 COMMANDS = "setMyCommands"
+#: A reaction on one of his messages: Got it (`rouh/got_it.py`, night 36 of the nightly run).
+REACT = "setMessageReaction"
 
 #: What is read off the bot: a message written to it, a press on one of the
 #: buttons under a message it sent, and the bot being added to a group, made
@@ -467,6 +469,25 @@ class Telegram:
             return False
         except NotSent as exc:
             log.debug("the typing dots were not shown: %s", exc)
+            return False
+
+    async def react(self, chat, message_id: int, emoji: str) -> bool:
+        """Put one emoji reaction on a message: Got it (`rouh/got_it.py`).
+
+        A nicety like the typing dots, so every way it can fail is swallowed
+        and only answered with False: nothing is ever held up by it.
+        """
+        try:
+            _, own = self._needed()
+            await self._call(REACT, {"chat_id": own if chat in (None, "") else chat,
+                                     "message_id": int(message_id),
+                                     "reaction": [{"type": "emoji", "emoji": emoji}]},
+                             timeout=8.0)
+            return True
+        except NotSetUp:
+            return False
+        except (NotSent, TypeError, ValueError) as exc:
+            log.debug("the reaction was not put: %s", exc)
             return False
 
     # --- buttons --------------------------------------------------------------

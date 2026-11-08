@@ -4,7 +4,8 @@
 a real HTTP server in front of the real client, so what a test proves is what
 really went over the wire rather than what a mock was asked to pretend.
 
-**Sending.** It answers the Bot API's ``sendMessage`` and ``sendChatAction``
+**Sending.** It answers the Bot API's ``sendMessage``, ``sendChatAction`` and
+``setMessageReaction`` (drawn on the message in the phone page below),
 and writes down every request it was given, whole: the bot token out of the
 address, the chat id, the text and the rest of the body. `rouh/telegram.py` is
 unchanged in front of it, so a test asserting on those files is asserting on
@@ -523,6 +524,21 @@ def build_app(record_dir: str | None = None, first_update: int = FIRST_UPDATE) -
         write("sendChatAction", {"token": token, "body": body})
         return JSONResponse({"ok": True, "result": True})
 
+    @app.post("/bot{token}/setMessageReaction")
+    async def set_message_reaction(token: str, request: Request):
+        """A reaction on a message in the chat, as Got it puts one (`rouh/got_it.py`): shown
+        on the message from then on, the bot's own replacing the last."""
+        body = await body_of(request)
+        found = shown_message(body.get("message_id"))
+        if found is None or str(found["chat"].get("id")) != str(body.get("chat_id")):
+            return refused(400, "Bad Request: message to react not found")
+        reaction = body.get("reaction") or []
+        if isinstance(reaction, str):
+            reaction = json.loads(reaction or "[]")
+        found["reactions"] = [r.get("emoji") for r in reaction if isinstance(r, dict)]
+        write("setMessageReaction", {"token": token, "body": body})
+        return JSONResponse({"ok": True, "result": True})
+
     def waiting(offset) -> list[dict]:
         if offset is not None:
             try:
@@ -891,6 +907,8 @@ PHONE = """<!doctype html>
   .keys button { flex: 1; border: 1px solid var(--line); background: var(--key);
                  border-radius: 8px; padding: 7px; font: inherit; color: #2a6496;
                  cursor: pointer; }
+  .reactions { display: inline-block; margin-top: 4px; padding: 1px 7px; border-radius: 10px;
+               background: rgba(81,125,162,.15); font-size: 14px; }
   .actions { font-size: 12px; margin-top: 2px; }
   .actions button { border: 0; background: none; padding: 0; font: inherit;
                     color: var(--soft); cursor: pointer; }
@@ -1003,6 +1021,15 @@ async function draw() {
         el.appendChild(q);
       }
       el.appendChild(document.createTextNode(m.text || m.caption || ""));
+      if ((m.reactions || []).length) {
+        const re = document.createElement("div");
+        re.className = "reactions";
+        re.setAttribute("aria-label", "Reactions: " + m.reactions.join(" "));
+        // Named beside it too, for a screen with no emoji font (a headless browser's).
+        const NAMES = {"👀": "eyes", "👍": "thumbs up"};
+        re.textContent = m.reactions.map(e => e + (NAMES[e] ? " " + NAMES[e] : "")).join("  ");
+        el.appendChild(re);
+      }
       const rows = (m.reply_markup || {}).inline_keyboard || [];
       if (rows.length) {
         const keys = document.createElement("div");

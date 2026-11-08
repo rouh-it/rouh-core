@@ -120,6 +120,8 @@
             // Invitations you have not answered (`rouh/not_answered.py`): the line said after an answer
             // or Not now, and which line is being answered.
             notAnswered: { said: null, busy: '' },
+            // Gone quiet (`rouh/gone_quiet.py`): the line said after Not now, with Undo.
+            goneQuiet: { said: null },
             // Agreed, not booked (`rouh/next_meeting.py`): the line said after Book it or Not
             // needed, with Undo for Not needed, and which line is being booked.
             nextMeeting: { said: null, busy: '' },
@@ -539,6 +541,9 @@
     // Invitations you have not answered: an envelope with a question mark beside it.
     not_answered: '<rect x="2.5" y="6" width="13" height="11" rx="2"/><path d="M2.5 8l6.5 4.5L15.5 8"/>'
       + '<path d="M18 7.4a2.2 2.2 0 1 1 3.2 2c-.6.3-.9.7-.9 1.3v.4"/><path d="M20.3 14v.1"/>',
+    // Gone quiet: two people, the second faded.
+    gone_quiet: '<circle cx="8" cy="8" r="3.2"/><path d="M2.5 19c.5-3.3 2.8-5.5 5.5-5.5s5 2.2 5.5 5.5"/>'
+      + '<circle cx="17" cy="9" r="2.6" stroke-dasharray="2 2"/><path d="M15.5 14.2c2.6.2 4.6 2.2 5 4.8" stroke-dasharray="2 2"/>',
     // Guests who have not said yes: a person with a question mark beside them.
     not_said_yes: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-6 6.5-6s5.9 2.4 6.5 6"/>'
       + '<path d="M16.6 6.4a2.2 2.2 0 1 1 3.2 2c-.6.3-.9.7-.9 1.3v.4"/><path d="M18.9 13v.1"/>',
@@ -3741,6 +3746,123 @@
     notAnsweredPost({ key: said.one.key, act: 'undo' });
   }
 
+  // Gone quiet (night 36, `rouh/gone_quiet.py`): a company he met regularly that has stopped meeting
+  // him, with nothing booked. When you met, closed at first, lists the meetings; Write to them opens
+  // his own Gmail to the people he last met there; Not now puts the line away, with Undo.
+  function drawGoneQuiet(body, n) {
+    var items = (n.ok && n.items) || [];
+    var said = B.goneQuiet.said;
+    if (!items.length && !said) return;
+    var sec = section('gone_quiet', 'Gone quiet', n);
+    body.appendChild(sec);
+    if (items.length) {
+      sec.appendChild(el('p', 'bf-note', items.length === 1
+        ? 'You used to meet them regularly. It has been more than twice as long as usual, and nothing is booked.'
+        : 'You used to meet each of these regularly. It has been more than twice as long as usual, and nothing is booked.'));
+    }
+    if (said) {
+      var line = el('p', 'bf-note bf-ghost-said' + (said.bad ? ' bad' : ''), said.text + ' ');
+      line.setAttribute('role', 'status');
+      if (said.one) {
+        var undo = el('button', 'bf-settings', 'Undo');
+        undo.type = 'button';
+        undo.addEventListener('click', function () { goneQuietUndo(n, said); });
+        line.appendChild(undo);
+      }
+      sec.appendChild(line);
+    }
+    if (!items.length) return;
+    var list = el('ol', 'bf-ghost-list');
+    items.forEach(function (one) {
+      var li = el('li', 'bf-ghost bf-quiet-line');
+      var head = el('p', 'bf-ghost-head');
+      head.appendChild(el('span', 'bf-ghost-who', one.company));
+      head.appendChild(el('span', 'bf-ghost-days', one.silent + ' days'));
+      li.appendChild(head);
+      li.appendChild(el('p', 'bf-note', one.said));
+      if ((one.meetings || []).length) {
+        var met = el('details', 'bf-raise-read');
+        met.appendChild(el('summary', '', 'When you met'));
+        var ml = el('ul', 'bf-raise-mails');
+        one.meetings.forEach(function (m) {
+          var row = el('li', 'bf-raise-mail');
+          row.appendChild(el('span', 'bf-prep-when', m.when));
+          row.appendChild(el('span', 'bf-prep-subj', m.title + ((m.people || []).length ? ', with ' + m.people.join(', ') : '')));
+          ml.appendChild(row);
+        });
+        met.appendChild(ml);
+        li.appendChild(met);
+      }
+      var acts = el('div', 'bf-ghost-acts');
+      if (one.write && (one.people || []).length) {
+        var w = out(one.write, 'bf-btn', 'Write to them', 'A new email to ' + one.people.join(', ') + ' in your own Gmail');
+        w.addEventListener('click', function () { goneQuietPost({ key: one.key, act: 'wrote' }); });
+        acts.appendChild(w);
+      }
+      var later = el('button', 'bf-btn', 'Not now');
+      later.type = 'button';
+      later.title = 'Put this line away until you meet them again';
+      later.addEventListener('click', function () { goneQuietPut(n, one); });
+      acts.appendChild(later);
+      li.appendChild(acts);
+      list.appendChild(li);
+    });
+    sec.appendChild(list);
+    if (n.count > items.length) sec.appendChild(el('p', 'bf-note', 'And ' + (n.count - items.length) + ' more.'));
+  }
+
+  function goneQuietRedraw() {
+    var body = $('briefBody');
+    var old = body && body.querySelector('.bf-sec.bf-gone_quiet');
+    if (!B.data || !B.data.gone_quiet) return;
+    var holder = document.createDocumentFragment();
+    drawGoneQuiet(holder, B.data.gone_quiet);
+    if (old) old.replaceWith(holder);
+    else if (body && holder.firstChild) {
+      var cal = body.querySelector('.bf-sec.bf-calendar');
+      if (cal) cal.after(holder); else body.appendChild(holder);
+    }
+  }
+
+  function goneQuietPost(body) {
+    return fetch('/api/brief/gone_quiet', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store', keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      if (r.status === 401) { location.href = '/login'; return null; }
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        return r.ok ? (j || {}) : { error: (j && j.error) || 'the server said ' + r.status + '.' };
+      });
+    }).catch(function () { return { error: 'Rouh could not be reached. Try again.' }; });
+  }
+
+  function goneQuietPut(n, one) {
+    var at = n.items.indexOf(one);
+    if (at < 0) return;
+    n.items.splice(at, 1);
+    if (n.count) n.count -= 1;
+    var said = { one: one, at: at, text: 'Not now: ' + one.company + ' is put away until you meet them again.' };
+    B.goneQuiet.said = said;
+    goneQuietRedraw();
+    goneQuietPost({ key: one.key, act: 'put' }).then(function (j) {
+      if (!j || !j.error || B.goneQuiet.said !== said) return;
+      if (n.items.indexOf(one) < 0) n.items.splice(Math.min(at, n.items.length), 0, one);
+      B.goneQuiet.said = { bad: true, text: 'That could not be kept. Try again.' };
+      goneQuietRedraw();
+    });
+  }
+
+  function goneQuietUndo(n, said) {
+    if (n.items.indexOf(said.one) < 0) {
+      n.items.splice(Math.min(said.at, n.items.length), 0, said.one);
+      n.count = (n.count || 0) + 1;
+    }
+    B.goneQuiet.said = null;
+    goneQuietRedraw();
+    goneQuietPost({ key: said.one.key, act: 'undo' });
+  }
+
   // Guests who have not said yes (night 34, `rouh/not_said_yes.py`): a meeting of his today or
   // tomorrow that nobody invited has accepted, or somebody declined. Write to them in Gmail opens
   // his own Gmail with a note to exactly those guests; Not needed puts the line away, with Undo.
@@ -6131,6 +6253,8 @@
     // Invitations you have not answered is about meetings in the calendar too, and waits on him.
     if (d.not_answered && !keptOnly()) drawNotAnswered(page, d.not_answered);
     drawCalendar(page, d.calendar, now);
+    // Gone quiet is about who is missing from the calendar above it.
+    if (d.gone_quiet && !keptOnly()) drawGoneQuiet(page, d.gone_quiet);
     // Meetings with nowhere to meet is about the meetings just above it, so it is drawn under them.
     if (d.no_place && !keptOnly()) drawNoPlace(page, d.no_place);
     if (!keptOnly()) drawMailboxes(page);

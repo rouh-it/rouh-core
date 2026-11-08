@@ -2664,3 +2664,75 @@ row = reminders.one(who, said["reminder"])
 print(json.dumps({"said": said["said"], "title": row.title}))
 """))
     expect("Has it come? Rita Stack" in out and "09:00" in out, f"the look was not made: {out[-500:]}")
+
+
+# --- Night 36 (8 November): got it on Telegram; gone quiet; reply times; also waiting on you
+
+@check("gene.got-it")
+def got_it(s: Stack) -> None:
+    """A message written to the bot on the phone is marked 👀 on the phone."""
+    tg, chat = 9014, 4242
+    s.run("core", f"""python -c "import json,urllib.request; urllib.request.urlopen(urllib.request.Request(
+'http://standins:{tg}/_send', data=json.dumps({{'chat_id': {chat}, 'text': 'Got it in the stack test'}}).encode(),
+headers={{'content-type': 'application/json'}}), timeout=10)" """)
+    end = time.time() + 120
+    while time.time() < end:
+        got = s.standin(tg, f"/_chat?chat={chat}")
+        for m in (got.get("messages", []) if isinstance(got, dict) else []):
+            if m.get("text") == "Got it in the stack test" and m.get("reactions"):
+                expect("\U0001F440" in m["reactions"], f"the message was marked otherwise: {m['reactions']}")
+                return
+        time.sleep(3)
+    raise Failed("the message written on the phone was not marked as taken")
+
+
+@check("gene.gone-quiet")
+def gone_quiet(s: Stack) -> None:
+    """A company met every week until seven weeks ago, with nothing booked, is named for the brief."""
+    google(s)
+    out = core_py(s, _owner_py("""
+from datetime import datetime, timedelta
+from rouh import gone_quiet, runtime, clock
+async def go():
+    cal = runtime.brief_google(who).calendar
+    zone = clock.zone_of(who)
+    last = (datetime.now(zone) - timedelta(days=49)).replace(hour=10, minute=0, second=0, microsecond=0)
+    for n in range(5):
+        await cal.create("primary", title="Stack weekly", guests=["kai@quiet-stack.test"],
+                         start=last - timedelta(days=7 * n), minutes=30, notify=False)
+    got = await gone_quiet.found(who, runtime.brief_google)
+    return {"said": [i["company"] + ": " + i["said"] for i in (got or {}).get("items", [])]}
+print(json.dumps(asyncio.run(go())))
+"""))
+    expect("quiet-stack.test: You met every week" in out, f"the company gone quiet was not named: {out[-500:]}")
+
+
+@check("gene.reply-times")
+def reply_times(s: Stack) -> None:
+    """reply_times counts a company's conversation and says it is still waiting on the owner."""
+    google(s)
+    standin_post(s, GOOGLE, "/_deliver", {
+        "from": "Lea Stack <lea@reply-stack.test>", "quiet": True, "days_ago": 3,
+        "subject": "Stack reply times", "text": "Could you look at the stack numbers?\n\nLea"})
+    got = g_tool(s, "reply_times", {"who": "reply-stack.test"}, "Reply times with reply-stack.test")
+    expect("Still waiting on you" in got and "Stack reply times" in got, f"the conversation was not counted: {got[:600]}")
+
+
+@check("gene.waiting-too")
+def waiting_too(s: Stack) -> None:
+    """An opened email names the same sender's other email still waiting on the owner."""
+    google(s)
+    for subject in ("Stack waiting one", "Stack waiting two"):
+        standin_post(s, GOOGLE, "/_deliver", {
+            "from": "Ben Stack <ben@waiting-stack.test>", "quiet": True, "days_ago": 2,
+            "subject": subject, "text": "Could you answer this one?\n\nBen"})
+    out = core_py(s, _owner_py("""
+from rouh import waiting_too
+async def go():
+    got = await waiting_too.shown(who, {"from": "Ben Stack <ben@waiting-stack.test>", "thread_id": "none",
+                                        "subject": "Stack waiting one"}, own=[])
+    return {"said": [o["said"] for o in (got or {}).get("others", [])]}
+print(json.dumps(asyncio.run(go())))
+"""))
+    expect("is also waiting on you" in out and "Stack waiting two" in out and "Stack waiting one" not in out,
+           f"the sender's other email was not named: {out[-500:]}")
