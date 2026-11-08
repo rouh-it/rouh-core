@@ -3,6 +3,16 @@
 How to run Rouh's containers on a Linux machine of your own, or in an arm64 Linux virtual machine on an Apple Silicon Mac, from a signed release on rouh.land.
 Rouh for Mac does all of this by itself; this is the same by hand.
 
+**On a Linux machine, one command does steps 2 to 6 for you** (since 8 November 2026, task 176):
+
+```bash
+curl -fsSL https://rouh.land/install.sh | sh
+```
+
+It checks the machine, installs Docker with Compose and the few tools it needs if they are missing, clones rouh-core into `~/rouh-core`, makes `~/rouh/.env` with a database password, starts Rouh with `linux_stack.py update` and prints the setup address (and the `ssh -L` line for a machine with no screen).
+Run it again to update. Its source is served at that address; read it first if you like.
+The rest of this guide is the same by hand, and updates, backups and moving a Rouh you already have.
+
 Since 24 October 2026 (task 98, step 98-23) a release names three images, each by its digest: `ghcr.io/rouh-it/rouh-base` (what every part runs on, no Rouh code), `ghcr.io/rouh-it/rouh-guard` (the protected core, which a Rouh uses and cannot edit) and PostgreSQL.
 There is no code image: on its first start a Rouh fetches the newest version of Rouh that passed its tests, free, with no account (rouh.land names the commit, signed, and it comes from the public rouh-it/rouh-core on GitHub), and from then on its code is its own, in the code volume, and no update writes to it.
 The stack file is the Rouh's own too (`/code/deploy/stack/compose.yml`); before applying it, check it (step 6).
