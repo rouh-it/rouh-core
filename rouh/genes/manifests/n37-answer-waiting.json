@@ -1,0 +1,46 @@
+{
+  "id": "n37-answer-waiting",
+  "name": "Waiting on your answer, in the brief",
+  "title": "Waiting on your answer, in the brief: emails from people that asked you something and are still unanswered, in the morning brief",
+  "aliases": [
+    "waiting on your answer in the brief",
+    "emails i have not answered",
+    "what have i not answered",
+    "unanswered email",
+    "who is waiting on me"
+  ],
+  "group": "now",
+  "route": "/brief",
+  "icon": "<path d=\"M4 5h16v11H8l-4 4z\"/><path d=\"M12 8.5v3\"/><path d=\"M12 13.6v.1\"/>",
+  "attaches_to": [],
+  "maturity": "lab",
+  "switch": "answer_waiting",
+  "signals": {
+    "events": {
+      "opened": "You pressed Open in Gmail on an email waiting on your answer in the morning brief",
+      "put_away": "You pressed No answer needed on an email waiting on your answer in the morning brief"
+    },
+    "runs": {
+      "shown": "Rouh put an email from somebody that asked you something, still unanswered, in the morning brief"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "reads the inbox of the last two weeks in every mailbox you gave Rouh, with GET alone, when the morning brief opens (kept a quarter of an hour)",
+      "keeps the emails you said need no answer in your own settings"
+    ],
+    "accounts": [
+      "Gmail"
+    ],
+    "tables": [
+      "user_settings",
+      "analytics.event"
+    ],
+    "jobs": [],
+    "remove": "Turn the switch answer_waiting off on its row in Evolution, Mutations, and the section is gone and the route refuses; to remove it for good revert night 37's commit for it (rouh/answer_waiting.py, the brief_answer_waiting route and its lines in rouh/web/brief.py and rouh/project/urls.py, drawAnswerWaiting and its helpers in briefpage.js, this manifest) and delete the user setting answer_waiting. rouh/to_answer.py, which reads the mail, stays: it is Waiting on your answer's own."
+  }
+}

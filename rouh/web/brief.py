@@ -56,6 +56,7 @@
     POST /api/brief/not_handed     Made, not handed over: {key, act: task|handed|undo}
                                    (`rouh/not_handed.py`)
     POST /api/brief/my_word        Your word, by mail: {key, act: open|context|done|undo} (`rouh/my_word.py`)
+    POST /api/brief/answer_waiting Waiting on your answer: {key, act: open|put_away|undo} (`rouh/answer_waiting.py`)
     POST /api/brief/task_dates     Dates your tasks wait on: {key, act: task|context|done|undo}
                                    (`rouh/task_dates.py`)
     POST /api/brief/raise_attached What to raise reads what is attached: {act: opened|doc}, the use
@@ -77,7 +78,7 @@ import logging
 from asgiref.sync import sync_to_async
 from django.http import HttpRequest
 
-from rouh import (birthdays, flight_open, gone_quiet, my_word, host_admits, invite_missing, no_place, not_answered, not_said_yes, raise_attached, location, meeting_brief, meeting_prep, morning_brief, new_comments,
+from rouh import (answer_waiting, birthdays, flight_open, gone_quiet, my_word, host_admits, invite_missing, no_place, not_answered, not_said_yes, raise_attached, location, meeting_brief, meeting_prep, morning_brief, new_comments,
                   next_meeting, not_handed, not_opened, task_dates, notes_missing, one_thing, others_changed, owed_to_you,
                   shared_with_you, slack_brief, talk_deck)
 
@@ -171,6 +172,8 @@ async def _with_one_thing(me, brief: dict) -> dict:
     await owed_to_you.again(me, brief)
     # And what he promised somebody by email, by a day that has come (`rouh/my_word.py`).
     await my_word.again(me, brief)
+    # And emails from people that asked him something and wait on his answer (`rouh/answer_waiting.py`).
+    await answer_waiting.again(me, brief)
     # And his meetings with people from outside that the meeting library sent no notes for (`rouh/notes_missing.py`).
     await notes_missing.again(me, brief)
     # And a next meeting agreed in one of them that is not in his calendar (`rouh/next_meeting.py`).
@@ -701,6 +704,25 @@ async def brief_my_word(request: HttpRequest):
     try:
         done = await sync_to_async(my_word.act)(me, key, act)
     except my_word.Refused as exc:
+        return refuse(str(exc), 400)
+    return answer(done, headers=NO_STORE)
+
+
+@only("POST")
+async def brief_answer_waiting(request: HttpRequest):
+    """Waiting on your answer: Open the email, Not needed, or Undo (`rouh/answer_waiting.py`)."""
+    me = await sync_to_async(who)(request)
+    if me is None:
+        return refuse("sign in", 401)
+    sent = body_of(request)
+    key, act = str(sent.get("key") or "")[:100], str(sent.get("act") or "")
+    if act not in answer_waiting.ACTS or not key:
+        return refuse("Which line, and what to do with it.", 400)
+    if not await sync_to_async(answer_waiting.on)(me):
+        return refuse("Waiting on your answer, in the brief, is switched off.", 400)
+    try:
+        done = await sync_to_async(answer_waiting.act)(me, key, act)
+    except answer_waiting.Refused as exc:
         return refuse(str(exc), 400)
     return answer(done, headers=NO_STORE)
 

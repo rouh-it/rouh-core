@@ -2626,6 +2626,51 @@
    "files": [
     "rouh/waiting_too.py"
    ]
+  },
+  "n37-their-questions": {
+   "name": "Their other questions",
+   "what": "Before Rouh sends or drafts an email in your turn, it reads whether anybody it goes to asked you something else in another email that is still unanswered, and the email waits once so it can answer that too, or say it will be answered apart.",
+   "switch": "their_questions",
+   "signals": {
+    "events": {
+     "held": "You had Rouh send an email to somebody with another question to you still unanswered, and it was held once to answer it too",
+     "told": "You had Rouh draft an email to somebody with another question to you still unanswered, and it was told before you read the draft"
+    }
+   },
+   "files": [
+    "rouh/their_questions.py"
+   ]
+  },
+  "n37-answer-waiting": {
+   "files": [
+    "rouh/answer_waiting.py"
+   ]
+  },
+  "n37-between-us": {
+   "name": "Between you and them",
+   "what": "Asked in words about one person, Rouh reads your inboxes for what is open between you by email, both ways: what they asked you that you have not answered, what you promised them, what they promised you, and when each of you last wrote.",
+   "switch": "between_us",
+   "signals": {
+    "events": {
+     "asked": "You asked Rouh where things stand with somebody, or what is open between you and them by email"
+    }
+   },
+   "files": [
+    "rouh/between_us.py"
+   ]
+  },
+  "n37-answer-watch": {
+   "name": "If I have not answered it, remind me",
+   "what": "An email opened on the inbox card from a person that asks you something has If I have not answered by tomorrow, remind me: one press, and Rouh looks the next working morning and reminds you only if you have not answered.",
+   "switch": "answer_watch",
+   "signals": {
+    "events": {
+     "watched": "You pressed If I have not answered by tomorrow, remind me on an email opened on the inbox card"
+    }
+   },
+   "files": [
+    "rouh/answer_watch.py"
+   ]
   }
  }
 }

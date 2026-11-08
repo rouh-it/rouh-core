@@ -132,7 +132,7 @@ AREA_OF: dict[str, str] = {
     "send_mail": "gmail", "draft_mail": "gmail", "forward_mail": "gmail",
     "forward_thread": "gmail",
     "modify_mail": "gmail",
-    "show_inbox": "gmail", "worker_outbox": "gmail", "to_answer": "gmail", "reply_times": "gmail", "unread_lists": "gmail", "promised_to_you": "gmail",
+    "show_inbox": "gmail", "worker_outbox": "gmail", "to_answer": "gmail", "reply_times": "gmail", "unread_lists": "gmail", "promised_to_you": "gmail", "between_us": "gmail",
     # Calendar
     "list_calendars": "calendar", "list_calendar_events": "calendar",
     "read_calendar_event": "calendar", "create_calendar_event": "calendar",

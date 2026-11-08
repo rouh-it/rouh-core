@@ -2405,6 +2405,10 @@ function inboxBlock(b) {
   // one press has Rouh look for it the morning after and say only if nothing came.
   var watchRow = el('div', 'ib-remind ib-watch');
   watchRow.hidden = true;
+  // If I have not answered it, remind me (night 37, rouh/answer_watch.py): on an email asking him
+  // something, one press has Rouh look the next working morning and remind him only if he has not answered.
+  var answerRow = el('div', 'ib-remind ib-answer-watch');
+  answerRow.hidden = true;
   var mailSaid = el('p', 'ib-said');
   mailSaid.hidden = true;
   mailSaid.setAttribute('role', 'status');
@@ -2420,6 +2424,7 @@ function inboxBlock(b) {
   mail.appendChild(unsubRow);
   mail.appendChild(remindRow);
   mail.appendChild(watchRow);
+  mail.appendChild(answerRow);
   mail.appendChild(mailSaid);
   mail.appendChild(body);
   mail.appendChild(files);
@@ -2597,6 +2602,7 @@ function inboxBlock(b) {
     drawSoon(msg);
     drawToo(msg);
     drawWatch(msg);
+    drawAnswerWatch(msg);
   }
 
   /** @param {any} msg */
@@ -2670,6 +2676,32 @@ function inboxBlock(b) {
         var see = el('a', 'ib-remind-link', 'See it on Clockwork');
         see.href = '/clockwork';
         watchRow.appendChild(see);
+      });
+    });
+  }
+
+  /** @param {any} msg */
+  function drawAnswerWatch(msg) {
+    answerRow.textContent = '';
+    var w = msg && msg.answer_watch;
+    answerRow.hidden = !w;
+    if (!w) return;
+    answerRow.appendChild(el('span', 'ib-remind-note', 'They asked: \u201c' + w.ask + '\u201d'));
+    var b = inboxButton('ib-answer-watch-at', w.label, 'Rouh looks ' + w.at + ' and reminds you only if you have not answered by then');
+    answerRow.appendChild(b);
+    b.addEventListener('click', function () {
+      busy(b, 'Setting\u2026');
+      inboxAsk(token, 'answer_watch', { id: msg.id }, function (m) {
+        done(b);
+        if (!m.ok) {
+          sayBad(mailSaid, m.why || 'It could not be set.');
+          return;
+        }
+        answerRow.textContent = '';
+        answerRow.appendChild(el('span', 'ib-remind-note', m.said || 'Rouh will look tomorrow.'));
+        var see = el('a', 'ib-remind-link', 'See it on Clockwork');
+        see.href = '/clockwork';
+        answerRow.appendChild(see);
       });
     });
   }
@@ -2761,6 +2793,7 @@ function inboxBlock(b) {
     unsubRow.hidden = true;
     remindRow.hidden = true;
     watchRow.hidden = true;
+    answerRow.hidden = true;
     acts.hidden = readOnly;
     drawNav();
     drawMark();

@@ -264,14 +264,19 @@ async def _later(reader, query: str, after: float, not_id: str) -> bool:
     return False
 
 
-async def scan_sent(reader, zone, *, days: int, mailbox: str = "", now: float | None = None) -> list[dict]:
+async def scan_sent(reader, zone, *, days: int, mailbox: str = "", person: str = "",
+                    now: float | None = None) -> list[dict]:
     """The promises with a day in the person's own sent mail of the last `days` days, each with
-    whether they wrote to the same people again since (`wrote_since`)."""
+    whether they wrote to the same people again since (`wrote_since`). `person` narrows it to mail
+    sent to one name or address (Between you and them, `rouh/between_us.py`)."""
     from . import ghosts
 
     now = now or time.time()
     own = await reader.addresses()
-    found = await reader.search(f"in:sent newer_than:{days}d", MOST_EMAILS)
+    query = f"in:sent newer_than:{days}d"
+    if person:
+        query += f" to:({person})" if " " in person else f" to:{person}"
+    found = await reader.search(query, MOST_EMAILS)
     out: list[dict] = []
     for got in await ghosts._gathered([reader.message(one["id"]) for one in found[:MOST_EMAILS]]):
         if isinstance(got, BaseException) or not isinstance(got, dict):

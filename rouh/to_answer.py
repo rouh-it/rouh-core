@@ -121,7 +121,8 @@ async def scan(reader, *, days: int, person: str = "", now: float | None = None)
     query = (f"in:inbox newer_than:{days}d -in:sent -category:promotions -category:social "
              f"-category:updates -category:forums")
     if person:
-        query += f" from:({person})"
+        # One word as Gmail's from: takes it; several in brackets, so they are read as one.
+        query += f" from:({person})" if " " in person else f" from:{person}"
     found = await reader.search(query, 100)
     threads: list[str] = []
     for one in found:

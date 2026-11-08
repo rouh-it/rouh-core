@@ -107,6 +107,8 @@
             taskDates: { said: null },
             // Your word, by mail (`rouh/my_word.py`): the line said after Done, with Undo.
             myWord: { said: null },
+            // Waiting on your answer (`rouh/answer_waiting.py`): the line said after Not needed, with Undo.
+            answerWaiting: { said: null, opened: {} },
             // Who lets the note-taker in (`rouh/host_admits.py`): the line said after No notes needed.
             hostAdmits: { said: null },
             // Flights left open (`rouh/flight_open.py`): the line said after Not needed, or a fault.
@@ -531,6 +533,7 @@
     task_dates: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9.5h16M8.5 3v4M15.5 3v4"/>'
       + '<path d="M12 12v3.2l2.2 1.4"/>',
     // Your word, by mail: an envelope with a tick for a promise kept.
+    answer_waiting: '<path d="M4 5h16v11H8l-4 4z"/><path d="M12 8.5v3"/><path d="M12 13.6v.1"/>',
     my_word: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 8l9 6 9-6"/><path d="M15 3.5l2 2 3.5-3.5"/>',
     host_admits: '<rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l5-3v10l-5-3"/><path d="M7 12h4"/>',
     flight_open: '<path d="M2.5 19h19"/><path d="M3.5 13.5l3 1.2 4-1.6-5.2-5.4 2-.8 7.6 4.2 4.4-1.8c1.1-.4 2.2.3 2 1.2-.1.6-.6 1-1.2 1.3L6.9 17.1 3.5 13.5z"/>',
@@ -3113,6 +3116,120 @@
       if (i >= 0) n.items.splice(i, 1);
       B.myWord.said = { bad: true, text: 'It could not be brought back. Try again.' };
       myWordRedraw();
+    });
+  }
+
+  // Waiting on your answer (night 37, 8 November 2026, `rouh/answer_waiting.py`): emails from people
+  // that asked him something, waited a day or more, and still have the last word. Open the email opens
+  // the conversation in Gmail, to answer it from there; Not needed puts it away, with Undo. A line he
+  // answered goes by itself next time. None is no section.
+  function drawAnswerWaiting(body, n) {
+    var items = (n.ok && n.items) || [];
+    var said = B.answerWaiting.said;
+    if (!items.length && !said) return;
+    var sec = section('answer_waiting', 'Waiting on your answer', n);
+    body.appendChild(sec);
+    if (said) {
+      var line = el('p', 'bf-note bf-ghost-said' + (said.bad ? ' bad' : ''), said.text + ' ');
+      line.setAttribute('role', 'status');
+      if (said.one) {
+        var undo = el('button', 'bf-settings', 'Undo');
+        undo.type = 'button';
+        undo.addEventListener('click', function () { answerWaitingUndo(n, said); });
+        line.appendChild(undo);
+      }
+      sec.appendChild(line);
+    }
+    if (!items.length) return;
+    var list = el('ol', 'bf-ghost-list');
+    items.forEach(function (one) {
+      var li = el('li', 'bf-ghost bf-answerwaiting' + (one.days >= 3 ? ' is-passed' : ''));
+      var head = el('p', 'bf-ghost-head');
+      head.appendChild(el('span', 'bf-ghost-who', one.name + (one.others ? ' and ' + one.others + (one.others === 1 ? ' other' : ' others') : '')));
+      head.appendChild(el('span', 'bf-ghost-days', 'Waiting ' + one.waited));
+      li.appendChild(head);
+      li.appendChild(el('p', 'bf-taskdate-line', one.subject));
+      li.appendChild(el('p', 'bf-newcomment-words', 'They asked: “' + one.ask + '”'));
+      li.appendChild(el('p', 'bf-note', 'Written ' + one.when + ', to ' + one.mailbox + (one.read_only ? ' (read-only)' : '') + '. Nobody has answered since.'));
+      var acts = el('div', 'bf-ghost-acts');
+      var open = out(one.link, 'bf-btn', 'Open in Gmail \u2197', 'Opens the conversation in Gmail, in a new tab, to answer it there');
+      // What a press did stays said, whatever redraws the brief after it.
+      var opened = el('p', 'bf-taskdate-line', 'Opened in Gmail, in a new tab. Answer it there, and it leaves this list.');
+      opened.setAttribute('role', 'status');
+      opened.hidden = !B.answerWaiting.opened[one.key];
+      open.addEventListener('click', function () {
+        B.answerWaiting.opened[one.key] = true;
+        opened.hidden = false;
+        answerWaitingPost({ key: one.key, act: 'open' });
+      });
+      acts.appendChild(open);
+      var put = el('button', 'bf-btn', 'No answer needed');
+      put.type = 'button';
+      put.title = 'Takes it off this list only: the email stays in your inbox, and nobody is told (you can undo it)';
+      put.addEventListener('click', function () { answerWaitingPut(n, one); });
+      acts.appendChild(put);
+      li.appendChild(acts);
+      li.appendChild(opened);
+      list.appendChild(li);
+    });
+    sec.appendChild(list);
+    if (n.count > items.length) {
+      sec.appendChild(el('p', 'bf-note', 'And ' + (n.count - items.length) + ' more: ask Rouh what you have not answered.'));
+    }
+  }
+
+  function answerWaitingRedraw() {
+    var body = $('briefBody');
+    var old = body && body.querySelector('.bf-sec.bf-answer_waiting');
+    if (!B.data || !B.data.answer_waiting) return;
+    var holder = document.createDocumentFragment();
+    drawAnswerWaiting(holder, B.data.answer_waiting);
+    if (old) old.replaceWith(holder);
+    else if (body && holder.firstChild) body.appendChild(holder);
+  }
+
+  function answerWaitingPost(body) {
+    return fetch('/api/brief/answer_waiting', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store', keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      if (r.status === 401) { location.href = '/login'; return null; }
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        return r.ok ? (j || {}) : { error: (j && j.error) || 'the server said ' + r.status + '.' };
+      });
+    }).catch(function () { return { error: 'Rouh could not be reached. Try again.' }; });
+  }
+
+  function answerWaitingPut(n, one) {
+    var at = n.items.indexOf(one);
+    if (at < 0) return;
+    n.items.splice(at, 1);
+    if (n.count) n.count -= 1;
+    var said = { one: one, at: at, text: 'Taken off this list: ' + one.name + '’s email. It is still in your inbox, and nobody was told.' };
+    B.answerWaiting.said = said;
+    answerWaitingRedraw();
+    answerWaitingPost({ key: one.key, act: 'put_away' }).then(function (j) {
+      if (!j || !j.error || B.answerWaiting.said !== said) return;
+      if (n.items.indexOf(one) < 0) n.items.splice(Math.min(at, n.items.length), 0, one);
+      B.answerWaiting.said = { bad: true, text: 'That could not be kept. Try again.' };
+      answerWaitingRedraw();
+    });
+  }
+
+  function answerWaitingUndo(n, said) {
+    if (n.items.indexOf(said.one) < 0) {
+      n.items.splice(Math.min(said.at, n.items.length), 0, said.one);
+      n.count = (n.count || 0) + 1;
+    }
+    B.answerWaiting.said = null;
+    answerWaitingRedraw();
+    answerWaitingPost({ key: said.one.key, act: 'undo' }).then(function (j) {
+      if (!j || !j.error) return;
+      var i = n.items.indexOf(said.one);
+      if (i >= 0) n.items.splice(i, 1);
+      B.answerWaiting.said = { bad: true, text: 'It could not be brought back. Try again.' };
+      answerWaitingRedraw();
     });
   }
 
@@ -6247,6 +6364,8 @@
     // Your word, by mail is something to do today, so it comes before the day's meetings (a tester
     // nearly gave up looking for it lower down, trial 10).
     if (d.my_word && !keptOnly()) drawMyWord(page, d.my_word);
+    // Waiting on your answer is mail that waits on him today, so it is drawn beside his own promises.
+    if (d.answer_waiting && !keptOnly()) drawAnswerWaiting(page, d.answer_waiting);
     // Guests who have not said yes goes before the calendar it is about: who has not answered is
     // not in the calendar's own boxes, and a tester reading them never got past them (trial 42).
     if (d.not_said_yes && !keptOnly()) drawNotSaidYes(page, d.not_said_yes);

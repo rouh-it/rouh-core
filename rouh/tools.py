@@ -33,6 +33,8 @@ from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, cal
                inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, meeting_hours, meet_link, no_place,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer, reply_times,
                their_clock, their_hours, unread_lists, their_language, promised_to_you,
+               calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer,
+               their_clock, their_hours, unread_lists, their_language, promised_to_you, between_us, their_questions,
                goals, heartbeat, linkedin, llmlog, location, machine_load, mail_attachments, mail_pictures,
                doc_pictures, doc_suggestions, drive_copy, drive_files, page_asks, page_comments, sheet_tabs, sheet_write, slide_write,
                comments_by, decks, doc_changes, find_slides, doc_comment, doc_comments, each_point, mail_turn, step_move,
@@ -6235,6 +6237,8 @@ class ToolRegistry:
                     "clock_checked": their_clock.FIELD,
                     # In their language (night 36, `rouh/their_language.py`).
                     "language_checked": their_language.FIELD,
+                    # Their other questions (night 37, `rouh/their_questions.py`).
+                    "asks_checked": their_questions.FIELD,
                 },
             },
             self._send_mail,
@@ -6951,6 +6955,8 @@ class ToolRegistry:
         self._own(to_answer.TOOL_NAME, to_answer.DESCRIPTION, to_answer.SCHEMA, self._to_answer)
         # Reply times with a company, both ways (night 36, `rouh/reply_times.py`).
         self._own(reply_times.TOOL_NAME, reply_times.DESCRIPTION, reply_times.SCHEMA, self._reply_times)
+        # Between you and them (night 37, `rouh/between_us.py`): what is open with one person by mail.
+        self._own(between_us.TOOL_NAME, between_us.DESCRIPTION, between_us.SCHEMA, self._between_us)
         # Newsletters you never open (night 35, `rouh/unread_lists.py`): lists left unread, stopped in a word.
         self._own(unread_lists.TOOL_NAME, unread_lists.DESCRIPTION, unread_lists.SCHEMA, self._unread_lists)
         # Promised to you by mail (night 36, `rouh/promised_to_you.py`): what people promised by email.
@@ -8344,6 +8350,15 @@ class ToolRegistry:
                     clock.zone_of(who), sending=True)
                 if stop:
                     return untrusted.ours(stop)
+            if sending and not on_card and not args.get("asks_checked"):
+                # Their other questions (night 37, `rouh/their_questions.py`): somebody it goes to
+                # asked the person something else, still unanswered; held once, to answer it too.
+                who = self.google.person()
+                stop = await their_questions.note(
+                    who, away_replies.people(to, cc, own=[self.google.address() or ""]),
+                    clock.zone_of(who), reply_to=reply_to, sending=True)
+                if stop:
+                    return untrusted.ours(stop)
         result = await self._post_mail_checked(args, sending=sending, emit=emit, turn=turn,
                                                body=body, to=to, reply_to=reply_to,
                                                subject=subject, cc=cc, bcc=bcc, named=named)
@@ -8362,6 +8377,10 @@ class ToolRegistry:
                 away += await their_language.note(
                     who, body, away_replies.people(to, cc, own=[self.google.address() or ""]),
                     clock.zone_of(who), sending=False)
+                # Their other questions (night 37, `rouh/their_questions.py`): told after a draft.
+                away += await their_questions.note(
+                    who, away_replies.people(to, cc, own=[self.google.address() or ""]),
+                    clock.zone_of(who), reply_to=reply_to, sending=False)
                 if not named:
                     # A file promised, not attached (night 35's part, `rouh/attach_promised.py`):
                     # a draft is made, as the person reads it first, and its missing file is said.
@@ -9921,6 +9940,22 @@ class ToolRegistry:
 
         await asyncio.to_thread(evolution.used, reply_times.SWITCH, "asked", who=who,
                                 detail=f"{count} conversations counted")
+        return untrusted.wrap(said, untrusted.SOURCES["read_recent_mail"])
+
+    async def _between_us(self, args, emit):
+        """Between you and them (night 37, `rouh/between_us.py`): what is open with one person by mail."""
+        who = self.google.person()
+        if not await asyncio.to_thread(between_us.on, who):
+            return untrusted.ours("Reading what is open between you and one person by email is switched off "
+                                  "(Between you and them, in Evolution, Mutations).")
+        if _in_case():
+            return untrusted.ours("The person's mail with somebody is read only for the person, not in a "
+                                  "contact's case.")
+        said, count = await between_us.answer(who, args or {}, clock.zone_of(who))
+        from . import evolution
+
+        await asyncio.to_thread(evolution.used, between_us.SWITCH, "asked", who=who,
+                                detail=f"{count} open items with one person")
         return untrusted.wrap(said, untrusted.SOURCES["read_recent_mail"])
 
     async def _promised_to_you(self, args, emit):

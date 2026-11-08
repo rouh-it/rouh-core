@@ -699,6 +699,7 @@ urlpatterns = [
     path("api/brief/not_handed", brief.brief_not_handed),
     path("api/brief/task_dates", brief.brief_task_dates),
     path("api/brief/my_word", brief.brief_my_word),
+    path("api/brief/answer_waiting", brief.brief_answer_waiting),
     path("api/brief/host_admits", brief.brief_host_admits),
     path("api/brief/flight_open", brief.brief_flight_open),
     path("api/brief/invite_missing", brief.brief_invite_missing),

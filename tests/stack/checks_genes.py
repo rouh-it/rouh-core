@@ -2736,3 +2736,62 @@ print(json.dumps(asyncio.run(go())))
 """))
     expect("is also waiting on you" in out and "Stack waiting two" in out and "Stack waiting one" not in out,
            f"the sender's other email was not named: {out[-500:]}")
+
+
+# --- Night 37: their other questions; waiting on your answer, in the brief; between you and
+# them; if I have not answered it, remind me
+
+@check("gene.their-questions")
+def their_questions(s: Stack) -> None:
+    """An email to somebody whose other email asking the owner something is unanswered is held, with it."""
+    google(s)
+    standin_post(s, GOOGLE, "/_deliver", {
+        "from": "Rosa Stack <rosa@questions-stack.test>", "quiet": True, "days_ago": 2, "subject": "Invoice",
+        "text": "Hi Alex,\n\nCould you tell me which address to put on the invoice?\n\nRosa"})
+    got = g_tool(s, "send_mail", {"to": "rosa@questions-stack.test", "subject": "Thursday",
+                                  "body": "Hi Rosa,\n\nThursday at ten is fine for the call.\n\nAlex"},
+                 "Not sent yet")
+    expect("which address to put on the invoice" in got and "asks_checked" in got,
+           f"their other question was not told: {got[:600]}")
+
+
+@check("gene.answer-waiting")
+def answer_waiting(s: Stack) -> None:
+    """An email from a person asking the owner something, two days old and unanswered, is found for the brief."""
+    google(s)
+    standin_post(s, GOOGLE, "/_deliver", {
+        "from": "Paula Stack <paula@answer-stack.test>", "quiet": True, "days_ago": 2, "subject": "The venue",
+        "text": "Hi Alex,\n\nCould you confirm the venue for the workshop by Friday?\n\nPaula"})
+    out = core_py(s, _owner_py("""
+from rouh import answer_waiting, clock
+got = answer_waiting.lines(asyncio.run(answer_waiting.read_all(who)), {}, clock.zone_of(who))
+print(json.dumps([[one["name"], one["ask"], one["waited"]] for one in got], ensure_ascii=False))
+"""))
+    expect("Could you confirm the venue" in out, f"the email waiting on an answer was not found: {out[-500:]}")
+
+
+@check("gene.between-us")
+def between_us(s: Stack) -> None:
+    """between_us says what one person asked, unanswered, and what they promised, from their own email."""
+    google(s)
+    standin_post(s, GOOGLE, "/_deliver", {
+        "from": "Viktor Stack <viktor@between-stack.test>", "quiet": True, "days_ago": 3, "subject": "Draft plan",
+        "text": "Hi Alex,\n\nI'll send you the draft plan in 2 days. Can you check the budget line?\n\nViktor"})
+    got = g_tool(s, "between_us", {"person": "viktor@between-stack.test"}, "They promised the person")
+    expect("check the budget line" in got and "draft plan" in got, f"what is open was not said: {got[:600]}")
+
+
+@check("gene.answer-watch")
+def answer_watch(s: Stack) -> None:
+    """If I have not answered it, remind me makes one reminder at 09:00 on the next working morning."""
+    out = core_py(s, _owner_py("""
+import time
+from rouh import answer_watch, reminders
+said = answer_watch.make(who, found={"id": "stack-a1", "from": "Lena Stack <lena@stack-client.test>",
+                                     "to": "alex@example.test", "subject": "Stack offer", "at": time.time(),
+                                     "body": "Hi,\\n\\nCould you send me your comments on the offer?\\n\\nLena"},
+                         own=["alex@example.test"], chat="", inbox="", read_only=False)
+row = reminders.one(who, said["reminder"])
+print(json.dumps({"said": said["said"], "title": row.title}))
+"""))
+    expect("Answered? Lena Stack" in out and "09:00" in out, f"the look was not made: {out[-500:]}")

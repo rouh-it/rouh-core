@@ -1174,6 +1174,11 @@ def _to_answer(a):
     return ("Finding the emails you have not answered", _arg(a, "person"))
 
 
+@_step("between_us")
+def _between_us(a):
+    return ("Reading what is open between you and them by email", _arg(a, "person"))
+
+
 @_step("promised_to_you")
 def _promised_to_you(a):
     return ("Reading what people promised you by email", _arg(a, "person"))
