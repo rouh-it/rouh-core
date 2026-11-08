@@ -109,8 +109,6 @@
             myWord: { said: null },
             // Waiting on your answer (`rouh/answer_waiting.py`): the line said after Not needed, with Undo.
             answerWaiting: { said: null, opened: {} },
-            // Who lets the note-taker in (`rouh/host_admits.py`): the line said after No notes needed.
-            hostAdmits: { said: null },
             // Flights left open (`rouh/flight_open.py`): the line said after Not needed, or a fault.
             flightOpen: { said: null },
             // Invitations not in your calendar (`rouh/invite_missing.py`): the line said after Not needed.
@@ -535,7 +533,6 @@
     // Your word, by mail: an envelope with a tick for a promise kept.
     answer_waiting: '<path d="M4 5h16v11H8l-4 4z"/><path d="M12 8.5v3"/><path d="M12 13.6v.1"/>',
     my_word: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 8l9 6 9-6"/><path d="M15 3.5l2 2 3.5-3.5"/>',
-    host_admits: '<rect x="3" y="6" width="12" height="12" rx="2"/><path d="M15 10l5-3v10l-5-3"/><path d="M7 12h4"/>',
     flight_open: '<path d="M2.5 19h19"/><path d="M3.5 13.5l3 1.2 4-1.6-5.2-5.4 2-.8 7.6 4.2 4.4-1.8c1.1-.4 2.2.3 2 1.2-.1.6-.6 1-1.2 1.3L6.9 17.1 3.5 13.5z"/>',
     // Invitations not in your calendar: an envelope with a calendar's two rings.
     invite_missing: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 9l9 6 9-6"/><path d="M8 4v4M16 4v4"/>',
@@ -3233,88 +3230,6 @@
     });
   }
 
-  // Who lets the note-taker in (2 November 2026, `rouh/host_admits.py`): today's and tomorrow's calls
-  // somebody outside his company hosts, where only the host or a co-host can let the meeting
-  // library's note-taker in. Ask the host opens a note to them in his own Gmail and marks the line
-  // asked; No notes needed puts it away, with Undo; Who is in it opens the guests. None is no section.
-  function drawHostAdmits(body, n) {
-    var items = (n.ok && n.items) || [];
-    var said = B.hostAdmits.said;
-    if (!items.length && !said) return;
-    var sec = section('host_admits', 'Who lets the note-taker in', n);
-    body.appendChild(sec);
-    if (said) {
-      var line = el('p', 'bf-note bf-ghost-said' + (said.bad ? ' bad' : ''), said.text + ' ');
-      line.setAttribute('role', 'status');
-      if (said.one) {
-        var undo = el('button', 'bf-settings', 'Undo');
-        undo.type = 'button';
-        undo.addEventListener('click', function () { hostAdmitsUndo(n, said); });
-        line.appendChild(undo);
-      }
-      sec.appendChild(line);
-    }
-    if (!items.length) return;
-    sec.appendChild(el('p', 'bf-note bf-hostadmits-lead', (items.length === 1 ? 'One call' : items.length + ' calls') +
-      ' coming up ' + (items.length === 1 ? 'is' : 'are') + ' hosted by somebody outside your company. ' +
-      'The note-taker waits in the lobby, and only the host or a co-host can let it in.'));
-    var list = el('ol', 'bf-ghost-list');
-    items.forEach(function (one) {
-      var li = el('li', 'bf-ghost bf-hostadmits-line');
-      var head = el('p', 'bf-ghost-head');
-      head.appendChild(one.link ? out(one.link, 'bf-ghost-who bf-link', one.title, 'The event in Google Calendar')
-                                : el('span', 'bf-ghost-who', one.title));
-      var day = String(one.day || '');
-      head.appendChild(el('span', 'bf-ghost-days', day.charAt(0).toUpperCase() + day.slice(1) + ' ' + one.time));
-      li.appendChild(head);
-      var who = el('p', 'bf-note', 'Hosted by ');
-      who.appendChild(el('b', null, one.host));
-      if (one.host_email && one.host_email !== one.host) who.appendChild(document.createTextNode(' (' + one.host_email + ')'));
-      who.appendChild(document.createTextNode(' on ' + one.platform + ': only they or a co-host can let the note-taker in.'));
-      li.appendChild(who);
-      if (one.asked) li.appendChild(el('p', 'bf-note bf-hostadmits-asked', 'You opened a note to them on ' + dayWords(one.asked) + '.'));
-      if (one.guests && one.guests.length) {
-        var about = el('details', 'bf-raise-read bf-hostadmits-guests');
-        about.appendChild(el('summary', '', 'Who is in it'));
-        about.appendChild(el('p', 'bf-note', one.guests.join(', ')));
-        about.addEventListener('toggle', function () {
-          if (about.open && !about.__told) { about.__told = true; hostAdmitsPost({ key: one.key, act: 'guests' }); }
-        });
-        li.appendChild(about);
-      }
-      var acts = el('div', 'bf-ghost-acts');
-      var first = String(one.host || '').split(/[\s@]/)[0] || 'the host';
-      var ask = out(one.compose, 'bf-btn', 'Ask ' + first + ' to let it in', 'A note to ' + first + ' in your own Gmail, for you to send');
-      ask.addEventListener('click', function () {
-        one.asked = Date.now() / 1000;
-        hostAdmitsPost({ key: one.key, act: 'asked' });
-        setTimeout(hostAdmitsRedraw, 0);
-      });
-      acts.appendChild(ask);
-      var none = el('button', 'bf-btn', 'No notes needed');
-      none.type = 'button';
-      none.title = 'This call is not to be recorded: put it away';
-      none.addEventListener('click', function () { hostAdmitsPut(n, one); });
-      acts.appendChild(none);
-      li.appendChild(acts);
-      list.appendChild(li);
-    });
-    sec.appendChild(list);
-    if (n.count > items.length) {
-      sec.appendChild(el('p', 'bf-note', 'And ' + (n.count - items.length) + ' more.'));
-    }
-  }
-
-  function hostAdmitsRedraw() {
-    var body = $('briefBody');
-    var old = body && body.querySelector('.bf-sec.bf-host_admits');
-    if (!B.data || !B.data.host_admits) return;
-    var holder = document.createDocumentFragment();
-    drawHostAdmits(holder, B.data.host_admits);
-    if (old) old.replaceWith(holder);
-    else if (body && holder.firstChild) body.appendChild(holder);
-  }
-
   // Flights left open (night 32, `rouh/flight_open.py`): a flight in the next two weeks, on a
   // calendar of its own, during which his main calendar - the one people booking him see - says
   // free. Block it as out of office puts Google's own out-of-office there; Not needed puts the
@@ -4116,51 +4031,6 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ act: act, what: String(what || '').slice(0, 120) })
     }).catch(function () { /* the use is not counted; nothing else changes */ });
-  }
-
-  function hostAdmitsPost(body) {
-    return fetch('/api/brief/host_admits', {
-      method: 'POST', credentials: 'same-origin', cache: 'no-store', keepalive: true,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    }).then(function (r) {
-      if (r.status === 401) { location.href = '/login'; return null; }
-      return r.json().catch(function () { return {}; }).then(function (j) {
-        return r.ok ? (j || {}) : { error: (j && j.error) || 'the server said ' + r.status + '.' };
-      });
-    }).catch(function () { return { error: 'Rouh could not be reached. Try again.' }; });
-  }
-
-  function hostAdmitsPut(n, one) {
-    var at = n.items.indexOf(one);
-    if (at < 0) return;
-    n.items.splice(at, 1);
-    if (n.count) n.count -= 1;
-    var said = { one: one, at: at, text: 'No notes needed: ' + one.title + '.' };
-    B.hostAdmits.said = said;
-    hostAdmitsRedraw();
-    hostAdmitsPost({ key: one.key, act: 'put' }).then(function (j) {
-      if (!j || !j.error || B.hostAdmits.said !== said) return;
-      if (n.items.indexOf(one) < 0) n.items.splice(Math.min(at, n.items.length), 0, one);
-      B.hostAdmits.said = { bad: true, text: 'That could not be kept. Try again.' };
-      hostAdmitsRedraw();
-    });
-  }
-
-  function hostAdmitsUndo(n, said) {
-    if (n.items.indexOf(said.one) < 0) {
-      n.items.splice(Math.min(said.at, n.items.length), 0, said.one);
-      n.count = (n.count || 0) + 1;
-    }
-    B.hostAdmits.said = null;
-    hostAdmitsRedraw();
-    hostAdmitsPost({ key: said.one.key, act: 'undo' }).then(function (j) {
-      if (!j || !j.error) return;
-      var i = n.items.indexOf(said.one);
-      if (i >= 0) n.items.splice(i, 1);
-      B.hostAdmits.said = { bad: true, text: 'It could not be brought back. Try again.' };
-      hostAdmitsRedraw();
-    });
   }
 
   // Agreed, not booked (23 October 2026, `rouh/next_meeting.py`): a next meeting agreed in one of
@@ -6388,7 +6258,6 @@
     if (d.talk_deck && !keptOnly()) drawTalkDeck(page, d.talk_deck);
     if (d.not_handed && !keptOnly()) drawNotHanded(page, d.not_handed);
     if (d.task_dates && !keptOnly()) drawTaskDates(page, d.task_dates);
-    if (d.host_admits && !keptOnly()) drawHostAdmits(page, d.host_admits);
     if (d.flight_open && !keptOnly()) drawFlightOpen(page, d.flight_open);
     if (d.invite_missing && !keptOnly()) drawInviteMissing(page, d.invite_missing);
     drawWorld(page, d.world);

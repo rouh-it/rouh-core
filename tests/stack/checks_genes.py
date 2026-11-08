@@ -1938,27 +1938,6 @@ for raw in [
 """
 
 
-@check("gene.host-admits")
-def host_admits(s: Stack) -> None:
-    """A call somebody outside hosts is named with its host, once the meeting library has sent notes,
-    and No notes needed and Undo answer."""
-    out = core_py(s, _CALLS + """
-os.environ.setdefault('MEETING_LIBRARY_URL', 'http://library.invalid')
-ingest.store(ds, {'kind': 'meeting', 'title': 'Stack weekly', 'text': 'Notes.', 'source': 'meeting-library',
-                  'source_key': 'stack-lib-1', 'said_at': (now - timedelta(days=2)).isoformat(),
-                  'meeting': {'id': 1, 'revision': 1, 'state': 'done', 'participants': [], 'readers': [],
-                              'speakers': []}}, by='stack')
-from rouh import host_admits
-got = host_admits.hosted_elsewhere(who) or {}
-print(json.dumps([[i['title'], i['host_email'], i['key']] for i in got.get('items') or []]))
-""")
-    expect("Stack catch-up with Eleven" in out and "viktor@elevenvc.test" in out,
-           f"the call hosted outside was not named: {out[-500:]}")
-    key = json.loads(out.strip().splitlines()[-1])[0][2]
-    expect(post(s, "/api/brief/host_admits", {"key": key, "act": "put"}).get("ok"), "No notes needed was refused")
-    expect(post(s, "/api/brief/host_admits", {"key": key, "act": "undo"}).get("ok"), "its Undo was refused")
-
-
 @check("gene.share-meeting")
 def share_meeting(s: Stack) -> None:
     """The Share panel offers a meeting about the page, and Share with them shares with its guests."""

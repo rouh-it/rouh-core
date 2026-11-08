@@ -313,7 +313,6 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `gene.task-dates` | Dates your tasks wait on | untested | works | the brief's line names a date an open task's notes say is due, and Done and Undo answer |
 | `gene.doc-suggestions` | Suggested edits read as suggestions | untested | works | `read_doc` on the stand-in's Doc marks its suggested deletion and insertion where they stand, and counts them |
 | `gene.slide-write` | Written into a deck | untested | works | `edit_slides` replaces a word on the stand-in's deck and writes its notes, saying what they said |
-| `gene.host-admits` | Who lets the note-taker in | untested | works | a call somebody outside hosts is named with its host, and No notes needed and Undo answer |
 | `gene.share-meeting` | With a meeting's guests | untested | works | the Share panel offers a meeting whose title shares a word with the page, and Share with them shares with its guest |
 | `gene.drive-files` | Files in Drive read | untested | works | `read_doc` on a PDF in the stand-in's Drive reads its words and says it was a PDF |
 | `gene.raise-attached` | What to raise reads what is attached | untested | works | the document attached to a meeting's invitation is read into What to raise's question |

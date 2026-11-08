@@ -2095,11 +2095,6 @@
     "rouh/slide_write.py"
    ]
   },
-  "n30-host-admits": {
-   "files": [
-    "rouh/host_admits.py"
-   ]
-  },
   "n30-share-meeting": {
    "files": [
     "rouh/share_meeting.py"

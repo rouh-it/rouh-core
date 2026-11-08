@@ -907,8 +907,6 @@ a.bf-prep-subj:hover { text-decoration: underline; }
 .bf-shared-pick { font: inherit; font-size: 13px; max-width: 100%; min-width: 0; color: var(--text);
   background: transparent; border: 1px solid var(--line, rgba(127,127,127,.35)); border-radius: 8px; padding: 6px 8px; }
 
-/* Who lets the note-taker in (`rouh/host_admits.py`): room between the lead and the first call. */
-.bf-hostadmits-lead { margin-bottom: 12px; }
 .bf-flight-lead { margin-bottom: 12px; }
 .bf-flight-clash { margin-top: 4px; }
 .bf-flight-done { margin-top: 8px; color: var(--good); }

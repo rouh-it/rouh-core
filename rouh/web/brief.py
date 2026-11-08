@@ -61,8 +61,6 @@
                                    (`rouh/task_dates.py`)
     POST /api/brief/raise_attached What to raise reads what is attached: {act: opened|doc}, the use
                                    (`rouh/raise_attached.py`)
-    POST /api/brief/host_admits    Who lets the note-taker in: {key, act: asked|put|undo|guests}
-                                   (`rouh/host_admits.py`)
     POST /api/brief/refactoring/<n>/undo
                                    Undo under last night's refactoring in the Report: a
                                    run reverts that night's commits (`rouh/nightly_refactor.py`)
@@ -78,7 +76,7 @@ import logging
 from asgiref.sync import sync_to_async
 from django.http import HttpRequest
 
-from rouh import (answer_waiting, birthdays, flight_open, gone_quiet, my_word, host_admits, invite_missing, no_place, not_answered, not_said_yes, raise_attached, location, meeting_brief, meeting_prep, morning_brief, new_comments,
+from rouh import (answer_waiting, birthdays, flight_open, gone_quiet, my_word, invite_missing, no_place, not_answered, not_said_yes, raise_attached, location, meeting_brief, meeting_prep, morning_brief, new_comments,
                   next_meeting, not_handed, not_opened, task_dates, notes_missing, one_thing, others_changed, owed_to_you,
                   shared_with_you, slack_brief, talk_deck)
 
@@ -199,9 +197,6 @@ async def _with_one_thing(me, brief: dict) -> dict:
     await not_handed.again(me, brief, config.assistant_repo)
     # And a date an open task's notes say something is due by, passed or close (`rouh/task_dates.py`).
     await task_dates.again(me, brief, config.assistant_repo)
-    # And today's and tomorrow's calls somebody outside hosts, whose host lets the note-taker in
-    # (`rouh/host_admits.py`).
-    await host_admits.again(me, brief)
     # And a flight in the next two weeks his main calendar shows him free during (`rouh/flight_open.py`).
     await flight_open.again(me, brief, getattr(runtime, "brief_google", None))
     # And an invitation in his own mail whose meeting is on none of his calendars (`rouh/invite_missing.py`).
@@ -766,22 +761,6 @@ async def brief_raise_attached(request: HttpRequest):
         await sync_to_async(evolution.used)("raise_attached", "opened", who=me, detail=what)
     else:
         await sync_to_async(evolution.used)("raise_attached", "doc", who=me, detail=what)
-    return answer({"ok": True}, headers=NO_STORE)
-
-
-@only("POST")
-async def brief_host_admits(request: HttpRequest):
-    """Who lets the note-taker in: Ask the host, No notes needed, Undo, or Who is in it (`rouh/host_admits.py`)."""
-    me = await sync_to_async(who)(request)
-    if me is None:
-        return refuse("sign in", 401)
-    sent = body_of(request)
-    key, act = str(sent.get("key") or "")[:40], str(sent.get("act") or "")
-    if act not in host_admits.ACTS or not key:
-        return refuse("Which meeting, and what to do with it.", 400)
-    if not await sync_to_async(host_admits.on)(me):
-        return refuse("Who lets the note-taker in is switched off.", 400)
-    await sync_to_async(host_admits.act)(me, key, act)
     return answer({"ok": True}, headers=NO_STORE)
 
 
