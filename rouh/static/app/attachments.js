@@ -1108,6 +1108,7 @@ function picCaptionOf(made) {
   else if (made.references && made.references.length) {
     parts.push(made.references.length === 1 ? 'from your picture' : 'from ' + made.references.length + ' of your pictures');
   }
+  if (made.asked) parts.push('with the conversation');
   if (made.shape && made.shape !== 'auto' && !made.from) parts.push(PIC_SHAPES[made.shape] || made.shape);
   if (made.quality && made.quality !== 'auto') parts.push(PIC_QUALITIES[made.quality] || made.quality);
   if (made.background === 'transparent') parts.push('transparent');
@@ -1824,5 +1825,5 @@ window.addEventListener('pageshow', speakerBackFromAway);
 export { ATT_BLOCKED, ATT_MAX, ATT_SHOWABLE, attExt, attReady, attRetryButton, attSize, attTookIn,
   attUploading,
   clearAttachments, dragHasFiles, drawAttachments, drawTurnFiles, droppedFiles, dropTypes,
-  editorOpen, onPicturePartial, onPictures, openImage, PICS, picturesReady, sendPicture,
+  editorOpen, isDrawn, onPicturePartial, onPictures, openImage, PICS, picturesReady, sendPicture,
   speakerNudge, takeInFile, unlockAudio };

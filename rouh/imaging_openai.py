@@ -37,7 +37,18 @@ as its SDK and its guide said it on 26 September 2026, and what is used:
   2.x models draw as they draw any size in steps of 16, and `auto`.
 - **Quality** low to high, and on the two 2.5 models `xhigh` and `max` too.
 - **Background**: opaque, transparent, or the model's choice. Every picture
-  comes back as a PNG, so a transparent one stays transparent.
+  comes back as a PNG, so a transparent one stays transparent. The setting
+  alone is a wish the words can outvote, so a transparent one is asked for in
+  the words too, and checked when it arrives (`imaging.prompt_for`,
+  `imaging.ensure_transparent`).
+- **No "complexity".** Petar looked for one on 8 November 2026
+  (fr_76401247a621). The Images API takes, besides the prompt and the model,
+  `size`, `quality`, `background`, `n`, `moderation`, `output_format`,
+  `output_compression`, `partial_images`, `stream` and `user`, and for an edit
+  `image`, `mask` and `input_fidelity` (openai 3.19.2, the SDK pinned here):
+  nothing called complexity, and nothing like it for these models but
+  `quality`, which is how much detail goes into a picture. So none is offered:
+  the quality control, Draft to Best, is the one that does that.
 - **Variations.** OpenAI's variations endpoint takes only `dall-e-2`. A
   "More like this" is therefore an edit with no mask: the picture handed in as
   the thing to draw from, and words asking for another take on it.
@@ -50,7 +61,7 @@ import logging
 import os
 
 from . import costs, llmlog
-from .imaging import Ask, ImageFailed, Made, Model, Provider, dimensions
+from .imaging import Ask, ImageFailed, Made, Model, Provider, dimensions, prompt_for
 
 log = logging.getLogger("rouh.imaging.openai")
 
@@ -210,7 +221,7 @@ class OpenAIImages(Provider):
     def _options(self, ask: Ask) -> dict:
         options = {
             "model": ask.model or self.default_model(ask.editing),
-            "prompt": ask.prompt,
+            "prompt": prompt_for(ask),
             "size": size_for(ask),
             "quality": ask.quality or "auto",
             "background": ask.background or "auto",

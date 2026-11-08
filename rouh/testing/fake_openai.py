@@ -66,6 +66,9 @@ And enough of the Images API, `POST /v1/images/generations` and
 - It refuses what the real API refuses: an unknown model, a size the model
   cannot draw, a quality it does not have, a transparent JPEG, `n` out of
   range, and a mask that is not a PNG the size of the picture.
+- `background: transparent` is drawn as a round cut-out on nothing, and
+  `OPAQUEPICTURE` in the prompt draws it on a flat dark backdrop instead, as a
+  model that ignores the setting does.
 - `REFUSEPICTURE` in the prompt is refused as the safety system refuses one,
   `SLOWPICTURE` takes a second and a half between previews, so the picture
   can be watched arriving, and `BROKENPICTURE` breaks the stream before the
@@ -398,11 +401,13 @@ def shaped_answer(body: dict, words: str) -> str | None:
 def claude_errand(body: dict, words: str) -> str:
     """The answer the stand-in for Claude gives one of Rouh's side errands, or "": the same words
     whichever company the Models page puts the errand on. A page told as a narration
-    (`rouh/page_listen.py`), and a waiting decision read for an answer already given in a chat
-    (`rouh/answered_in_chat.py`)."""
+    (`rouh/page_listen.py`), a waiting decision read for an answer already given in a chat
+    (`rouh/answered_in_chat.py`), and a picture's description written from its chat
+    (`imaging.with_conversation`)."""
     asked = {"system": str(body.get("instructions") or ""), "messages": [{"role": "user", "content": words}]}
     for is_it, answer in ((fake_model.is_page_listen, fake_model.a_narration),
-                          (fake_model.is_answered, fake_model.an_answered)):
+                          (fake_model.is_answered, fake_model.an_answered),
+                          (fake_model.is_picture_prompt, fake_model.a_picture_prompt)):
         if is_it(asked):
             return answer(asked)
     return ""
@@ -609,6 +614,31 @@ def _drawn(fields: dict, square: int, handed=None, mask=None):
     return Image.blend(base, fresh, 0.45)
 
 
+def _clear(fields: dict, picture):
+    """The picture on the background asked for.
+
+    `background: transparent` gives the mosaic in a round shape with nothing
+    around it, fully transparent, the way a model that heeds it draws a cut-out
+    subject. `OPAQUEPICTURE` in the prompt is a model that does not heed it: the
+    same round mosaic on a flat dark backdrop painted into every pixel, which is
+    what the real Sunburst gave back on 8 November 2026 (`imaging.ensure_transparent`).
+    """
+    from PIL import Image, ImageDraw
+
+    if fields.get("background") != "transparent":
+        return picture
+    w, h = picture.size
+    shape = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(shape).ellipse((w * 0.2, h * 0.2, w * 0.8, h * 0.8), fill=255)
+    if "OPAQUEPICTURE" in str(fields.get("prompt") or ""):
+        out = Image.new("RGB", (w, h), (18, 30, 52))
+        out.paste(picture.convert("RGB"), (0, 0), shape)
+        return out
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    out.paste(picture.convert("RGBA"), (0, 0), shape)
+    return out
+
+
 def _image_of(data: bytes):
     import io
 
@@ -653,7 +683,7 @@ def _add_pictures(app: FastAPI, record_dir: str) -> None:
         usage["total_tokens"] = usage["input_tokens"] + usage["output_tokens"]
         stream = str(fields.get("stream")).lower() == "true"
         if not stream:
-            data = [{"b64_json": base64.b64encode(_png(_drawn(fields, 16, handed, mask)))
+            data = [{"b64_json": base64.b64encode(_png(_clear(fields, _drawn(fields, 16, handed, mask))))
                      .decode()} for _ in range(n)]
             return JSONResponse({"created": int(time.time()), "data": data, "usage": usage,
                                  **common})
@@ -664,7 +694,7 @@ def _add_pictures(app: FastAPI, record_dir: str) -> None:
         def events():
             for index in range(partials):
                 time.sleep(slow)
-                rough = _png(_drawn(fields, (128, 48, 24)[index], handed, mask))
+                rough = _png(_clear(fields, _drawn(fields, (128, 48, 24)[index], handed, mask)))
                 yield _sse({"type": f"{kind}.partial_image", "partial_image_index": index,
                             "b64_json": base64.b64encode(rough).decode(),
                             "created_at": int(time.time()), **common})
@@ -674,7 +704,7 @@ def _add_pictures(app: FastAPI, record_dir: str) -> None:
                     "type": "server_error", "code": "server_error",
                     "message": "The server had an error while processing your request."}})
                 return
-            done = _png(_drawn(fields, 16, handed, mask))
+            done = _png(_clear(fields, _drawn(fields, 16, handed, mask)))
             yield _sse({"type": f"{kind}.completed", "b64_json": base64.b64encode(done).decode(),
                         "created_at": int(time.time()), "usage": usage, **common})
 

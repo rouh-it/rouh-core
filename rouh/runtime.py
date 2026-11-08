@@ -5118,6 +5118,12 @@ class Pictures:
                                           "to go.")
             provider = imaging.provider_for(config, str(msg.get("provider") or ""))
             ask, question, extra = await asyncio.to_thread(cls._ask, msg, chat, provider)
+            if msg.get("type") == "picture_make":
+                # The words typed are read with the conversation before them, so
+                # "now make it blue" keeps what was settled (`imaging.with_conversation`).
+                # Read before the ask is written down, so it is not read twice.
+                before = await asyncio.to_thread(memory.history, chat, imaging.CONTEXT_MESSAGES)
+                ask = await imaging.with_conversation(ask, before, who=tab.me, session_id=chat)
         except imaging.ImageFailed as exc:
             await send({"type": "pictures", "set": set_id, "state": "failed", "said": exc.said})
             return

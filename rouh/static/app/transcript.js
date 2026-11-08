@@ -15,7 +15,7 @@ import { copyText, growToLines } from 'app/runs.js';
 import { CHATS, forkBtnPaint, forkComeNow, forkKeys, forkMarksDraw, FORKS, isSendKey, sendKeys } from 'app/chats.js';
 import { welcomeShow } from 'app/welcome.js';
 import { screenHeight } from 'app/controls.js';
-import { drawTurnFiles } from 'app/attachments.js';
+import { drawTurnFiles, isDrawn } from 'app/attachments.js';
 import { lineFor, onRecall, onRedo, recallDraw, routeDraw, traceDraw, traceMove } from 'app/turnline.js';
 
 /* ------------------------------------------------------------------ 8 */
@@ -1226,6 +1226,11 @@ function drawStored(e, before, last) {
   if (parts && !mine) {
     turn.body.remove();
     drawParts(turn, e);
+  } else if (!mine && !e.text && (e.attachments || []).some(isDrawn)) {
+    // Only pictures, as the picture controls write them: the set is the
+    // answer, as it was while it was drawn (`picPlace`), with no empty words
+    // under it.
+    turn.body.remove();
   } else {
     drawWords(turn.body, e.text);
     turn.body.__row = e.id;

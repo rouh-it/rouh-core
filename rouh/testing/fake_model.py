@@ -1816,6 +1816,38 @@ PAGE_LISTEN_FILE = "listen-"
 LISTEN_PART_S = 1.2
 
 
+#: Picture descriptions (`imaging.with_conversation`): the description a
+#: picture is drawn from, written from the chat before it.
+PICTURE_PROMPT = "You write the description a picture is drawn from."
+PICTURE_PROMPT_FILE = "picture-prompt-"
+
+
+def is_picture_prompt(body: dict) -> bool:
+    return says(PICTURE_PROMPT, _flat(body.get("system")))
+
+
+def a_picture_prompt(body: dict) -> str:
+    """The request, with what the conversation said about it written in, as a
+    model that only copies does: every line of the person's and every earlier
+    picture's description, so a picture drawn from it is seen to carry them.
+    `PICTUREPROMPTFAIL` in the request is a model that fails."""
+    said = last_user_text(body)
+    head, _, rest = said.partition("The person now asks for a picture with these words:\n")
+    request = rest.split("\n\nWrite the description", 1)[0].strip()
+    if "PICTUREPROMPTFAIL" in request:
+        raise ValueError("PICTUREPROMPTFAIL")
+    earlier = []
+    for line in head.splitlines():
+        if line.startswith("Person: "):
+            earlier.append(line.removeprefix("Person: ").strip())
+        found = re.search(r"\[A picture Rouh drew, from the description: (.*?)\]", line)
+        if found:
+            earlier.append(found.group(1).strip())
+    if not earlier:
+        return request
+    return f"{request}. As settled earlier in the conversation: " + " | ".join(earlier)
+
+
 def is_page_listen(body: dict) -> bool:
     return says(PAGE_LISTEN, _flat(body.get("system")))
 
@@ -2976,6 +3008,7 @@ def build_app(record_dir: str) -> FastAPI:
         # And Define over a passage on a page (`rouh/definitions.py`).
         # And a page told as a narration (`rouh/page_listen.py`).
         listening = is_page_listen(body)
+        picturing = is_picture_prompt(body)
         defining = is_defining(body)
         if defining:
             await asyncio.sleep(DEFINE_WAIT_S)
@@ -3003,6 +3036,7 @@ def build_app(record_dir: str) -> FastAPI:
             (sourcing, SOURCES_FILE, a_sources),
             (geneasking, GENE_ASK_FILE, a_gene_answer),
             (listening, PAGE_LISTEN_FILE, a_narration),
+            (picturing, PICTURE_PROMPT_FILE, a_picture_prompt),
             (genelogging, GENE_LOG_FILE, a_gene_log_answer),
             (meetingpick, MEETING_PICK_FILE, a_meeting_pick),
             (recallpick, RECALL_PICK_FILE, a_recall_pick),

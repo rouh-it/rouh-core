@@ -10008,10 +10008,11 @@ a.att-name:hover { text-decoration: underline; }
   padding: 0; border: 0; background: transparent; cursor: zoom-in;
 }
 .pic-img { display: block; width: 100%; height: 100%; object-fit: contain; }
-/* A transparent picture shows that it is, on the checks every editor uses. */
-.pic.is-done .pic-open {
-  background: repeating-conic-gradient(#1a2029 0% 25%, #141920 0% 50%) 50% / 16px 16px;
-}
+/* A finished picture sits straight on the chat: a transparent one shows the
+   chat through it, the way it will sit on whatever it is put on. Checks drawn
+   behind it read as checks drawn into it (Petar, 8 November 2026,
+   fr_76401247a621); the editor keeps them, where painting needs them. */
+.pic.is-done { background: transparent; }
 .pic-acts {
   position: absolute; top: 6px; right: 6px;
   display: flex; gap: 4px;

@@ -278,6 +278,24 @@
         ]
       }
     },
+    "picture_prompt": {
+      "tier": "cheaper",
+      "why": "One paragraph describing a picture from a short chat, wanted before the picture starts drawing: a small model writes it well and quickly.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
     "task_icon": {
       "tier": "cheaper",
       "why": "One emoji for each of a list of task titles; nobody waits on it and a small model picks them well.",

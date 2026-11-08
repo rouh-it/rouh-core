@@ -185,6 +185,9 @@ class Ask:
     #: The words its file is named after, when they are not the prompt: a
     #: variation is named after the picture it is a variation of.
     title: str = ""
+    #: The person's own words, when `prompt` was written from them and the
+    #: conversation before them (`with_conversation`); "" when it is their words.
+    asked: str = ""
 
     @property
     def editing(self) -> bool:
@@ -211,6 +214,9 @@ class Made:
     revised: str = ""
     usage: dict = field(default_factory=dict)
     cost: float | None = None
+    #: Whether a transparent background was asked for and the model drew one
+    #: anyway, so Rouh took the background out itself (`ensure_transparent`).
+    cleared: bool = False
 
 
 class Provider:
@@ -472,6 +478,9 @@ async def make(provider: Provider, ask: Ask, cfg, partial=None) -> list[Made]:
         if not (one.width and one.height):
             with contextlib.suppress(Exception):
                 one.width, one.height = dimensions(one.data) or (0, 0)
+    if ask.background == "transparent":
+        for one in made:
+            await asyncio.to_thread(ensure_transparent, one)
     return made
 
 
@@ -513,6 +522,8 @@ def caption(provider: Provider, ask: Ask) -> str:
     elif ask.references:
         parts.append("from your picture" if len(ask.references) == 1 else
                      f"from {len(ask.references)} of your pictures")
+    if ask.asked:
+        parts.append("with the conversation")
     if ask.shape != "auto" and ask.source is None:
         parts.append(SHAPES.get(ask.shape, ask.shape))
     if ask.quality != "auto":
@@ -543,6 +554,10 @@ def _made(provider: Provider, ask: Ask, one: Made, *, set_id: str, index: int,
         made["quality_drawn"] = one.quality
     if one.revised:
         made["revised"] = one.revised
+    if ask.asked:
+        made["asked"] = ask.asked
+    if one.cleared:
+        made["background_cleared"] = True
     if one.cost is not None:
         made["cost"] = round(one.cost, 5)
     made.update(extra or {})
@@ -664,3 +679,252 @@ def is_picture(record: dict) -> bool:
 def said_failed(exc: ImageFailed) -> str:
     """Rouh's message in the chat when the picture controls asked and none came."""
     return f"I could not make that picture. {exc.said}"
+
+
+# --------------------------------------------------------------------------
+# A transparent background, asked for and really there
+# --------------------------------------------------------------------------
+#
+# Petar, 8 November 2026 (fr_76401247a621): "the transparent background
+# definitely doesn't work." Asked with a picture of his own and words about a
+# glowing creature, Sunburst gave back four pictures on a painted night sky:
+# `background: transparent` reached OpenAI every time, and a GPT Image model
+# reads it as a wish the words can outvote. OpenAI's guide says to ask for the
+# transparent background in the words too, so every provider is handed
+# `prompt_for(ask)`, and whatever comes back is checked for real transparency.
+
+#: What is said after the person's words when the background is to be clear.
+TRANSPARENT_WORDS = (
+    "Transparent background: draw only the subject itself, cut out cleanly, with "
+    "nothing behind it - no scenery, sky, backdrop, floor, frame, vignette, "
+    "colour fill, shadow on the ground or checkerboard pattern. Every pixel "
+    "around the subject is fully transparent.")
+
+
+def prompt_for(ask: Ask) -> str:
+    """The words a provider is handed: the prompt, and for a clear background
+    the sentence that asks for one, which the model heeds where it does not
+    always heed the setting alone."""
+    if ask.background == "transparent" and TRANSPARENT_WORDS not in ask.prompt:
+        return f"{ask.prompt}\n\n{TRANSPARENT_WORDS}"
+    return ask.prompt
+
+
+#: How much of a picture must be see-through for its background to count as
+#: transparent: a picture with a clear background has far more than this.
+CLEAR_SHARE = 0.02
+
+
+def clear_share(data: bytes) -> float:
+    """The share of a picture's pixels that are fully or mostly see-through."""
+    import io
+
+    from PIL import Image
+
+    with Image.open(io.BytesIO(data)) as im:
+        if "A" not in im.getbands() and not (im.mode == "P" and "transparency" in im.info):
+            return 0.0
+        alpha = im.convert("RGBA").getchannel("A")
+    hist = alpha.histogram()
+    return sum(hist[:128]) / max(1, alpha.width * alpha.height)
+
+
+def clear_background(data: bytes) -> bytes | None:
+    """The picture as a PNG with its background taken out, or None when it has
+    no background that can be told from what is in front of it.
+
+    The background is what touches the edges and is near the edges' own
+    colour: the colour of the border is measured, every pixel near it that can
+    be reached from an edge without crossing the subject becomes see-through,
+    and the pixels at the margin fade with how far they are from it, so a glow
+    or a soft edge stays soft. A border with no one colour to it (a photograph,
+    a busy scene) is left alone rather than cut up.
+    """
+    import io
+
+    from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
+
+    with Image.open(io.BytesIO(data)) as opened:
+        im = opened.convert("RGBA")
+    w, h = im.size
+    if w < 8 or h < 8:
+        return None
+    rgb = im.convert("RGB")
+    edge = max(2, min(w, h) // 64)
+    strips = [rgb.crop((0, 0, w, edge)), rgb.crop((0, h - edge, w, h)),
+              rgb.crop((0, 0, edge, h)), rgb.crop((w - edge, 0, w, h))]
+    border = Image.new("RGB", (sum(s.width * s.height for s in strips), 1))
+    border.putdata([p for s in strips for p in s.getdata()])
+    stat = ImageStat.Stat(border)
+    spread = max(stat.stddev)
+    if spread > 40:
+        return None
+    ref = tuple(int(round(v)) for v in stat.median)
+    tol = max(20.0, min(80.0, 2.5 * spread + 16))
+    # How far each pixel is from the border's colour, in its worst channel.
+    diff = ImageChops.difference(rgb, Image.new("RGB", (w, h), ref))
+    r, g, b = diff.split()
+    far = ImageChops.lighter(ImageChops.lighter(r, g), b)
+    # The background is found on a small copy, where filling is quick, and the
+    # answer is laid back over the whole picture.
+    scale = min(1.0, 384 / max(w, h))
+    sw, sh = max(1, int(w * scale)), max(1, int(h * scale))
+    near = far.resize((sw, sh), Image.BILINEAR).point(lambda v: 255 if v <= tol else 0)
+    padded = Image.new("L", (sw + 2, sh + 2), 255)
+    padded.paste(near, (1, 1))
+    ImageDraw.floodfill(padded, (0, 0), 128)
+    reached = padded.crop((1, 1, sw + 1, sh + 1)).point(lambda v: 255 if v == 128 else 0)
+    if sum(reached.histogram()[255:]) < 0.05 * sw * sh:
+        return None                                 # hardly any background to take out
+    reached = reached.resize((w, h), Image.BILINEAR).filter(ImageFilter.GaussianBlur(1))
+    # Inside the background, opaque only as far as a pixel is from its colour.
+    fade = far.point(lambda v: min(255, int(v * 255 / tol)))
+    keep = ImageChops.lighter(fade, ImageChops.invert(reached))
+    alpha = ImageChops.multiply(im.getchannel("A"), keep)
+    im.putalpha(alpha)
+    out = io.BytesIO()
+    im.save(out, "PNG", optimize=True)
+    return out.getvalue()
+
+
+def ensure_transparent(one: Made) -> None:
+    """A picture asked for on a clear background, made to have one.
+
+    One the model drew transparent is left as it is. One it drew on a
+    background anyway has that background taken out here (`clear_background`)
+    and says so in its record; one whose background cannot be told from its
+    subject is kept as drawn, which the log says.
+    """
+    try:
+        if clear_share(one.data) >= CLEAR_SHARE:
+            return
+        cleared = clear_background(one.data)
+    except Exception:                               # noqa: BLE001 - the picture is still a picture
+        log.warning("could not check a picture for transparency", exc_info=True)
+        return
+    if cleared is None:
+        log.info("a transparent picture came back with a background that could not be "
+                 "taken out")
+        return
+    one.data, one.media_type, one.cleared = cleared, "image/png", True
+
+
+# --------------------------------------------------------------------------
+# A picture asked for in the middle of a conversation
+# --------------------------------------------------------------------------
+#
+# Petar, 8 November 2026 (fr_76401247a621): "image generation only generates
+# at the current prompt, it doesn't take the full conversation as input." The
+# picture controls handed the provider the words typed into the box and
+# nothing else, so "now make it blue" drew something blue. A model that draws
+# reads only its prompt, so the prompt is written from the conversation:
+# the chat's last messages as words, every picture in them as the words it was
+# drawn from (never the picture itself), and the person's request, by the use
+# Picture descriptions on the Models page (`picture_prompt`). Earlier pictures
+# are not handed in as pictures: changing one is the editor's and
+# change_picture's, and a set drawn with a picture of its own goes on taking it.
+
+#: How many of a chat's last messages are read, and how much of them.
+CONTEXT_MESSAGES = 24
+CONTEXT_CHARS = 12000
+_MESSAGE_CHARS = 2500
+
+PROMPT_SYSTEM = (
+    "You write the description a picture is drawn from. The model that draws it "
+    "sees only your description, never the conversation, so write one whole "
+    "description that stands on its own.\n"
+    "Use the conversation for whatever the request leans on: the subject, its "
+    "details, the style, the colours, the setting and the framing that were "
+    "settled earlier, and when the request changes the latest picture (\"now make "
+    "it blue\", \"same but at night\", \"another one\"), that picture's own "
+    "description with the change made. Keep every detail the request gives; where "
+    "the request and the conversation disagree, the request wins. Leave out "
+    "whatever in the conversation is not about this picture. If the request "
+    "already stands on its own and the conversation adds nothing to it, give it "
+    "back as it is.\n"
+    "Write only the description: no preamble, no quotes, no notes, at most 250 "
+    "words, in English unless words that must appear in the picture are in "
+    "another language, spelled exactly as they are to appear.")
+
+
+def _said_in(content, role: str) -> str:
+    """One stored message as the words the prompt writer reads."""
+    if isinstance(content, str):
+        return content.strip()
+    parts = []
+    for block in content if isinstance(content, list) else []:
+        if not isinstance(block, dict):
+            continue
+        kind = block.get("type")
+        if kind == "text":
+            parts.append(str(block.get("text") or "").strip())
+        elif kind == "attachment":
+            made = block.get("made") if isinstance(block.get("made"), dict) else {}
+            if made.get("kind") == "drawn":
+                parts.append(f"[A picture Rouh drew, from the description: "
+                             f"{made.get('prompt') or ''}]")
+            elif made.get("kind") in HELPERS:
+                continue
+            elif str(block.get("media_type") or "").startswith("image/"):
+                parts.append(f"[A picture the person attached: {block.get('name') or ''}]")
+            else:
+                parts.append(f"[A file: {block.get('name') or ''}]")
+    return "\n".join(p for p in parts if p)
+
+
+def conversation_text(messages: list[dict]) -> str:
+    """A chat's last messages as lines of words, newest kept when it is long.
+
+    Tool calls and their results are left out: what came of them is in the
+    words around them, and a picture drawn by a tool is in the turn's own
+    message of pictures.
+    """
+    lines = []
+    for msg in messages[-CONTEXT_MESSAGES:]:
+        role = msg.get("role")
+        said = _said_in(msg.get("content"), role)
+        if not said or role not in ("user", "assistant"):
+            continue
+        if len(said) > _MESSAGE_CHARS:
+            said = said[:_MESSAGE_CHARS] + " ..."
+        lines.append(("Person: " if role == "user" else "Rouh: ") + said)
+    kept, used = [], 0
+    for line in reversed(lines):
+        if used + len(line) > CONTEXT_CHARS:
+            break
+        kept.append(line)
+        used += len(line) + 1
+    return "\n".join(reversed(kept))
+
+
+async def with_conversation(ask: Ask, messages: list[dict], *, who=None,
+                            session_id: str = "") -> Ask:
+    """The ask, its prompt written from the conversation before it.
+
+    Nothing is asked when the chat has nothing said in it yet. When the model
+    cannot be asked, or answers with nothing, the person's words are drawn as
+    they are, which is what was drawn before, and the log says why.
+    """
+    said = conversation_text(messages)
+    if not said:
+        return ask
+    from . import llm
+
+    question = (f"The conversation so far:\n{said}\n\n"
+                f"The person now asks for a picture with these words:\n{ask.prompt}\n\n"
+                "Write the description of that picture.")
+    try:
+        got = await llm.ask("picture_prompt", system=PROMPT_SYSTEM,
+                            messages=[{"role": "user", "content": question}],
+                            max_tokens=1200, who=who, session_id=session_id,
+                            read_only=True, timeout=45)
+    except Exception as exc:                        # noqa: BLE001 - the words alone still draw
+        log.warning("the picture's description could not be written from the "
+                    "conversation: %s", exc)
+        return ask
+    written = (got.text or "").strip().strip('"').strip()
+    if not written or written == ask.prompt:
+        return ask
+    ask.asked = ask.prompt
+    ask.prompt = written[:PROMPT_MAX]
+    return ask

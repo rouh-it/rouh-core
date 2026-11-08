@@ -274,6 +274,12 @@ USES: tuple[Use, ...] = (
     Use("chat_title", "Chats", "Chat titles",
         "Names a chat from its first exchange, in an emoji and a few words.",
         purposes=("chat_title",)),
+    # Petar, 8 November 2026 (fr_76401247a621): a picture asked for with the picture
+    # controls is drawn from the conversation, not the last message alone (`imaging.with_conversation`).
+    Use("picture_prompt", "Chats", "Picture descriptions",
+        "Writes the description a picture is drawn from, out of what was asked and the chat "
+        "before it, so \u201cnow make it blue\u201d keeps the subject and style already settled.",
+        purposes=("picture_prompt",)),
     Use("task_icon", "Chats", "Task icons",
         "Picks the emoji in front of each new task's title, from its title, many tasks to a "
         "question.", purposes=("task_icon",)),
