@@ -207,6 +207,7 @@ urlpatterns = [
     # Where a task's Move may put it (`rouh/moving.py`).
     path("api/workspace/destinations", views.workspace_destinations),
     path("api/workspace/file", views.workspace_file),
+    path("api/workspace/folder", views.workspace_folder),
     path("api/workspace/step", views.workspace_step),
     path("api/one/deploy", views.deploy_the_one_program),
 

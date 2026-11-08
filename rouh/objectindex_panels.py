@@ -1180,29 +1180,104 @@ def _folder_listing(root, rel: str, name: str, path: Path, person=None) -> str:
     for entry in entries[:FOLDER_MOST]:
         child, low = f"{name}/{entry.name}", entry.name.lower()
         if is_dir(entry):
-            rows.append(_object_row("folder", doc_url(rel, child), entry.name,
-                                    _holds(path / entry.name), _kind_pill("Folder")))
+            row, kind = _object_row("folder", doc_url(rel, child), entry.name,
+                                    _holds(path / entry.name), _kind_pill("Folder")), "folder"
         elif low.endswith((".html", ".htm")):
-            rows.append(_object_row("page", pages.url_for(f"{rel}/{child}"),
+            row, kind = _object_row("page", pages.url_for(f"{rel}/{child}"),
                                     pages.title_of(path / entry.name) or entry.name,
-                                    entry.name, _kind_pill("Page")))
+                                    entry.name, _kind_pill("Page")), "page"
         elif low.endswith(".md"):
-            rows.append(_object_row("md", doc_url(rel, child),
+            row, kind = _object_row("md", doc_url(rel, child),
                                     _md_title(path / entry.name, entry.name)
-                                    or entry.name, "", _kind_pill(".md")))
+                                    or entry.name, "", _kind_pill(".md")), "md"
         else:
             try:
                 size = attachments.human_size(entry.stat().st_size)
             except OSError:
                 size = ""
-            rows.append(_file_line(_object_row("file", doc_url(rel, child), entry.name,
-                                               size, _kind_pill(_file_word(entry.name))),
-                                   rel, child, person))
+            row, kind = _object_row("file", doc_url(rel, child), entry.name,
+                                    size, _kind_pill(_file_word(entry.name))), "file"
+        if kind == "folder" and (path / entry.name / ".object.json").exists():
+            # A task or a step filed here: its own page's dots move and delete it.
+            rows.append(row)
+            continue
+        rows.append(_folder_item(row, rel, child, entry.name, kind, person))
     if not rows:
-        return "<p class=dnote>This folder is empty.</p>"
+        return _folder_empty(person)
     more = (f'<p class="omore">and {len(entries) - FOLDER_MOST} more</p>'
             if len(entries) > FOLDER_MOST else "")
     return f'<div class="rows">{"".join(rows)}</div>{more}'
+
+
+def _folder_empty(person) -> str:
+    """An empty working folder: said so, and, where Rouh is around the page, the two ways to put
+    something in it, the same two its three dots have (`folderpage.js` shows them)."""
+    if person is None:
+        return "<p class=dnote>This folder is empty.</p>"
+    return ('<div class="fdempty"><p class="dnote">This folder is empty.</p>'
+            '<p class="fdempty-acts" id="fdEmptyActs" hidden>'
+            '<button type="button" class="odl fdbtn" data-fd="upload">'
+            f'{UPLOAD_SVG}Upload files</button>'
+            '<button type="button" class="fdbtn fdbtn-2" data-fd="new">New folder</button>'
+            '</p></div>')
+
+
+#: An object's own notes, which a folder's menu never renames or takes away (`folder_acts.NOTES`).
+_OWN_NOTES = ("agents.md", "claude.md", "step.md")
+
+
+def _folder_item(row: str, rel: str, child: str, called: str, kind: str, person) -> str:
+    """One line of a working folder's listing, with its own three dots: Rename and Delete, and a
+    file's Download before them.
+
+    Petar, 8 November 2026 (fr_b89a4b1770d4): "The folder of a task is missing the context menu
+    with three dots that has the standard meaningful options like rename, delete, make new
+    folder, upload etc". The folder's own dots are beside its name (`folder_dots`); each thing in
+    it has these. A page keeps the name its links use, so it has Delete only. Drawn hidden, and
+    shown by `folderpage.js` when Rouh is around the page to hand the press to
+    (`rouh/folder_acts.py` does it)."""
+    if person is None:
+        return row
+    dl = ""
+    if kind == "file":
+        href = filelinks.link(person, rel, child)
+        said = html.escape(f"Download {called}", quote=True)
+        dl = (f'<a class="orow-dl" href="{html.escape(href, quote=True)}" '
+              f'download="{html.escape(called, quote=True)}" title="{said}" '
+              f'aria-label="{said}">{DOWNLOAD_ICON}</a>')
+    if called.lower() in _OWN_NOTES:
+        return f'<div class="oline">{row}{dl}</div>' if dl else row
+    parts = [_menu_item("delete", "delete", "Delete", danger=True)]
+    if kind != "page":
+        parts.insert(0, _menu_item("rename", "rename", "Rename"))
+    marks = (f' data-doc="{html.escape(child, quote=True)}"'
+             f' data-name="{html.escape(called, quote=True)}" data-kind="{kind}"')
+    return (f'<div class="oline oitem fditem{" fdl" if dl else ""}"{marks}>{row}{dl}'
+            f'{_dots_menu(called, parts)}</div>')
+
+
+def folder_dots(called: str) -> str:
+    """The three dots beside a working folder's name, and their menu: New folder and Upload
+    files, which put something into it, then Rename, and Delete under a rule, in red, as every
+    menu of Rouh's has it (`menu.js`). Drawn hidden, and shown by `folderpage.js` when Rouh is
+    around the page: at the page's own address nothing can be changed."""
+    said = html.escape(f"What to do with the folder {called}", quote=True)
+    return (f'<div class="obar" id="fdBar" hidden>'
+            f'<button type="button" class="odots" id="fdMore" aria-haspopup="menu" '
+            f'aria-expanded="false" aria-controls="fdMenu" aria-label="{said}" '
+            f'title="{said}">⋯</button>'
+            f'<div class="menu tkmenu" id="fdMenu" role="menu" aria-label="{said}" hidden>'
+            f'<button type="button" class="menu-item" id="fdNew" role="menuitem" '
+            f'data-icon="newfolder">New folder</button>'
+            f'<button type="button" class="menu-item" id="fdUpload" role="menuitem" '
+            f'data-icon="up">Upload files</button>'
+            f'<hr class="menu-rule">'
+            f'<button type="button" class="menu-item" id="fdRename" role="menuitem" '
+            f'data-icon="rename">Rename</button>'
+            f'<hr class="menu-rule">'
+            f'<button type="button" class="menu-item danger" id="fdDelete" role="menuitem" '
+            f'data-icon="delete">Delete</button>'
+            f'</div></div>')
 
 
 def _plain_file(path: Path) -> str:

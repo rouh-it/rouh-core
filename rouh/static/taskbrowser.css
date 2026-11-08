@@ -2124,3 +2124,48 @@ font-size:13px;line-height:1;text-decoration:none}
 .demo-eye .ic{width:17px;height:17px}
 .demo-eye:hover{background:rgba(181,123,255,.14);color:#e7ecf3}
 .demo-eye.on{color:#b57bff}
+
+/* A working folder inside a task (`objectindex_panels.folder_dots`, `folderpage.js`): three dots
+   beside its name, the same as a task's, and on every line of its listing; a file's Download
+   sits just before its dots. Petar, 8 November 2026 (fr_b89a4b1770d4). */
+.rows:has(>.fdl)>.orow,.rows:has(>.fdl)>.oline>.orow{padding-right:84px}
+.rows>.fditem>.orow{padding-right:44px}
+.rows>.fdl>.orow{padding-right:84px}
+.fdl>.orow-dl{right:42px}
+.fditem>.orow-dots{width:34px;height:34px}
+.fdbtn{font:inherit;font-size:13.5px;font-weight:600;min-height:44px;padding:0 14px;border-radius:8px;
+border:1px solid var(--primary);background:var(--primary);color:var(--on-fg);cursor:pointer;
+display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.fdbtn .ic{width:16px;height:16px}
+.fdbtn:hover{filter:brightness(1.08)}
+.fdbtn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.fdbtn:disabled{cursor:progress;opacity:.7}
+.fdbtn-2{background:none;color:var(--copy);border-color:var(--border-strong)}
+.fdbtn-2:hover{background:var(--chip);filter:none}
+.fdbtn-danger{background:#d23c36;border-color:#d23c36;color:#fff}
+.fdbtn-danger:focus-visible{outline-color:#fff}
+/* An empty folder: said so, and its two ways in. */
+.fdempty .dnote{margin:0 0 14px}
+.fdempty-acts{display:flex;flex-wrap:wrap;gap:10px;margin:0}
+/* New folder: a line at the top of the listing with the field for its name. */
+.fdnew{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 14px;padding:10px;
+border:1px solid var(--border);border-radius:10px;background:var(--panel)}
+.fdnew-name{flex:1 1 220px;min-width:0;min-height:44px;font:inherit;font-size:15px;color:var(--copy);
+background:var(--bg);border:1px solid var(--border-strong);border-radius:8px;padding:0 10px}
+.fdnew-name:focus{outline:2px solid var(--primary);outline-offset:1px;border-color:var(--primary)}
+/* How far an upload is, under the folder's name. */
+.fdstatus{margin:10px 0 0;font-size:13.5px;color:var(--muted)}
+/* Delete asks first. */
+.fdconfirm{max-width:min(420px,calc(100vw - 32px));padding:20px;border-radius:12px;
+border:1px solid var(--border-strong);background:var(--surface);color:var(--copy);box-shadow:var(--shadow)}
+.fdconfirm::backdrop{background:rgba(0,0,0,.55)}
+.fdconfirm h2{font-size:18px;margin:0 0 8px;font-weight:650;letter-spacing:-.01em;overflow-wrap:anywhere}
+.fdconfirm p{margin:0 0 18px;color:var(--muted);font-size:14px}
+.fdconfirm-acts{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+/* On a phone a folder's dots stay beside its name: unlike a task's, there is no date or pin to
+   make a line of their own with. */
+@media (max-width:560px){
+  .otitle:has(>#fdBar){flex-wrap:nowrap}
+  .otitle:has(>#fdBar) .oname-big{flex:1 1 auto}
+  .otitle:has(>#fdBar)>.obar{margin:0 -6px 0 0}
+}

@@ -5200,6 +5200,75 @@ function taskUpload(frame, m) {
     });
 }
 
+/* A press in the three dots of a working folder inside a task, or of a line of its listing
+   (`folderpage.js`, `rouh/folder_acts.py`): New folder, Upload files, Rename or Delete. The task
+   is the one framed here, read off the canvas and never off the page; the page names only the
+   folder or file inside it, which the server holds to that task's folder. When the folder the
+   page is showing was itself renamed or deleted (`here`), the frame is sent where it is now: the
+   new name, or the folder above it, or the task's own page. */
+var FOLDER_ACTS = ['new_folder', 'rename', 'delete', 'upload', 'again'];
+
+/** @param {HTMLIFrameElement} frame @param {any} m */
+function taskFolderAct(frame, m) {
+  var folder = taskPageFolder();
+  var doc = String(m.doc || '').replace(/^\/+|\/+$/g, '');
+  if (frame !== tasksFrame() || !ownPage(frame) || !folder || !doc
+      || doc.split('/').some(function (p) { return !p || p === '.' || p === '..'; })
+      || FOLDER_ACTS.indexOf(m.act) === -1) {
+    projectSay(frame, m.id, { ok: false, error: 'Rouh will not change that folder from here.' });
+    return;
+  }
+  if (m.act === 'again') {
+    // Done: the folder drawn again, with what is in it now.
+    projectSay(frame, m.id, { ok: true });
+    frameGo(frame, String(CANVAS.at || ''));
+    return;
+  }
+  var asked;
+  if (m.act === 'upload') {
+    if (!(m.bytes instanceof ArrayBuffer) || typeof m.name !== 'string' || !m.name) {
+      projectSay(frame, m.id, { ok: false, error: 'Rouh will not upload that from here.' });
+      return;
+    }
+    var form = new FormData();
+    form.append('folder', folder);
+    form.append('doc', doc);
+    form.append('file', new Blob([m.bytes], { type: m.media_type || '' }), m.name);
+    asked = fetch(PROJECT_FILE, { credentials: 'same-origin', method: 'POST', body: form });
+  } else {
+    asked = fetch('/api/workspace/folder', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder: folder, doc: doc, act: m.act,
+                             name: String(m.name || '').slice(0, 200) })
+    });
+  }
+  asked.then(function (r) {
+    return r.json().catch(function () { return {}; }).then(function (got) {
+      if (!r.ok || !got.ok) {
+        return { error: got.error || (r.status === 401 || r.status === 403
+          ? 'Your sign-in has run out. Reload Rouh and try again.'
+          : r.status === 413 ? String(m.name || 'That file') + ' is too big to upload.'
+          : 'That could not be done: the server said ' + r.status + '.') };
+      }
+      return got;
+    });
+  }).catch(function () {
+    return { error: 'Rouh could not be reached. Try again in a moment.' };
+  }).then(function (got) {
+    if (got.error) {
+      projectSay(frame, m.id, { ok: false, error: got.error });
+      return;
+    }
+    projectSay(frame, m.id, { ok: true, doc: String(got.doc || ''), name: String(got.name || '') });
+    if (m.here && (m.act === 'rename' || m.act === 'delete')) {
+      var base = String(CANVAS.at || '').split('?')[0].split('#')[0];
+      if (base.slice(-1) !== '/') base += '/';
+      frameGo(frame, got.doc ? base + '?doc=' + encodeURIComponent(String(got.doc)) : base);
+    }
+  });
+}
+
 // A page in a frame, telling this page what the reader did in it. Every one
 // of these is acted on only for a frame that is really on this page.
 window.addEventListener('message', function (e) {
@@ -5213,7 +5282,7 @@ window.addEventListener('message', function (e) {
              && m.type !== 'rouh-page-view' && m.type !== 'rouh-askai'
              && m.type !== 'rouh-page-task' && m.type !== 'rouh-page-feedback'
              && m.type !== 'rouh-page-decision' && m.type !== 'rouh-page-height'
-             && m.type !== 'rouh-page-state')) return;
+             && m.type !== 'rouh-page-state' && m.type !== 'rouh-page-folder')) return;
   var frame = frameOf(e.source);
   if (!frame) return;
   if (m.type === 'rouh-page-height') {
@@ -5293,6 +5362,10 @@ window.addEventListener('message', function (e) {
   }
   if (m.type === 'rouh-page-task') {
     taskPageAct(frame, m);
+    return;
+  }
+  if (m.type === 'rouh-page-folder') {
+    taskFolderAct(frame, m);
     return;
   }
   if (m.type === 'rouh-page-decision') {

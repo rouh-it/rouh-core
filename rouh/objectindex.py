@@ -157,6 +157,9 @@ PROJECT_SCRIPT = "projectpage.js"
 #: that asks Rouh for anything.
 TASK_SCRIPT = "taskpage.js"
 
+#: And the one a working folder inside a task has: its three dots and its lines' (`folder_dots`).
+FOLDER_SCRIPT = "folderpage.js"
+
 #: A task's icon in front of its title, and the picker a press on it opens (`rouh/taskicons.py`),
 #: put into the task browser and a task's page, ahead of their own scripts.
 ICON_SCRIPT = "taskicon.js"
@@ -2673,13 +2676,21 @@ def build_doc(store: objects.ObjectStore, root, rel: str, doc: str,
     # here is one.
     drawn = (f'<section class="oset olist">{drawn}</section>' if word == "folder" else
              f'<article class="odoc{" ofile" if word == "file" else ""}">{drawn}</article>')
+    named = (f'<h1 class="oname-big"><span id="fdName">{html.escape(title)}</span>'
+             f'{_kind_pill(pill, word)}</h1>')
+    # A working folder has its own three dots beside its name (`folder_dots`), and is a folder
+    # Rouh can change, unless it is an object of its own, whose own page's dots do that.
+    dotted = (word == "folder" and person is not None
+              and not (path / objecttree.SIDECAR).exists())
+    if dotted:
+        named = f'<div class="otitle">{named}{folder_dots(title)}</div>'
     body = (f'<header class="ohead"><p class="oback">{"".join(links)}</p>'
             f'<div class="eyebrow">{"<span class=lc>.md</span>" if word == "md" else word}'
             f' &middot; {html.escape(rel + "/" + name)}</div>'
-            f'<h1 class="oname-big"><span>{html.escape(title)}</span>'
-            f'{_kind_pill(pill, word)}</h1>'
+            f'{named}'
             f'{_download(rel, name, person) if word == "file" else ""}</header>{drawn}')
-    return body, (title if title == parts[-1] else f"{title} - {parts[-1]}")
+    return body, (title if title == parts[-1] else f"{title} - {parts[-1]}"), (
+        name if dotted else "")
 
 
 
@@ -2912,6 +2923,11 @@ def task_page(root, rel: str, raw: str = "", at: str | None = None,
         got = build_doc(store, root, rel, doc, person)
         if got is None:
             raise pages.Missing(f"There is nothing filed at {rel} in the workspace.")
+        if got[2]:
+            # A working folder: its three dots, which hand each press to Rouh (`folderpage.js`).
+            return _shell(got[0] + (FLOW_SCRIPT if at is not None else ""), got[1], at,
+                          {"doc": got[2], "framed": at is not None}, named="ROUH_FOLDER",
+                          script=FOLDER_SCRIPT)
         return _shell(got[0] + (FLOW_SCRIPT if at is not None else ""), got[1], at)
     body = build_task(store, root, rel, names, person)
     if body is None:
@@ -3375,6 +3391,7 @@ from .objectindex_panels import (  # noqa: E402, F401
     _answer_goes, _answered_in, _answered_panel, _asking, _asking_panel, _chat_line, _chat_named,
     _decision_mount, _decision_of, _decision_top, _dismiss, _dismissed_line, _dots_line,
     _dots_menu, _download, _file_line, _file_word, _folder_listing, _for_pill, _goal_row,
+    folder_dots,
     _goal_step_panel, _is_goal_folder, _item_acts, _item_line, _job_said, _menu_item, _pin_button,
     _plain_file, _said_when, _sent_up, _sent_up_row, _silo_chips, _slack_section, _sources_section,
     _archive_section, _subtask_dots, _subtask_section, _task_dots, _task_files_section, _upload_button,

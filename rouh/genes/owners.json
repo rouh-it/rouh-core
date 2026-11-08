@@ -749,6 +749,7 @@
    "files": [
     "rouh/objectindex.py",
     "rouh/objectindex_panels.py",
+    "rouh/folder_acts.py",
     "rouh/objectindex_write.py",
     "rouh/objects.py",
     "rouh/objecttree.py",
@@ -778,6 +779,7 @@
     "rouh/taskchats.py",
     "rouh/static/taskbrowser.*",
     "rouh/static/taskpage.js",
+    "rouh/static/folderpage.js",
     "rouh/static/taskicon.js",
     "rouh/static/emoji.json",
     "tools/emoji/**",

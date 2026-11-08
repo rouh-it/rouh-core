@@ -574,8 +574,11 @@ async def workspace_file(request: HttpRequest):
                        "error": f"{attachments.safe_name(upload.name or 'That file')} is "
                                 f"larger than {attachments.human_size(limit)}, so it was not "
                                 "attached."}, status=413)
-    body = await asyncio.to_thread(upload.read)
     folder = str(request.POST.get("folder") or "")
+    doc = str(request.POST.get("doc") or "")
+    if folder and doc:
+        return await _into_folder(root, folder, doc, upload)
+    body = await asyncio.to_thread(upload.read)
     icon = str(request.POST.get("icon") or "")
     try:
         if icon:
@@ -593,6 +596,52 @@ async def workspace_file(request: HttpRequest):
     except pages.Refused as exc:
         return answer({"ok": False, "error": str(exc)}, status=400)
     return answer(done, status=200 if done.get("ok") else 400)
+
+
+async def _into_folder(root: str, folder: str, doc: str, upload):
+    """One file uploaded into a working folder of a task, from that folder's three dots
+    (`rouh/folder_acts.py`): ``folder`` the task Rouh framed, ``doc`` the folder inside it."""
+    from rouh import folder_acts
+
+    if upload.size > folder_acts.MOST_BYTES:
+        return answer({"ok": False,
+                       "error": f"{attachments.safe_name(upload.name or 'That file')} is larger "
+                                f"than {attachments.human_size(folder_acts.MOST_BYTES)}, and a "
+                                "file put into a task's folder can be at most that."}, status=413)
+    body = await asyncio.to_thread(upload.read)
+    try:
+        done = await asyncio.to_thread(folder_acts.upload, root, folder, doc,
+                                       upload.name or "", bytes(body))
+    except folder_acts.Refused as exc:
+        return answer({"ok": False, "error": str(exc)}, status=400)
+    except OSError:
+        log.exception("a file could not be put into %s/%s", folder, doc)
+        return answer({"ok": False, "error": "It could not be saved there."}, status=500)
+    return answer(done)
+
+
+@only("POST")
+async def workspace_folder(request: HttpRequest):
+    """A press in the three dots of a working folder of a task, or of a line in its listing
+    (`rouh/folder_acts.py`): ``{folder, doc, act, name}``, where ``folder`` is the task Rouh
+    framed, read off its own canvas (`taskFolderAct` in cards.js), ``doc`` the folder or the file
+    inside it, and ``act`` new_folder, rename or delete."""
+    from rouh import folder_acts
+
+    root = _workspace_root()
+    if not root or not os.path.isdir(root):
+        return answer({"ok": False, "error": "no workspace on this machine"}, status=404)
+    sent = body_of(request)
+    try:
+        done = await asyncio.to_thread(
+            folder_acts.act, root, str(sent.get("folder") or ""), str(sent.get("doc") or ""),
+            str(sent.get("act") or ""), str(sent.get("name") or ""))
+    except folder_acts.Refused as exc:
+        return answer({"ok": False, "error": str(exc)}, status=400)
+    except OSError:
+        log.exception("a working folder could not be changed: %s", sent)
+        return answer({"ok": False, "error": "That could not be done to the folder."}, status=500)
+    return answer(done)
 
 
 @only("GET")

@@ -138,6 +138,9 @@
   ICONS.unlink = '<path d="M18.84 12.25l1.72-1.71a5 5 0 0 0-.12-7.07 5 5 0 0 0-6.95 0l-1.72 1.71"/>'
     + '<path d="M5.17 11.75l-1.71 1.71a5 5 0 0 0 .12 7.07 5 5 0 0 0 6.95 0l1.71-1.71"/>'
     + '<path d="M8 2v3M2 8h3M16 19v3M19 16h3"/>';
+  // A folder with a plus in it: New folder, in a folder's own three dots (`folderpage.js`).
+  ICONS.newfolder = '<path d="M3.5 7.5v10A1.5 1.5 0 0 0 5 19h14a1.5 1.5 0 0 0 1.5-1.5V9A1.5 1.5 0 0 0 19 7.5h-7L10 5H5'
+    + 'A1.5 1.5 0 0 0 3.5 6.5z"/><path d="M12 10.5v6M9 13.5h6"/>';
   ICONS.up = '<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/>';
   // A task archived (`rouh/archiving.py`): a box with its lid on; brought
   // back, the same box with an arrow coming up out of it.

@@ -152,6 +152,11 @@ class Saver:
         # The task list main is known to have, so a pass with nothing new in
         # the rows does not check main out to find that out (`_listing`).
         self._listed: bytes | None = None
+        # Working folders and files changed from a folder's own three dots on a task's page
+        # (`rouh/folder_acts.py`), as paths in the repository: what git says changed under
+        # them is saved too. Kept on disk, so a restart before the save does not lose them.
+        self._touched_file = self.into.with_name(self.into.name + ".touched.json")
+        self._touched: set[str] = self._read_touched()
 
     # --- asked from anywhere -------------------------------------------------
 
@@ -170,6 +175,32 @@ class Saver:
         with self._cond:
             target = self._asked
             return self._cond.wait_for(lambda: self._done >= target, timeout=timeout)
+
+    def touch(self, paths) -> None:
+        """Working files changed from a folder's three dots: save what changed under them."""
+        with self._cond:
+            self._touched.update(workspace_repo.path(self.ws, p) for p in paths if p)
+            self._write_touched()
+        self.poke()
+
+    def _read_touched(self) -> set[str]:
+        try:
+            got = json.loads(self._touched_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return set()
+        return {str(p) for p in got if isinstance(p, str) and p} if isinstance(got, list) else set()
+
+    def _write_touched(self) -> None:
+        try:
+            self._touched_file.parent.mkdir(parents=True, exist_ok=True)
+            self._touched_file.write_text(json.dumps(sorted(self._touched)), encoding="utf-8")
+        except OSError:
+            log.exception("could not keep the list of changed working folders")
+
+    @staticmethod
+    def _under_touched(path: str, touched: set[str]) -> set[str]:
+        """Every touched path ``path`` is, or is under."""
+        return {one for one in touched if path == one or path.startswith(one + "/")}
 
     def start(self) -> None:
         if self._thread is None:
@@ -212,7 +243,10 @@ class Saver:
         # `edited` is each changed file and the path the deployed copy is at:
         # its own, the one it moved from, or "" for one git has never seen here.
         new_sidecars, renamed, deleted, edited = [], [], [], []
-        loose, links = [], []
+        loose, links, files = [], [], []
+        with self._cond:
+            touched = set(self._touched)
+        seen: set[str] = set()
         i = 0
         while i < len(parts):
             entry = parts[i]
@@ -239,6 +273,11 @@ class Saver:
                 links.append(path)
                 continue
             if os.path.basename(path) != SIDECAR:
+                under = self._under_touched(path, touched) if touched else set()
+                if under:
+                    # A working file put in, renamed or taken away from a folder's three dots.
+                    seen.update(under)
+                    files.append((path, "gone" if "D" in (x, y) else "put"))
                 continue
             if x == "?":
                 new_sidecars.append(os.path.dirname(path))
@@ -262,7 +301,13 @@ class Saver:
         # quest), is changed in place like any other; one main lacks goes with
         # its folder.
         edited += [(path, "") for path in loose]
-        return {"new": made, "moved": moved, "gone": gone, "edited": edited, "links": links}
+        if touched - seen:
+            # Saved and followed, or nothing changed after all: nothing left to look for.
+            with self._cond:
+                self._touched -= touched - seen
+                self._write_touched()
+        return {"new": made, "moved": moved, "gone": gone, "edited": edited, "links": links,
+                "files": files}
 
     def _id_on_disk(self, folder: str) -> str:
         try:
@@ -330,7 +375,8 @@ class Saver:
                   if self._refused.get(p) != _mtime(self.app / p)]
         listed = listing is not None and listing != self._listed
         links = found.get("links") or []
-        if not (ready or found["moved"] or found["gone"] or edited or listed or links):
+        files = found.get("files") or []
+        if not (ready or found["moved"] or found["gone"] or edited or listed or links or files):
             return later
         self._fresh_checkout()
         self._putting = []
@@ -374,6 +420,7 @@ class Saver:
                 said.append(f"the change Ask AI made to {self._short(page)}"
                             if page.lower().endswith(PAGE)
                             else f"the change made to {self._short(page)}")
+        said += self._put_files(files)
         on_main = self._folders_on_main() if ready else {}
         # The outermost of the new folders main lacks: a task and its steps
         # go as one, and a step new inside a task main has goes on its own.
@@ -421,6 +468,41 @@ class Saver:
                 self._listed = listing
         self._putting = []
         return later
+
+    def _in_object_on_main(self, path: str) -> bool:
+        """Whether some folder above ``path`` is an object main has."""
+        here = os.path.dirname(path)
+        while here:
+            if self._on_main(here):
+                return True
+            here = os.path.dirname(here)
+        return False
+
+    def _put_files(self, files: list[tuple[str, str]]) -> list[str]:
+        """Working files changed from a folder's three dots put into main's copy: a file new or
+        changed copied in, a file gone taken out. Only inside an object main has; one main lacks
+        goes with its folder. What was done, one line for each folder."""
+        folders: list[str] = []
+        for path, kind in files:
+            if not self._in_object_on_main(path):
+                continue
+            mine, theirs = self.app / path, self.into / path
+            if kind == "put":
+                if not mine.is_file() or mine.is_symlink():
+                    continue
+                if theirs.is_file() and theirs.read_bytes() == mine.read_bytes():
+                    continue
+                theirs.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(mine, theirs)
+                _ok(self.into, "add", "--", path)
+            else:
+                if not os.path.lexists(theirs):
+                    continue
+                _ok(self.into, "rm", "-q", "-r", "--", path)
+            folder = self._short(os.path.dirname(path))
+            if folder not in folders:
+                folders.append(folder)
+        return [f"the files changed in {folder}" for folder in folders]
 
     def _forget_in_map(self, ident: str, folder: str) -> None:
         """A removed object's line taken out of main's `_migration-map.json` too.
@@ -808,3 +890,11 @@ def poke() -> None:
     """Something in the workspace changed: save it soon. Nothing where nothing saves."""
     if _saver is not None:
         _saver.poke()
+
+
+def touched(*paths: str) -> None:
+    """Working folders or files changed in place, as paths in the workspace
+    (`rouh/folder_acts.py`): what git says changed under them is saved to main.
+    Nothing where nothing saves."""
+    if _saver is not None:
+        _saver.touch(paths)
