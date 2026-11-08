@@ -94,7 +94,45 @@ def named(ds: dict, question: str, fused: list[dict], details: dict, *, me: str 
     if not found:
         return {"people": []}
     best = max(len(p["words"]) for p in found)
-    return {"people": [p for p in found if len(p["words"]) == best]}
+    found = [p for p in found if len(p["words"]) == best]
+    # The assistant's own sending address is a person of its own with the mailbox's name ("Rouh"), so it is
+    # found on every question that says Rouh. It is not a correspondent: its own mails are its notices, which
+    # took the seed places of the person really asked about ("What has Rouh emailed Teresa about?" lost one of
+    # Teresa's two mails to them). Its name still finds the mails that name it (attempt 49).
+    mine = assistants(ds["id"], [p["id"] for p in found])
+    for p in found:
+        if p["id"] in mine:
+            p["assistant"] = True
+    return {"people": found}
+
+
+def assistants(ds_id: str, ids) -> set[str]:
+    """Of these persons, those that share a name with a mailbox Master reads: the assistant's own sending
+    addresses ("Rouh"). One query; the mailboxes' names are remembered with the mailboxes."""
+    ids = [str(i) for i in ids if i]
+    names = mailbox_names(ds_id)
+    if not ids or not names:
+        return set()
+    return {str(r["item_id"]) for r in db.rows(
+        "SELECT DISTINCT item_id FROM synapse.identity WHERE item_id = ANY(%s::uuid[]) AND type = 'name' "
+        "AND value = ANY(%s)", (ids, sorted(names)))}
+
+
+_mailbox_names: dict[str, tuple[float, set]] = {}
+
+
+def mailbox_names(ds_id: str) -> set[str]:
+    """The names of the persons whose address is a mailbox Master reads, per dataset."""
+    now = time.time()
+    got = _mailbox_names.get(ds_id)
+    if got and now - got[0] < MAILBOX_TTL_S:
+        return got[1]
+    boxes = sorted(mailboxes(ds_id))
+    found = {r["value"] for r in db.rows(
+        "SELECT DISTINCT n.value FROM synapse.identity e JOIN synapse.identity n ON n.item_id = e.item_id "
+        "AND n.type = 'name' WHERE e.type = 'email' AND e.value = ANY(%s)", (boxes,))} if boxes else set()
+    _mailbox_names[ds_id] = (now, found)
+    return found
 
 
 def _capitalised(question: str) -> list[str]:
@@ -121,19 +159,18 @@ def names_someone(ds: dict, question: str, *, readers: list[str], me: str = "") 
     boxes = sorted(mailboxes(ds["id"]))
     own = set()
     if boxes:
-        names = [r["value"] for r in db.rows(
-            "SELECT DISTINCT n.value FROM synapse.identity e JOIN synapse.identity n ON n.item_id = e.item_id "
-            "AND n.type = 'name' WHERE e.type = 'email' AND e.value = ANY(%s)", (boxes,))]
-        own = {r["item_id"] for r in db.rows(
+        own = {str(r["item_id"]) for r in db.rows(
             "SELECT DISTINCT item_id FROM synapse.identity WHERE item_id = ANY(%s::uuid[]) AND "
             "((type = 'email' AND value = ANY(%s)) OR (type = 'name' AND value = ANY(%s)))",
-            ([r["id"] for r in rows], boxes, names))}
-    return sorted({r["title"] for r in rows if r["id"] not in own})
+            ([r["id"] for r in rows], boxes, sorted(mailbox_names(ds["id"]))))}
+    return sorted({r["title"] for r in rows if str(r["id"]) not in own})
 
 
 def their_mails(ds: dict, people: list[dict], qvec, *, readers: list[str], take: int,
                 model: str | None = None) -> list[dict]:
     """The named persons' own mails the asker may read, closest to the question first: [{"item_id", "score"}]."""
+    # The assistant's own sending address is no correspondent: its mails are its notices (attempt 49).
+    people = [p for p in people or [] if not p.get("assistant")]
     if not people or take <= 0:
         return []
     rows = db.rows(

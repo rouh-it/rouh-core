@@ -194,6 +194,39 @@ def resolve(ds: dict, question: str, asker_readers: list[str]) -> list[dict]:
     return out
 
 
+#: The link types that make an item a task's own: about it (a card, a chat) or attached to it (a file).
+OWN_LINKS = ("about", "attached")
+#: At most this many of a task's own items are compared with the question.
+LOOK_AT = 300
+
+
+def their_items(ds: dict, named: list[dict], qvec, *, readers: list[str], take: int,
+                model: str | None = None, besides=()) -> list[dict]:
+    """The named tasks' own items the asker may read (about or attached to them), closest to the question first:
+    [{"item_id", "score"}]. The walk reaches them from the task, one link on, and ran out of room before it did
+    for "what's going on with 58" (attempt 51). Those in `besides` (the search's seeds already) are passed over:
+    the search finds most of a task's own items itself, and the ones it misses are the ones worth adding."""
+    ids_in = [x["id"] for x in named or [] if x.get("id")]
+    if not ids_in or take <= 0:
+        return []
+    rows = db.rows(
+        "SELECT DISTINCT ON (m.id) m.id, m.stored_at FROM synapse.link l JOIN synapse.item m ON m.id = l.src "
+        "WHERE l.dataset_id = ANY(synapse.scope(%s)) AND l.dst = ANY(%s::uuid[]) AND l.type = ANY(%s) "
+        "AND m.kind NOT IN ('rule', 'layer', 'task') AND m.deleted_at IS NULL AND " + search.readable_sql("m") +
+        " ORDER BY m.id", (ds["id"], [str(i) for i in ids_in], list(OWN_LINKS), readers))
+    rows.sort(key=lambda r: str(r.get("stored_at") or ""), reverse=True)
+    ids = [r["id"] for r in rows[:LOOK_AT]]
+    if not ids:
+        return []
+    ok = search.check_results(ds["id"], ids, readers)
+    ids = [i for i in ids if i in ok]
+    near = search.cosines(ds["id"], ids, qvec, model) if qvec is not None else {}
+    ranked = sorted(ids, key=lambda i: -near.get(i, -1.0)) if near else ids
+    skip = {str(b) for b in besides}
+    ranked = [i for i in ranked if str(i) not in skip]
+    return [{"item_id": i, "score": round(near.get(i, 0.0), 4)} for i in ranked[:take]]
+
+
 def label(found: dict) -> str:
     """How a named task joins the search query: its number and its title, as its own item says them."""
     return f"task {found['number']}: {found['title']}"

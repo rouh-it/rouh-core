@@ -202,6 +202,12 @@ NUMBERS: tuple[Number, ...] = (
     N("rrf_k", "Search", "Fusion constant k", 60, "D36", "int", 1, 500, 1, "Recall"),
     N("list_depth", "Search", "Each list's top, fused", 60, "D36", "int", 5, 500, 5, "Recall"),
     N("seeds", "Search", "Seeds for the walk", 20, "D36", "int", 1, 100, 1, "Recall against latency"),
+    N("context_first", "Search", "Start from the item a question is asked about", True, "D36", "bool",
+      moves="The benchmark's questions asked about an item, with it on and off: recall",
+      note="On, a live question asked about an item (the mail being handled, the item open in the Synapse chat) "
+           "has that item as the walk's first seed and its title added to its search query, when the asker may "
+           "read it. Off, a live recall only boosts items of the same task or sender, as until 29 October 2026 "
+           "(attempt 44); a background recall has its own fixed order for it either way (D56).", starting=False),
     N("task_numbers", "Search", "Search for a task the question names by number", True, "D36", "bool",
       moves="The benchmark's Task status questions, with it on and off: recall and answer correctness",
       note="On, a question that names a task or a step by its number, in digits or in words (\"what's going on "
@@ -238,6 +244,14 @@ NUMBERS: tuple[Number, ...] = (
       "somebody is written by others, to others, so no link ties it to them: 'Who is Ivan Varbanov?' missed "
       "both 'Re: Intro' mails about him, though only three mails in the dataset held his surname. Attempt 37, "
       "22 October 2026.",
+      starting=False),
+    N("task_items", "Search", "Items of a task the question names, as seeds", 3, "D36", "int", 0, 50, 1,
+      "The benchmark's Task status questions, with it at 0 and on: recall and answer correctness",
+      "When a question names a task by its number (\"what's going on with 58\"), this many of the items about "
+      "it or attached to it (its chats, cards and files) that the search did not already make seeds, closest to "
+      "the question first, are seeds of the walk too; 0 turns it off. The search finds the task, but its own chat and answer card are "
+      "a link further, and the walk ran out of room with them still queued: 'what's going on with 58' lost the "
+      "chat of the decision and the card that answered it. Attempt 51, 8 November 2026.",
       starting=False),
     N("words_cap", "Search", "Words list: candidate passages, at most", 2000, "D36", "int", 100, 50000, 100,
       "Recall against time to pack, at 10,000 and 100,000 items",

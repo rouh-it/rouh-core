@@ -226,6 +226,15 @@ def _context_seeds(ds: dict, ctx: dict, asker: str) -> list[dict]:
     return [x for x in uniq if x["id"] in readable]
 
 
+def _asked_about(ds: dict, ctx: dict, asker: str) -> dict | None:
+    """The item a live question is asked about, when the asker may read it: its id and title."""
+    row = db.row(
+        f"SELECT i.id, i.title FROM synapse.item i WHERE i.dataset_id = ANY(synapse.scope(%s)) AND i.id = %s::uuid "
+        f"AND i.deleted_at IS NULL AND i.kind <> 'rule' AND {search.readable_sql('i')}",
+        (ds["id"], str(ctx["id"]), search.readers_for(asker)))
+    return {"id": str(row["id"]), "title": " ".join(str(row.get("title") or "").split())[:200]} if row else None
+
+
 def _silo_first(ds: dict, fused: list[dict], prefer: str) -> tuple[list[dict], dict]:
     """The fused list with the items of one silo first, then those in no silo, then the rest, each group in
     its own order: nothing is dropped, so the rest is still there when it helps (`rouh/silos.py`)."""
@@ -695,6 +704,12 @@ def run(ds: dict, question: str, *, asker: str | None = None, context_item_id: s
             taskrefs.resolve(ds, question, search.readers_for(asker)) if s.task_numbers else [])
         if named:
             search_query = f"{search_query} ({'; '.join(taskrefs.label(x) for x in named)})"
+        # The item a live question is asked about (the mail being handled, the item open in the Synapse chat) is
+        # its first seed, and its title joins the search query, so "what does she want" starts from that mail
+        # (attempt 44). A background recall has its own fixed order for it (D56, `_context_seeds`).
+        asked_about = _asked_about(ds, ctx, asker) if ctx and mode != "background" and s.context_first else None
+        if asked_about and asked_about.get("title"):
+            search_query = f"{search_query} ({asked_about['title']})"
         with trace.step("embed_query", "The query's vector (D37)") as st:
             got_q = vectors.query(ds, search_query, trace=trace, owner=owner)
             qvec, qmodel = got_q["vec"], got_q["model"]
@@ -753,7 +768,23 @@ def run(ds: dict, question: str, *, asker: str | None = None, context_item_id: s
                 seeds.append({"id": m["item_id"], "R": min(1.0, rrf / best),
                               "why": "names a named person" if m.get("named") else "named person",
                               "ranks": {**(by_id.get(m["item_id"]) or {}).get("ranks", {}), "person": rank}})
+            # A named task's own items the search did not make seeds, the same way (attempt 51).
+            have = {x["id"] for x in seeds}
+            task_own = []
+            if named and int(s.task_items) > 0:
+                task_own = taskrefs.their_items(ds, named, qvec, readers=search.readers_for(asker),
+                                                take=int(s.task_items), model=qmodel, besides=have)
+                st.data["named_tasks"] = {"tasks": [x["id"] for x in named], "items": task_own}
+            for rank, m in enumerate(task_own, start=1):
+                if m["item_id"] in have:
+                    continue
+                rrf = (by_id.get(m["item_id"]) or {}).get("rrf", 0.0) + 1.0 / (k + rank)
+                seeds.append({"id": m["item_id"], "R": min(1.0, rrf / best), "why": "named task's own",
+                              "ranks": {**(by_id.get(m["item_id"]) or {}).get("ranks", {}), "task": rank}})
             fixed = []
+            if asked_about:
+                fixed = [{"id": asked_about["id"], "R": 1.0, "why": "the item the question is asked about"}]
+                seeds = fixed + [x for x in seeds if x["id"] != asked_about["id"]]
             if ctx and mode == "background":
                 fixed = _context_seeds(ds, ctx, asker)
                 seen = {f["id"] for f in fixed}
