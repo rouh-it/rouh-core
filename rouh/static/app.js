@@ -55,6 +55,9 @@
  *   app/demo.js             demo mode: the switch beside the house, the grey bars, the
  *                           purple dots (`rouh/demo.py`); imports nothing, and
  *                           app/socket.js hands it the server's `demo` message
+ *   app/focus.js            today's focus at the top of the navigation, from
+ *                           the morning brief's one thing; outside the chain,
+ *                           and needs only app/helpers.js
  *   app/navgroups.js        the navigation's five group tabs and the links
  *                           drawn from the gene registry (GENES.md);
  *                           outside the chain, and its top level touches
@@ -91,6 +94,7 @@ import 'app/notices.js';
 import 'app/offlineview.js';
 import 'app/navgroups.js';
 import 'app/demo.js';
+import 'app/focus.js';
 import { addrEarly } from 'app/address.js';
 
 // A page opened at the task browser opens it now, once every module above

@@ -340,6 +340,7 @@
           if (r.ok && j && j.schedule) B.schedule = j.schedule;
           if (r.ok && j && j.brief) {
             B.data = j.brief;
+            if (!B.view && 'one_thing' in j.brief) oneThingSaid(j.brief.one_thing);
             // Read again since this brief was kept, so it is the one to show.
             if (B.cal.part && !B.view && !older()) B.data.calendar = B.cal.part;
           }
@@ -5767,25 +5768,40 @@
     });
   }
 
-  function pickSave(sub) {
+  // Tell the rest of the page what today's focus now is: the reminder at the
+  // top of the navigation (`app/focus.js`) draws it on every screen.
+  function oneThingSaid(chosen) {
+    try {
+      window.dispatchEvent(new CustomEvent('rouh:one-thing', { detail: chosen || null }));
+    } catch (e) { /* an old browser: the reminder reads it again by itself */ }
+  }
+
+  // Save a choice: {category, task?, sub?}, or {text} for his own words.
+  function pickSave(choice) {
     var p = B.pick;
     p.saving = true;
     p.error = '';
     draw();
-    oneThingAsk('POST', { category: p.category, task: p.task, sub: sub || null },
-      function (j, err) {
-        if (!B.pick) return;
-        if (err) { p.saving = false; p.error = err; draw(); return; }
-        B.pick = null;
-        if (B.data) B.data.one_thing = j.one_thing;
-        draw();
-      });
+    oneThingAsk('POST', choice, function (j, err) {
+      if (!B.pick) return;
+      if (err) { p.saving = false; p.error = err; draw(); return; }
+      B.pick = null;
+      if (B.data) B.data.one_thing = j.one_thing;
+      oneThingSaid(j.one_thing);
+      draw();
+    });
+  }
+
+  function pickSaveHere(sub) {
+    var p = B.pick;
+    pickSave({ category: p.category, task: p.task, sub: sub || null });
   }
 
   function oneThingClear() {
     oneThingAsk('POST', { clear: true }, function (j, err) {
       if (err) { B.error = err; draw(); return; }
       if (B.data) B.data.one_thing = null;
+      oneThingSaid(null);
       draw();
     });
   }
@@ -5797,20 +5813,22 @@
     p.error = '';
     if (level === 'category') { p.category = item; p.level = 'task'; }
     else if (level === 'task') { p.task = item; p.level = 'sub'; }
-    else { pickSave(item); return; }
+    else { pickSaveHere(item); return; }
     draw();
   }
 
-  // Picked from a search outside the category: its category and task are
-  // filled in, and a sub task picked that way is saved straight away.
+  // Picked from a search across every level: its category and task are
+  // filled in, a task picked that way goes on to its sub tasks, and a sub
+  // task picked that way is saved straight away.
   function pickWent(go) {
     var p = B.pick;
     p.query = '';
     p.error = '';
     p.category = go.category;
+    if (!go.task) { p.task = null; p.level = 'task'; draw(); return; }
     p.task = go.task;
     p.level = 'sub';
-    if (go.sub) { pickSave(go.sub); return; }
+    if (go.sub) { pickSaveHere(go.sub); return; }
     draw();
   }
 
@@ -5824,23 +5842,38 @@
     draw();
   }
 
+  function taskRef(t) { return { id: t.id, name: t.name, href: t.href || '' }; }
+  function subRef(s) { return { id: s.id, name: s.name, href: s.href || '', path: s.path || [] }; }
+
+  // Where a sub task sits, under its task: "108-04 · in Task name › a step".
+  function subWhere(s, t) {
+    var at = [t ? t.name : ''].concat(s.path || []).filter(Boolean).join(' › ');
+    return [s.n || '', at ? 'in ' + at : ''].filter(Boolean).join(' · ');
+  }
+
   // What Rouh has at the level the picker is at.
   function pickItems(p) {
     var o = p.offered || { categories: [], tasks: [] };
     if (p.level === 'category') {
-      return o.categories.map(function (c) { return { id: c.id, name: c.name, hint: c.side }; });
+      return o.categories.map(function (c) {
+        return { id: c.id, name: c.name, kind: 'category', hint: c.side ? 'in ' + c.side : '' };
+      });
     }
     if (p.level === 'task') {
       return (p.category.id ? o.tasks.filter(function (t) { return t.category === p.category.id; })
                             : []).map(function (t) {
         var hint = [t.n != null ? '#' + t.n : '', t.done ? 'Done' : ''].filter(Boolean).join(' · ');
         // Its number is found as well as its name: "74" finds task 74.
-        return { id: t.id, name: t.name, hint: hint, also: t.n != null ? String(t.n) : '' };
+        return { id: t.id, name: t.name, href: t.href || '', kind: 'task', hint: hint,
+                 also: t.n != null ? String(t.n) : '' };
       });
     }
     var task = p.task.id ? o.tasks.filter(function (t) { return t.id === p.task.id; })[0] : null;
-    return task ? task.subs.map(function (s) {
-      return { id: s.id, name: s.name, hint: s.n || '', also: s.n || '' };
+    // Every step under the task, however deep, each with the steps above it.
+    return task ? (task.subs || []).map(function (s) {
+      return { id: s.id, name: s.name, href: s.href || '', path: s.path || [], kind: 'sub',
+               depth: s.depth || 1, hint: [s.n || '', (s.path || []).length ? 'in ' +
+                 s.path.join(' › ') : ''].filter(Boolean).join(' · '), also: s.n || '' };
     }) : [];
   }
 
@@ -5861,10 +5894,23 @@
     return !!it.also && (it.also + ' ' + it.name.toLowerCase()).indexOf(q) === 0;
   }
 
-  // Tasks and sub tasks outside the category the picker is in, for a search
-  // that finds nothing there: Petar typed "108-04" under Various on 20 October
-  // 2026 and was told none of his matched, because task 108 is in another
-  // category (fr_319eeb5fa992). Picking one fills in its category and task.
+  // A sub task by its name only once three letters are typed, and only at
+  // the start of a word, or "ups" would offer every step with "groups".
+  function subMatches(s, q) {
+    var named = s.name.toLowerCase();
+    if (s.n && (s.n + ' ' + named).indexOf(q) === 0) return true;
+    if (q.length < 3) return false;
+    var at = named.indexOf(q);
+    while (at > 0 && /[a-z0-9]/.test(named.charAt(at - 1))) at = named.indexOf(q, at + 1);
+    return at >= 0;
+  }
+
+  // Everything outside the level the picker is at that a search finds:
+  // tasks in other categories and sub tasks at any depth of any task.
+  // Petar, 8 November 2026 (fr_7bfe96b7672b): "I should be able to search not
+  // only categories, but also tasks and subtasks any level." Each says what it
+  // is and where it sits, so two with the same name are told apart. Until then
+  // this was only asked when nothing matched at the level itself (fr_319eeb5fa992).
   function pickElsewhere(p, q) {
     var o = p.offered || { categories: [], tasks: [] };
     if (!q || p.level === 'sub') return [];
@@ -5875,38 +5921,31 @@
     o.tasks.forEach(function (t) {
       var cat = cats[t.category];
       if (!cat) return;
-      var task = { id: t.id, name: t.name };
+      var catRef = { id: cat.id, name: cat.name };
       var also = t.n != null ? String(t.n) : '';
       if (t.category !== here && pickMatches({ name: t.name, also: also }, q)) {
-        tasks.push({ name: t.name, also: also,
-          hint: [also ? '#' + also : '', cat.name, t.done ? 'Done' : ''].filter(Boolean).join(' · '),
-          go: { category: { id: cat.id, name: cat.name }, task: task } });
+        tasks.push({ name: t.name, also: also, kind: 'task',
+          hint: [also ? '#' + also : '', 'in ' + cat.name, t.done ? 'Done' : ''].filter(Boolean).join(' · '),
+          go: { category: catRef, task: taskRef(t) } });
       }
-      // A sub task by its name only once three letters are typed, and only
-      // at the start of a word, or "ups" would offer every step with "groups".
       (t.subs || []).forEach(function (s) {
-        var named = s.name.toLowerCase();
-        var byNumber = !!s.n && (s.n + ' ' + named).indexOf(q) === 0;
-        var at = named.indexOf(q);
-        while (at > 0 && /[a-z0-9]/.test(named.charAt(at - 1))) at = named.indexOf(q, at + 1);
-        if (!byNumber && (q.length < 3 || at < 0)) return;
-        steps.push({ name: s.name, also: s.n || '',
-          hint: [s.n, t.name].filter(Boolean).join(' · '),
-          go: { category: { id: cat.id, name: cat.name }, task: task,
-                sub: { id: s.id, name: s.name } } });
+        if (!subMatches(s, q)) return;
+        steps.push({ name: s.name, also: s.n || '', kind: 'sub', hint: subWhere(s, t),
+          go: { category: catRef, task: taskRef(t), sub: subRef(s) } });
       });
     });
-    return tasks.concat(steps).slice(0, 20);
+    return tasks.concat(steps).slice(0, 30);
   }
 
   var LEVEL_WORDS = { category: 'category', task: 'task', sub: 'sub task' };
+  var KIND_WORDS = { category: 'Category', task: 'Task', sub: 'Subtask' };
 
   function drawPicker(sec) {
     var p = B.pick;
     var box = el('div', 'bf-pick');
     var steps = el('ol', 'bf-pick-steps');
     steps.setAttribute('aria-label', 'Steps');
-    [['category', '1. Category'], ['task', '2. Task'], ['sub', '3. Sub task (optional)']]
+    [['category', '1. Category'], ['task', '2. Task (optional)'], ['sub', '3. Sub task (optional)']]
       .forEach(function (s) {
         var li = el('li', s[0] === p.level ? 'on' : '', s[1]);
         if (s[0] === p.level) li.setAttribute('aria-current', 'step');
@@ -5917,37 +5956,50 @@
     if (so.length) box.appendChild(el('p', 'bf-pick-so', so.join(' › ')));
 
     var word = LEVEL_WORDS[p.level];
-    var label = el('label', 'bf-pick-label', p.level === 'sub'
-      ? 'Pick a sub task, type one, or keep just the task'
-      : 'Pick a ' + word + ' or type a new one');
+    var first = p.level === 'category';
+    var label = el('label', 'bf-pick-label', first
+      ? 'Search your categories, tasks and subtasks, or write your own focus'
+      : p.level === 'sub'
+        ? 'Pick a sub task, type one, or keep just the task'
+        : 'Pick a task, search any task or subtask, or type a new one');
     var input = el('input', 'bf-pick-input');
     input.type = 'text';
     input.maxLength = 200;
     input.value = p.query;
-    input.placeholder = 'Find or type a ' + word;
+    input.placeholder = first ? 'Search, or write what your focus is' : 'Find or type a ' + word;
     input.id = 'bfPickInput';
+    input.setAttribute('autocomplete', 'off');
     label.htmlFor = input.id;
     box.appendChild(label);
     box.appendChild(input);
 
+    // His own words as the focus: first, above whatever the search finds, so
+    // it is there to press even when something matches.
+    var own = el('button', 'bf-pick-add bf-pick-own');
+    own.type = 'button';
+    if (first) box.appendChild(own);
+
     var list = el('ul', 'bf-pick-list');
-    list.setAttribute('aria-label', 'Your ' + word + (p.level === 'category' ? ' list' : 's'));
+    list.setAttribute('aria-label', first ? 'What your search found' : 'Your ' + word + 's');
     box.appendChild(list);
     var add = el('button', 'bf-pick-add');
     add.type = 'button';
-    box.appendChild(add);
+    if (!first) box.appendChild(add);
 
     function refill() {
       var q = pickQuery(p.query);
       var all = pickItems(p);
-      var shown = all.filter(function (it) { return pickMatches(it, q); });
-      var far = shown.length ? [] : pickElsewhere(p, q);
+      var shown = all.filter(function (it) {
+        return it.kind === 'sub' ? (!q || subMatches(it, q) || pickMatches(it, q)) : pickMatches(it, q);
+      });
+      var far = pickElsewhere(p, q);
       list.textContent = '';
       if (!p.offered) list.appendChild(el('li', 'bf-note', 'Reading your projects…'));
-      else if (!all.length && !far.length) {
-        list.appendChild(el('li', 'bf-note', p.offered.note && p.level === 'category'
+      else if (!all.length && !far.length && !q) {
+        list.appendChild(el('li', 'bf-note', p.offered.note && first
           ? p.offered.note
-          : 'Nothing here yet: type a ' + word + ' of your own.'));
+          : first ? 'No categories yet: write your own focus.'
+                  : 'Nothing here yet: type a ' + word + ' of your own.'));
       } else if (!shown.length && !far.length) {
         list.appendChild(el('li', 'bf-note', 'None of yours match.'));
       }
@@ -5955,17 +6007,25 @@
         var li = el('li');
         var b = el('button', 'bf-pick-item');
         b.type = 'button';
-        b.appendChild(el('span', 'bf-pick-name', it.name));
-        if (it.hint) b.appendChild(el('span', 'bf-pick-hint', it.hint));
+        if (it.depth > 1) b.style.paddingLeft = (8 + 14 * (it.depth - 1)) + 'px';
+        b.appendChild(el('span', 'bf-pick-kind bf-pick-kind-' + it.kind, KIND_WORDS[it.kind]));
+        var text = el('span', 'bf-pick-text');
+        text.appendChild(el('span', 'bf-pick-name', it.name));
+        if (it.hint) text.appendChild(el('span', 'bf-pick-hint', it.hint));
+        b.appendChild(text);
         b.disabled = p.saving;
         b.addEventListener('click', function () {
           if (it.go) pickWent(it.go);
-          else pickChose(p.level, { id: it.id, name: it.name });
+          else pickChose(p.level, it.kind === 'sub' ? subRef(it)
+            : it.kind === 'task' ? taskRef(it) : { id: it.id, name: it.name });
         });
         li.appendChild(b);
         list.appendChild(li);
       });
       var typed = p.query.trim();
+      own.hidden = !typed;
+      own.textContent = 'Make “' + typed + '” today’s focus, in your own words';
+      own.disabled = p.saving;
       var same = all.some(function (it) {
         return it.name.toLowerCase() === typed.toLowerCase() || (!!it.also && it.also === q);
       });
@@ -5975,8 +6035,15 @@
     }
     input.addEventListener('input', function () { p.query = input.value; refill(); });
     input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !add.hidden) { e.preventDefault(); add.click(); }
+      if (e.key === 'Enter') {
+        var go = first ? own : add;
+        if (!go.hidden) { e.preventDefault(); go.click(); }
+      }
       if (e.key === 'Escape') { e.preventDefault(); B.pick = null; draw(); }
+    });
+    own.addEventListener('click', function () {
+      var typed = p.query.trim();
+      if (typed) pickSave({ text: typed });
     });
     add.addEventListener('click', function () {
       var typed = p.query.trim();
@@ -5985,15 +6052,22 @@
     refill();
 
     var row = el('div', 'bf-pick-row');
-    var back = el('button', 'bf-btn', p.level === 'category' ? 'Cancel' : 'Back');
+    var back = el('button', 'bf-btn', first ? 'Cancel' : 'Back');
     back.type = 'button';
     back.addEventListener('click', pickBack);
     row.appendChild(back);
+    if (p.level === 'task') {
+      var only = el('button', 'bf-btn', 'Just the category');
+      only.type = 'button';
+      only.disabled = p.saving;
+      only.addEventListener('click', function () { pickSave({ category: p.category }); });
+      row.appendChild(only);
+    }
     if (p.level === 'sub') {
       var none = el('button', 'bf-btn primary', 'No sub task, just the task');
       none.type = 'button';
       none.disabled = p.saving;
-      none.addEventListener('click', function () { pickSave(null); });
+      none.addEventListener('click', function () { pickSaveHere(null); });
       row.appendChild(none);
     }
     if (p.saving) row.appendChild(el('span', 'bf-note', 'Saving…'));
@@ -6023,10 +6097,21 @@
       sec.appendChild(row);
       return null;
     }
-    var main = chosen.sub || chosen.task;
-    sec.appendChild(el('p', 'bf-one-name', main.name));
-    sec.appendChild(dotted(el('p', 'bf-one-ctx'), [
-      chosen.category.name, chosen.sub ? chosen.task.name : '']));
+    var name = el('p', 'bf-one-name');
+    if (chosen.text) {
+      name.textContent = chosen.text;
+      sec.appendChild(name);
+      sec.appendChild(el('p', 'bf-one-ctx', 'In your own words'));
+    } else {
+      var main = chosen.sub || chosen.task || chosen.category;
+      if (main.href) name.appendChild(goLink(el('a', 'bf-one-link', main.name), main.href));
+      else name.textContent = main.name;
+      sec.appendChild(name);
+      sec.appendChild(dotted(el('p', 'bf-one-ctx'), chosen.task
+        ? [chosen.category.name, chosen.sub ? [chosen.task.name].concat(chosen.sub.path || [])
+          .join(' › ') : '']
+        : ['Category']));
+    }
     var change = el('button', 'bf-btn', 'Change');
     change.type = 'button';
     change.addEventListener('click', pickStart);

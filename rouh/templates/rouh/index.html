@@ -389,6 +389,20 @@ with {% asset %}, which gives it its hashed address.
          beside the person's own name, and off the screen on 13 October 2026. {% endcomment %}
     <div class="sb-head">
       <div class="brand"><span class="brand-dot" aria-hidden="true"></span> <span class="brand-name">Rouh</span></div>
+      {% comment %} Today's focus, the one thing picked on the morning brief (`rouh/one_thing.py`,
+           app/focus.js), in the brand's place while one is set. Petar, 8 November 2026
+           (fr_7bfe96b7672b): "Once set for the day, I would like a spot that will remind me of
+           this. maybe in the navigation on the very top in some color? ... if it is a task, I
+           should be able to click it." A task or a sub task opens its page; his own words or
+           a category open the brief, where it is changed or cleared. {% endcomment %}
+      <a id="focusChip" class="sb-focus" href="/brief" hidden>
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor"/>
+        </svg>
+        <span class="sb-focus-word">Today</span>
+        <span class="sb-focus-name" id="focusName"></span>
+      </a>
       {% comment %} Home, the house's lights and devices (`homepage.js`), across from
            Rouh's name. Petar, 17 October 2026: "a house icon in the top, right
            corner of the navigation, across from Rouh 'logo'". The same control

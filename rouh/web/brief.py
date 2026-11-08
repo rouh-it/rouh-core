@@ -16,8 +16,8 @@
                                    channels, and the place the weather is for (the
                                    person's location, which is changed under Location)
     POST /api/settings/brief       save them: {on, time, channels}
-    GET  /api/brief/one-thing      today's one thing, and what the picker offers
-    POST /api/brief/one-thing      choose it: {category, task, sub}, or {clear: true}
+    GET  /api/brief/one-thing      today's one thing, and what the picker offers (?only=chosen: the choice)
+    POST /api/brief/one-thing      choose it: {category, task?, sub?}, {text}, or {clear: true}
     GET  /api/brief/event          one event of its calendar, whole: ?calendar=&event=
     POST /api/brief/event/answer   answer its invitation: {calendar, event, response}
     GET  /api/brief/event/prep     Before you meet: who from outside is coming, and the
@@ -246,6 +246,11 @@ async def brief_one_thing(request: HttpRequest):
                 await sync_to_async(one_thing.choose)(me, sent)
         except one_thing.Refused as exc:
             return refuse(str(exc), 400)
+        return answer({"ok": True, "one_thing": await sync_to_async(one_thing.chosen)(me)},
+                      headers=NO_STORE)
+    # Only today's choice, for the reminder at the top of the navigation (`app/focus.js`),
+    # which asks on every page and needs none of the picker's lists.
+    if request.GET.get("only") == "chosen":
         return answer({"ok": True, "one_thing": await sync_to_async(one_thing.chosen)(me)},
                       headers=NO_STORE)
     try:

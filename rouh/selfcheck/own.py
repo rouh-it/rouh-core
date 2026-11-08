@@ -448,6 +448,44 @@ def beats_page_reads_approvals_and_cap() -> None:
         HeartbeatState.objects.filter(user_id=who.user_id).delete()
 
 
+@check("own", "the morning brief's focus picker is offered the projects",
+       "the one thing's picker is handed every category, task and step at any depth out of the "
+       "task browser's own rows, rather than told the projects could not be read", needs_db=True)
+def one_thing_picker_reads() -> None:
+    """8 November 2026: the focus picker on the brief had no categories, again (fr_7bfe96b7672b).
+
+    `objectindex.index_data` reads `demo.browser_marks(person)["demo"]`, and with nobody
+    reading it, as the picker asks (`one_thing.options`), the answer had no `demo` key: every
+    call raised KeyError and the picker said "Your projects could not be read just now". This
+    asks the task browser's data the way the picker does, and checks that a step under a step
+    reaches the picker with the step above it named.
+    """
+    import tempfile
+
+    from rouh import demo, objectindex, one_thing
+
+    marks = demo.browser_marks(None)
+    expect({"on", "demo", "shown"} <= set(marks),
+           f"demo.browser_marks(None) answers {sorted(marks)}, without every key index_data reads")
+    with tempfile.TemporaryDirectory() as root:
+        data = objectindex.index_data(objectindex._store(), root)
+    offered = one_thing.from_index(data)
+    expect(offered.get("ok") and isinstance(offered.get("categories"), list)
+           and isinstance(offered.get("tasks"), list), "the picker was not offered lists of projects")
+    shaped = {"sides": [{"id": "w", "name": "Work"}],
+              "categories": [{"id": "c", "name": "A project", "side": "w"}],
+              "tasks": [{"id": "t", "name": "A task", "n": 7, "href": "/workspace/_task/w/7.t/", "category": "c",
+                         "status": "open", "archived": False, "made": None,
+                         "steps": [{"href": "/workspace/_task/w/7.t/7-01.a/", "title": "A step", "num": "7-01", "made": None,
+                                    "kids": [{"href": "/workspace/_task/w/7.t/7-01.a/7-01-01.b/", "title": "A deeper step",
+                                              "num": "7-01-01", "made": None, "kids": []}]}]}]}
+    subs = one_thing.from_index(shaped)["tasks"][0]["subs"]
+    expect([s["name"] for s in subs] == ["A step", "A deeper step"],
+           f"the picker's sub tasks are {[s['name'] for s in subs]}, not every step at every depth")
+    expect(subs[1]["path"] == ["A step"] and subs[1]["href"] == "/task/w/7.t/7-01.a/7-01-01.b",
+           "a step under a step does not name the step above it or keep its address")
+
+
 @check("own", "Rouh's server starts and answers",
        "Rouh's server comes up on this base and its health page says ok", needs_db=True)
 def server_starts() -> None:

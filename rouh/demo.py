@@ -567,7 +567,11 @@ def browser_marks(who) -> dict:
     """What the task browser is told: whether demo mode (or its preview) is on, so it draws the
     purple dots, and every number approved, for Shown in demo, on or off."""
     if who is None:
-        return {"on": False, "shown": []}
+        # Every answer has the same three keys: `index_data` reads `demo` on every call, and a
+        # call with nobody reading it (the one thing's picker, `rouh/one_thing.py`) had none, so
+        # from 7 November 2026 the picker said "Your projects could not be read just now" to
+        # everybody (fr_7bfe96b7672b).
+        return {"on": False, "demo": False, "shown": []}
     seen = PAGE_LENS.get()
     lens = seen
     try:

@@ -31,6 +31,11 @@
   --warn: #f2b45e;
   --bad: #ff7a70;
   --user: #9d8cff;
+  /* Today's focus at the top of the navigation (app/focus.js): a sunlit yellow, lighter than
+     --warn and never a button's, with a target and the word Today beside it. */
+  --focus: #ffd76a;
+  --focus-soft: rgba(255, 215, 106, 0.12);
+  --focus-line: rgba(255, 215, 106, 0.38);
   /* The projects' colours, the task browser's own (`taskbrowser.css`), for
      what this page draws in a task's project colour: a fork that became a
      task (`taskMark`). A project's colour is one of these names or a hex. */
@@ -161,6 +166,23 @@ button { font: inherit; color: inherit; }
   font-weight: 600; font-size: 13.5px; letter-spacing: 0.01em;
 }
 .brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Today's focus (app/focus.js), in the brand's place while one is set: a target, the word
+   Today and the name, cut short with its whole in the hover text. */
+.sb-head.has-focus .brand { display: none; }
+.sb-focus {
+  flex: 1 1 auto; min-width: 0; max-width: max-content;
+  display: flex; align-items: center; gap: 6px;
+  min-height: var(--top-chip); padding: 0 10px 0 8px; border-radius: 999px;
+  border: 1px solid var(--focus-line); background: var(--focus-soft); color: var(--focus);
+  font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer;
+}
+.sb-focus[hidden] { display: none; }
+.sb-focus:hover { background: rgba(255, 215, 106, 0.2); }
+.sb-focus:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sb-focus svg { flex: 0 0 auto; display: block; }
+.sb-focus-word { flex: 0 0 auto; font-size: 12px; font-weight: 700; }
+.sb-focus-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+@media (pointer: coarse) { .sb-focus { min-height: 44px; } }
 .brand-dot {
   flex: 0 0 auto;
   width: 9px; height: 9px; border-radius: 50%;

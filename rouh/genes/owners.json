@@ -1006,7 +1006,8 @@
     "rouh/birthdays.py",
     "rouh/web/brief.py",
     "rouh/static/briefpage.*",
-    "rouh/static/briefdoodle.js"
+    "rouh/static/briefdoodle.js",
+    "rouh/static/app/focus.js"
    ]
   },
   "thoughts": {
