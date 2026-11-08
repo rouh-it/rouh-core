@@ -109,7 +109,8 @@ def said(found: list[dict], zone, *, sending: bool, now: float | None = None) ->
     for one in found[:MOST_SAID]:
         who = f"{one['name']} <{one['email']}>" if one.get("name") else one["email"]
         at = datetime.fromtimestamp(one["at"], zone)
-        days = int((now - one["at"]) // 86400)
+        # Days on the person's calendar: written Saturday evening, read Sunday, is yesterday.
+        days = (datetime.fromtimestamp(now, zone).date() - at.date()).days
         ago = "today" if days <= 0 else "yesterday" if days == 1 else f"{days} days ago"
         lines.append(f"- {who} asked on {at:%A} {at.day} {at:%B} ({ago}), in {one['subject']!r}: "
                      f"\"{one['ask']}\" Open: {ghosts.link_to(one['mailbox'], one['thread_id'])}")
