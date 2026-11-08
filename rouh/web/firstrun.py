@@ -492,8 +492,8 @@ def _choose(user, connected: bool) -> None:
     except birth.Refused as exc:
         log.info("first run: Connected, but not registered on rouh.land: %s", exc)
         return
-    # Its own address on the relay, asked for now and kept; nothing is open to the internet until
-    # the owner presses "Reach me from my phone" (`rouh/relay.py`).
+    # Its own address on the relay, asked for now, and open as soon as it is granted (Petar,
+    # 8 November 2026: "the relay should be working immediately at the registration", `rouh/relay.py`).
     from rouh import relay
 
     if relay.enabled() and not relay.hostname():

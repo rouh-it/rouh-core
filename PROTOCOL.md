@@ -709,7 +709,7 @@ An error is 4xx with `{"error": "<one plain sentence>"}`, shown to the owner as 
 
 ### frpc
 
-Started only when the owner presses Reach me from my phone, with frp's client of the version `rouh/relay.py` pins (and the base image carries).
+Started the moment the claim is granted, at birth (since 8 November 2026; before, only when the owner pressed Reach me from my phone), and kept off only once the owner turns it off, with frp's client of the version `rouh/relay.py` pins (and the base image carries).
 `user` is the label, `metadatas.token` the pass, the token and the pass read from frpc's environment and never written to its file; `loginFailExit = false`, so it reconnects by itself, with a heartbeat every 30 seconds.
 Two proxies, both `customDomains = [<hostname>]`:
 

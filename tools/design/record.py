@@ -292,9 +292,16 @@ def _sign_in(page, base: str, user: str, password: str) -> None:
     pw = page.locator("input[type=password]")
     if not pw.count() or not pw.first.is_visible():
         page.locator("button[type=submit]").first.click()
+        page.wait_for_load_state("load")
+        # Email first: the link and code by email, and the password closed under "Can't get the email?".
+        closed = page.locator("details:has(input[type=password]) > summary")
+        if closed.count() and not pw.first.is_visible():
+            closed.first.click()
         pw.first.wait_for(state="visible", timeout=15000)
     pw.first.fill(password)
-    page.locator("button[type=submit]:visible").first.click()
+    # The password's own form's button: the page may hold another form above it (the email's code).
+    own = pw.first.locator("xpath=ancestor::form[1]//button[@type='submit']")
+    (own if own.count() else page.locator("button[type=submit]:visible")).first.click()
     page.wait_for_url(lambda u: "/login" not in u, timeout=20000)
 
 

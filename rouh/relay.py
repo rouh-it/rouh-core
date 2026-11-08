@@ -9,10 +9,13 @@ given an address of its own, ``<its-name>.<the relay's domain>``, by the birth s
    the way the Gene Pool's requests are (`genepool._sign`), with its birth statement so the
    service can work its name out of its birth key (`rouh/names`). It gets back its hostname and
    its credentials for the relay. An "On its own" Rouh claims nothing and opens nothing.
-2. **Off until the owner presses.** The address is kept from birth, and nothing is open to the
-   internet until the owner presses "Reach me from my phone" (Settings, Connections, Phone, where
-   the chat's setup step sends them). Then the Rouh starts frp's client, ``frpc``, which keeps one
-   line open to the relay and reconnects by itself whenever the relay or the network goes away.
+2. **Open from birth.** Petar, 8 November 2026: "the relay should be working immediately at the
+   registration." So the moment the claim is granted the address is on (`open_by_itself`): the
+   Rouh starts frp's client, ``frpc``, which keeps one line open to the relay and reconnects by
+   itself whenever the relay or the network goes away, and gets its certificate. Until 8 November
+   it waited for the owner to press "Reach me from my phone", so a newborn Rouh showed an address
+   that answered nothing (ERR_SSL_UNRECOGNIZED_NAME_ALERT: the relay had no route for the name).
+   The owner can still turn it off (Settings, Connections, Phone), and off stays off.
 3. **The relay never sees plain text.** Two ways in come through that line, both for this name
    only: HTTPS, which the relay routes by the name in the TLS hello and passes on still locked,
    unlocked here by frpc with this Rouh's own certificate and handed to Rouh's web server; and
@@ -279,6 +282,8 @@ def linked_later(user=None, *, claim: bool = True) -> None:
         log.info("relay: linked to rouh.land after birth, so Connected")
     if claim and not hostname():
         claim_soon(user)
+    else:
+        open_by_itself(user)
 
 
 def in_account() -> bool:
@@ -386,11 +391,51 @@ def claim(user=None, *, rotate: bool = False) -> dict:
         mark=read().get("mark") or secrets.token_urlsafe(24))
     allow_host(host)
     log.info("relay: %s claimed %s", me["name"], host)
+    try:
+        open_by_itself(user)
+    except Exception:  # noqa: BLE001 - opened again at the next start
+        log.exception("relay: the address could not be opened after the claim")
     return {"state": "granted", "address": address(held)}
 
 
+def open_by_itself(user=None) -> bool:
+    """A Connected Rouh's address is on from birth, unless its owner turned it off: on, and frpc
+    started (the supervisor claims again by itself if the claim at birth did not get through).
+    "on" missing means nobody ever chose; Turn off writes False, which is kept."""
+    if not enabled():
+        return False
+    held = read()
+    if "on" not in held:
+        if chose_connected(user) is not True:
+            return False
+        held = _change(on=True, on_at=time.time(), on_by="birth",
+                       mark=held.get("mark") or secrets.token_urlsafe(24))
+        log.info("relay: the address is on from birth")
+    if held.get("on"):
+        _wake()
+    return bool(held.get("on"))
+
+
+#: Rouh's own event loop, kept by `start`, so a thread (the claim at birth) can start the supervisor.
+_LOOP: asyncio.AbstractEventLoop | None = None
+
+
+def _wake() -> None:
+    loop = _LOOP
+    if loop is None or loop.is_closed():
+        return
+    try:
+        if asyncio.get_running_loop() is loop:
+            SUPERVISOR.start()
+            return
+    except RuntimeError:
+        pass
+    loop.call_soon_threadsafe(SUPERVISOR.start)
+
+
 def claim_soon(user) -> None:
-    """The claim at birth, in a thread of its own, so the first run's screens never wait for it."""
+    """The claim at birth, in a thread of its own, so the first run's screens never wait for it;
+    then the address is opened, granted or not (the supervisor asks again until it is)."""
     def go():
         try:
             claim(user)
@@ -398,6 +443,10 @@ def claim_soon(user) -> None:
             log.info("relay: no address at birth yet: %s", exc)
         except Exception:  # noqa: BLE001 - asked again by the supervisor or the Settings page
             log.exception("relay: the claim at birth failed")
+        try:
+            open_by_itself(user)
+        except Exception:  # noqa: BLE001 - tried again at the next start
+            log.exception("relay: the address could not be opened at birth")
         finally:
             from django.db import connection
 
@@ -744,6 +793,11 @@ class Supervisor:
         env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": folder(),
                "ROUH_FRP_TOKEN": _open(held, "auth_token"), "ROUH_FRP_SECRET": _open(held, "secret"),
                "ROUH_FRP_ADMIN": self.admin_password}
+        # frpc reaches the relay through the proxy this Rouh is behind, if it is behind one
+        # (frp reads http_proxy for transport.proxyURL).
+        proxy = os.environ.get("http_proxy") or os.environ.get("HTTP_PROXY") or ""
+        if proxy:
+            env["http_proxy"] = proxy
         logfile = os.path.join(folder(), "frpc.log")
         with contextlib.suppress(OSError):
             if os.path.getsize(logfile) > 2_000_000:
@@ -788,6 +842,10 @@ class Supervisor:
                     return
                 if not held.get("hostname"):
                     self._set("connecting", "Asking the relay for this Rouh's address.")
+                    # The claim at birth may still be on its way: one claim at a time.
+                    await asyncio.to_thread(claim_waited, TIMEOUT + 5)
+                    held = read()
+                if not held.get("hostname"):
                     try:
                         await asyncio.to_thread(claim)
                     except Refused as exc:
@@ -858,12 +916,20 @@ SUPERVISOR = Supervisor()
 
 async def start() -> None:
     """At Rouh's start: the claimed name allowed, and frpc started again if the address is on."""
+    global _LOOP
     if not enabled():
         return
+    _LOOP = asyncio.get_running_loop()
     held = await asyncio.to_thread(read)
     if held.get("hostname"):
         allow_host(held["hostname"])
-    if held.get("on"):
+    # A Connected Rouh never turned on or off (born before 8 November 2026, or its claim at birth
+    # never got through) is opened now, as one born today is.
+    try:
+        await asyncio.to_thread(open_by_itself)
+    except Exception:  # noqa: BLE001 - never in the way of Rouh starting
+        log.exception("relay: the address could not be opened by itself")
+    if (await asyncio.to_thread(read)).get("on"):
         SUPERVISOR.start()
 
 
