@@ -183,3 +183,6 @@
 /* You, Your account: its headline and its cards (`signinpage.js`) with the same gap as the page's own. */
 #signInBody { display: grid; gap: 12px; }
 #signInBody .yr-headline { margin-bottom: 2px; }
+
+/* The Rouh's own name, orange as on every screen (task 176): the tile's value, not its dot. */
+.yr-tile.rouh-named .yr-tile-v { color: var(--rouh-name, #ff9a4d); }

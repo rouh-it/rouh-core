@@ -210,6 +210,11 @@ PASSWORD_HASHERS = [
 #: a change there too. Ten characters, not twelve: Petar, 24 September 2026
 #: (fr_a5aa0123f5d1).
 AUTH_PASSWORD_VALIDATORS = [
+    # Letters, numbers, symbols and length, in that order on every form that sets a password
+    # (Petar, 8 November 2026, task 176; `rouh/password_rules.py`).
+    {"NAME": "rouh.password_rules.HasLetterValidator"},
+    {"NAME": "rouh.password_rules.HasNumberValidator"},
+    {"NAME": "rouh.password_rules.HasSymbolValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
      "OPTIONS": {"min_length": 10}},
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

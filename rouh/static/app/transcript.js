@@ -1335,7 +1335,10 @@ function restoreTranscript(entries) {
     var drew = drawStored(entries[i], null, last);
     if (drew) last = drew;
   }
-  if (last) {
+  // Not under Rouh's own first words alone, written into General as the first run ends
+  // (`firstrun.GREETING`): nothing came earlier than they did.
+  var talked = entries.some(function (e) { return e && !e.notice; });
+  if (last && talked) {
     noteUnder(last.turn, el('div', 'turn-note from-earlier', 'Everything above is from earlier.'));
   }
   // And where each fork of it came off, among the messages it came off.

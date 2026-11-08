@@ -970,6 +970,12 @@ def _link_url() -> str:
         return ""
 
 
+def _independent() -> str:
+    from .birth import INDEPENDENT
+
+    return INDEPENDENT
+
+
 def status() -> dict:
     """What Settings and the born screen show: the real state, the address, the traffic."""
     held = read()
@@ -982,6 +988,7 @@ def status() -> dict:
     return {
         "relay": enabled(),
         "connected_choice": chose_connected(),
+        "independent": _independent(),
         "address": address(held),
         "hostname": held.get("hostname") or "",
         "domain": domain(),

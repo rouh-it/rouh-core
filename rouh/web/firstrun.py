@@ -7,29 +7,38 @@ Rouh for Mac or with ``docker compose up``, and Rouh's page takes them through
 the first run, one thing per screen, each at its own address so Back, a reload
 and a restart of Rouh land where the person was:
 
-1. ``/setup/you``: first and last name, both required, email, and a password.
-   One account, the owner's alone (decisions 1 and 2). The email is how the
-   owner signs in; the password is the way in while this Rouh cannot send
-   email yet (`rouh/signin.py`, 4 November 2026).
-2. ``/setup/connect``: Connected (free, recommended, chosen already) or On its
-   own. Connected is its birth: it is registered at once on the birth service
-   (``ROUH_BIRTH_URL``, rouh.land unless an installation names its own) with no
-   code and no account, which gives it its official name (`birth.be_born`), and
-   asks the relay for its own phone address (`rouh/relay.py`). On its own it stays
-   a free Rouh: no name, no keys, only the nickname its person gives it (Petar,
-   4 November 2026). If rouh.land cannot be reached, a Connected choice stays free
-   too, and is connected later on Your profile.
-3. ``/setup/born``: born, its name and birthday; or free, "Your Rouh is ready";
-   either way the human names the owner may give it (and change, on Anatomy, Rouh
-   Land Account, Rouh profile).
+1. ``/setup/connect``: an Independent Rouh or a Connected Rouh, two equal
+   choices, before anything about the person is asked, so they know whether
+   what they fill in is for an account or not (Petar, 8 November 2026, task 176).
+   Before the owner is made the choice is kept in the browser's session.
+   Connected is its birth: once the owner is made it is registered at once on
+   the birth service (``ROUH_BIRTH_URL``, rouh.land unless an installation names
+   its own) with no code and no account, which gives it its official name
+   (`birth.be_born`), and asks the relay for its own phone address
+   (`rouh/relay.py`). Independent: no name, no keys, only the nickname its person
+   gives it (Petar, 4 November 2026). If rouh.land cannot be reached, a Connected
+   choice stays independent too, and is connected later on Your profile. What the
+   independent kind is called is `birth.INDEPENDENT`, and nowhere else.
+2. ``/setup/you``: first and last name, both required, email, and a password,
+   whose rules are listed before typing and turn green as they are met. One
+   account, the owner's alone (decisions 1 and 2), kept on this computer. The
+   email is how the owner signs in; the password is the way in while this Rouh
+   cannot send email yet (`rouh/signin.py`, 4 November 2026).
+3. ``/setup/born``: born, its name (in orange, as on every later screen) and
+   birthday; or independent, "Your Rouh is ready". Either way it always answers
+   to Rouh, and the owner may give it a nickname (changed any time on Anatomy,
+   Rouh Land Account, Rouh profile).
 4. ``/setup/brain``: an Anthropic or OpenAI key, required, with each company's
-   guide built in and the key checked the moment it is pasted (decision 3).
+   guide shown beside the box from the start and the key checked the moment it
+   is pasted (decision 3).
 
 No screen shows, asks for or mentions recovery words or keys. The words were the
 fourth screen until 4 November 2026.
 
-Then the chat, which takes over for Google, Telegram, the phone and getting to
-know the person (decision 5; the built-in rule ``new-rouh``).
+Then General, the chat, with one message from Rouh already in it (`GREETING`)
+rather than the empty welcome with things to try (Petar, 8 November 2026); the
+chat takes over for Google, Telegram, the phone and getting to know the person
+(decision 5; the built-in rule ``new-rouh``).
 
 **The setup code.** Nobody ever types or sees it, and it is still what stops
 whoever reaches the page first from taking the installation, because no
@@ -83,10 +92,12 @@ log = logging.getLogger("rouh.firstrun")
 
 PATH = "/setup"
 #: The screens, in order, each at ``/setup/<screen>``.
-SCREENS = ("you", "connect", "born", "words", "brain")
+SCREENS = ("connect", "you", "born", "words", "brain")
 
 #: Where a right code is kept once it has been taken out of the address.
 SESSION_KEY = "firstrun_code"
+#: Independent or Connected, chosen before the owner is made, kept in the session until then.
+CHOICE_KEY = "firstrun_choice"
 #: The owner's way through the screens, in their own settings (`UserSetting`).
 SETTING = "first_run"
 
@@ -94,6 +105,11 @@ SETTING = "first_run"
 OPEN_IT_PROPERLY = "Open Rouh from the Rouh menu bar app on your Mac: press Open Rouh."
 WITH_DOCKER = "Running Docker yourself? Run this, then open the address it prints:"
 LINK_COMMAND = "docker compose exec core python manage.py setup_link"
+
+#: What Rouh has already said in General when the person first gets there (Petar, 8 November 2026,
+#: task 176): their first name as they typed it.
+GREETING = ("Hey, {name}, I will be your Rouh, we will continuously co-evolve into better and more capable "
+            "beings. The best place to start is to get some connections going on.")
 
 #: The two companies whose key gives Rouh a brain on this page: their chats and their terminals.
 COMPANIES = {
@@ -311,7 +327,10 @@ def _rouh_name(user) -> str:
 
 
 def _render(request: HttpRequest, screen: str, *, status: int = 200, **values) -> HttpResponse:
-    values.setdefault("step", {"you": 1, "connect": 2, "born": 3, "brain": 4, "key": 4}.get(screen, 0))
+    from rouh import birth
+
+    values.setdefault("step", {"connect": 1, "you": 2, "born": 3, "brain": 4, "key": 4}.get(screen, 0))
+    values.setdefault("independent", birth.INDEPENDENT)
     response = render(request, "rouh/firstrun.html", {"screen": screen, **values}, status=status)
     response["Cache-Control"] = "no-store"
     # No other site is told this page's address. Not "no-referrer", which
@@ -346,7 +365,7 @@ async def setup(request: HttpRequest) -> HttpResponse:
             return _go(PATH)
         if not owner:
             await request.session.aset(SESSION_KEY, given)
-            return _go(f"{PATH}/you")
+            return _go(f"{PATH}/connect")
         # The owner, signed in from this machine; the code that did it is dead at once.
         person = await asyncio.to_thread(the_owner)
         await asyncio.to_thread(new_code)
@@ -361,7 +380,7 @@ async def setup(request: HttpRequest) -> HttpResponse:
         if not code_file():
             raise Http404
         if await asyncio.to_thread(_kept, request):
-            return _go(f"{PATH}/you")
+            return _go(f"{PATH}/connect")
         return await asyncio.to_thread(_not_open, request)
     user = await request.auser()
     if not user.is_authenticated:
@@ -369,7 +388,17 @@ async def setup(request: HttpRequest) -> HttpResponse:
     return _go(await asyncio.to_thread(next_path, user))
 
 
-# --- 1. you --------------------------------------------------------------------------------------
+# --- 2. you --------------------------------------------------------------------------------------
+
+
+def _you_values(choice: str, said: dict, problems: dict) -> dict:
+    """What the you screen draws: what was typed, what was wrong, the password's rules from the
+    start (`rouh/password_rules.py`), and which kind of Rouh was chosen, which the words follow."""
+    from rouh import password_rules
+
+    return {"said": said, "problems": problems, "connected": choice == "connected",
+            "service": service_name(),
+            "password_rules": password_rules.for_page({"email": said.get("email", "")}, username_is_email=True)}
 
 
 def _make(request: HttpRequest) -> tuple[object | None, dict, dict]:
@@ -443,18 +472,26 @@ async def you(request: HttpRequest) -> HttpResponse:
         if request.method == "POST":
             log.warning("first run: a setup without the right code from %s", client_ip(request))
         return await asyncio.to_thread(_not_open, request, 403 if request.method == "POST" else 200)
+    choice = await request.session.aget(CHOICE_KEY)
+    if choice not in ("connected", "own"):
+        # Independent or Connected comes first, so the person knows what this is for.
+        return _go(f"{PATH}/connect")
     if request.method != "POST":
-        return await asyncio.to_thread(_render, request, "you", said={}, problems={})
+        return await asyncio.to_thread(lambda: _render(request, "you", **_you_values(choice, {}, {})))
     user, said, problems = await asyncio.to_thread(_make, request)
     if user is None:
-        return await asyncio.to_thread(_render, request, "you", said=said, problems=problems, status=400)
+        return await asyncio.to_thread(lambda: _render(request, "you", status=400,
+                                                       **_you_values(choice, said, problems)))
     await request.session.apop(SESSION_KEY, None)
+    await request.session.apop(CHOICE_KEY, None)
     await alogin(request, user, backend="rouh.accounts.CaseInsensitiveBackend")
     # Rouh's own scheduled work, for the owner just made, rather than at the next look.
     from rouh import runtime
 
     runtime.own_work_now()
-    return _go(f"{PATH}/connect")
+    # The kind chosen before the owner was made: Connected is its birth, now.
+    await asyncio.to_thread(_choose, user, choice == "connected")
+    return _go(f"{PATH}/born")
 
 
 # --- the screens after it, all the owner's -------------------------------------------------------
@@ -474,7 +511,7 @@ async def _owner_at(request: HttpRequest, screen: str):
     return user, None
 
 
-# --- 2. connected or on its own ------------------------------------------------------------------
+# --- 1. independent or connected -----------------------------------------------------------------
 
 
 def _choose(user, connected: bool) -> None:
@@ -482,11 +519,11 @@ def _choose(user, connected: bool) -> None:
 
     _save(user, connected=connected, chose_at=time.time())
     if not connected:
-        # On its own: a free Rouh, with no birth, no name and no keys (4 November 2026).
+        # Independent: no birth, no name and no keys (4 November 2026).
         return
     # Connected: born on rouh.land at once, with no code and no account (Petar, 28 October 2026),
     # which gives it its name, and the relay its address. If rouh.land cannot be reached or refuses,
-    # it stays a free Rouh, the first run goes on, and it connects later on Your profile.
+    # it stays independent, the first run goes on, and it connects later on Your profile.
     try:
         birth.connect(_who(user))
     except birth.Refused as exc:
@@ -501,6 +538,23 @@ def _choose(user, connected: bool) -> None:
 
 
 async def connect(request: HttpRequest) -> HttpResponse:
+    if request.method not in ("GET", "HEAD", "POST"):
+        return HttpResponse(status=405, headers={"Allow": "GET, HEAD, POST"})
+    if not await asyncio.to_thread(has_owner):
+        # The very first screen: nothing about the person yet, so the choice waits in the session.
+        if not code_file():
+            raise Http404
+        if not await asyncio.to_thread(_kept, request):
+            if request.method == "POST":
+                log.warning("first run: a choice without the right code from %s", client_ip(request))
+            return await asyncio.to_thread(_not_open, request, 403 if request.method == "POST" else 200)
+        if request.method == "POST" and request.POST.get("choice") in ("connected", "own"):
+            await request.session.aset(CHOICE_KEY, request.POST["choice"])
+            return _go(f"{PATH}/you")
+        held = await request.session.aget(CHOICE_KEY)
+        return await asyncio.to_thread(_render, request, "connect", chosen=held or "",
+                                       service=await asyncio.to_thread(service_name))
+    # An owner made before the choice came first (before 8 November 2026) chooses here, after.
     user, away = await _owner_at(request, "connect")
     if away:
         return away
@@ -510,7 +564,8 @@ async def connect(request: HttpRequest) -> HttpResponse:
             await asyncio.to_thread(_choose, user, choice == "connected")
             return _go(f"{PATH}/born")
     held = await asyncio.to_thread(record, user)
-    return await asyncio.to_thread(_render, request, "connect", connected=held.get("connected", True),
+    chosen = "" if "connected" not in held else ("connected" if held["connected"] else "own")
+    return await asyncio.to_thread(_render, request, "connect", chosen=chosen,
                                    service=await asyncio.to_thread(service_name))
 
 
@@ -554,10 +609,15 @@ def _address_at_birth(user) -> str:
 BORN_WAITS = 4.0
 
 
-def _name_it(user, first: str, last: str, nickname: str) -> None:
+def _name_it(user, nickname: str) -> None:
+    """The nickname, the only name asked for here: it always answers to Rouh, and a first and last
+    name for it are not asked for in the setup (Petar, 8 November 2026). Any it has are kept."""
     from rouh import birth
+    from rouh.models import RouhNickname
 
-    birth.set_human_names(_who(user), first=first, last=last, nickname=nickname)
+    nick = RouhNickname.objects.filter(org_id=str(user.org_id), user_id=str(user.pk)).first()
+    birth.set_human_names(_who(user), first=getattr(nick, "first_name", "") if nick else "",
+                          last=getattr(nick, "last_name", "") if nick else "", nickname=nickname)
     _save(user, named_at=time.time())
 
 
@@ -569,11 +629,10 @@ async def born(request: HttpRequest) -> HttpResponse:
         return away
     if request.method == "POST":
         try:
-            await asyncio.to_thread(_name_it, user, request.POST.get("first", ""), request.POST.get("last", ""),
-                                    request.POST.get("nickname", ""))
+            await asyncio.to_thread(_name_it, user, request.POST.get("nickname", ""))
         except birth.Refused as exc:
             values = await asyncio.to_thread(_born_values, user)
-            values["names"] = {k: request.POST.get(k, "") for k in ("first", "last", "nickname")}
+            values["names"] = {**values["names"], "nickname": request.POST.get("nickname", "")}
             return await asyncio.to_thread(_render, request, "born", problem=str(exc), status=400, **values)
         return _go(f"{PATH}/brain")
     return await asyncio.to_thread(_render, request, "born", **await asyncio.to_thread(_born_values, user))
@@ -746,6 +805,30 @@ def _brain_values(user) -> dict:
             "claude_later": claude_signin.enabled()}
 
 
+def _greet(user) -> None:
+    """Rouh's first words, already in General when the person lands there, so the first page after
+    the setup is the chat and not the empty welcome (Petar, 8 November 2026, task 176). Once only;
+    kept as a notice, which the page draws as Rouh's message and the model is never sent
+    (`Memory.add_notice`), so a conversation never opens on a turn nobody asked for."""
+    from rouh import runtime
+
+    if record(user).get("greeted_at"):
+        return
+    name = (getattr(user, "first_name", "") or "").strip() or _greeting_fallback(user)
+    try:
+        general = runtime.memory.ensure_general()
+        runtime.memory.add_notice(general, GREETING.format(name=name))
+        runtime.memory.set_active_chat(general)
+    except Exception:                               # noqa: BLE001 - the setup is over either way
+        log.exception("first run: the greeting could not be written into General")
+        return
+    _save(user, greeted_at=time.time())
+
+
+def _greeting_fallback(user) -> str:
+    return (getattr(user, "username", "") or "there").split("@")[0]
+
+
 async def brain(request: HttpRequest) -> HttpResponse:
     user, away = await _owner_at(request, "brain")
     if away:
@@ -754,6 +837,7 @@ async def brain(request: HttpRequest) -> HttpResponse:
         states = await asyncio.to_thread(key_states, user)
         if "ok" in states.values():
             await asyncio.to_thread(_save, user, done_at=time.time())
+            await asyncio.to_thread(_greet, user)
             return _go("/")
     return await asyncio.to_thread(_render, request, "brain", **await asyncio.to_thread(_brain_values, user))
 

@@ -1895,7 +1895,7 @@ def _join_state(org: str, mem, who) -> dict:
         return {"state": "off", "said": f"The {NAME} is switched off here (gene_pool, under Other switches in "
                                         "Evolution, Mutations): this Rouh does not join it."}
     if row is None:
-        return {"state": "unborn", "said": f"A free Rouh is not in the {NAME}. It joins by itself when you connect it "
+        return {"state": "unborn", "said": f"This {birth.INDEPENDENT} is not in the {NAME}. It joins by itself when you connect it "
                                            "to rouh.land, which is its birth."}
     if not row.registry_id:
         return {"state": "independent", "said": f"{row.name} is independent, with no account anywhere. It joins "

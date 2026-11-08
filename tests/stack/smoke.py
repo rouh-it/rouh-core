@@ -286,7 +286,7 @@ def first_run(s: Stack) -> None:
                 pg.click("button[type=submit]")
             elif pg.query_selector("button[value=own]"):
                 pg.click("button[value=own]")
-            elif pg.query_selector("#hFirst"):
+            elif pg.query_selector("#hNick"):
                 pg.click("button[type=submit]")
             elif pg.query_selector("#next"):
                 pg.eval_on_selector("#next", "e => e.hidden = false"); pg.click("#next")
@@ -307,7 +307,8 @@ def first_run(s: Stack) -> None:
         b.close()
 
 
-#: The owner's password, set on the first run's first screen (the way in while a Rouh cannot email).
+#: The owner's password, set on the first run's details screen (the way in while a Rouh cannot email): a
+#: letter, a number, a symbol and ten characters, as the password rules ask (task 176).
 STACK_PASSWORD = "stack-test-garden-hedgehog-91"
 
 

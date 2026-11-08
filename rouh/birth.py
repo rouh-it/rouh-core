@@ -414,8 +414,8 @@ def standing(row) -> dict:
     own before 4 November 2026, not registered since), "stopped" (rouh.land no longer accepts it),
     "waiting" (something asked on rouh.land waits)."""
     if row is None:
-        return {"kind": "free", "said": "A free Rouh. It works fine without rouh.land; connecting it gives it its "
-                                        "birth and its own name."}
+        return {"kind": "free", "said": f"{INDEPENDENT}. It works fine without rouh.land; connecting it gives "
+                                        "it its birth and its own name."}
     card = row.card if isinstance(row.card, dict) else {}
     if row.registry_id and row.key_dead_at:
         return {"kind": "stopped", "said": "rouh.land doesn't recognise this Rouh any more. It keeps working here; "
@@ -437,7 +437,8 @@ def page(who) -> dict:
            "defaults": {"url": defaults()[0]}, "second_name_days": SECOND_NAME_DAYS,
            # The email rouh.land's sign-up and sign-in open with, from Connect: the one that signs the
            # owner in here, so one email runs both (4 November 2026). It may be changed there.
-           "connect_email": _sign_in_email(who), "standing": standing(row)}
+           "connect_email": _sign_in_email(who), "standing": standing(row), "independent": INDEPENDENT,
+           "independent_word": INDEPENDENT_WORD}
     own = _owner_of(org)
     out["owner"] = {"name": own["name"], "you": own["user_id"] == str(who.user_id)}
     rec = _recovering(org)
@@ -600,6 +601,13 @@ def human_names(org: str, user_id: str) -> dict:
 #: `KIND`: that one is the kind every signed answer from rouh.land must say it is (`_call`), and a
 #: second `KIND` here replaced it, so every answer from rouh.land was refused.
 EVERY_ROUH = "Rouh"
+
+#: What a Rouh that is not connected to rouh.land is called, on every screen that names that kind
+#: (Petar, 8 November 2026, task 176: "free" was confusing, since the rouh.land account is free
+#: too). The one place to change it: the first run, Anatomy, the phone page and the Gene Pool read
+#: it from here. "Free" may still say what Connected costs; it never names this kind.
+INDEPENDENT_WORD = "Independent"
+INDEPENDENT = f"{INDEPENDENT_WORD} Rouh"
 
 
 def plain_nickname(text: str) -> str:

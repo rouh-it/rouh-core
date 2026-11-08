@@ -86,6 +86,10 @@
     if (rule.kind === 'same') return pw !== '' && pw === two.value;
     if (!pw) return false;
     if (rule.kind === 'length') return chars(pw).length >= rule.min;
+    // Python's str.isalpha(), str.isnumeric() and "not str.isalnum()", one character at a time.
+    if (rule.kind === 'letter') return /\p{L}/u.test(pw);
+    if (rule.kind === 'number') return /\p{N}/u.test(pw);
+    if (rule.kind === 'symbol') return /[^\p{L}\p{N}]/u.test(pw);
     if (rule.kind === 'similar') return !tooLike(pw, rule);
     if (rule.kind === 'common') {
       return common instanceof Set ? !common.has(strip(pw.toLowerCase())) : common === null ? false : null;

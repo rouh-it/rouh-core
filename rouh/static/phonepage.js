@@ -128,7 +128,7 @@
         ? 'No URL while disconnected. It waits for this Rouh, and comes back when it connects again.'
         : 'No URL yet. It comes with connecting to rouh.land, above.'));
       none.appendChild(help(L.kind === 'disconnected' ? 'Nothing is open to the internet while it is disconnected.'
-        : 'A free Rouh opens nothing to the internet.'));
+        : 'This ' + (d.independent || 'Independent Rouh') + ' opens nothing to the internet.'));
       page.appendChild(none);
     } else if (!d.hostname) {
       page.appendChild(el('p', 'hb-empty', d.pending || 'Its URL has not come from ' + d.service + ' yet.'));

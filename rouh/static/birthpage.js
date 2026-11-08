@@ -252,13 +252,16 @@
     var nm = nameNow();
     function b(text) { p.appendChild(el('strong', 'yr-break', text)); }
     function t(text) { p.appendChild(document.createTextNode(text)); }
+    var kind = (G.data && G.data.independent) || 'Independent Rouh';
     if (k === 'connected') {
-      b(nm);
+      if (named()) p.appendChild(el('strong', 'yr-break rouh-name', nm)); else b(nm);
       if (!inAccount()) t(' is registered with rouh.land, and not yet in your rouh.land account.');
       else t(' is connected to rouh.land' + (phoneOn() ? ' and you can reach it from your phone.'
         : G.phone && G.phone.relay === false ? '.' : '. Its URL is off.'));
     } else if (k === 'free') {
-      b(named() ? nm + ' is free.' : 'This Rouh is free.');
+      // Never "free" as this kind's name: the rouh.land account is free too (task 176).
+      if (named()) { p.appendChild(el('strong', 'yr-break rouh-name', nm)); b(': ' + kind + '.'); }
+      else b(kind + '.');
       t(' It works fully here without rouh.land. Connect it to get ' + (named() ? 'its own URL.' : 'its official name and its own URL.'));
     } else if (k === 'code') {
       if (foreign()) { b('A site that is not rouh.land sent you back with a code.'); t(' Check it before you connect.'); }
@@ -352,12 +355,12 @@
     var ul = el('ul', 'yr-tiles');
     ul.setAttribute('aria-label', 'How it stands');
     ul.appendChild(named()
-      ? tile('Name', r.name, 'Official, never changes', 'st-good', 'yrName')
+      ? tile('Name', r.name, 'Official, never changes', 'st-good rouh-named', 'yrName')
       : tile('Name', 'No official name yet', 'Comes with connecting', 'st-none', 'yrName'));
     var land = {
       connected: inAccount() ? ['Connected', r.checked_words ? 'Checked ' + r.checked_words : 'It checks by itself', 'st-good']
         : ['Registered', 'Not in your account yet', 'st-none'],
-      free: ['Free', 'Not connected, works fine', 'st-none'],
+      free: [(d.independent_word || 'Independent'), 'Not connected, works fine', 'st-none'],
       code: ['Ready to connect', 'One press left', 'st-none'],
       unreachable: ['Can’t reach', r.checked_words ? 'Last answered ' + r.checked_words : 'It tries again by itself', 'st-warn'],
       stopped: ['Stopped', r.key_dead_words ? 'Since ' + r.key_dead_words : 'By rouh.land', 'st-bad'],
@@ -433,7 +436,7 @@
     } else if (k === 'connected') {
       b('Registered'); t(' with rouh.land, but not in your rouh.land account yet. Add it, and one email signs you in to both.');
     } else if (k === 'free') {
-      b('Not connected.'); t(' This Rouh is free and works fully without rouh.land.');
+      b('Not connected.'); t(' ' + (d.independent || 'Independent Rouh') + ': it works fully without rouh.land.');
     } else if (k === 'code') {
       b('Ready to connect.'); t(' You signed up or in on rouh.land, and it sent you back with a code.');
     } else if (k === 'unreachable') {
@@ -511,7 +514,7 @@
     var r = d.rouh || {};
     var s = card('yrName', 'Name');
     var nm = nameNow();
-    s.appendChild(el('p', 'bd-name' + (named() ? '' : ' yr-free'), nm));
+    s.appendChild(el('p', 'bd-name' + (named() ? ' rouh-name' : ' yr-free'), nm));
     if (named()) {
       var sub = 'Born ' + r.born_words;
       if (r.retro && r.life_began_words) sub += ', after running since ' + r.life_began_words;
@@ -532,7 +535,8 @@
       var div = el('div');
       div.appendChild(el('dt', null, term));
       var dd = el('dd');
-      dd.appendChild(document.createTextNode(value));
+      if (term === 'Official name' && named()) dd.appendChild(el('span', 'rouh-name', value));
+      else dd.appendChild(document.createTextNode(value));
       if (extra) dd.appendChild(extra);
       if (helpText) dd.appendChild(el('p', 'settings-help', helpText));
       div.appendChild(dd);
@@ -616,7 +620,7 @@
     var pub = el('div', 'yr-pubcard');
     if (named() && r.connected) {
       pub.appendChild(el('p', 'yr-pub-k', 'Its public card on rouh.land (preview)'));
-      pub.appendChild(el('p', 'yr-pub-name', r.name));
+      pub.appendChild(el('p', 'yr-pub-name rouh-name', r.name));
       var ul = el('ul');
       ul.appendChild(el('li', '', 'Born ' + r.born_words));
       ul.appendChild(el('li', '', 'The genes you choose to share'));
@@ -626,7 +630,7 @@
       pub.appendChild(el('p', '', 'Hidden while disconnected. Genes it shared before stay in the Gene Pool under its official name.'));
     } else {
       pub.appendChild(el('p', 'yr-pub-k', 'Its public card on rouh.land'));
-      pub.appendChild(el('p', '', 'None. A free Rouh is not on rouh.land at all.'));
+      pub.appendChild(el('p', '', 'None. This ' + (d.independent || 'Independent Rouh') + ' is not on rouh.land at all.'));
     }
     wrap.appendChild(pub);
     var never = el('div');

@@ -106,7 +106,7 @@ log = logging.getLogger("rouh.gate")
 #: summary (`rouh/web/taskapi.py`). A request there with no live key is refused by the view.
 TOKEN_PATHS = frozenset({"/api/task"})
 
-OPEN_PATHS = frozenset({"/login", "/setup", "/setup/you", "/phone/in", "/login/forgot",
+OPEN_PATHS = frozenset({"/login", "/setup", "/setup/connect", "/setup/you", "/phone/in", "/login/forgot",
                         "/login/help", "/login/passkey/options", "/login/passkey/verify", "/logout", "/healthz",
                         "/favicon.ico", "/auth/google/callback", "/login/common-passwords",
                         "/api/hooks/meeting-library",

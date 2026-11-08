@@ -1018,7 +1018,7 @@ with {% asset %}, which gives it its hashed address.
            the canvas beside it. The first thing said puts everything back
            where a conversation has it (`welcomeShow` in app.js). {% endcomment %}
       <div class="welcome-hello" id="welcomeHello" hidden>
-        <p class="welcome-hi">Hello{% if GREET_NAME %}, {{ GREET_NAME }}{% endif %}{% if ROUH_SELF %}. I'm {{ ROUH_SELF }}{% endif %}</p>
+        <p class="welcome-hi">Hello{% if GREET_NAME %}, {{ GREET_NAME }}{% endif %}{% if ROUH_SELF %}. I'm <span class="rouh-name">{{ ROUH_SELF }}</span>{% endif %}</p>
 {% if CHATS_NEED_KEY %}
         <p class="welcome-ask welcome-key" role="alert">{{ CHATS_NEED_KEY.said }} <a href="{{ CHATS_NEED_KEY.href }}">Add a key</a></p>{% elif SETTING_UP %}
         <p class="welcome-ask">Ask me anything, or drop in a screenshot</p>{% else %}

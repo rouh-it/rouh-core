@@ -33,6 +33,9 @@
   --user: #9d8cff;
   /* Today's focus at the top of the navigation (app/focus.js): a sunlit yellow, lighter than
      --warn and never a button's, with a target and the word Today beside it. */
+  /* The Rouh's own name, orange wherever it is shown once it has one (Petar, 8 November 2026,
+     task 176): `.rouh-name`, here, on Anatomy's Rouh profile and on the first run's screens. */
+  --rouh-name: #ff9a4d;
   --focus: #ffd76a;
   --focus-soft: rgba(255, 215, 106, 0.12);
   --focus-line: rgba(255, 215, 106, 0.38);
@@ -9327,6 +9330,7 @@ a.att-name:hover { text-decoration: underline; }
   text-align: center;
   overflow-wrap: anywhere;
 }
+.rouh-name { color: var(--rouh-name); }
 .welcome-hi {
   margin: 0;
   font-size: 26px; line-height: 1.25; font-weight: 600; letter-spacing: -0.01em;

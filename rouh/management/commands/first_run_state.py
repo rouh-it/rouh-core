@@ -5,7 +5,7 @@ first_run_state``) to tick its last setup step only once the owner is made and R
 for its chats, whichever company's it is, rather than when Claude Code happens to be signed in:
 
 ``{"owner": true, "next": "brain", "done": false}``. ``next`` is the screen the owner is on
-(`rouh/web/firstrun.py`'s you, connect, born, words, brain), "" once the first run is over.
+(`rouh/web/firstrun.py`'s connect, you, born, words, brain; "you" too while there is no owner), "" once the first run is over.
 Nothing secret is printed.
 """
 from __future__ import annotations

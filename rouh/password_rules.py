@@ -33,6 +33,48 @@ from django.contrib.auth.password_validation import (CommonPasswordValidator,
                                                      UserAttributeSimilarityValidator,
                                                      get_default_password_validators)
 
+class _HasOne:
+    """A password must hold at least one character of a kind (Petar, 8 November 2026, task 176:
+    "letters, numbers, symbols and length", shown before typing and ticked off as they are met)."""
+
+    kind = ""
+    text = ""
+    said = ""
+
+    def has(self, ch: str) -> bool:
+        raise NotImplementedError
+
+    def validate(self, password, user=None):
+        from django.core.exceptions import ValidationError
+
+        if not any(self.has(ch) for ch in str(password or "")):
+            raise ValidationError(self.said, code=f"password_no_{self.kind}")
+
+    def get_help_text(self):
+        return self.text
+
+
+class HasLetterValidator(_HasOne):
+    kind, text, said = "letter", "A letter", "Put at least one letter in the password."
+
+    def has(self, ch: str) -> bool:
+        return ch.isalpha()
+
+
+class HasNumberValidator(_HasOne):
+    kind, text, said = "number", "A number", "Put at least one number in the password."
+
+    def has(self, ch: str) -> bool:
+        return ch.isnumeric()
+
+
+class HasSymbolValidator(_HasOne):
+    kind, text, said = "symbol", "A symbol, such as ! ? # or a space", "Put at least one symbol in the password, such as ! ? #."
+
+    def has(self, ch: str) -> bool:
+        return not ch.isalnum()
+
+
 #: The form's own line, after the validators' (`password-rules.js` knows it).
 SAME = {"kind": "same", "text": "The same in both boxes"}
 
@@ -55,7 +97,9 @@ def rules(*, username_is_email: bool) -> list[dict]:
     """
     out: list[dict] = []
     for one in get_default_password_validators():
-        if isinstance(one, MinimumLengthValidator):
+        if isinstance(one, _HasOne):
+            out.append({"kind": one.kind, "text": one.text})
+        elif isinstance(one, MinimumLengthValidator):
             out.append({"kind": "length", "min": one.min_length,
                         "text": f"At least {one.min_length} characters"})
         elif isinstance(one, UserAttributeSimilarityValidator):

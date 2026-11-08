@@ -59,9 +59,9 @@
  .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
  .missing{color:#ff8b8b;font-size:13px}
  input[aria-invalid="true"]{border-color:rgba(255,139,139,.6)}
- /* The rules under a new password (`password_rules.html`): the page's own grey
-    until one is met, then green with a tick; red, the ones still unmet, once
-    the form has been sent with them. */
+ /* The rules under a new password (`password_rules.html`): shown before anything
+    is typed, each red with a cross until it is met, then green with a tick, live
+    as the person types (Petar, 8 November 2026, task 176). */
  .checks{list-style:none;margin:3px 0 0;padding:0;display:grid;gap:4px;font-size:13px;
          line-height:1.35;color:#8b95a3}
  .checks li{display:flex;align-items:flex-start;gap:8px;transition:color .12s}
@@ -70,15 +70,17 @@
          font-size:10px;font-weight:700;line-height:1;color:#04070c}
  .checks li.met{color:#8fe0aa}
  .checks li.met .tick{background:#8fe0aa;border-color:#8fe0aa}
- .checks li.met .tick::before{content:"\2713"}
- form.tried .checks li.open{color:#ff8b8b}
- form.tried .checks li.open .tick{border-color:#ff8b8b}
+ .checks li.met .tick::before{content:"";width:6px;height:3px;margin-top:-2px;border:solid #04070c;
+         border-width:0 0 2px 2px;transform:rotate(-45deg)}
+ .checks li.open{color:#ff8b8b}
+ .checks li.open .tick{border-color:#ff8b8b;color:#ff8b8b}
+ .checks li.open .tick::before{content:"\00d7";font-size:12px}
  code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:#11151a;border:1px solid #232a33;
        border-radius:6px;padding:6px 8px;display:block;overflow-wrap:anywhere;color:#e8ecf1}
  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);
      white-space:nowrap}
 </style>
-<main>
+<main{% block main_attrs %}{% endblock %}>
  <div class="head"><span class="dot" aria-hidden="true"></span><h1>Rouh</h1></div>
  {% block body %}{% endblock %}
 </main>

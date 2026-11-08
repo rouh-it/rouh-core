@@ -107,7 +107,7 @@ A new feature adds its row and its check in the commit that adds it.
 | `meetings` | The meeting library | untested | works | a meeting made in the library's stand-in, its webhook taken (`meetings.webhook`), then `meeting_search` finds it |
 | `meetings.webhook` | The meeting library's webhook | untested | works | a post to `/api/hooks/meeting-library` through the published port: signed with the settings file's secret it is taken, signed wrongly it is a 401 |
 | `voice.speak` | Rouh speaks its answers | untested | works | spoken replies on over the page's socket (`set_mode`), and an answer's audio reaches the page from the stand-in for ElevenLabs, which was asked to say it |
-| `phone.relay` | Your Rouh's URL through rouh.land's relay (the phone address until 7 November 2026) | untested | manual | a person, below: the stack test's Rouh is born On its own, and the relay's side (frps, its claim endpoint) and Let's Encrypt are rouh.land's and the internet's, with no stand-in here |
+| `phone.relay` | Your Rouh's URL through rouh.land's relay (the phone address until 7 November 2026) | untested | manual | a person, below: the stack test's Rouh is an Independent Rouh, and the relay's side (frps, its claim endpoint) and Let's Encrypt are rouh.land's and the internet's, with no stand-in here |
 
 ## The one program and its runs
 
