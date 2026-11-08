@@ -10,7 +10,7 @@ Until that day `rouh-core` and `rouh-workers` carried Rouh's code in `/opt/rouh`
 Now the repository is still one codebase; only the packaging is split:
 
 - **`rouh-base`** (`Dockerfile.base`) is what "latest" points to. It holds Linux (`python:3.12.x-slim-trixie`), the apt packages with every Debian security update there is at build time, Debian's Chromium for the headless browser, Node with Codex and Playwright MCP, and the Python libraries of the line's pinned lock. **No Rouh code**: `check-image.sh` refuses a base with any. It is tagged by patch level, `<line>.<patch>` (1.0.0, 1.0.1, ...), with `:<line>` and `:latest` beside it.
-- **Rouh's code is the code volume**, mounted at `/code`: a git repository that is the person's own. Since 24 October 2026 a Rouh's first start fetches the newest commit of main that passed its tests from rouh.land (`code-install`, `guard/bin/rouh-code-install`, with the install code from the person's account there) and commits it as the first commit; from then on no pull, image update or restart writes to it, and only genes and the Rouh itself change it, each change through the protected core's change step. The core runs `/code` (writable, its own); the worker mounts it read-only; the key proxy not at all. (Until that day `code-init` copied it from a code image, `rouh-code`; both are gone.)
+- **Rouh's code is the code volume**, mounted at `/code`: a git repository that is the person's own. Since 24 October 2026 a Rouh's first start fetches the newest commit of main that passed its tests (`code-install`, `guard/bin/rouh-code-install`): free, with no account, the commit named by rouh.land's signed record or else by the signed release, its tarball from the public rouh-it/rouh-core on GitHub; an install code, since 8 November 2026, is an optional extra and commits it as the first commit; from then on no pull, image update or restart writes to it, and only genes and the Rouh itself change it, each change through the protected core's change step. The core runs `/code` (writable, its own); the worker mounts it read-only; the key proxy not at all. (Until that day `code-init` copied it from a code image, `rouh-code`; both are gone.)
 - **Libraries a Rouh adds itself** (through a gene) go into the extra volume at `/extra`, with `rouh-extra-pip`.
 
 ### The decisions, each with its reason
@@ -72,7 +72,7 @@ The bridge's images, `rouh-core`, `rouh-workers` and `rouh-keyproxy`, were built
 
 ## Starting it
 
-`INSTALL-LINUX-VM.md` beside this file is the whole of it on Linux: a settings file with an install code, then `linux_stack.py update`, which takes the signed release from rouh.land and holds every change of the Rouh's own stack file to the stack check before anything is started. Rouh for Mac does the same by itself.
+`INSTALL-LINUX-VM.md` beside this file is the whole of it on Linux: a settings file, then `linux_stack.py update`, which takes the signed release from rouh.land and holds every change of the Rouh's own stack file to the stack check before anything is started. Rouh for Mac does the same by itself.
 
 For trying a build of this checkout: `build.sh --platform linux/amd64`, then a `release.env` naming `rouh-base:<tag>`, `rouh-guard:<tag>` and a PostgreSQL image, and the same commands.
 

@@ -4,7 +4,7 @@ How to run Rouh's containers on a Linux machine of your own, or in an arm64 Linu
 Rouh for Mac does all of this by itself; this is the same by hand.
 
 Since 24 October 2026 (task 98, step 98-23) a release names three images, each by its digest: `ghcr.io/rouh-it/rouh-base` (what every part runs on, no Rouh code), `ghcr.io/rouh-it/rouh-guard` (the protected core, which a Rouh uses and cannot edit) and PostgreSQL.
-There is no code image: on its first start a Rouh fetches the newest version of Rouh that passed its tests from rouh.land, with an install code from your account there, and from then on its code is its own, in the code volume, and no update writes to it.
+There is no code image: on its first start a Rouh fetches the newest version of Rouh that passed its tests, free, with no account (rouh.land names the commit, signed, and it comes from the public rouh-it/rouh-core on GitHub), and from then on its code is its own, in the code volume, and no update writes to it.
 The stack file is the Rouh's own too (`/code/deploy/stack/compose.yml`); before applying it, check it (step 6).
 
 ## 1. Make the VM
@@ -61,7 +61,7 @@ python3 ~/rouh-core/deploy/container/mac_release.py release-status
 
 The last line checks the live release's signature with the public key in that checkout and says what it holds.
 
-## 5. The settings file and the install code
+## 5. The settings file
 
 ```bash
 mkdir -p ~/rouh && chmod 700 ~/rouh
@@ -69,8 +69,10 @@ cp ~/rouh-core/deploy/stack/settings.env.example ~/rouh/.env
 chmod 600 ~/rouh/.env
 ```
 
-Set `POSTGRES_PASSWORD` (make one up: `openssl rand -base64 33`) and `ROUH_INSTALL_CODE`: sign in at https://rouh.land/registry/birth/account/ (a link comes by email), press **Make an install code**, and paste it.
-The code works for a week, for up to five first starts.
+Set `POSTGRES_PASSWORD` (make one up: `openssl rand -base64 33`).
+Nothing else is needed: Rouh is free to download and install, and no account on rouh.land is asked for.
+Leave `ROUH_INSTALL_CODE=free` as it is: it is not a secret, and only lets a release made before 8 November 2026 start without an account.
+An account on rouh.land is for the optional connected services, chosen later inside Rouh.
 
 ## 6. Start it
 
@@ -159,7 +161,7 @@ It goes into a fresh stack, before that stack's first start, in place of steps 6
    From another stack: `docker compose ... exec backup /opt/rouh-guard/bin/rouh-backup now`, then `docker compose ... exec --user 10001 core python manage.py export_rouh --out /data/rouh.bundle --dump newest`, and `docker compose ... cp core:/data/rouh.bundle .`.
    The bundle opens every saved login it holds: it is written readable by its owner alone, never to a terminal, and no key is printed. Treat it as you would the keys.
 2. Copy it to this machine, over ssh: `scp server:/var/tmp/rouh.bundle ~/rouh/`, and delete it on the server.
-3. Steps 1 to 5 above, if this machine is new: Docker, the updater, the settings file with `POSTGRES_PASSWORD` and an install code.
+3. Steps 1 to 5 above, if this machine is new: Docker, the updater, the settings file with `POSTGRES_PASSWORD`.
 4. Bring it in:
 
    ```bash

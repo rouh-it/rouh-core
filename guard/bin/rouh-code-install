@@ -7,10 +7,16 @@ replaces code-init and the rouh-code image (task 98, step 98-23, 24 October 2026
 
   - /code already holds a git repository: it is this Rouh's own code, changed by its genes and by
     the Rouh itself. It is left exactly as it is, and nothing is fetched.
-  - /code is empty, or holds only an earlier install that never finished: the newest commit of
-    Rouh's main branch that passed its tests is fetched through rouh.land, which hands it only to a
-    person signed up as a tester there (the install code in the settings file,
-    ``ROUH_INSTALL_CODE``, made on https://rouh.land/registry/birth/account/). Release tools that a
+  - /code is empty, or holds only an earlier install that never finished: Rouh's code is fetched,
+    free, with no account and no install code (Petar, 8 November 2026: "all code should be free to
+    download and install"; rouh-core is public since 7 November 2026). The commit is the newest of
+    Rouh's main branch that passed its tests, as rouh.land's public /mac/code/newest.json says it
+    with its signed record (checked here with the release key); if rouh.land cannot be reached or
+    its record does not check, the commit the signed release names (``ROUH_RELEASE_COMMIT``). Its
+    tarball comes straight from the public rouh-it/rouh-core on GitHub, and must say it is that very
+    commit. An install code (``ROUH_INSTALL_CODE``, from an account on rouh.land) is an optional
+    extra kept for installs that have one: it is tried first, and when rouh.land refuses it or
+    cannot be reached the free way is taken; nothing depends on it. Release tools that a
     Rouh never runs are left out (``LEFT_OUT``). The libraries main needs and this base does not
     have are installed into /extra, held to the base's own pins. Then it is committed as the
     repository's first commit, "Rouh <commit> as installed", with the commit it came from kept in
@@ -22,8 +28,12 @@ An install is made safe to stop half way: a marker file is written first and rem
 
     rouh-code-install --extra-only DIR   only the libraries DIR's code needs and the base lacks, into /extra
 
-Settings: ROUH_INSTALL_CODE, ROUH_INSTALL_URL (https://rouh.land/mac/code/install),
-ROUH_RELEASE_COMMIT (the commit the signed release names; said beside the one installed).
+Settings, all optional: ROUH_RELEASE_COMMIT (the commit the signed release names: the pin when
+rouh.land cannot say a newer one), ROUH_SITE_URL (https://rouh.land), ROUH_CODE_TARBALL (where one
+commit's tarball is, {commit} filled in; the public GitHub repository), ROUH_INSTALL_CODE and
+ROUH_INSTALL_URL (https://rouh.land/mac/code/install), the optional install code. A code "free"
+is the same as none: Rouh for Mac 0.3.19 writes it so that a protected core older than this one,
+which stopped without a code, takes the free answer rouh.land gives everyone.
 """
 from __future__ import annotations
 
@@ -35,6 +45,7 @@ import subprocess
 import sys
 import tarfile
 import tomllib
+import base64
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -44,7 +55,14 @@ EXTRA = Path(os.environ.get("ROUH_EXTRA", "/extra"))
 MARK = CODE / ".rouh-filling"
 WORK = CODE / ".rouh-fill"
 URL = os.environ.get("ROUH_INSTALL_URL", "https://rouh.land/mac/code/install")
-ACCOUNT = "https://rouh.land/registry/birth/account/"
+SITE = (os.environ.get("ROUH_SITE_URL") or "https://rouh.land").strip().rstrip("/")
+TARBALL = os.environ.get("ROUH_CODE_TARBALL") or "https://codeload.github.com/rouh-it/rouh-core/tar.gz/{commit}"
+#: The public half of the key that signs releases and "this commit passed" records: the same as
+#: deploy/container/mac_release.py's PUBLIC_KEYS, Rouh for Mac's StackRelease.trustedKeys and
+#: rouh.land's MAC_STACK_KEYS; change them together.
+PUBLIC_KEYS = {"rouh-mac-stack-1": "XyU09FKab+ZrKEvIfHSaYvnLF3F8FSOnIdX8frWCjiA="}
+#: Install codes that are no code: what Rouh for Mac writes when the person has none.
+NO_CODE = ("", "free")
 UA = "rouh-code-install/1"
 #: Release tools a Rouh never runs: the makers', kept in the repository and out of a Rouh's code.
 LEFT_OUT = ("guard", "mac", ".github", "deploy/container")
@@ -66,6 +84,10 @@ def as_rouh(*cmd: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
     return subprocess.run([*pre, *cmd], cwd=cwd, capture_output=True, text=True)
 
 
+class _NotNow(Exception):
+    """rouh.land did not answer what was asked; the words say why."""
+
+
 def _post(url: str, body: dict) -> dict:
     req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST",
                                  headers={"Content-Type": "application/json", "User-Agent": UA,
@@ -78,10 +100,83 @@ def _post(url: str, body: dict) -> dict:
             why = json.loads(e.read()).get("error") or f"it answered {e.code}"
         except ValueError:
             why = f"it answered {e.code}"
-        fail(f"rouh.land did not hand out Rouh's code: {why}. Nothing was changed.")
-    except (urllib.error.URLError, OSError) as e:
-        fail(f"rouh.land could not be reached ({getattr(e, 'reason', e)}). Nothing was changed; "
-             "Rouh tries again on its next start.")
+        raise _NotNow(why) from None
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        raise _NotNow(f"it could not be reached ({getattr(e, 'reason', e)})") from None
+
+
+def _get(url: str) -> dict:
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.loads(r.read(65536))
+    except urllib.error.HTTPError as e:
+        raise _NotNow(f"it answered {e.code}") from None
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        raise _NotNow(f"it could not be reached ({getattr(e, 'reason', e)})") from None
+
+
+def _signed(envelope: object) -> dict:
+    """The payload of an envelope signed with a key in PUBLIC_KEYS (Ed25519, as mac_release.py
+    signs), else _NotNow."""
+    if not isinstance(envelope, dict) or envelope.get("format") != 1:
+        raise _NotNow("its record is not a signed one")
+    raw = PUBLIC_KEYS.get(str(envelope.get("key")))
+    payload, sig = envelope.get("payload"), envelope.get("signature")
+    if not raw or not isinstance(payload, str) or not isinstance(sig, str):
+        raise _NotNow("its record is signed with a key this does not know, or not at all")
+    try:
+        from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    except ImportError:
+        raise _NotNow("this base cannot check a signature") from None
+    try:
+        Ed25519PublicKey.from_public_bytes(base64.b64decode(raw)).verify(base64.b64decode(sig), payload.encode())
+        return json.loads(payload)
+    except (InvalidSignature, ValueError):
+        raise _NotNow("its record's signature does not match") from None
+
+
+def _newest_passed() -> str:
+    """The newest commit of main that passed its tests, from rouh.land's public newest.json, held
+    to its signed record; else _NotNow."""
+    got = _get(f"{SITE}/mac/code/newest.json")
+    commit = str(got.get("commit") or "")
+    r = _signed(got.get("record"))
+    if r.get("kind") != "rouh-code-pass" or r.get("branch") != "main" or r.get("commit") != commit or len(commit) != 40:
+        raise _NotNow("its signed record names another commit")
+    return commit
+
+
+def _with_code(code: str) -> tuple[str, str]:
+    """The optional install code: the commit and tarball rouh.land answers for it, else _NotNow."""
+    got = _post(URL, {"code": code})
+    commit, tarball = str(got.get("commit") or ""), str(got.get("tarball") or "")
+    if len(commit) != 40 or not tarball.startswith("https://"):
+        raise _NotNow("its answer did not name a commit and where to download it")
+    return commit, tarball
+
+
+def _which(release: str) -> tuple[str, str, str]:
+    """The commit to install, where its tarball is, and where the commit was named."""
+    code = os.environ.get("ROUH_INSTALL_CODE", "").strip()
+    if code.lower() not in NO_CODE:
+        try:
+            commit, tarball = _with_code(code)
+            return commit, tarball, "rouh.land, for this install code"
+        except _NotNow as e:
+            say(f"the install code was not used ({e}); Rouh's code is free, so it is fetched without one")
+    try:
+        commit = _newest_passed()
+        return commit, TARBALL.format(commit=commit), "rouh.land's signed record of the newest that passed"
+    except _NotNow as e:
+        if not release:
+            fail(f"rouh.land could not say which commit of Rouh to install ({e}), and this release names "
+                 "none. Nothing was changed; Rouh tries again on its next start.")
+        say(f"rouh.land could not say the newest commit ({e}); installing the one the signed release names")
+    if len(release) != 40 or any(c not in "0123456789abcdef" for c in release):
+        fail("the release names no whole commit to install. Nothing was changed.")
+    return release, TARBALL.format(commit=release), "the signed release"
 
 
 def _download(url: str) -> bytes:
@@ -96,11 +191,17 @@ def _download(url: str) -> bytes:
     return data
 
 
-def _unpack(data: bytes, into: Path) -> None:
-    """GitHub's tarball of one commit, its top folder taken off; nothing outside `into`, no links out."""
+def _unpack(data: bytes, into: Path, commit: str) -> None:
+    """GitHub's tarball of one commit, its top folder taken off; nothing outside `into`, no links out.
+    It must say it is `commit`: git archive, which GitHub's tarballs are, writes the commit into the
+    archive's pax header."""
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as tar:
+        everything = tar.getmembers()
+        said = (tar.pax_headers or {}).get("comment", "")
+        if said != commit:
+            fail(f"the code download is not commit {commit[:12]} (it says {said[:12] or 'nothing'}). Nothing was changed.")
         members = []
-        for m in tar.getmembers():
+        for m in everything:
             parts = m.name.split("/", 1)
             if len(parts) < 2 or not parts[1]:
                 continue
@@ -220,23 +321,16 @@ def main() -> int:
         fail(f"{CODE} holds files but no git repository, so it is not Rouh's code and nothing was changed. "
              "Move them out of the code volume, or put Rouh's code there as a git repository, and start Rouh again.")
 
-    code = os.environ.get("ROUH_INSTALL_CODE", "").strip()
-    if not code:
-        fail(f"this Rouh has no code yet, and no install code to fetch it with. Sign in at {ACCOUNT}, "
-             "press Make an install code, put it in the settings file as ROUH_INSTALL_CODE, and start Rouh again.")
-    got = _post(URL, {"code": code})
-    commit, tarball = str(got.get("commit") or ""), str(got.get("tarball") or "")
-    if len(commit) != 40 or not tarball.startswith("https://"):
-        fail("rouh.land's answer did not name a commit and where to download it. Nothing was changed.")
-    release = os.environ.get("ROUH_RELEASE_COMMIT", "").strip()
-    say(f"installing Rouh {commit[:12]}, the newest that passed its tests"
+    release = os.environ.get("ROUH_RELEASE_COMMIT", "").strip().lower()
+    commit, tarball, named = _which(release)
+    say(f"installing Rouh {commit[:12]}, named by {named}"
         + (f" (the release names {release[:12]})" if release and release != commit else ""))
 
     MARK.touch()
     if WORK.exists():
         shutil.rmtree(WORK)
     WORK.mkdir()
-    _unpack(_download(tarball), WORK)
+    _unpack(_download(tarball), WORK, commit)
     if not (WORK / "manage.py").is_file() or not (WORK / "rouh").is_dir():
         fail("the download holds no Rouh code. Nothing was changed.")
     for rel in LEFT_OUT:
@@ -250,14 +344,15 @@ def main() -> int:
     for cmd in (["git", "init", "-q", "-b", "main"], ["git", "add", "-A"],
                 ["git", "-c", "user.name=Rouh", "-c", "user.email=rouh@localhost", "commit", "-q",
                  "-m", f"Rouh {commit[:12]} as installed",
-                 "-m", f"Commit {commit} of Rouh's main branch, the newest that passed its tests, from rouh.land, "
+                 "-m", f"Commit {commit} of Rouh's main branch, named by {named}, fetched free "
                        "on this Rouh's first start (rouh-code-install). From here on only this Rouh and its genes change it."]):
         r = as_rouh(*cmd, cwd=WORK)
         if r.returncode:
             fail(f"git could not make the first commit: {(r.stderr or r.stdout).strip()[-300:]}")
     (WORK / ".git" / "info" / "exclude").write_text("__pycache__/\n*.pyc\n")
     (WORK / ".git" / "rouh-installed.json").write_text(json.dumps(
-        {"commit": commit, "release_commit": release, "from": URL}, indent=1) + "\n")
+        {"commit": commit, "release_commit": release, "named_by": named,
+         "from": tarball.split("?", 1)[0]}, indent=1) + "\n")
     subprocess.run(["chown", "-R", "10001:10001", str(WORK / ".git")], check=True)
     for p in WORK.iterdir():
         if p.name != ".git":
