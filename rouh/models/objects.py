@@ -258,6 +258,9 @@ class Chat(models.Model):
     last_spoke = models.FloatField()
     last_activity = models.FloatField(default=0)
     created_at = models.FloatField()
+    #: Cheap, Smart or Auto, set beside the composer, or "" for the Models page's default
+    #: (`chatkinds.choice_of`, `0245_chat_model_choice`).
+    model_choice = models.TextField(blank=True, default="", db_default="")
 
     class Meta:
         db_table = "chat"

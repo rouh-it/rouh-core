@@ -393,12 +393,14 @@ function decisionWords(r, tl) {
   if (!r) return model;
   var bits = [model];
   if (r.outcome === 'chosen') bits.push('picked by you');
+  else if (r.outcome === 'chat') bits.push('chat set to ' + (r.chat_choice_name || r.tier_name));
   else if (!r.auto && (r.mode === 'best' || r.mode === 'saver')) bits.push(r.mode === 'best' ? 'Best mode' : 'Saver mode');
   else if (!r.auto) bits.push('fixed tier');
   else if (r.outcome === 'picked') {
     if (r.easy != null) bits.push(Math.round(r.easy * 100) + '% sure easy' + (r.bar ? ' (bar ' + Math.round(r.bar * 100) + '%)' : ''));
     var t = r.took_ms != null ? r.took_ms : r.decided_ms;
     if (t != null) bits.push(secs(t));
+    if (r.chat_choice === 'auto') bits.push('chat set to Auto');
   } else if (r.outcome === 'timeout') bits.push('router timed out' + (r.limit_ms ? ' after ' + secs(r.limit_ms) : ''));
   else if (r.outcome === 'unreadable') bits.push('router\'s answer unreadable');
   else if (r.outcome === 'no_router') bits.push('no router');
@@ -976,6 +978,11 @@ function routerFacts(dl, row, when, whole) {
   if (r) pair(dl, 'Decided', [r.tier_name, r.model_name].filter(Boolean).join(', '));
   else if (lane) pair(dl, 'Decided', [lane.pick_name, lane.picked_name].filter(Boolean).join(', '));
   if (r && r.outcome === 'chosen') { pair(dl, 'How', 'You picked this tier, so no router ran'); return; }
+  if (r && r.outcome === 'chat') {
+    pair(dl, 'How', 'This chat is set to ' + (r.chat_choice_name || r.tier_name) + ' beside the box, so no router ran');
+    return;
+  }
+  if (r && r.chat_choice === 'auto') pair(dl, 'Chat', 'Set to Auto beside the box');
   if (r && !r.auto) {
     pair(dl, 'How', r.mode === 'best' || r.mode === 'saver' ? (r.mode === 'best' ? 'Best' : 'Saver') + ' mode: no router'
       : 'This chat is on a fixed tier: no router');

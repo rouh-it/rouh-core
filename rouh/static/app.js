@@ -58,6 +58,10 @@
  *   app/focus.js            today's focus at the top of the navigation, from
  *                           the morning brief's one thing; outside the chain,
  *                           and needs only app/helpers.js
+ *   app/composer_extras.js  the voice button and Cheap, Smart or Auto on the
+ *                           composer's line; outside the chain, and needs
+ *                           app/chats.js, app/helpers.js, app/notices.js and
+ *                           app/socket.js
  *   app/navgroups.js        the navigation's five group tabs and the links
  *                           drawn from the gene registry (GENES.md);
  *                           outside the chain, and its top level touches
@@ -95,6 +99,7 @@ import 'app/offlineview.js';
 import 'app/navgroups.js';
 import 'app/demo.js';
 import 'app/focus.js';
+import 'app/composer_extras.js';
 import { addrEarly } from 'app/address.js';
 
 // A page opened at the task browser opens it now, once every module above

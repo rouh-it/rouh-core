@@ -1083,43 +1083,55 @@ with {% asset %}, which gives it its hashed address.
         <span id="meterVal" class="mono sr-only">off</span>
 
         <div class="composer-controls" id="composerControls">
-          {% comment %} The microphone, and the only control on this page that opens
-               one. Off means off: pressing it again ends every track rather
-               than muting a track that stays open, because a track that stays
-               open keeps the orange dot lit in an iPhone's status bar. {% endcomment %}
-          <button id="micBtn" class="tog off" type="button" aria-pressed="true"
-                  title="Turn on the microphone">
-            <svg class="ico-mic" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>
-            </svg>
-            <svg class="ico-micoff" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 9v-3a3 3 0 0 1 6 0v5"/><path d="M5 11a7 7 0 0 0 10.5 6M12 18v3"/><path d="M3 3l18 18"/>
-            </svg>
-            <span id="micLabel" class="sr-only">Turn on the microphone</span>
-          </button>
-          <button id="voiceBtn" class="tog" type="button" aria-pressed="true" title="Voice replies on">
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>
-            </svg>
-            <span id="voiceLabel" class="sr-only">Voice replies on</span>
-          </button>
-          <button id="dictateBtn" class="tog dictate" type="button" aria-pressed="false"
-                  title="Dictate (Ctrl+Shift+Space): press, say it all, press again when you have finished. Pauses never end your turn.">
-            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none"
-                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <path d="M4 7h16M4 12h12M4 17h8"/>
-            </svg>
-            <span id="dictateLabel" class="sr-only">Dictate</span>
-          </button>
+          {% comment %} The voice, under one button (Petar, 8 November 2026: "the 3 icons for the
+               voice should be under one icon with a speaking person to save space"). The
+               button opens a small panel holding the three controls exactly as they were,
+               each with its state written beside it; Escape or a press anywhere else closes
+               it (app/composer_extras.js). The button itself says the state that matters
+               while the panel is closed: the microphone live, dictation on, and a speaker
+               waiting for a press. {% endcomment %}
+          <div class="voice-wrap" id="voiceWrap">
+            <button id="voiceMenuBtn" class="tog voice-menu-btn" type="button"
+                    aria-haspopup="true" aria-expanded="false" aria-controls="voicePop"
+                    aria-label="Voice: microphone, voice replies and dictation"
+                    title="Voice: microphone, voice replies and dictation">
+              <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="9" cy="8" r="3.4"/><path d="M2.8 20.5c.4-3.6 3-6 6.2-6s5.8 2.4 6.2 6"/><path class="wave" d="M15.6 5.4a4 4 0 0 1 0 5.2M18.4 3a7.6 7.6 0 0 1 0 10"/>
+              </svg>
+              <span class="voice-dot" aria-hidden="true"></span>
+            </button>
+            <div class="voice-pop" id="voicePop" role="group" aria-label="Voice" hidden>
+              {% comment %} The microphone, and the only control on this page that opens
+                   one. Off means off: pressing it again ends every track rather
+                   than muting a track that stays open, because a track that stays
+                   open keeps the orange dot lit in an iPhone's status bar. {% endcomment %}
+              <button id="micBtn" class="tog off" type="button" aria-pressed="true"
+                      title="Turn on the microphone">
+                <svg class="ico-mic" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>
+                </svg>
+                <svg class="ico-micoff" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 9v-3a3 3 0 0 1 6 0v5"/><path d="M5 11a7 7 0 0 0 10.5 6M12 18v3"/><path d="M3 3l18 18"/>
+                </svg>
+                <span id="micLabel" class="sr-only">Turn on the microphone</span>
+              </button>
+              <button id="voiceBtn" class="tog" type="button" aria-pressed="true" title="Voice replies on">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>
+                </svg>
+                <span id="voiceLabel" class="sr-only">Voice replies on</span>
+              </button>
+              <button id="dictateBtn" class="tog dictate" type="button" aria-pressed="false"
+                      title="Dictate (Ctrl+Shift+Space): press, say it all, press again when you have finished. Pauses never end your turn.">
+                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none"
+                     stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                  <path d="M4 7h16M4 12h12M4 17h8"/>
+                </svg>
+                <span id="dictateLabel" class="sr-only">Dictate</span>
+              </button>
+            </div>
+          </div>
 
-          {% comment %} Add is present so every chat in the workspace has the same row,
-               and says it does nothing rather than pretending. Attach does. {% endcomment %}
-          <button id="addBtn" class="tog" type="button" disabled
-                  title="Connecting other things is not built yet" aria-label="Add or connect something (not built yet)">
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
-          </button>
           <button id="attachBtn" class="tog" type="button"
                   title="Attach files. You can also drop them on the conversation, or paste a screenshot."
                   aria-label="Attach files">
@@ -1138,6 +1150,27 @@ with {% asset %}, which gives it its hashed address.
               <rect x="3" y="5" width="15" height="14" rx="2.5"/><circle cx="8.5" cy="10" r="1.6"/><path d="M18 15l-4.5-4.5L5 19"/><path d="M20.5 2.5v4M18.5 4.5h4"/>
             </svg>
           </button>
+
+          {% comment %} Which model answers in this chat: Cheap, Smart or Auto (Petar, 8 November
+               2026: "I am doing heavy and difficult work and I don't want cheap model to
+               answer me"). Kept on the chat on the server (`chatkinds.choice_of`, the
+               socket's `chat_model`), so it holds through a reload and on another device; a chat
+               nobody set follows the Models page (Best is Smart, Balanced is Auto, Saver is
+               Cheap). Always on the line, as its one word, and the panel says what each
+               choice means and which model it is (app/composer_extras.js). {% endcomment %}
+          <div class="model-wrap" id="modelWrap">
+            <button id="modelBtn" class="model-btn" type="button" aria-haspopup="true"
+                    aria-expanded="false" aria-controls="modelPop"
+                    aria-label="Model for this chat" title="Which model answers in this chat">
+              <span class="model-btn-word" id="modelWord">Model</span>
+              <svg class="model-btn-chev" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5L6 4.5l3 3"/></svg>
+            </button>
+            <div class="model-pop" id="modelPop" hidden>
+              <p class="model-pop-head" id="modelPopHead">Which model answers in this chat</p>
+              <div class="model-opts" id="modelOpts" role="radiogroup" aria-labelledby="modelPopHead"></div>
+              <p class="model-pop-foot" id="modelFoot"></p>
+            </div>
+          </div>
 
           {% comment %} Stop. On screen only while a turn is running, and the same
                thing the Escape key does. It ends Rouh's own turn: the model

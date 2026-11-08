@@ -3877,6 +3877,9 @@ class Turn:
         self.heard_done = asyncio.Event()
         #: The tier the person picked for this answer, or "" (`Turns.start`).
         self.picked_tier = ""
+        #: Cheap, Smart or Auto when the chat is set to one beside the composer, or "" when it
+        #: follows the Models page (`chatkinds.own_choice`).
+        self.chat_choice = ""
         #: The turn's name in the log of requests, which its call is kept under
         #: (`rouh/llmlog.py`, `rouh/modeloutcomes.py`).
         self.turn_id = "turn-" + uuid.uuid4().hex[:12]
@@ -4473,7 +4476,7 @@ class Turn:
                           error=d.error or None, result=d.reason or None)
             # Said the moment it is decided, with the person's message, never only once the
             # question is written (23 October 2026: the line came after the answer).
-            trace.route = modelrouter.timeline(d, self.started_at)
+            trace.route = modelrouter.timeline(d, self.started_at, chat=self.chat_choice)
             trace.decided(d.model, d.tier)
             trace.touch(now=True)
         # Written after what the person said was weighed against the call before
@@ -4542,10 +4545,15 @@ class Turn:
         # The timeline itself is the turn's record's (`rouh/turnrecords.py`), not this line's.
         more = {"version": self.slot.version}
         if self.route is not None:
-            return dict(modelrouter.timeline(self.route, self.started_at), **more)
+            return dict(modelrouter.timeline(self.route, self.started_at, chat=self.chat_choice), **more)
         if self.picked_tier:
             return dict(modelrouter.timeline(None, self.started_at, tier=self.picked_tier,
                                              model=self.model or "", chosen=True), **more)
+        if self.chat_choice in chatkinds.CHOICE_TIER:
+            # The chat is set to Cheap or Smart: its tier, and no router at all.
+            return dict(modelrouter.timeline(None, self.started_at,
+                                             tier=chatkinds.CHOICE_TIER[self.chat_choice],
+                                             model=self.model or "", chat=self.chat_choice), **more)
         mode = ""
         try:
             use = chatkinds.use_for(self.chat)
@@ -4840,8 +4848,15 @@ class Turns:
         # picked a tier (`Turn.route`, `rouh/modelrouter.py`).
         tier = modelstandard.tier_id(tier) if tier else ""
         tier = tier if tier in modeldefaults.TIERS else ""
+        # Cheap, Smart or Auto when the chat is set to one beside the composer (`chatkinds`):
+        # Smart and Cheap answer on their tier with no router, Auto always routes.
+        own = "" if tier else await asyncio.to_thread(chatkinds.own_choice, chat)
         if tier:
             model = await asyncio.to_thread(chatkinds.tier_model, chat, tier, config)
+        elif own in chatkinds.CHOICE_TIER:
+            model = await asyncio.to_thread(chatkinds.tier_model, chat, chatkinds.CHOICE_TIER[own], config)
+        elif own == chatkinds.AUTO:
+            model = None
         else:
             routes = await asyncio.to_thread(chatkinds.routes, chat, config)
             model = None if routes else await asyncio.to_thread(chatkinds.model_for, chat, config)
@@ -4868,6 +4883,7 @@ class Turns:
         turn = Turn(chat, cls._last, asked_by, model=model, speak=speak,
                     asked=user_content, slot=slot, note=note, also=also, heard=heard)
         turn.picked_tier = tier
+        turn.chat_choice = own
         turn.waiting = carried
         cls.running[chat] = turn
         cls.latest[chat] = turn
@@ -5879,6 +5895,35 @@ class Session:
         # transcript and the canvas all follow it. Which one that is belongs to
         # the tab, so two tabs can be two conversations side by side; the list
         # of chats is still one, and every tab is told when it changes.
+
+        elif kind == "chat_model":
+            # Cheap, Smart or Auto for one chat, the control beside the composer
+            # (`chatkinds.choice_of`). With `choice` it is kept first ("" follows the
+            # Models page again); without, it is only read. Over the socket and not a
+            # page's own request because a tab's messages are handled one at a time:
+            # a choice made and a message sent straight after it are kept in that
+            # order, so the message's turn always answers on the choice. Every tab of
+            # the same person hears what it is now, so another device shows it too.
+            chat = str(msg.get("chat") or "").strip()[:200]
+            error = ""
+            setting = "choice" in msg
+            if chat and setting:
+                choice = str(msg.get("choice") or "").strip().lower()
+                if choice and choice not in chatkinds.CHOICES:
+                    error = "The choice is Cheap, Smart or Auto."
+                elif not await asyncio.to_thread(chatkinds.chooses, chat):
+                    error = "This chat's model is set by what it is for, not here."
+                elif not await asyncio.to_thread(chatkinds.set_choice, chat, choice):
+                    error = "There is no such chat."
+            said = dict(await asyncio.to_thread(chatkinds.choice_of, chat, config) if chat else {},
+                        type="chat_model", chat=chat, error=error)
+            await self.emit(said)
+            if setting and not error:
+                mine = getattr(self.me, "user_id", None)
+                for tab in open_tabs():
+                    if tab is not self and getattr(tab.me, "user_id", None) == mine:
+                        with contextlib.suppress(Exception):
+                            await tab.send(dict(said))
 
         elif kind == "list_chats":
             asked = self.asked

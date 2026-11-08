@@ -132,6 +132,10 @@ export interface ServerMessages {
   /* Sent by the server, and not in PROTOCOL.md's table until 5 October 2026. */
   /** The default models were changed in Settings: ask for them again (`modeldefaults`). */
   model_defaults: {};
+  /** Cheap, Smart or Auto for one chat, the control beside the composer (`chatkinds.choice_of`): said back to
+   *  the tab that asked or set it, and to every other tab of the person's when it was set. */
+  chat_model: { chat: string; choice?: string; own?: boolean; default?: string; chooses?: boolean; mode?: string;
+    options?: { id: string; name: string; hint: string; model: string; model_name: string; }[]; error: string; };
   /** A blind comparison under an answer, with the opt-in on (`rouh/modelvotes.py`, app/compare.js): the
    *  two answers, A and B, the models' names hidden, and the one-time word the vote is posted with. */
   model_compare: { token: string; root?: number | null; a: string; b: string; };
@@ -177,6 +181,8 @@ export interface ClientMessages {
   set_mode: { voice_reply?: boolean; };
   ping: {};
   set_orb: { cfg: any; };
+  /** Read one chat's model choice, or set it with `choice` ("cheap", "smart", "auto", or "" for the Models page's). */
+  chat_model: { chat: string; choice?: string; };
   /** A press or a swipe on notices: drawn while the person looked, put away, read, or dismissed. */
   notice: { act: 'seen' | 'later' | 'read' | 'dismiss'; ids: number[]; };
   list_tasks: {};

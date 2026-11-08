@@ -135,7 +135,7 @@ from . import chats as chat_titles
 from . import objects
 from .config import config
 from .models.memory import AppState
-from .models.objects import ChatFork
+from .models.objects import Chat, ChatFork
 
 log = logging.getLogger("rouh.conversations")
 
@@ -924,6 +924,20 @@ def open_draft(*, task_id: str = "", project_id: str = "") -> str:
     return made["id"]
 
 
+def draft_choice(chat_id: str, choice: str) -> bool:
+    """Keep the model a draft is set to (`chatkinds.set_choice`) until it is written down. False
+    when the id is no draft."""
+    with _MAKING:
+        if draft(chat_id) is None:
+            return False
+        rows = _drafts()
+        for row in rows:
+            if row.get("id") == chat_id:
+                row["model_choice"] = choice
+        _keep_drafts(rows)
+    return True
+
+
 def draft(chat_id: str) -> dict | None:
     """What this id was drafted for, while it is a draft and nothing more.
 
@@ -1046,6 +1060,9 @@ def make(chat_id: str) -> dict | None:
             # Made by another process in the same instant. It is there, and
             # that is all this was for.
             return None
+        if held.get("model_choice"):
+            # Cheap, Smart or Auto, set beside the composer before anything was said here.
+            Chat.objects.filter(id=chat_id).update(model_choice=str(held["model_choice"]))
         if task is not None:
             st.attach("task", task.id, "chat", chat_id)
         elif held.get("project") and st.get_project(held["project"]) is not None:

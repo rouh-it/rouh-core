@@ -237,6 +237,14 @@ def _request_done(fields: dict, done: dict, row_id, *, use: str = "") -> None:
     if got is None:
         try:
             tier = modeldefaults.use_tier(use, org)
+            if purpose == "turn":
+                # A chat set to Cheap, Smart or Auto beside the composer is on that, whatever
+                # the Models page says (`chatkinds.own_choice`).
+                from . import chatkinds
+
+                own = chatkinds.own_choice(session)
+                if own:
+                    tier = chatkinds.CHOICE_TIER.get(own, modeldefaults.AUTO)
         except Exception:
             tier = ""
         got = M.objects.create(

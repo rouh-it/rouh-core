@@ -899,8 +899,15 @@ function handleMessage(m) {
       break;
     case 'model_defaults':
       // The models in Settings changed, here or anywhere: read them again,
-      // which also names the right model beside the This page side's box.
+      // which also names the right model beside the This page side's box,
+      // and the default a chat with no choice of its own follows.
       modelsLoad();
+      window.dispatchEvent(new CustomEvent('rouh:chat-model', { detail: null }));
+      break;
+    case 'chat_model':
+      // Cheap, Smart or Auto for a chat, from this tab or another of the
+      // person's (app/composer_extras.js).
+      window.dispatchEvent(new CustomEvent('rouh:chat-model', { detail: m }));
       break;
     case 'exchange':
       // Which exchange the turn now running is writing into, and how many

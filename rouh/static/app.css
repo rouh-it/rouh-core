@@ -7149,12 +7149,9 @@ a.pf-co:hover { color: var(--accent); text-decoration: underline; }
      longer fits at all. The conversation column at its 300 pixel floor
      dropped Send alone to the start of a second line, with Fork left at the
      end of the first; and the welcome's box, narrower still, dropped the
-     picture button there instead. So Add, which is not built yet, gives its
-     square up here whatever else is on the line, and a line with Fork or Stop
-     on it breaks the way a phone's does (below): Stop, Fork and Send go down
-     together, to the right hand end of their own line, and the model's name
-     keeps its room. */
-  #composerControls > #addBtn { display: none; }
+     picture button there instead. So a line with Fork or Stop on it breaks
+     the way a phone's does (below): Stop, Fork and Send go down together, to
+     the right hand end of their own line, and the model's word keeps its room. */
   #composerControls:has(> :is(.fork-btn, .stop-btn):not([hidden]))::after {
     content: ""; order: 1; flex: 0 0 100%; height: 0;
   }
@@ -7176,6 +7173,105 @@ a.pf-co:hover { color: var(--accent); text-decoration: underline; }
     .pick { flex-basis: 112px; }
   }
 }
+
+/* ---------- the voice button and the model, on the composer's line ----------
+
+   Petar, 8 November 2026: the three voice controls under one button with a
+   speaking person, the + gone, and Cheap, Smart or Auto for the chat always on
+   the line (app/composer_extras.js). Both open a small panel above the line,
+   in the panel colours every menu here uses, and close on Escape, on a press
+   anywhere else, and on the button again. */
+.voice-wrap, .model-wrap { position: relative; flex: 0 0 auto; display: flex; }
+.voice-menu-btn { color: var(--dim); }
+.voice-menu-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--text); }
+/* The microphone live, while the panel is closed: the person in the accent and
+   a dot in the corner, so "is it listening?" is answered without opening it. */
+.voice-menu-btn.mic-live { color: var(--accent); }
+.voice-dot {
+  position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 2px var(--panel-2); display: none;
+}
+.voice-menu-btn.mic-live .voice-dot { display: block; }
+.voice-menu-btn.dictating { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.voice-menu-btn.replies-off .wave { opacity: 0.3; }
+
+.voice-pop, .model-pop {
+  position: absolute; bottom: calc(100% + 8px); z-index: 40;
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: var(--radius-s); box-shadow: var(--shadow);
+  padding: 6px; cursor: default;
+}
+.voice-pop[hidden], .model-pop[hidden] { display: none; }
+.voice-pop { left: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; width: 272px; }
+/* Each control is a row in the panel, its own button still, with the words its
+   label always held now on the screen beside the icon. */
+.voice-pop .tog {
+  width: 100%; height: 44px; display: flex; justify-content: flex-start; gap: 10px;
+  box-sizing: border-box; padding: 0 12px; font: inherit; font-size: 13px; text-align: left;
+}
+.voice-pop .tog .sr-only {
+  position: static; width: auto; height: auto; margin: 0; overflow: visible;
+  clip: auto; clip-path: none; white-space: nowrap; color: var(--text);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis;
+}
+.voice-pop .tog.off::after { position: static; margin-left: auto; font-size: 10px; padding: 2px 4px; }
+.voice-pop .tog.off .sr-only { color: var(--dim); }
+.voice-pop .tog:focus-visible, .voice-menu-btn:focus-visible, .model-btn:focus-visible,
+.model-opt:focus-visible, .model-reset:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+
+.model-btn {
+  appearance: none; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 600;
+  height: 34px; padding: 0 9px 0 11px; display: flex; align-items: center; gap: 6px;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-s);
+  color: var(--text); white-space: nowrap;
+}
+.model-btn:hover { border-color: var(--dim); }
+.model-btn[aria-expanded="true"] { border-color: var(--accent); }
+.model-btn-chev { color: var(--dim); }
+/* Following the Models page rather than a choice of its own: the word is quieter. */
+.model-btn.follows .model-btn-word { color: var(--dim); font-weight: 500; }
+.model-pop { left: 0; width: 272px; display: grid; gap: 4px; }
+.voice-pop, .model-pop { max-width: calc(100vw - 16px); box-sizing: border-box; }
+.model-pop-head { margin: 4px 8px 2px; font-size: 12px; color: var(--dim); }
+.model-opts { display: grid; gap: 2px; }
+.model-opt {
+  appearance: none; cursor: pointer; width: 100%; min-height: 44px; text-align: left;
+  display: grid; grid-template-columns: 18px 1fr; column-gap: 8px; align-items: start;
+  padding: 7px 8px; border: 1px solid transparent; border-radius: 7px;
+  background: transparent; color: var(--text); font: inherit;
+}
+.model-opt:hover { background: var(--panel); }
+.model-opt[aria-checked="true"] { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); }
+.model-opt-mark {
+  grid-row: 1 / span 2; margin-top: 2px; width: 14px; height: 14px; border-radius: 50%;
+  border: 1.5px solid var(--dim); box-sizing: border-box;
+}
+.model-opt[aria-checked="true"] .model-opt-mark { border: 4px solid var(--accent); }
+.model-opt-name { font-size: 13px; font-weight: 600; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.model-opt-model { font-size: 11.5px; font-weight: 500; color: var(--dim); }
+.model-opt-hint { grid-column: 2; font-size: 12px; line-height: 1.35; color: var(--dim); }
+.model-pop-foot { margin: 2px 8px 4px; font-size: 11.5px; line-height: 1.4; color: var(--dim); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.model-pop-foot:empty { display: none; }
+.model-reset {
+  appearance: none; cursor: pointer; font: inherit; font-size: 12px; color: var(--accent);
+  background: transparent; border: 0; padding: 4px 0; text-decoration: underline; text-underline-offset: 2px;
+}
+@container composer (max-width: 408px) {
+  .model-btn { height: 30px; padding: 0 7px 0 9px; }
+  .voice-pop .tog { width: 100%; height: 44px; }
+}
+@media (max-width: 899px) {
+  /* A phone's text is 16 pixels, or iOS zooms in. */
+  .model-btn { font-size: 14px; }
+  .model-opt-name, .voice-pop .tog { font-size: 15px; }
+  .model-opt-hint { font-size: 13px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .voice-pop:not([hidden]), .model-pop:not([hidden]) { animation: pop-up 0.16s ease-out; }
+}
+@keyframes pop-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 /* ---------- attached files ---------- */
 
@@ -9761,21 +9857,9 @@ a.att-name:hover { text-decoration: underline; }
 @container composer (max-width: 440px) {
   .tog.fork-btn { width: 34px; padding: 0; justify-content: center; }
   .fork-btn-word { display: none; }
-  /* While a turn runs, Stop comes onto the line beside Fork, and a line
-     between 369 and 440 pixels - a 400 pixel phone, a narrow conversation
-     column - has no square for it: Send dropped to the start of a line of its
-     own. Add gives its square up for the length of the turn, as it does for
-     Fork alone on a shorter line below. */
-  .composer-controls:has(> #stopBtn:not([hidden])):has(> #forkBtn:not([hidden])) > #addBtn {
-    display: none;
-  }
 }
 @container composer (max-width: 368px) {
   .tog.fork-btn { width: 30px; }
-  /* A phone's line has no square to spare, and taking one off the model's
-     name reads "Sonn...". The one it gives up is Add, which is not built
-     yet and does nothing but say so. */
-  .composer-controls:has(> #forkBtn:not([hidden])) > #addBtn { display: none; }
 }
 
 /* On a phone the row is the pane: a card a little narrower than the screen
@@ -9790,7 +9874,6 @@ a.att-name:hover { text-decoration: underline; }
     overflow: hidden;
   }
   .fork-look .crumb { display: none; }
-  .fork-look [data-was="addBtn"] { display: none; }
   /* A card beside another is narrower than the glass, and a line that would
      squeeze the model's name to "Sonn..." breaks instead, the way it already
      does on a 320 pixel phone: Send takes a line of its own. */
@@ -10195,19 +10278,6 @@ a.att-name:hover { text-decoration: underline; }
   border-radius: var(--radius-s);
 }
 
-/* The picture button is one more square on the composer's line, and Add,
-   which is not built yet, gives its square up for it sooner than it used to:
-   while a turn runs and Fork is there too, and on a narrower line whenever
-   Fork is there. */
-@container composer (max-width: 540px) {
-  .composer-controls:has(> #stopBtn:not([hidden])):has(> #forkBtn:not([hidden])) > #addBtn {
-    display: none;
-  }
-}
-@container composer (max-width: 480px) {
-  .composer-controls:has(> #forkBtn:not([hidden])) > #addBtn,
-  .composer-controls:has(> #stopBtn:not([hidden])) > #addBtn { display: none; }
-}
 
 /* Read-only mailboxes (task 71): one row a mailbox, its address and what it
    may do on the left, Disconnect on the right, and a line under it when

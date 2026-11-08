@@ -36,6 +36,20 @@ else's email or message is "case_read", and every other chat is the use
 OpenAI model is asked through `rouh/luna.py`, and only with an OpenAI key in
 this service's environment; without one the tier's Anthropic stand-in answers
 (`modeldefaults.Now.model_for`).
+
+**Cheap, Smart or Auto, chat by chat** (Petar, 8 November 2026): "I am doing heavy and
+difficult work and I don't want cheap model to answer me ... add a new control - model Cheap,
+Smart, Auto ... saved in the settings of the chat ... whatever is on rouh, will be the default
+for any new chat, unless changed later." So the control beside the composer is back, as three
+words rather than a list of models, and kept on the chat (`Chat.model_choice`), never in the
+browser: Cheap is the Cheaper tier, Smart the Smart tier, and Auto the router of Balanced
+(`rouh/modelrouter.py`: Cheaper only when it is at least the bar sure the message is easy).
+A chat with no choice of its own follows the Models page (`default_choice`): Best is Smart,
+Balanced is Auto, Saver is Cheap, and a use locked to a tier is that tier. Setting one chat
+never moves the Models page, and moving the Models page never rewrites a chat that has its own.
+A chat set to Smart is never routed, and one set to Cheap always answers on Cheaper. Only the
+person's chats take a choice (`chooses`): a case's turn and a heartbeat's chat keep their own
+use's tier, and so does every unattended job, which never asks through a chat.
 """
 from __future__ import annotations
 
@@ -147,15 +161,112 @@ def of_heartbeat(chat_id: str | None) -> bool:
     return bool(chat_id) and chat_id in heartbeat.CHATS
 
 
+#: The three choices beside the composer, as they are kept and as they are shown.
+CHEAP, SMART, AUTO = "cheap", "smart", "auto"
+CHOICES = (CHEAP, SMART, AUTO)
+CHOICE_NAMES = {CHEAP: "Cheap", SMART: "Smart", AUTO: "Auto"}
+#: The tier a fixed choice answers on.
+CHOICE_TIER = {CHEAP: modeldefaults.CHEAPER, SMART: modeldefaults.SMART}
+#: What each choice means, in a line the control shows.
+CHOICE_HINTS = {CHEAP: "Always the cheaper model.",
+                SMART: "Always the smart model. The router never runs.",
+                AUTO: "Cheap for clearly easy messages; Smart otherwise."}
+#: The uses whose chats take a choice of their own: General and its forks, and every other chat.
+CHOOSING = ("general", "chats")
+
+
+def chooses(chat_id: str | None) -> bool:
+    """Whether the control beside the composer decides this chat's model: one of the person's
+    chats, never a case's turn about somebody else's words or a heartbeat's chat."""
+    return bool(chat_id) and use_for(chat_id) in CHOOSING
+
+
+def stored_choice(chat_id: str | None) -> str:
+    """The choice this chat was given by hand, or "": the chat's own, or, for a draft not
+    written down yet, the draft's (`conversations.make` carries it over)."""
+    if not chat_id:
+        return ""
+    try:
+        from .models.objects import Chat
+
+        got = Chat.objects.filter(id=chat_id).values_list("model_choice", flat=True).first()
+        if got is None:
+            from . import conversations
+
+            held = conversations.draft(chat_id)
+            got = (held or {}).get("model_choice") or ""
+    except Exception:                      # the Models page answers instead
+        log.exception("the model chat %s is set to could not be read", chat_id)
+        return ""
+    return got if got in CHOICES else ""
+
+
+def own_choice(chat_id: str | None) -> str:
+    """The choice that decides this chat's model by hand, or "" to follow the Models page."""
+    return stored_choice(chat_id) if chooses(chat_id) else ""
+
+
+def default_choice(chat_id: str | None, cfg=None, now=None) -> str:
+    """What a chat with no choice of its own is on, from the Models page: Auto when its use is
+    routed (Balanced), else its use's tier (Best is Smart, Saver is Cheap); "" for a use on a
+    model of its own or off, which no three words describe."""
+    now = now or modeldefaults.Now(None, cfg)
+    kind = now.kind(use_for(chat_id))
+    return {modeldefaults.AUTO: AUTO, modeldefaults.CHEAPER: CHEAP,
+            modeldefaults.SMART: SMART}.get(kind, "")
+
+
+def choice_of(chat_id: str | None, cfg=None) -> dict:
+    """What the control beside the composer shows for this chat: the choice in force, whether
+    it is the chat's own or the Models page's, the default it would follow, and the model each
+    choice answers with here."""
+    now = modeldefaults.Now(None, cfg)
+    use = use_for(chat_id)
+    default = default_choice(chat_id, now=now)
+    own = own_choice(chat_id)
+    models = {c: now.tier_pair(use, t).model for c, t in CHOICE_TIER.items()}
+    return {"chat": chat_id or "", "choice": own or default, "own": bool(own), "default": default,
+            "chooses": chooses(chat_id), "mode": now.mode,
+            "options": [{"id": c, "name": CHOICE_NAMES[c], "hint": CHOICE_HINTS[c],
+                         "model": models.get(c, ""),
+                         "model_name": model_name(models[c]) if models.get(c) else ""}
+                        for c in CHOICES]}
+
+
+def set_choice(chat_id: str, choice: str) -> bool:
+    """Keep this chat's choice ("" goes back to the Models page's default). A draft keeps it
+    until it is written down. False when there is no such chat or the choice is not one."""
+    from . import conversations
+    from .models.objects import Chat
+
+    chat_id = (chat_id or "").strip()
+    choice = (choice or "").strip().lower()
+    if not chat_id or (choice and choice not in CHOICES):
+        return False
+    if Chat.objects.filter(id=chat_id).update(model_choice=choice):
+        return True
+    return conversations.draft_choice(chat_id, choice)
+
+
 def routes(chat_id: str | None, cfg=None) -> bool:
     """Whether this chat is on Auto: each turn's tier is picked by a model that reads
-    the message (`rouh/modelrouter.py`)."""
+    the message (`rouh/modelrouter.py`). The chat's own choice first: Smart and Cheap
+    never route, and Auto always does."""
+    own = own_choice(chat_id)
+    if own:
+        return own == AUTO
     return modeldefaults.use_tier(use_for(chat_id), cfg=cfg) == modeldefaults.AUTO
 
 
 def model_for(chat_id: str | None, cfg=None) -> str:
-    """The model that answers in this chat: on Auto, the fallback tier's, for what
-    asks without a message to read (a turn routes before it asks)."""
+    """The model that answers in this chat: its own fixed choice's tier when it has one; on
+    Auto, the fallback tier's, for what asks without a message to read (a turn routes before
+    it asks)."""
+    own = own_choice(chat_id)
+    if own in CHOICE_TIER:
+        return tier_model(chat_id, CHOICE_TIER[own], cfg)
+    if own == AUTO:
+        return tier_model(chat_id, modeldefaults.AUTO_FALLBACK, cfg)
     return current_model(kind_pair(chat_id, cfg).model)
 
 

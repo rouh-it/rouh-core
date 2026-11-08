@@ -144,23 +144,28 @@ class Decision:
 
 
 def timeline(d: "Decision | None", turn_started: float, *, tier: str = "", model: str = "",
-             chosen: bool = False, mode: str = "") -> dict:
+             chosen: bool = False, mode: str = "", chat: str = "") -> dict:
     """How an exchange's model was decided (app/turnline.js `routeDraw`), kept with
     the turn (`RouteTimeline`). With a decision, the router's steps in milliseconds
     from the turn's start (`turn_at`, in wall-clock seconds, which lines them up with
     the message's memory timeline, `recalling.MessageMemory.timeline`'s `began`); without one, a chat on a fixed tier, a
     mode that answers without a router (`mode`), or with `chosen` a tier the person
-    pressed for this answer (outcome `chosen`)."""
+    pressed for this answer (outcome `chosen`). `chat` is Cheap, Smart or Auto when the chat
+    is set to one beside the composer (`chatkinds.own_choice`): without a decision that is
+    the outcome `chat`, a fixed tier the chat was set to, and with one it is said beside it."""
     from .modeldefaults import CHOICE_NAMES
 
     def at(t):
         return None if t is None else max(0, int(round((t - turn_started) * 1000)))
 
+    from .chatkinds import CHOICE_NAMES as CHAT_NAMES
+
+    said = {"chat_choice": chat, "chat_choice_name": CHAT_NAMES.get(chat, "")} if chat else {}
     if d is None:
-        return {"auto": False, "outcome": "chosen" if chosen else "fixed", "tier": tier,
-                "tier_name": CHOICE_NAMES.get(tier, tier.title()), "model": model,
+        return {"auto": False, "outcome": "chosen" if chosen else ("chat" if chat else "fixed"),
+                "tier": tier, "tier_name": CHOICE_NAMES.get(tier, tier.title()), "model": model,
                 "model_name": model_name(model) if model else "", "mode": mode,
-                "turn_at": turn_started}
+                "turn_at": turn_started, **said}
     end = d.began_at + d.ms / 1000 if d.began_at else None
     return {"auto": True, "outcome": d.outcome or ("picked" if d.ok else "error"),
             "tier": d.tier, "tier_name": CHOICE_NAMES.get(d.tier, d.tier), "model": d.model,
@@ -171,7 +176,7 @@ def timeline(d: "Decision | None", turn_started: float, *, tier: str = "", model
             "took_ms": (int(round((d.back_at - d.sent_at) * 1000))
                         if d.back_at is not None and d.sent_at is not None else None),
             "error": d.error, "turn_at": turn_started, "via": d.via, "mode": mode or "balanced",
-            "easy": d.easy, "bar": d.bar, "tokens_in": d.tokens_in, "cost": d.cost}
+            "easy": d.easy, "bar": d.bar, "tokens_in": d.tokens_in, "cost": d.cost, **said}
 
 
 def _text(content) -> str:
