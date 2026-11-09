@@ -1,7 +1,7 @@
 {
   "id": "account",
   "name": "Your account",
-  "title": "Your account: the one email that signs you in here and on rouh.land, passkeys, a backup password, the way out, and your rouh.land account",
+  "title": "Your account: the one email that signs you in here and on rouh.land, passkeys, a backup password, the way out, and your rouh.land account; worker subscriptions for Claude Code and Codex in Anatomy Connections, account switching, workspace choice and live capacity",
   "aliases": [
     "log out",
     "passkey",
@@ -24,7 +24,10 @@
   },
   "touches": {
     "permissions": [],
-    "accounts": [],
+    "accounts": [
+      "Claude Code subscription",
+      "ChatGPT subscription"
+    ],
     "tables": [
       "organisations",
       "passkeys",

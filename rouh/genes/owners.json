@@ -421,7 +421,10 @@
     "rouh/templates/rouh/signin_base.html",
     "rouh/static/password-rules.js",
     "rouh/management/commands/account.py",
-    "rouh/management/commands/handover.py"
+    "rouh/management/commands/handover.py",
+    "rouh/web/subscriptions.py",
+    "rouh/templates/rouh/subscriptions.html",
+    "rouh/static/app/subscriptions.js"
    ],
    "needed_by": [
     "apple-contacts",

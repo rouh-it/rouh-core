@@ -471,6 +471,11 @@ class Views:
                    session_id=b.get("session_id") or run.get("session_id"),
                    queued_because=None, last_at=e["at"])
 
+    def _on_run_credentials(self, e, b) -> None:
+        run = self._run(e)
+        if run:
+            run["credential_stamp"] = b.get("stamp")
+
     def _on_run_restarted(self, e, b) -> None:
         run = self._run(e)
         if run:

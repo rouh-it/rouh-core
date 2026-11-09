@@ -53,7 +53,7 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Callable
 
-from . import codexhome
+from . import codexhome, subscriptions
 
 if TYPE_CHECKING:  # pragma: no cover
     from .config import Settings
@@ -119,10 +119,13 @@ def _claims(auth_path: str) -> dict[str, str]:
     """Whose account and which plan, from the id token's claims; nothing else, and never the token."""
     try:
         with open(auth_path, encoding="utf-8") as fh:
-            token = str(((json.load(fh) or {}).get("tokens") or {}).get("id_token") or "")
+            tokens = (json.load(fh) or {}).get("tokens") or {}
+            token = str(tokens.get("id_token") or "")
         part = token.split(".")[1]
         claims = json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
     except (OSError, ValueError, IndexError, AttributeError, TypeError):
+        return {}
+    if not isinstance(claims, dict):
         return {}
     auth = claims.get("https://api.openai.com/auth") or {}
     out = {}
@@ -131,6 +134,13 @@ def _claims(auth_path: str) -> dict[str, str]:
     plan = auth.get("chatgpt_plan_type") if isinstance(auth, dict) else None
     if isinstance(plan, str) and plan:
         out["plan"] = plan[:40]
+    for source, target in (("chatgpt_account_id", "account_id"), ("chatgpt_workspace_name", "workspace_name")):
+        value = auth.get(source) if isinstance(auth, dict) else None
+        if isinstance(value, str):
+            out[target] = value[:200]
+    if not out.get("account_id") and isinstance(tokens.get("account_id"), str):
+        out["account_id"] = tokens["account_id"][:200]
+    out["workspace"] = subscriptions.workspace(out.get("plan", ""))
     return out
 
 
@@ -191,6 +201,7 @@ class CodexSignIn:
         self._last: dict[str, Any] = {}
         self._test: dict[str, Any] = {}
         self._lock = asyncio.Lock()
+        self._workspace_supported: bool | None = None
 
     # -- what the page asks for -----------------------------------------------------
 
@@ -201,7 +212,9 @@ class CodexSignIn:
             if do == "status":
                 return await self.status()
             if do == "start":
-                return await self.start()
+                return await self.start(message)
+            if do == "limits":
+                return await subscriptions.capacity("codex", lambda: subscriptions.codex_limits(self.binary(), _env()))
             if do == "cancel":
                 await self._drop()
                 return await self.status()
@@ -226,6 +239,8 @@ class CodexSignIn:
         """Whether Codex is installed and signed in, how, as whom and on which plan."""
         out: dict[str, Any] = {"installed": self.installed(), "waiting": self.is_waiting(),
                                "api_key_chosen": prefers_api_key(), "page": self.page()}
+        chosen = subscriptions.choice()
+        out["workspace_choice"] = chosen.get("kind", "personal")
         if self.is_waiting():
             out.update(self._waiting)
         if self._last:
@@ -242,9 +257,23 @@ class CodexSignIn:
             how = found.group(1).strip().lower()
             out["method"] = "chatgpt" if how.startswith("chatgpt") else (
                 "api_key" if "api key" in how else how[:40])
+        if self._workspace_supported is None:
+            version = await _run(self.binary(), "--version", timeout=5)
+            found_version = re.search(r"(\d+)\.(\d+)\.(\d+)", version["stdout"])
+            self._workspace_supported = bool(found_version and tuple(map(int, found_version.groups())) >= (0, 163, 0))
+        out["workspace_supported"] = self._workspace_supported
         auth = codexhome.auth_file()
         if out["signed_in"] and out.get("method") == "chatgpt":
             out.update(_claims(auth))
+            chosen = subscriptions.choice()
+            out["workspace_choice"] = chosen.get("kind", "personal")
+            out["workspace_locked"] = bool(chosen.get("locked") and out.get("account_id")
+                                           and subscriptions.held_workspace() == out["account_id"])
+            out["workspace_mismatch"] = bool(chosen.get("kind") in ("personal", "team") and
+                out.get("workspace", "").lower() != chosen["kind"])
+            if chosen.get("account_id") and chosen["account_id"] != out.get("account_id"):
+                out["workspace_mismatch"] = True
+                out["workspace_expected_id"] = chosen["account_id"]
             self._keep_private(auth)
             self._forget_told()
         elif not out["signed_in"] and "Not logged in" not in words and said["code"] not in (0, 1):
@@ -257,12 +286,31 @@ class CodexSignIn:
     def is_waiting(self) -> bool:
         return self._proc is not None and self._proc.returncode is None and bool(self._waiting)
 
-    async def start(self) -> dict[str, Any]:
+    async def start(self, message: dict | None = None) -> dict[str, Any]:
         """Starts ``codex login --device-auth`` and hands back its address and code."""
         await self._drop()
         if not self.installed():
             raise Refused("Codex is not installed in the worker")
         os.makedirs(codexhome.folder(), mode=0o700, exist_ok=True)
+        if message and "workspace" in message:
+            kind = str(message.get("workspace") or "personal")
+            if kind not in ("personal", "team", "any"):
+                raise Refused("choose Personal, Team or Any workspace")
+            account = str(message.get("account_id") or "").strip()
+            if account:
+                from uuid import UUID
+                try:
+                    account = str(UUID(account))
+                except ValueError:
+                    raise Refused("the workspace id must be a UUID")
+            # A restriction for the old account must not prevent an intentional account change.
+            if self._workspace_supported is None:
+                await self.status()
+            if account and not self._workspace_supported:
+                raise Refused("this Codex version cannot hold a workspace; choose it on OpenAI’s page")
+            if self._workspace_supported:
+                subscriptions.pin(account)
+            subscriptions.keep_choice({"kind": kind, "account_id": account, "locked": bool(account)})
         self._last, self._test = {}, {}
         proc = await asyncio.create_subprocess_exec(
             self.binary(), "login", "--device-auth",
@@ -329,7 +377,20 @@ class CodexSignIn:
             self._keep_private(codexhome.auth_file())
             self._forget_told()
             log.info("codex sign-in finished")
-            self._start_test()
+            chosen = subscriptions.choice()
+            claims = _claims(codexhome.auth_file())
+            matches = chosen.get("kind") == "any" or claims.get("workspace", "").lower() == chosen.get("kind")
+            matches = matches and (not chosen.get("account_id") or chosen["account_id"] == claims.get("account_id"))
+            if chosen and matches and claims.get("account_id") and self._workspace_supported:
+                try:
+                    subscriptions.pin(claims["account_id"])
+                    chosen["locked"] = True
+                    subscriptions.keep_choice(chosen)
+                except (ValueError, OSError):
+                    pass
+            # The setup's existing probe stays; Connections only needs metadata and limits.
+            if not chosen:
+                self._start_test()
         else:
             self._last = {"ok": False, "at": time.time(), "said": _first_error(said)}
             log.info("codex sign-in ended with exit code %s", proc.returncode)

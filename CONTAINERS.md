@@ -52,6 +52,7 @@ A new feature adds its row and its check in the commit that adds it.
 | `phone.real` | Rouh on a real phone, from its Home Screen | untested | manual | a person, below: only a real iPhone meets the relay, the certificate and iOS's microphone rules |
 | `claude.signin` | Claude Code's sign-in page (`/setup/claude`) | untested | works | `/setup/claude/state` says what the one program in the worker says (signed out), and the page opens in a real Chromium |
 | `codex.signin` | Codex's sign-in with a ChatGPT plan (`/setup/codex`, and Settings, Models, Agents' sign-ins) | untested | works | `/setup/codex/state` says what `codex login status` in the worker says, Codex's folder there is `/home/rouh/.codex` on the `worker-home` volume (so a sign-in outlives a rebuilt worker), and the page opens in a real Chromium. The device code itself comes from OpenAI, which a stack test never reaches: it was proved in a browser on 6 November 2026, a real code from `codex login --device-auth` in the worker shown on the page |
+| `agents.subscriptions` | Claude Code and Codex subscriptions in Anatomy Connections | untested | works | Both owner-only cards read the worker account state and open at 1440 and 390 px; no vendor sign-in or sign-out is performed by the stack check. Full account switching is proved against isolated worker stubs. |
 
 ## Conversation, cards and the things that need only Rouh
 

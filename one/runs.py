@@ -43,7 +43,7 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from . import agents, billing, codex_signin, codexhome, drops, rules, sealed
+from . import agents, billing, codex_signin, codexhome, drops, rules, sealed, subscriptions
 from .documents import DocumentsError
 from .hookbodies import CLOSING_TEXT
 from .terminals import read_exit, session_alive
@@ -185,7 +185,7 @@ class _RunInteraction:
                 "text": agents.plain(text, 4000), "via": "carried on"})
             self._spawn(self.launch(run_id, resume=True, prompt=text))
             return "carried on"
-        if run_id in self.takeovers or run["state"] != "idle" or run_id in self._typing:
+        if run_id in self.takeovers or run["state"] != "idle" or run_id in self._typing or run_id in self.switching:
             self.pending.setdefault(run_id, []).append(text)
             self.list.append("message.queued", run=run_id, by=by, body={"text": agents.plain(text, 4000)})
             self._unarchive(run_id, by=by, why="it was given a message to work on")
@@ -278,6 +278,20 @@ class _RunInteraction:
         not, Enter is pressed once more, which is also what sends a message
         Claude Code is holding for review.
         """
+        run = self._run(run_id)
+        engine = agents.engine_of(run.get("engine"))
+        stamp = self._credential_stamp(run)
+        if run.get("credential_stamp") != stamp:
+            # Never interrupt working code: this path is a message at an idle prompt.
+            # Resume the saved conversation in a new CLI process, which rereads auth.
+            session = self._codex_conversation(run) if engine == "codex" else None
+            if not run.get("session_id") or (engine == "codex" and not session):
+                return "The sign-in changed, but this job has no saved conversation to resume. Start a new job."
+            self.list.append("message.sent", run=run_id, by=by, body={
+                "text": agents.plain(text, 4000), "via": "reloaded sign-in"})
+            self._start_again(run_id, by=by, codex_session=session, prompt=text,
+                              why="reloaded the changed subscription sign-in", credentials=True)
+            return None
         taken = self._typing[run_id] = asyncio.Event()
         try:
             await self._paste(terminal, text)
@@ -618,6 +632,11 @@ class Runs(_RunInteraction):
         program.questions.handle(billing.ASK_API, self._answered_api)
         program.questions.handle(billing.ASK_FRESH, self._answered_fresh)
 
+    def _credential_stamp(self, run: dict[str, Any]) -> str:
+        import hashlib
+        stamp = subscriptions.credential_stamp(agents.engine_of(run.get("engine")), self._home(run))
+        return hashlib.sha256(repr(stamp).encode()).hexdigest()
+
     def _home(self, run: dict[str, Any]) -> str:
         """The home folder of the user the run works as."""
         return _home_of(self.s.space(run.get("space")).user)
@@ -742,6 +761,9 @@ class Runs(_RunInteraction):
             # told once until Codex is signed in again (codex_signin.py), not once a run.
             self.p.codex_signin.tell_lost()
             raise RunError(codex_signin.needs_line(self.s.public_url))
+        if engine == "codex" and pays == billing.SUBSCRIPTION and not subscriptions.codex_workspace_matches(self._home(run)):
+            raise RunError("Codex is signed in to a different workspace than the one chosen in "
+                           "Anatomy Connections. Sign out and sign in to the chosen workspace there.")
         where = await self._checkout(run)
         cwd, branch = where["cwd"], where["branch"]
         if not resume:
@@ -822,6 +844,8 @@ class Runs(_RunInteraction):
             self.list.append("run.started", run=run_id,
                              body={**where, "session_id": session, "engine": engine,
                                    "billing": pays})
+        self.list.append("run.credentials", run=run_id,
+                         body={"stamp": self._credential_stamp(run)})
         await self._hold(run_id, self.docs.agent_argv(run_id, cwd, args, space=space,
                                                       engine=engine, hook_key=key,
                                                       api_key_file=key_file,
@@ -1236,6 +1260,13 @@ class Runs(_RunInteraction):
                 "text": agents.plain(follow_up, 4000), "via": "end of turn"})
         self.p.scheduler.wake()
         if follow_up:
+            if run.get("credential_stamp") != self._credential_stamp(run):
+                engine = agents.engine_of(run.get("engine"))
+                session = self._codex_conversation(run) if engine == "codex" else None
+                if run.get("session_id") and (engine != "codex" or session):
+                    self._start_again(run_id, by="program", codex_session=session, prompt=follow_up,
+                                      why="reloaded the changed subscription sign-in", credentials=True)
+                    return {}
             return {"decision": "block", "reason": follow_up}
         return {}
 
@@ -1915,13 +1946,13 @@ class Runs(_RunInteraction):
                           why="a fresh Codex session on the OpenAI API key, in the same checkout")
 
     def _start_again(self, run_id: str, *, by: str, codex_session: str | None, prompt: str,
-                     why: str) -> None:
+                     why: str, credentials: bool = False) -> None:
         """Ask Codex to leave at its prompt, then start it again as it now is.
 
         Never mid-request: the run is paused on a question, at its prompt,
         because the turn it was on has already ended.
         """
-        how = {"codex_session": codex_session, "prompt": prompt, "why": why, "by": by}
+        how = {"codex_session": codex_session, "prompt": prompt, "why": why, "by": by, "credentials": credentials}
         terminal = self.p.terminals.get(run_id)
         if terminal is None:
             self._relaunch(run_id, how)
@@ -1931,10 +1962,10 @@ class Runs(_RunInteraction):
 
     def _relaunch(self, run_id: str, how: dict[str, Any]) -> None:
         self.list.append("run.restarted", run=run_id, by=how.get("by") or "program",
-                         body={"why": how["why"], "billing": True})
+                         body={"why": how["why"], "billing": True, "credentials": bool(how.get("credentials"))})
         self._spawn(self.launch(run_id, resume=True, prompt=how["prompt"],
                                 codex_session=how.get("codex_session"),
-                                fresh=not how.get("codex_session")))
+                                fresh=not how.get("codex_session") and not how.get("credentials")))
 
     # -- files dropped on its terminal (D52) --------------------------------------------------
 

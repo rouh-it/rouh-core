@@ -518,3 +518,21 @@ New code: push to `main`, then `ssh <the server> 'bash /srv/one/app/one/deploy/i
 It checks the code imports before restarting, prints the command that goes back, and never stops a run: only the program restarts, and it reconnects to them.
 
 `ONE_CLAUDE_DEBUG=1` (a systemd drop-in, `one.service.d/debug.conf`) makes each run write Claude Code's own debug log into its `.one` folder; it is copied to `/var/lib/one/runs/<run>/claude-debug.log` before the checkout is removed.
+
+### Worker subscriptions in Anatomy Connections
+
+`/anatomy/connections` reuses the setup sign-in protocol for Claude Code and Codex.
+Only the owner gate used by setup can read or change these instance subscriptions.
+`/api/subscriptions/claude` and `/api/subscriptions/codex` return identity metadata and current capacity, never credentials.
+POST actions start or cancel the vendor's own sign-in, finish Claude's returned-code flow, or sign out after confirmation.
+
+Codex uses `login --device-auth` and `logout` in the worker's shared Codex home.
+The workspace choice is kept beside its sign-in; a matching approval holds its workspace ID through `forced_chatgpt_workspace_id` on supported versions.
+A mismatched choice is shown on the card and subscription jobs wait until it matches.
+Capacity comes from Codex's `account/rateLimits/read`, with no model request; Claude's usage endpoint stays inside the worker.
+Unknown windows and credit balances stay unknown, and capacity cached for at most 45 seconds is invalidated when credentials change.
+
+New jobs read the shared credentials at launch.
+An existing idle job with changed credentials resumes its saved conversation in a new CLI process before its next message, including a queued follow-up at the end of a turn.
+This does not interrupt a working turn or require a manual restart of the one program.
+Browser proof uses isolated homes and stand-ins; it must never sign the installation's live accounts out.

@@ -303,3 +303,29 @@ def codex_signin(s: Stack) -> None:
         pg.screenshot(path=str(s.out / "codex-signin.png"))
         text = pg.inner_text("body")
     expect("Sign in Codex with ChatGPT" in text, f"the sign-in page says: {text[:300]}")
+
+
+@check("agents.subscriptions")
+def agent_subscriptions(s: Stack) -> None:
+    """Connections reads the worker's safe account state and opens both subscription cards.
+
+    Account changes belong to the owner. This check never starts vendor auth or signs out.
+    """
+    for provider in ("claude", "codex"):
+        code, body, headers = s.get("/api/subscriptions/" + provider)
+        expect(code == 200, f"{provider} subscription answered {code}: {body[:200]}")
+        data = json.loads(body)
+        expect(data.get("reached") is True and "installed" in data,
+               f"{provider} did not reach the worker")
+        expect(not any(k in body for k in ('access_token', 'refresh_token', 'id_token', 'accessToken')),
+               "subscription response contains credential fields")
+    with signed_in(s) as pg:
+        pg.goto(s.url + "/anatomy/connections")
+        pg.locator("#subscriptions:not([hidden])").wait_for(timeout=45000)
+        pg.get_by_role("heading", name="Claude Code", exact=True).wait_for()
+        pg.get_by_role("heading", name="Codex", exact=True).wait_for()
+        for width in (1440, 390):
+            pg.set_viewport_size({"width": width, "height": 900})
+            expect(pg.locator("#subscriptions button").filter(has_text="Sign in").count() == 2,
+                   "the two subscription sign-in buttons are missing")
+            pg.screenshot(path=str(s.out / f"subscriptions-{width}.png"))

@@ -31,6 +31,7 @@ from rouh.web import demo as demo_web
 from rouh.web import dreame as dreame_web
 from rouh.web import claude_signin as claude_signin_web
 from rouh.web import codex_signin as codex_signin_web
+from rouh.web import subscriptions as subscriptions_web
 from rouh.web import firstrun as firstrun_web
 from rouh.web import phoneapi
 from rouh.web import filesapi
@@ -158,6 +159,7 @@ urlpatterns = [
     path("setup/claude", claude_signin_web.page),
     path("setup/claude/state", claude_signin_web.state),
     # And Codex's, with a ChatGPT plan (`rouh/web/codex_signin.py`).
+    path("api/subscriptions/<str:provider>", subscriptions_web.endpoint),
     path("setup/codex", codex_signin_web.page),
     path("setup/codex/state", codex_signin_web.state),
     path("healthz", views.healthz),

@@ -170,6 +170,8 @@ class Program:
         with contextlib.suppress(Exception):
             # A device sign-in waiting for its approval ends with the program, never after it.
             await self.codex_signin.close()
+        with contextlib.suppress(Exception):
+            await self.claude_signin.close()
         await self.runs.close()
         # The runs go on in their holders. Only the program's hold on them ends.
         await self.terminals.close()

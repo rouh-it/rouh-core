@@ -10875,3 +10875,40 @@ html.demo #notices, html.demo .nt-count { display: none !important; }
   box-shadow: 0 0 0 2px rgba(181, 123, 255, 0.22); pointer-events: none;
 }
 html:not(.demo) .demo-dot:not(.keep) { display: none; }
+
+/* The setup's two brain tiles, in Anatomy Connections. */
+.subscriptions{padding:16px;margin:0;text-align:left;border-bottom:1px solid var(--line)}
+.subscriptions-head{display:flex;align-items:start;justify-content:space-between;gap:12px;margin-bottom:16px}
+.subscriptions h3{font-size:18px;margin:0 0 4px}
+.subscription-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:16px;align-items:start}
+.subscription-card{min-width:0;border:1px solid var(--line);border-radius:12px;padding:20px;background:var(--panel)}
+.subscription-card h4{font-size:18px;margin:0 0 12px}
+.subscription-body{display:grid;gap:12px;font-size:14px}
+.subscription-body p{margin:0;overflow-wrap:anywhere}
+.subscription-body .subscription-state{font-weight:600}
+.subscription-facts{margin:0;display:grid;gap:8px}
+.subscription-facts>div{display:grid;gap:2px}
+.subscription-facts dt,.subscription-muted{color:var(--dim);font-size:13px}
+.subscription-facts dd{margin:0;overflow-wrap:anywhere}
+.subscription-actions{display:flex;flex-wrap:wrap;gap:8px}
+.subscription-card .ctl,.subscription-card input,.subscription-card select{min-height:44px}
+.subscription-card label{display:grid;gap:6px}
+.subscription-card input,.subscription-card select{box-sizing:border-box;width:100%;min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);padding:8px 12px;font:inherit}
+.subscription-card :is(button,a,input,select):focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.subscription-warning{border:1px solid var(--line);border-radius:8px;padding:12px;font-weight:600}
+.subscription-code{display:block;font-size:24px;font-weight:650;letter-spacing:.08em;overflow-wrap:anywhere;user-select:all}
+.subscription-signin{display:grid;gap:12px;border-top:1px solid var(--line);padding-top:12px}
+.subscription-capacity{display:grid;gap:12px;border-block:1px solid var(--line);padding-block:12px}
+.subscription-meter{height:4px;width:100%;accent-color:var(--accent)}
+@media(max-width:760px){.subscription-grid{grid-template-columns:minmax(0,1fr)}.subscription-card{padding:16px}}
+@media(max-width:760px){
+  /* Keep the phone's subscription fields clear of the ambient corner orb. */
+  .app:has(#settingsView:not([hidden]) .anatomy-menu[data-group="connections"]:not([hidden])) ~ .orb-layer[data-orb="corner"] .orb-box{display:none}
+}
+
+.subscription-meter{appearance:none;background:var(--line);border:0;border-radius:4px}
+.subscription-meter::-webkit-meter-bar{background:var(--line);border:0;border-radius:4px}
+.subscription-meter::-webkit-meter-optimum-value{background:var(--accent);border-radius:4px}
+.subscription-meter::-moz-meter-bar{background:var(--accent);border-radius:4px}
+.subscriptions-head>.ctl{min-height:44px}
+.subscription-card summary{min-height:44px;padding-block:12px;cursor:pointer}

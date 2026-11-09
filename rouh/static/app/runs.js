@@ -1,3 +1,4 @@
+import { subscriptionsLoad } from "app/subscriptions.js";
 /* Rouh's page, the one program's runs, opened on the canvas; the Start box; your workspace's tasks (section 10b of what was one app.js).
  *
  * Imports app/tasks.js first so that it runs after it, exactly where its
@@ -8502,6 +8503,7 @@ function settingsShowGroup(where, item, query) {
   var sec = anatomySection(where);
   var page = sec ? sec.group : anatomyGroup(where) ? where : '';
   var section = sec ? where : '';
+  if (page === 'connections' && !section) subscriptionsLoad();
   var moved = page !== SETTINGS.page || section !== SETTINGS.section;
   SETTINGS.page = page;
   SETTINGS.section = section;
@@ -8523,9 +8525,9 @@ function settingsShowGroup(where, item, query) {
   // level up: from a section to its group's menu, and from a group's menu to the board.
   $('settingsTitle').textContent = (sec && sec.section.name) || settingsGroupName(page) || 'Anatomy';
   $('settingsView').classList.toggle('settings-in', !!page);
-  // The heartbeat's three views - Today, its beats' table and its settings - take the whole
-  // width, the side list put away (`heartbeatpage.js`, `beatspage.js`).
-  $('settingsView').classList.toggle('settings-wide', section === 'beats' || section === 'heartbeat');
+  // Heartbeat's views and Connections' subscription cards use the canvas width,
+  // with Back above them (`heartbeatpage.js`, `beatspage.js`, `subscriptions.js`).
+  $('settingsView').classList.toggle('settings-wide', section === 'beats' || section === 'heartbeat' || (page === 'connections' && !section));
   var back = /** @type {HTMLAnchorElement} */ ($('settingsBack'));
   // From the page of a group with one section, Back goes to the board: its menu would list only it.
   var alone = !!section && anatomyOnly(page) === section;

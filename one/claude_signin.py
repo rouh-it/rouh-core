@@ -35,6 +35,7 @@ import json
 import logging
 import os
 import re
+import signal
 from pathlib import Path
 from typing import Any
 
@@ -92,6 +93,11 @@ class SignIn:
                 return await self.start()
             if do == "code":
                 return await self.code(str(message.get("code") or ""))
+            if do == "logout":
+                return await self.logout()
+            if do == "limits":
+                from .subscriptions import capacity, claude_limits
+                return await capacity("claude", claude_limits)
             if do == "cancel":
                 await self._drop()
                 return await self.status()
@@ -179,11 +185,23 @@ class SignIn:
         self._set_api_mode(False)
         return await self.status()
 
+    async def logout(self) -> dict[str, Any]:
+        await self._drop()
+        said = await _run(claude_binary(), "auth", "logout", timeout=30)
+        if said["code"] != 0:
+            raise Refused("Claude Code could not sign out. Press Sign out to try again")
+        if proxy_url():
+            self._set_api_mode(True)
+        return await self.status()
+
     async def use_api_key(self, on: bool) -> dict[str, Any]:
         if on and not proxy_url():
             raise Refused("the worker has no key proxy to send Claude Code through (ROUH_MODEL_PROXY)")
         self._set_api_mode(on)
         return await self.status()
+
+    async def close(self) -> None:
+        await self._drop()
 
     # -- the settings file -------------------------------------------------------------
 
@@ -226,6 +244,8 @@ class SignIn:
         proc = self._proc
         self._forget()
         if proc is not None and proc.returncode is None:
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                os.killpg(proc.pid, signal.SIGKILL)
             with contextlib.suppress(ProcessLookupError):
                 proc.kill()
             with contextlib.suppress(Exception):
@@ -256,5 +276,7 @@ async def _run(*args: str, timeout: float) -> dict[str, Any]:
     except asyncio.TimeoutError:
         with contextlib.suppress(ProcessLookupError):
             proc.kill()
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(proc.wait(), 5)
         return {"code": -1, "stdout": "", "stderr": "took too long"}
     return {"code": proc.returncode, "stdout": out.decode("utf-8", "replace"), "stderr": err.decode("utf-8", "replace")}
