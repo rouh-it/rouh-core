@@ -105,7 +105,17 @@ if it passes exactly the rules above, through ``check``, as if the browser had
 asked for it from the page's own address, and only as what the browser would
 have used it as: a picture as a picture, a style sheet as a style sheet, a
 script as a script. A reference that fails is left as it was, and so are
-absolute addresses and other sites' addresses. So are a file over
+absolute addresses and other sites' addresses. Modules are put in the same
+way, with their own imports: a page's import map has each exact name it maps
+put in (the one copy of a library), and every relative import, or import
+through one of the map's folder prefixes, becomes the data: address of the
+file it names, because a data: module has no folder to resolve one from.
+Before 9 November 2026 a page built on modules - the three.js viewer of task
+178 - stopped at its first import, refused by CORS, and said "Loading the
+model…" for ever. A file a page's script reads for itself cannot be fetched
+either (``connect-src 'none'``), so a page names it in a data block,
+``<script type="model/gltf-binary" src=...>`` (``DATA_BLOCKS``), which is put
+in like a picture and read out of the element. So are a file over
 ``INLINE_FILE_MAX`` and any file that would take the page past
 ``INLINE_PAGE_MAX``, each with a line in the log. Pictures a script loads by
 itself, and style sheets a style sheet imports, are not covered.
@@ -184,6 +194,11 @@ TYPES = {
     ".css": "text/css; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
     ".woff2": "font/woff2",
+    # A 3D model in one file (glTF's binary form). A page reads it out of a
+    # data block it names, `<script type="model/gltf-binary" src=...>`, which
+    # is put in like a picture (`_Inliner`): the page is sandboxed with no
+    # connect-src, so it could never fetch the file itself.
+    ".glb": "model/gltf-binary",
 }
 
 #: Scripts run, and the page is given an origin of its own; it may be framed
@@ -237,6 +252,11 @@ PICTURES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
 IN_CSS = PICTURES + (".woff2",)
 STYLESHEETS = (".css",)
 SCRIPTS = (".js",)
+
+#: A `<script>` whose type is one of these is a data block, not a script: the
+#: browser never runs it or fetches its `src`. The file it names is put in, as
+#: a data: address the page's own script reads out of the element.
+DATA_BLOCKS = {"model/gltf-binary": (".glb",)}
 
 #: The address prefixes that name an object rather than a file, which is the
 #: other half of what a link inside a framed page may point at. One segment for
@@ -1029,6 +1049,12 @@ _CSS_URL = re.compile(
 _BASE = re.compile(r"<base\b(?:[^>\"']|\"[^\"]*\"|'[^']*')*\bhref\s*=", re.IGNORECASE)
 #: Elements whose content is not markup. It is passed on as it is, except that
 #: a <style>'s own url()s are put in.
+_IMPORT = re.compile(
+    r"(?P<lead>\b(?:from|import)\s*\(?\s*)(?P<q>[\"'])(?P<spec>[^\"'\\\n]+)(?P=q)")
+#: A module's static and dynamic imports: `import x from "./a.js"`,
+#: `export {y} from "./b.js"`, `import "./c.js"` and `import("./d.js")`. Only a
+#: specifier that names a file of the page's own task is ever changed.
+
 _RAW_END = {name: re.compile(rf"</{name}[\s/>]", re.IGNORECASE) for name in (
     "script", "style", "textarea", "title", "xmp", "iframe", "noembed", "noframes", "noscript")}
 
@@ -1038,6 +1064,14 @@ def _value(attr: re.Match) -> str:
         if attr.group(group) is not None:
             return attr.group(group)
     return ""
+
+
+def _script_type(found: dict) -> str:
+    """A <script>'s type, lowered, from its attributes by name ("" for none)."""
+    attr = found.get("type")
+    if attr is None:
+        return ""
+    return html.unescape(_value(attr)).strip().lower()
 
 
 def _candidates(srcset: str):
@@ -1078,12 +1112,19 @@ class _Inliner:
         # than put in (`rouh/picturelinks.py`), else None.
         self.pictures = pictures
         self.linked = 0
+        # Modules put in, by their path: each one's data: address, or None
+        # while it is being put in (so a cycle stops) or when it could not be.
+        # One address per file, so every module importing it gets the same
+        # instance, as it would from the file's own address.
+        self.modules: dict[str, str | None] = {}
+        # The page's import map: the exact names it maps, which stay names and
+        # are resolved by the map, and its folder prefixes, longest first.
+        self.bare: set[str] = set()
+        self.prefixes: list[tuple[str, str]] = []
 
-    def address(self, folder: str, ref: str, kinds: tuple[str, ...],
-                link: bool = False) -> str | None:
-        """A data: address holding the file ``ref`` names, read from ``folder``,
-        or None to leave ``ref`` exactly as it was. With ``link``, and pictures
-        linked for this page, the picture's own address instead."""
+    def find(self, folder: str, ref: str, kinds: tuple[str, ...]):
+        """``(asked, target, suffix, fragment)`` for the file ``ref`` names,
+        read from ``folder``, if it may be put into this page, else None."""
         ref = re.sub(r"[\t\n\r]", "", ref.strip(_SPACE))
         if not ref or ref[0] in "#/?\\" or _SCHEME.match(ref):
             return None
@@ -1113,11 +1154,10 @@ class _Inliner:
         suffix = os.path.splitext(target.name.lower())[1]
         if suffix not in kinds or os.path.splitext(asked.lower())[1] not in kinds:
             return None
-        if link and self.pictures is not None and suffix in PICTURES:
-            linked = self.pictures(asked)
-            if linked:
-                self.linked += 1
-                return linked + (f"#{fragment}" if fragment else "")
+        return asked, target, suffix, fragment
+
+    def take(self, target: Path, ref: str) -> bytes | None:
+        """A file's bytes, counted against the page's limits, or None past them."""
         try:
             data = _read_upto(target, INLINE_FILE_MAX)
         except OSError:
@@ -1133,6 +1173,25 @@ class _Inliner:
                         ref, self.page, self.total / 1e6, INLINE_PAGE_MAX // 1_000_000)
             return None
         self.total += len(data)
+        return data
+
+    def address(self, folder: str, ref: str, kinds: tuple[str, ...],
+                link: bool = False) -> str | None:
+        """A data: address holding the file ``ref`` names, read from ``folder``,
+        or None to leave ``ref`` exactly as it was. With ``link``, and pictures
+        linked for this page, the picture's own address instead."""
+        found = self.find(folder, ref, kinds)
+        if found is None:
+            return None
+        asked, target, suffix, fragment = found
+        if link and self.pictures is not None and suffix in PICTURES:
+            linked = self.pictures(asked)
+            if linked:
+                self.linked += 1
+                return linked + (f"#{fragment}" if fragment else "")
+        data = self.take(target, ref)
+        if data is None:
+            return None
         if suffix in STYLESHEETS:
             # A style sheet's own references are read from its own folder.
             text = data.decode("utf-8", "surrogateescape")
@@ -1140,6 +1199,81 @@ class _Inliner:
         kind = TYPES[suffix].replace(" ", "")
         encoded = base64.b64encode(data).decode("ascii")
         return f"data:{kind};base64,{encoded}" + (f"#{fragment}" if fragment else "")
+
+    # Modules. A sandboxed page has an origin of its own, so a module it asks
+    # for by address is refused (no CORS, and no sign-in), and the page stops
+    # before its first line. Each module is put in as a data: address instead,
+    # with its own imports put in the same way. A data: module has no folder of
+    # its own, so a relative import inside it could not resolve: every one is
+    # replaced by the data: address of the file it names. A name the page's
+    # import map maps exactly ("three") stays a name, and the map's entry is
+    # put in, so the one copy of a large library is in the page once.
+
+    def module(self, folder: str, ref: str) -> str | None:
+        """The data: address of the module ``ref`` names, read from ``folder``,
+        with its own imports put in, or None to leave ``ref`` as it was."""
+        found = self.find(folder, ref, SCRIPTS)
+        if found is None:
+            return None
+        asked, target, _suffix, _fragment = found
+        if asked in self.modules:
+            return self.modules[asked]
+        self.modules[asked] = None
+        data = self.take(target, ref)
+        if data is None:
+            return None
+        code = self.imports(data.decode("utf-8", "surrogateescape"), asked.rsplit("/", 1)[0])
+        encoded = base64.b64encode(code.encode("utf-8", "surrogateescape")).decode("ascii")
+        self.modules[asked] = f"data:{TYPES['.js'].replace(' ', '')};base64,{encoded}"
+        return self.modules[asked]
+
+    def imports(self, code: str, folder: str) -> str:
+        """A module's text with every import of a file of this page put in.
+        ``folder`` is the module's own folder."""
+        def swap(found: re.Match) -> str:
+            spec = found.group("spec")
+            new = None
+            if spec.startswith(("./", "../")):
+                new = self.module(folder, spec)
+            elif spec not in self.bare:
+                for key, value in self.prefixes:
+                    if spec.startswith(key):
+                        # A mapped address is read from the page's own folder.
+                        new = self.module(self.folder, value + spec[len(key):])
+                        break
+            if not new:
+                return found.group(0)
+            return found.group("lead") + found.group("q") + new + found.group("q")
+        return _IMPORT.sub(swap, code)
+
+    def importmap(self, body: str) -> str:
+        """An import map with the modules it maps exactly put in. Its folder
+        prefixes are kept as they are and used to put in each import that
+        goes through one."""
+        try:
+            said = json.loads(body)
+        except ValueError:
+            return body
+        imports = said.get("imports") if isinstance(said, dict) else None
+        if not isinstance(imports, dict):
+            return body
+        exact = []
+        for key, value in imports.items():
+            if not isinstance(key, str) or not isinstance(value, str) or key[:1] in "./":
+                continue
+            if key.endswith("/"):
+                if value.endswith("/"):
+                    self.prefixes.append((key, value))
+            else:
+                self.bare.add(key)
+                exact.append(key)
+        self.prefixes.sort(key=lambda pair: -len(pair[0]))
+        changed = False
+        for key in exact:
+            new = self.module(self.folder, imports[key])
+            if new:
+                imports[key], changed = new, True
+        return json.dumps(said) if changed else body
 
     def css(self, text: str, folder: str) -> str:
         """Style sheet text with every url() it may have put in."""
@@ -1198,7 +1332,17 @@ class _Inliner:
             if "stylesheet" in words and "alternate" not in words:
                 one("href", STYLESHEETS)
         elif tag == "script":
-            one("src", SCRIPTS)
+            kind = _script_type(found)
+            if kind == "module":
+                attr = found.get("src")
+                if attr is not None and attr.group("value"):
+                    new = self.module(self.folder, html.unescape(_value(attr)))
+                    if new:
+                        swaps.append((attr, new))
+            elif kind in DATA_BLOCKS:
+                one("src", DATA_BLOCKS[kind])
+            else:
+                one("src", SCRIPTS)
         style = found.get("style")
         if style is not None and style.group("value"):
             text = html.unescape(_value(style))
@@ -1253,7 +1397,16 @@ class _Inliner:
                 close = _RAW_END[name].search(text, pos)
                 stop = close.start() if close else len(text)
                 body = text[pos:stop]
-                out.append(self.css(body, self.folder) if name == "style" else body)
+                if name == "style":
+                    body = self.css(body, self.folder)
+                elif name == "script":
+                    kind = _script_type({attr.group("name").lower(): attr for attr in
+                                         reversed(list(_ATTR.finditer(found.group("attrs"))))})
+                    if kind == "importmap":
+                        body = self.importmap(body)
+                    elif kind == "module":
+                        body = self.imports(body, self.folder)
+                out.append(body)
                 pos = stop
 
 
