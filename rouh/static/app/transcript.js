@@ -1335,9 +1335,11 @@ function restoreTranscript(entries) {
     var drew = drawStored(entries[i], null, last);
     if (drew) last = drew;
   }
-  // Not under Rouh's own first words alone, written into General as the first run ends
-  // (`firstrun.GREETING`): nothing came earlier than they did.
-  var talked = entries.some(function (e) { return e && !e.notice; });
+  // Not while the person has said nothing here yet: under Rouh's own first words alone,
+  // written into General as the first run ends (`firstrun.GREETING`), nothing came earlier
+  // than they did. Those words are an answer of Rouh's since 9 November 2026, so the model
+  // reads them, and no longer a notice; what is asked is whether anybody talked.
+  var talked = entries.some(function (e) { return e && !e.notice && e.role === 'user'; });
   if (last && talked) {
     noteUnder(last.turn, el('div', 'turn-note from-earlier', 'Everything above is from earlier.'));
   }

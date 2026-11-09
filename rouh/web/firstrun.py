@@ -111,7 +111,17 @@ LINK_COMMAND = "docker compose exec core python manage.py setup_link"
 #: What Rouh has already said in General when the person first gets there (Petar, 8 November 2026,
 #: task 176): their first name as they typed it.
 GREETING = ("Hey, {name}, I will be your Rouh, we will continuously co-evolve into better and more capable "
-            "beings. The best place to start is to get some connections going on.")
+            "beings. The best place to start is to get some connections going on: your Gmail and calendar, "
+            "Telegram, and your phone. Say which, and I will take you through it one step at a time.")
+#: What the greeting answers, for the model alone: a conversation the model is sent starts with the person's
+#: turn (`memory.repair_history`), so Rouh's first words are the answer to this note, the way a finished job's
+#: report is answered (Petar, 9 November 2026, task 176: "the very first message that is sent doesn't get
+#: attached to the conversation"). What to do next is the rule ``new-rouh`` (`rule_defaults_fallback.json`).
+GREETED = ("{note} {name} has just finished setting up this Rouh and opened General for the first time. "
+           "{kind} Your first message to them is the one below.]")
+#: Which kind of Rouh the owner chose, said in that note: what the phone can reach depends on it.
+KIND_SAID = {True: "It is a Connected Rouh: it has a rouh.land account and its own URL through rouh.land's relay.",
+             False: "It is an Independent Rouh: it has no rouh.land account and no URL of its own."}
 
 #: The two companies whose key gives Rouh a brain on this page: their chats and their terminals.
 COMPANIES = {
@@ -824,18 +834,28 @@ def _brain_values(user) -> dict:
 
 def _greet(user) -> None:
     """Rouh's first words, already in General when the person lands there, so the first page after
-    the setup is the chat and not the empty welcome (Petar, 8 November 2026, task 176). Once only;
-    kept as a notice, which the page draws as Rouh's message and the model is never sent
-    (`Memory.add_notice`), so a conversation never opens on a turn nobody asked for."""
-    from rouh import runtime
+    the setup is the chat and not the empty welcome (Petar, 8 November 2026, task 176). Once only.
+
+    A real exchange of General, in the same rows and the same shape as any answer: Rouh's words are
+    the assistant's reply to a note from Rouh's own software (`Memory.add_message`, ``note=True``),
+    which the page never draws and the model reads. So the greeting is in the history every later
+    turn is sent, whichever model and tier answers. It was a notice until 9 November 2026, which the
+    page draws and the model is never sent, and the next "how do I do that?" was answered as if
+    nothing had been said."""
+    from rouh import runtime, turnmarks
 
     if record(user).get("greeted_at"):
         return
     name = (getattr(user, "first_name", "") or "").strip() or _greeting_fallback(user)
     try:
-        general = runtime.memory.ensure_general()
-        runtime.memory.add_notice(general, GREETING.format(name=name))
-        runtime.memory.set_active_chat(general)
+        memory = runtime.memory
+        general = memory.ensure_general()
+        kind = KIND_SAID[bool(record(user).get("connected"))]
+        asked = memory.add_message(general, "user", GREETED.format(note=turnmarks.NOTE, name=name, kind=kind),
+                                   note=True)
+        memory.add_message(general, "assistant", [{"type": "text", "text": GREETING.format(name=name)}],
+                           root=asked)
+        memory.set_active_chat(general)
     except Exception:                               # noqa: BLE001 - the setup is over either way
         log.exception("first run: the greeting could not be written into General")
         return
