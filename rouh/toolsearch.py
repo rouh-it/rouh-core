@@ -151,7 +151,7 @@ AREA_OF: dict[str, str] = {
     "create_doc": "drive",
     "edit_doc": "drive",
     # Contacts
-    "search_contacts": "contacts", "show_contact": "contacts",
+    "search_contacts": "contacts", "show_contact": "contacts", "no_company": "contacts",
     "update_contact_profile": "contacts", "save_contact": "contacts",
     "delete_contact": "contacts", "link_person": "contacts",
     # Web, YouTube and LinkedIn

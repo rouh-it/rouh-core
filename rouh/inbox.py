@@ -970,6 +970,18 @@ class Mailroom:
             too = None
         if too:
             shown = dict(shown, waiting_too=too)
+        # How you know them (night 38, `rouh/know_them.py`): a sender back after months.
+        from . import know_them
+
+        try:
+            who = self._owner(sealed)
+            own = await self._own_addresses(who, sealed)
+            know = await know_them.shown(who, found, own=own)
+        except Exception as exc:  # noqa: BLE001 - the message opens all the same
+            log.info("how you know them could not be read: %s", exc)
+            know = None
+        if know:
+            shown = dict(shown, know_them=know)
         # If I have not answered it, remind me (night 37, `rouh/answer_watch.py`): an email asking him something.
         from . import answer_watch
 
@@ -992,6 +1004,16 @@ class Mailroom:
         if not await asyncio.to_thread(waiting_too.on, who):
             return Answer(False, why="Also waiting on you is switched off.")
         await asyncio.to_thread(waiting_too.opened, who)
+        return Answer(True, said={"counted": True})
+
+    async def know_them(self, which: str, sealed: dict | None) -> Answer:
+        """Open the last or the first, pressed on an email's How you know them line: counted, nothing changed."""
+        from . import know_them
+
+        who = self._owner(sealed)
+        if not await asyncio.to_thread(know_them.on, who):
+            return Answer(False, why="How you know them is switched off.")
+        await asyncio.to_thread(know_them.opened, who, which)
         return Answer(True, said={"counted": True})
 
     async def _own_addresses(self, who, sealed: dict | None) -> list[str]:
@@ -1243,7 +1265,7 @@ def serve(room: Mailroom) -> None:
 
 #: What the page may ask of a card.
 ASKS = {"list", "open", "archive", "unarchive", "read", "unread", "compose", "send",
-        "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch"}
+        "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch", "know_them"}
 
 
 async def press(msg: dict, who) -> Answer:
@@ -1278,7 +1300,8 @@ async def press(msg: dict, who) -> Answer:
     message_id = composing.one_line(msg.get("id"))[:200]
     if what != "list" and not message_id:
         return Answer(False, why="Say which message.")
-    if theirs and what not in ("list", "open", "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch"):
+    if theirs and what not in ("list", "open", "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch",
+                               "know_them"):
         # The person's own inbox is connected read-only (`rouh/inboxes.py`):
         # the card has no such button, and a page that asks anyway is told why.
         return Answer(False, why="This inbox is connected read-only, so it can be read "
@@ -1313,6 +1336,11 @@ async def press(msg: dict, who) -> Answer:
         if what == "waiting_too":
             # Open on Also waiting on you, counted: nothing in the mailbox changes.
             done = await ROOM.waiting_too(sealed)
+            done.chat = chat
+            return done
+        if what == "know_them":
+            # Open on How you know them, counted: nothing in the mailbox changes.
+            done = await ROOM.know_them(str(msg.get("when") or ""), sealed)
             done.chat = chat
             return done
         if what == "watch":

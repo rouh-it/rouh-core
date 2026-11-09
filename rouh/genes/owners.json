@@ -2671,6 +2671,65 @@
    "files": [
     "rouh/answer_watch.py"
    ]
+  },
+  "n38-not-twice": {
+   "name": "Not put on twice",
+   "what": "Before Rouh books an event, it looks at your calendars around that time: when the same meeting is already there (the same title, or every guest already on it), nothing is booked and nobody gets a second invitation, and Rouh says where it already is.",
+   "switch": "not_twice",
+   "signals": {
+    "events": {
+     "held": "You asked Rouh to book something already on your calendar, and it said where it is instead of booking it twice"
+    }
+   },
+   "files": [
+    "rouh/not_twice.py"
+   ]
+  },
+  "n38-away-after": {
+   "name": "Away, after Rouh wrote",
+   "what": "When somebody Rouh emailed for you answers with an out-of-office reply, you are told at once: who is away, until when in their own words, whom they name for anything urgent, with Open the chat it was sent from.",
+   "switch": "away_after",
+   "signals": {
+    "events": {
+     "opened": "You pressed Open on a notice that somebody Rouh wrote to is away"
+    },
+    "runs": {
+     "told": "An out-of-office reply to Rouh's email came, and you were told in a notice"
+    }
+   },
+   "files": [
+    "rouh/away_after.py",
+    "rouh/web/away_after.py"
+   ]
+  },
+  "n38-no-company": {
+   "name": "Contacts with no company",
+   "what": "Asked which contacts have no company, Rouh reads every contact in your iCloud address book and lists those whose Company is empty, each with what it should most likely say: from a colleague's contact at the same company, guessed from a work address, or who they are to you.",
+   "switch": "no_company",
+   "signals": {
+    "events": {
+     "asked": "You asked Rouh which of your contacts have no company, and it read all of them"
+    }
+   },
+   "files": [
+    "rouh/no_company.py"
+   ]
+  },
+  "n38-know-them": {
+   "name": "How you know them",
+   "what": "An email opened on the inbox card from somebody you have not written with for months says when you last wrote and about what, when you first wrote and who introduced you, with Open the last and Open the first.",
+   "switch": "know_them",
+   "signals": {
+    "events": {
+     "opened": "You pressed Open the last or Open the first on an email from somebody back after months, on the inbox card"
+    },
+    "runs": {
+     "shown": "Rouh said on an email you opened when you last and first wrote with its sender"
+    }
+   },
+   "files": [
+    "rouh/know_them.py"
+   ]
   }
  }
 }

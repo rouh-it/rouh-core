@@ -1867,6 +1867,17 @@ class MailAlerts:
                                                  signed_up=signed_up or "")
                 if told:
                     log.info("mail alert %s: %s", message_id, told)
+            # Away, after Rouh wrote (night 38, `rouh/away_after.py`): an out-of-office reply to
+            # Rouh's own email is told to the person, then passed over as junk all the same.
+            from . import away_after
+
+            if away_after.is_away_reply(message):
+                alert = await self._db(self.store.alert, user_id, org_id)
+                away = await away_after.seen(who, message, mailbox=str(alert.get("mailbox") or ""))
+                if away:
+                    await self._db(self.store.record, user_id, org_id, message_id, stage=JUNK,
+                                   why=f"{away} No case, and nothing was sent.")
+                    return
         listed = None if pretender else await self._db(
             self.cases.trust.listed_for, user_id, org_id, address)
         if not existing and listed is None and not pretender and not row.get("replays"):

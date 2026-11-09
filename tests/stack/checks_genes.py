@@ -2774,3 +2774,61 @@ row = reminders.one(who, said["reminder"])
 print(json.dumps({"said": said["said"], "title": row.title}))
 """))
     expect("Answered? Lena Stack" in out and "09:00" in out, f"the look was not made: {out[-500:]}")
+
+
+# --- Night 38 (9 November): not put on twice; away, after Rouh wrote; contacts with no company;
+# how you know them
+
+@check("gene.not-twice")
+def not_twice(s: Stack) -> None:
+    """The same event asked for twice is booked once: the second time says where it already is."""
+    google(s)
+    args = {"title": "Stack pricing call", "start": "2030-03-05T10:00", "minutes": 30}
+    first = g_tool(s, "create_calendar_event", args, "Put 'Stack pricing call'")
+    expect("already on the calendar" not in first, f"the first booking was held: {first[:400]}")
+    g_tool(s, "create_calendar_event", dict(args, title="Pricing call (stack)", start="2030-03-05T10:15"),
+           "already on the calendar")
+
+
+@check("gene.away-after")
+def away_after(s: Stack) -> None:
+    """An out-of-office reply to Rouh's email is told in a notice: until when, and whom to write to."""
+    out = core_py(s, _owner_py("""
+from rouh import away_after
+async def go():
+    return await away_after.seen(who, {
+        "id": "stack-away-1", "thread_id": "stack-away-t", "from": "Ana Stack <ana@away-stack.test>",
+        "subject": "Automatic reply: Stack plan", "auto_submitted": "auto-replied",
+        "body": "I am out of the office until Monday 16 November. For anything urgent please contact "
+                "Ivo Stack (ivo@away-stack.test)."}, mailbox="rouh@example.test")
+print(json.dumps({"said": asyncio.run(go())}))
+"""))
+    expect("Ana Stack is away" in out and "until Monday 16 November" in out and "notice" in out,
+           f"the away reply was not told: {out[-500:]}")
+
+
+@check("gene.no-company")
+def no_company(s: Stack) -> None:
+    """no_company reads every contact and says how many have no company, or that there are none to read."""
+    got = s.tool("no_company", {})
+    expect(("have no company" in got or "has a company" in got or "no contacts to read" in got)
+           and "switched off" not in got, f"no_company did not read the contacts: {got[:500]}")
+
+
+@check("gene.know-them")
+def know_them(s: Stack) -> None:
+    """An email from somebody last written with eight months ago says when, and their first email."""
+    google(s)
+    for days, subject in ((400, "Stack first hello"), (240, "Stack last word")):
+        standin_post(s, GOOGLE, "/_deliver", {
+            "from": "Mo Stack <mo@know-stack.test>", "quiet": True, "read": True, "days_ago": days,
+            "subject": subject, "text": "Hello Alex,\n\nMo"})
+    out = core_py(s, _owner_py("""
+from rouh import know_them
+async def go():
+    got = await know_them.shown(who, {"from": "Mo Stack <mo@know-stack.test>", "thread_id": "none"}, own=[])
+    return {"said": (got or {}).get("said", "")}
+print(json.dumps(asyncio.run(go())))
+"""))
+    expect("last wrote with you" in out and "Stack last word" in out and "Stack first hello" in out,
+           f"how you know them was not said: {out[-500:]}")

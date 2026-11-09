@@ -362,6 +362,10 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `gene.answer-waiting` | Waiting on your answer, in the brief | untested | works | an email from a person asking the owner something, two days old and unanswered, is found for the brief |
 | `gene.between-us` | Between you and them | untested | works | `between_us` for one person says what they asked, unanswered, and what they promised |
 | `gene.answer-watch` | If I have not answered it, remind me | untested | works | the press makes one reminder at 09:00 the next working morning, naming the sender |
+| `gene.not-twice` | Not put on twice | untested | works | the same event asked for twice, a quarter of an hour apart under another title, is booked once and the second answer says where it already is |
+| `gene.away-after` | Away, after Rouh wrote | untested | works | an out-of-office reply in Rouh's inbox is told in a notice with until when and the colleague it names |
+| `gene.no-company` | Contacts with no company | untested | works | `no_company` reads every contact and says how many have no company (or that none are connected) |
+| `gene.know-them` | How you know them | untested | works | an email from somebody last written with eight months ago says when, the last subject and the first |
 | `core.commands-open-credentials` | A command run in the core beside Rouh (`docker compose exec core python manage.py ...`) opens what Rouh sealed | broken | works | with Google connected, Python in the core opens the sealed refresh token with the key from the keys volume (`ROUH_ENCRYPTION_KEY_FILE`), and Google is still connected after. It was broken: only the core's start put the key in Rouh's environment, so a command beside it made a key of its own in `/data`, could open no credential, and marked the owner's Google to be connected again |
 
 ## Checks a person makes

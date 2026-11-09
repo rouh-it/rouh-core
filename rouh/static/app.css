@@ -6911,6 +6911,8 @@ a.pf-co:hover { color: var(--accent); text-decoration: underline; }
 .ib-soon-link { color: var(--accent); flex: 0 0 auto; }
 /* Also waiting on you (night 36, 8 November): under the meetings soon, as one block with them. */
 .ib-soon + .ib-too:not([hidden]) { margin-top: -2px; }
+/* How you know them (night 38, 9 November): under the lines before it, as one block with them. */
+.ib-soon:not([hidden]) + .ib-know:not([hidden]) { margin-top: -2px; }
 .ib-body {
   display: grid; gap: 10px; font-size: 14px; line-height: 1.6; color: var(--text);
   padding: 12px 0 2px; border-top: 1px solid var(--line-soft); min-width: 0;

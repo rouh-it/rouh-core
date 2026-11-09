@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 
 from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, calendar_away, clock, demo,
                composing, conversations, filing, imaging, inbox, inbox_grants, inboxes,
-               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, meeting_hours, meet_link, no_place,
+               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, no_company, meeting_hours, meet_link, no_place,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer, reply_times,
                their_clock, their_hours, unread_lists, their_language, promised_to_you,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer,
@@ -6958,6 +6958,9 @@ class ToolRegistry:
         self._own(to_answer.TOOL_NAME, to_answer.DESCRIPTION, to_answer.SCHEMA, self._to_answer)
         # Reply times with a company, both ways (night 36, `rouh/reply_times.py`).
         self._own(reply_times.TOOL_NAME, reply_times.DESCRIPTION, reply_times.SCHEMA, self._reply_times)
+        # Contacts with no company (night 38, `rouh/no_company.py`): every contact with Company empty.
+        self._own("no_company", no_company.DESCRIPTION, {"type": "object", "properties": {}},
+                  self._no_company)
         # Between you and them (night 37, `rouh/between_us.py`): what is open with one person by mail.
         self._own(between_us.TOOL_NAME, between_us.DESCRIPTION, between_us.SCHEMA, self._between_us)
         # Newsletters you never open (night 35, `rouh/unread_lists.py`): lists left unread, stopped in a word.
@@ -7180,6 +7183,8 @@ class ToolRegistry:
                     "even_if_their_night": their_hours.FIELD,
                     # Not booked on a guest's public holiday (night 36, `rouh/holiday_guard.py`).
                     "even_on_holiday": holiday_guard.FIELD,
+                    # Not put on twice (night 38, `rouh/not_twice.py`).
+                    "even_if_twice": not_twice.FIELD,
                 },
                 "required": ["title", "start"],
             },
@@ -9929,6 +9934,16 @@ class ToolRegistry:
                                 detail=f"{count} waiting")
         return untrusted.wrap(said, untrusted.SOURCES["read_recent_mail"])
 
+    async def _no_company(self, args, emit):
+        """Contacts with no company (night 38, `rouh/no_company.py`)."""
+        who = self.contacts.person()
+        if who is None:
+            return untrusted.ours("Nobody is signed in, so there are no contacts to read.")
+        if _in_case():
+            return untrusted.ours("The person's contacts are read only for the person, not in a contact's case.")
+        said = await asyncio.to_thread(no_company.answer, who)
+        return untrusted.wrap(said, untrusted.SOURCES["search_contacts"])
+
     async def _reply_times(self, args, emit):
         """Reply times with a company, both ways (night 36, `rouh/reply_times.py`)."""
         who = self.google.person()
@@ -10260,6 +10275,11 @@ class ToolRegistry:
             if refused:
                 return untrusted.ours(refused)
             checked = ""
+            if not args.get("even_if_twice"):
+                # Not put on twice (night 38, `rouh/not_twice.py`): the same event already there.
+                stop = await self._not_twice(calendar, title, args, guests)
+                if stop:
+                    return untrusted.ours(stop)
             if guests and not args.get("even_if_busy"):
                 stop, checked = await self._busy_guard(
                     calendar, guests, args.get("start"), args.get("end"), args.get("minutes"))
@@ -10348,6 +10368,30 @@ class ToolRegistry:
         except Exception:  # noqa: BLE001 - the guests' own addresses are judged without it
             me = ""
         return meet_link.wanted(args, guests, me=me, all_day=not isinstance(start, datetime))
+
+    async def _not_twice(self, calendar, title: str, args: dict, guests: list[str]) -> str:
+        """Not put on twice (night 38, `rouh/not_twice.py`): why not, when the same event is already
+        on a calendar at that time; "" when it is off, new or cannot tell."""
+        from .google_api import when_given
+
+        who = self.google.person()
+        if not await asyncio.to_thread(not_twice.on, who):
+            return ""
+        try:
+            zone = clock.zone_of(who)
+            stop, there = await not_twice.check(
+                calendar, title=title, start=when_given(args.get("start"), zone),
+                end=when_given(args.get("end"), zone), minutes=args.get("minutes"),
+                guests=guests, own=[self.google.address() or ""], zone=zone)
+        except Exception:  # noqa: BLE001 - booked as asked when the look itself cannot be made
+            log.exception("the calendar could not be read for the same event")
+            return ""
+        if stop:
+            from . import evolution
+
+            await asyncio.to_thread(evolution.used, not_twice.SWITCH, "held", who=who,
+                                    detail=f"{title[:80]!r} already there as {str((there or {}).get('title'))[:80]!r}")
+        return stop
 
     async def _holiday_guard(self, calendar, guests, start) -> str:
         """Not booked on a guest's public holiday (night 36, `rouh/holiday_guard.py`): why not, when

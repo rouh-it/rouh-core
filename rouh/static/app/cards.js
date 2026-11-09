@@ -2401,6 +2401,10 @@ function inboxBlock(b) {
   // word is still theirs, said under the headers, each with Open.
   var tooRow = el('div', 'ib-soon ib-too');
   tooRow.hidden = true;
+  // How you know them (night 38, rouh/know_them.py): a sender back after months, with when you last
+  // and first wrote and who introduced you, said under the headers with Open the last and Open the first.
+  var knowRow = el('div', 'ib-soon ib-know');
+  knowRow.hidden = true;
   // If it does not come (night 36, rouh/promise_watch.py): on an email promising something by a day,
   // one press has Rouh look for it the morning after and say only if nothing came.
   var watchRow = el('div', 'ib-remind ib-watch');
@@ -2420,6 +2424,7 @@ function inboxBlock(b) {
   mail.appendChild(heads);
   mail.appendChild(soonRow);
   mail.appendChild(tooRow);
+  mail.appendChild(knowRow);
   mail.appendChild(acts);
   mail.appendChild(unsubRow);
   mail.appendChild(remindRow);
@@ -2601,6 +2606,7 @@ function inboxBlock(b) {
     drawRemind(msg);
     drawSoon(msg);
     drawToo(msg);
+    drawKnow(msg);
     drawWatch(msg);
     drawAnswerWatch(msg);
   }
@@ -2628,6 +2634,31 @@ function inboxBlock(b) {
       }
       tooRow.appendChild(line);
     });
+  }
+
+  /** @param {any} msg */
+  function drawKnow(msg) {
+    knowRow.textContent = '';
+    var k = msg && msg.know_them;
+    knowRow.hidden = !(k && k.said);
+    if (!k || !k.said) return;
+    var line = el('p', 'ib-soon-line');
+    line.appendChild(el('span', 'ib-soon-note', k.said));
+    [['last', 'Open the last', 'Opens your last conversation with them in Gmail'],
+      ['first', 'Open the first', 'Opens your first conversation with them in Gmail']].forEach(function (w) {
+      var href = k[w[0]];
+      if (!href) return;
+      var open = el('a', 'ib-soon-link', w[1]);
+      open.href = href;
+      open.target = '_blank';
+      open.rel = 'noopener';
+      open.title = w[2];
+      open.addEventListener('click', function () {
+        inboxAsk(token, 'know_them', { id: msg.id, when: w[0] }, function () {});
+      });
+      line.appendChild(open);
+    });
+    knowRow.appendChild(line);
   }
 
   /** @param {any} msg */
