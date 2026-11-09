@@ -81,9 +81,9 @@ import time
 
 from django.db import transaction
 
-from . import conversations
+from . import chatkinds, conversations
 from .models.memory import TranscriptMessage
-from .models.objects import ChatFork
+from .models.objects import Chat, ChatFork
 
 log = logging.getLogger("rouh.forks")
 
@@ -332,7 +332,8 @@ def make(parent_id: str, before: int | None = None, *,
     off the strip, and its mark in the parent still opens it.
 
     A fork of General answers on General's tier, and a fork of any other chat
-    on the tier every other chat is on (`chatkinds.use_for`).
+    on the tier every other chat is on (`chatkinds.use_for`), unless the parent was
+    set to Cheap, Smart or Auto by hand, which the fork is set to as well.
     """
     if not parent_id:
         return None
@@ -352,10 +353,18 @@ def make(parent_id: str, before: int | None = None, *,
     # One transaction for the chat and the row that makes it a fork, so there
     # is never a moment - nor, after a failure, a leftover - where it is an
     # ordinary chat at the top of the list.
+    # The model the person picked by hand beside the composer goes with it (Petar,
+    # 9 November 2026, fr_433a35305d4e: Cheap chosen in General, and a hard message in
+    # its fork was answered on Smart by the router): a fork is the same conversation
+    # carried on, and a choice made by hand holds until they change it. A parent that
+    # follows the Models page leaves the fork following it too.
+    chosen = chatkinds.stored_choice(parent_id)
     with transaction.atomic():
         chat_id = conversations.new_chat()
         ChatFork.objects.create(chat_id=chat_id, parent_id=parent_id, at=at,
                                 created_at=time.time())
+        if chosen:
+            Chat.objects.filter(id=chat_id).update(model_choice=chosen)
     log.info("chat %s forked into %s after message %s%s", parent_id, chat_id, at,
              f", above exchange {before}" if before is not None else
              f", through exchange {through}" if through is not None else "")
