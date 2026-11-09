@@ -58,6 +58,8 @@
   --mem-cool: #89cff0;
   --mem-mid: #a97bf5;
   --mem-hot: #ff7a70;
+  /* The storage ring's colour while the disk has room: a light grey. */
+  --disk-ok: #c3cad4;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 30px rgba(0, 0, 0, 0.35);
   /* The space between the columns, and round the two of them that are not the
      sidebar. One number: the conversation and the canvas carry it as a margin
@@ -670,6 +672,17 @@ button { font: inherit; color: inherit; }
    script writes it on the element itself and an arc with no reading behind it
    yet keeps the `stroke: none` above and is not drawn. */
 .orb-ring-mem { stroke-width: 1.5; }
+/* The outermost ring, for how full the machine's disk is: light grey while
+   there is room, amber from 65%, red above 80% (`diskClass` in app/orb.js).
+   As thin as the memory ring; the faint track under it is the circle's edge. */
+.orb-ring-track { stroke-width: 1.5; }
+.orb-ring-disk { stroke-width: 1.5; }
+.orb-ring-disk.disk-ok   { stroke: var(--disk-ok); }
+.orb-ring-disk.disk-warm { stroke: var(--warn); }
+.orb-ring-disk.disk-hot  { stroke: var(--bad); }
+.orb-stat.disk-ok   .orb-stat-v { color: var(--disk-ok); }
+.orb-stat.disk-warm .orb-stat-v { color: var(--warn); }
+.orb-stat.disk-hot  .orb-stat-v { color: var(--bad); }
 /* The circle takes no room of its own anywhere: it is in the square at the
    top left that every column already keeps clear for the glyph that was there
    (`--rail`, `--top-air`, `--top-chip`). The room the columns kept for it at
@@ -8011,6 +8024,9 @@ a.att-name:hover { text-decoration: underline; }
 .orb-tip .j { margin-top: 3px; color: var(--orb-dim); overflow-wrap: anywhere; }
 .orb-tip .d { color: var(--orb-dim); margin-top: 4px; }
 .orb-tip .w { color: var(--orb-wait); }
+/* The storage ring's line, in the ring's colour once it is filling. */
+.orb-tip .l.disk-warm { color: var(--warn); }
+.orb-tip .l.disk-hot  { color: var(--bad); }
 
 /* The card a click on the shape opens. Page-level, over everything, because it
    is a question the person asked and the answer should not be half-hidden

@@ -26,6 +26,11 @@ held by working files nothing is using any more (`leftovers_section`):
   October 2026 (fr_73b8a5917def), and nothing else read it, so it is no
   longer collected.
 
+And the machine's storage, for the outermost ring (`disk_section`): how full
+the disk Rouh runs on is, the very reading `server_health` gives the model, so
+the ring and what Rouh says out loud are one answer. A disk fills over hours,
+not seconds, so one reading serves every tab for a minute.
+
 And one more, only while it is true: **whether this machine is running on its
 battery** (`power_section`). A machine on a UPS watched by NUT,
 the Network UPS Tools daemon, and when the mains goes the orb shows a small red
@@ -317,6 +322,49 @@ def power_section() -> dict | None:
         return answer
 
 
+#: How long one reading of the disk is the answer. A disk fills over hours; the
+#: ring is asked every three seconds by every tab, and once a minute is plenty.
+DISK_FRESH = 60.0
+_disk: tuple[float, dict] | None = None
+_DISK_LOCK = threading.Lock()
+
+
+def disk_reading(path: str = "/") -> dict:
+    """How full the disk under `path` is, read now: the one way of asking.
+
+    `server_health` (tools.py) says it in words off this same reading, and the
+    orb's outer ring draws it, so the two can never be two answers.
+    """
+    import shutil
+
+    try:
+        total, used, free = shutil.disk_usage(path)
+    except Exception:
+        # -B1 prints bytes, so there is no unit suffix to guess at.
+        out = subprocess.run(["df", "-B1", path], capture_output=True, text=True, timeout=5)
+        fields = out.stdout.splitlines()[1].split()
+        total, used, free = int(fields[1]), int(fields[2]), int(fields[3])
+    return {
+        "path": path,
+        "total_bytes": total,
+        "used_bytes": used,
+        "free_bytes": free,
+        "percent_used": round(used / total * 100, 1) if total else 0.0,
+    }
+
+
+def disk_section() -> dict:
+    """The disk Rouh runs on, for the orb's outer ring, read at most once a minute."""
+    global _disk
+    with _DISK_LOCK:
+        now = time.monotonic()
+        if _disk and now - _disk[0] < DISK_FRESH:
+            return _disk[1]
+        found = disk_reading("/")
+        _disk = (time.monotonic(), found)
+        return found
+
+
 def snapshot() -> dict:
     """The numbers, with whatever could be read.
 
@@ -330,6 +378,7 @@ def snapshot() -> dict:
         ("cpu_percent", cpu_percent),
         ("processes", process_count),
         ("memory", memory_section),
+        ("disk", disk_section),
         ("leftovers", leftovers_section),
         ("power", power_section),
     ):

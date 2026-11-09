@@ -367,22 +367,14 @@ def _read_output(argv: list[str], timeout: int = 5) -> str:
 
 
 def _disk_section(path: str = "/") -> dict:
-    try:
-        total, used, free = shutil.disk_usage(path)
-    except Exception:
-        # -B1 prints bytes, so there is no unit suffix to guess at.
-        fields = _read_output(["df", "-B1", path]).splitlines()[1].split()
-        total, used, free = int(fields[1]), int(fields[2]), int(fields[3])
-    return {
-        "path": path,
-        "total_bytes": total,
-        "used_bytes": used,
-        "free_bytes": free,
-        "percent_used": round(used / total * 100, 1) if total else 0.0,
-        "total_human": _gb(total),
-        "used_human": _gb(used),
-        "free_human": _gb(free),
-    }
+    """The same reading the orb's outer ring is drawn from (machine_load.py), said in words too."""
+    section = machine_load.disk_reading(path)
+    return dict(
+        section,
+        total_human=_gb(section["total_bytes"]),
+        used_human=_gb(section["used_bytes"]),
+        free_human=_gb(section["free_bytes"]),
+    )
 
 
 def _memory_section() -> dict:
