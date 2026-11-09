@@ -311,7 +311,10 @@ var ORB_PAL = {
   ink: '#cfd9ee', dim: '#6f7590',
   job: '#2ab6de', agent: '#86d8ef', wait: '#ff2b4a',
   search: '#e8b456', page: '#e07b2a', code: '#57c98a',
-  shell: '#7a6bd0', read: '#6e7793', edit: '#ff3ec8'
+  shell: '#7a6bd0', read: '#6e7793', edit: '#ff3ec8',
+  // The storage ring round the core: light grey while the disk has room,
+  // amber from 65% used, red above 80% (the page's --warn and --bad).
+  disk: '#c3cad4', diskWarm: '#f2b45e', diskHot: '#ff7a70'
 };
 
 /* Six kinds of tool call. Each is said twice, by its colour and by the mark
@@ -683,7 +686,8 @@ var WHAT = {
   worker: 'A background job',
   subagent: 'A helper inside a job',
   tool: 'One thing being done',
-  self: 'Rouh itself'
+  self: 'Rouh itself',
+  disk: 'The storage ring'
 };
 
 function durationWords(seconds) {
@@ -761,6 +765,14 @@ function stepLine(c) {
 function orbTipShow(node, clientX, clientY) {
   var tip = $('orbTip');
   if (!tip) return;
+  if (node.kind === 'disk') {
+    var dw = diskWords(DISK.reading);
+    if (!dw) { orbTipHide(); return; }
+    tip.innerHTML = '<div class="l">' + escapeHtml(dw) + '</div>';
+    tip.hidden = false;
+    placeTip(tip, clientX, clientY);
+    return;
+  }
   if (node.kind === 'root') {
     tip.innerHTML = '<div class="l">' + escapeHtml(busyWords(machineSummary())) + '</div>';
     tip.hidden = false;
@@ -921,6 +933,7 @@ function nodeAt(clientX, clientY) {
   var x = (clientX - r.left) * k, y = (clientY - r.top) * k;
   var c = ORB_HIT.core;
   var toCore = Math.sqrt((c.x - x) * (c.x - x) + (c.y - y) * (c.y - y));
+  if (onDiskRing(x, y)) return DISK_NODE;
   if (toCore <= Math.max(6, Math.min(CORE_HOLD, c.r * 2.5))) return coreNode();
   var best = null, bestScore = Infinity;
   for (var i = 0; i < pickCount; i++) {
@@ -1082,7 +1095,18 @@ function openNodeCard(node) {
   var raw = node.raw || {};
   var title = '', facts = '', more = '';
 
-  if (kind === 'root') {
+  if (kind === 'disk') {
+    var dr = DISK.reading;
+    title = diskWords(dr) || 'Storage of this machine';
+    if (dr && dr.total_bytes) {
+      facts += fact('Used', escapeHtml(loadGb(dr.used_bytes) + ' GB (' + Math.round(dr.percent_used) + '%)'));
+      facts += fact('Free', escapeHtml(loadGb(dr.free_bytes, true) + ' GB'));
+      facts += fact('Size', escapeHtml(loadGb(dr.total_bytes, true) + ' GB'));
+    }
+    more = '<p class="node-card-note">The ring round the core is how full this machine\u2019s disk is, ' +
+      'filled clockwise from the top. It is light grey while there is room, amber from 65% used ' +
+      'and red above 80%. It is read once a minute.</p>';
+  } else if (kind === 'root') {
     var m = machineSummary();
     title = m.idle ? 'Idle - nothing is running' : 'Working';
     facts += fact('Background jobs', String(m.jobs));
@@ -1101,11 +1125,6 @@ function openNodeCard(node) {
       facts += fact('Memory used',
         loadGb(loadRam.used_bytes) + ' / ' + loadGb(loadRam.total_bytes, true) +
         ' GB (' + Math.round(loadRam.percent_used) + '%)');
-    }
-    // And its storage, the outermost ring in the corner, in the ring's words.
-    var loadDisk = load && load.disk;
-    if (loadDisk && loadDisk.total_bytes) {
-      facts += fact('Storage', escapeHtml(diskWords(loadDisk).replace('Storage of this machine: ', '')));
     }
     more = '<p class="node-card-note">This is the core. Every line coming out of it is a piece ' +
       'of work happening right now: a spike is a background job, a branch is a helper inside ' +
@@ -1276,7 +1295,66 @@ var SELF = { id: 'rouh-self', kind: 'self', parent: 'root', label: 'Answering yo
 var PJ = { cx: 0, cy: 0, S: 1, cyw: 1, syw: 0, cpi: 1, spi: 0 };
 var ITEMS = [], DRAW = [], itemN = 0, segN = 0, markN = 0;
 var PICKS = [], pickN = 0, pickCount = 0;
-var ORB_HIT = { core: { x: 0, y: 0, r: 0 } };
+var ORB_HIT = { core: { x: 0, y: 0, r: 0 }, disk: { x: 0, y: 0, r: 0 } };
+
+/* ---------- the storage ring round the core ----------
+
+   Petar, 9 November 2026: "a third ring on the outside, with light gray.
+   That would be the storage of the machine. Should be red after 80% and
+   yellow/amber after 65%". Outside the core's crossing rings and the ring
+   breathing round them, flat to the screen so it reads as a gauge: a faint
+   track all the way round and, from twelve o'clock clockwise, an arc as long
+   a share of it as the disk is full. The same drawing in the corner circle
+   and opened over the whole screen, because they are the same orb. The
+   reading is the poll's (`disk` from /api/machine/load, which the server
+   reads at most once a minute), so the frame only reads two numbers. */
+var DISK = { reading: null, share: null };
+var DISK_NODE = { id: 'disk', kind: 'disk', label: 'Storage', state: 'running', parent: null, raw: {} };
+//: Past the breathing ring's widest (2.4 core radii) with air between.
+var DISK_RING = 3.4;
+var DISK_WARM = 65, DISK_HOT = 80;
+
+function diskShade(pal, pct) {
+  return pct > DISK_HOT ? pal.diskHot : pct >= DISK_WARM ? pal.diskWarm : pal.disk;
+}
+
+// "Storage of this machine: 47% used, 220 GB free of 454 GB", or '' with no reading.
+function diskWords(d) {
+  if (!d || !d.total_bytes) return '';
+  return 'Storage of this machine: ' + Math.round(d.percent_used) + '% used, ' +
+    loadGb(d.free_bytes, true) + ' GB free of ' + loadGb(d.total_bytes, true) + ' GB';
+}
+
+function diskTake(v) {
+  var d = v && v.disk;
+  DISK.reading = d && d.total_bytes ? d : null;
+  DISK.share = DISK.reading ? clamp(Number(d.percent_used) || 0, 0, 100) : null;
+}
+
+// Whether a point, in the canvas's own units, is on the storage ring.
+function onDiskRing(x, y) {
+  var h = ORB_HIT.disk;
+  if (DISK.share === null || !(h.r > 0)) return false;
+  var d = Math.hypot(x - h.x, y - h.y);
+  return Math.abs(d - h.r) <= Math.max(4, h.r * 0.3);
+}
+
+function drawDisk(g, pal, cmp, x, y, r) {
+  ORB_HIT.disk.x = x; ORB_HIT.disk.y = y; ORB_HIT.disk.r = r;
+  if (DISK.share === null) return;
+  var top = -Math.PI / 2;
+  g.lineCap = 'butt';
+  g.lineWidth = cmp ? 0.9 : 1.2;
+  g.strokeStyle = pal.dim;
+  g.globalAlpha = 0.28;
+  g.beginPath(); g.arc(x, y, r, 0, 6.2831853); g.stroke();
+  if (DISK.share > 0) {
+    g.strokeStyle = diskShade(pal, DISK.share);
+    g.globalAlpha = 0.9;
+    g.beginPath(); g.arc(x, y, r, top, top + 6.2831853 * DISK.share / 100); g.stroke();
+  }
+  g.lineCap = 'round';
+}
 var ORB_MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
 
 function sizeOrb(ts) {
@@ -1604,6 +1682,7 @@ function drawCore(g, pal, t, cmp, live, waiting) {
   g.globalAlpha = 0.10 + 0.14 * br * (live ? 1 : 0.4);
   g.strokeStyle = waiting ? pal.wait : pal.ink;
   g.beginPath(); g.arc(x, y, r * (1.5 + br * 0.9), 0, 6.2831853); g.stroke();
+  drawDisk(g, pal, cmp, x, y, r * DISK_RING);
   g.globalAlpha = 1;
   ORB_HIT.core.x = x; ORB_HIT.core.y = y; ORB_HIT.core.r = r;
 }
@@ -1775,27 +1854,6 @@ function loadClass(pct) {
   return 'load-ok';
 }
 
-/* The storage ring's scale, Petar's own (9 November 2026): light grey while
-   the disk has room, amber from 65% used, red above 80%. Bands, flat, like
-   the CPU's, because a disk is either filling up or it is not. */
-var DISK_WARM = 65, DISK_HOT = 80;
-
-function diskClass(pct) {
-  if (typeof pct !== 'number' || !isFinite(pct)) return '';
-  if (pct > DISK_HOT) return 'disk-hot';
-  if (pct >= DISK_WARM) return 'disk-warm';
-  return 'disk-ok';
-}
-
-// The one sentence the storage ring says, pointed at or clicked, and the
-// core's card and the corner's tip say with it: "Storage of this machine:
-// 47% used, 220 GB free of 454 GB". Empty when there is no reading.
-function diskWords(d) {
-  if (!d || !d.total_bytes) return '';
-  return 'Storage of this machine: ' + Math.round(d.percent_used) + '% used, ' +
-    loadGb(d.free_bytes, true) + ' GB free of ' + loadGb(d.total_bytes, true) + ' GB';
-}
-
 /* The other scale: the one the machine's memory is drawn on, the ring
    round the circle and the number in the readout both.
 
@@ -1922,6 +1980,8 @@ function loadUnwatch(fn) {
 }
 
 document.addEventListener('visibilitychange', loadTimer);
+// The orb is on the screen in every state, so its storage ring always wants the reading.
+loadWatch(diskTake);
 window.addEventListener('pagehide', function () { LOAD.fns.length = 0; loadTimer(); });
 
 /* The readout itself: three numbers in the bottom-right corner of the orb
@@ -1980,18 +2040,6 @@ function orbStatsPaint(v) {
       + Math.round(m.percent_used) + '%)'
     : '--';
   ram.style.color = (m && m.total_bytes) ? memColour(m.percent_used) : '';
-
-  // The disk, in the colour of the outermost ring in the corner.
-  var disk = $('orbStatDisk'), diskRow = $('orbStatDiskRow'), dk = v && v.disk;
-  if (disk && diskRow) {
-    var dOn = !!(dk && dk.total_bytes);
-    disk.textContent = dOn
-      ? loadGb(dk.used_bytes) + ' / ' + loadGb(dk.total_bytes, true) + ' GB ('
-        + Math.round(dk.percent_used) + '%)'
-      : '--';
-    diskRow.className = 'orb-stat' + (dOn ? ' ' + diskClass(dk.percent_used) : '');
-    diskRow.title = dOn ? diskWords(dk) : '';
-  }
 
   // Memory held by working files nothing is using any more. On this server
   // /tmp is a filesystem that lives in memory, so a world left there by a
@@ -2106,19 +2154,6 @@ function ringArcLength(el, share) {
 }
 
 function orbRingPaint(v) {
-  // The machine's storage, outermost: the disk Rouh runs on, as full a share
-  // of its circle as the disk is, on the faint track that is the circle's
-  // edge. The server reads it once a minute, so between readings the arc does
-  // not move and costs the orb nothing.
-  var diskArc = $('orbRingDisk');
-  if (diskArc) {
-    var dk = v && v.disk;
-    var dShare = loadShare(dk && dk.total_bytes ? dk.percent_used : null);
-    ringArcLength(diskArc, dShare);
-    diskArc.setAttribute('class', 'orb-ring-arc orb-ring-disk' +
-      (dShare === null ? '' : ' ' + diskClass(dShare)));
-  }
-
   var arc = $('orbRingArc');
   if (!arc) return;
   var cpu = loadShare(v && v.cpu_percent);
@@ -2749,44 +2784,11 @@ function orbOpenSays() {
 // What the circle in the corner says when it is pointed at or focused: how
 // busy the machine is, and which jobs, each with what it is doing now. At
 // 96 px the lines are too small to point at one by one.
-// Whether a pointer at (x, y) is on the corner circle's outermost ring, the
-// storage one: the outer tenth of its radius, a band a few pixels wide that
-// a mouse can find and the middle of the circle never reaches.
-function onDiskRim(x, y) {
-  var box = $('orbBox');
-  if (!box || ORBX.state !== 'corner') return false;
-  var b = box.getBoundingClientRect(), r = b.width / 2;
-  if (!(r > 0)) return false;
-  var d = Math.hypot(x - (b.left + r), y - (b.top + b.height / 2));
-  return d >= r * 0.9 && d <= r + 1;
-}
-
-// The one line the storage ring says, over the circle like the tip it
-// replaces while the pointer is on the ring.
-function orbDiskTip() {
+function orbCornerTip() {
   var tip = $('orbTip'), box = $('orbBox');
-  var words = diskWords(LOAD.last && LOAD.last.disk);
-  if (!tip || !box || !words) return false;
-  var d = LOAD.last.disk;
-  tip.innerHTML = '<span class="k">Storage</span><span class="l ' + diskClass(d.percent_used) + '">' +
-    escapeHtml(words) + '</span>';
-  tip.hidden = false;
-  var s = tipScreen(tip), b = box.getBoundingClientRect(), size = tipSize(tip);
-  var y = b.top - size.h - 8;
-  if (y < s.top + 8) y = b.bottom + 8;
-  tipPut(tip, b.left, y, size, s);
-  return true;
-}
-
-function orbCornerTip(e) {
-  var tip = $('orbTip'), box = $('orbBox');
-  // The storage ring says what it is wherever it is pointed at, whatever a
-  // press on the rest of the circle does.
-  if (e && typeof e.clientX === 'number' && e.type !== 'focus' &&
-      onDiskRim(e.clientX, e.clientY) && orbDiskTip()) return;
-  // Where the circle is the menu button, the row it opens into says what is
-  // running in its own words.
-  if (!tip || !box || ORBX.state !== 'corner' || orbMenuButton()) { orbTipHide(); return; }
+  // On a phone the circle is the menu button, and the row it opens into
+  // says what is running in its own words.
+  if (!tip || !box || ORBX.state !== 'corner' || orbMenuButton()) return;
   var ms = machineSummary(), waiting = 0, jobs = [];
   for (var i = 0; i < ORDER.length; i++) {
     var n = SCENE[ORDER[i]];
@@ -2809,8 +2811,6 @@ function orbCornerTip(e) {
       (doing ? ' - ' + escapeHtml(clipWords(doing, 60)) : '') + '</div>';
   }
   if (jobs.length > 3) list += '<div class="j">and ' + (jobs.length - 3) + ' more</div>';
-  var storage = diskWords(LOAD.last && LOAD.last.disk);
-  if (storage) list += '<div class="j">' + escapeHtml(storage) + '</div>';
   tip.innerHTML = '<span class="k">The orb</span><span class="l">' + line + '</span>' + list +
     '<div class="d">Click to open it over the whole screen</div>';
   tip.hidden = false;
@@ -2932,17 +2932,26 @@ wireOrbPanel();
   window.addEventListener('storage', function (e) {
     if (e && e.key === KEY_ORB_SIDE) orbSwing(e.newValue === 'right' ? 'right' : 'left', 0);
   });
-  // The storage ring is pointed at with a mouse: a click on it says what it
-  // is and stays, rather than opening the orb. A finger is too broad for a
-  // band a few pixels wide, so a tap is the circle's, as it always was.
+  /* The storage ring round the core is drawn in the corner too, and a mouse
+     can point at it there: pointed at, it says how full the disk is, and
+     clicked, it opens its card rather than the menu. A finger is broader
+     than the ring is wide at this size, so a tap is the circle's as it
+     always was; held, the orb opens and the ring is there to tap. */
   var lastKind = '';
   btn.addEventListener('pointerdown', function (e) { lastKind = e.pointerType; }, true);
   btn.addEventListener('pointermove', function (e) {
-    if (e.pointerType === 'mouse' && !flick && ORBX.state === 'corner') orbCornerTip(e);
+    if (e.pointerType !== 'mouse' || flick || ORBX.state !== 'corner') return;
+    if (nodeAt(e.clientX, e.clientY) === DISK_NODE) orbTipShow(DISK_NODE, e.clientX, e.clientY);
+    else if (orbMenuButton()) orbTipHide();
+    else orbCornerTip();
   });
   btn.addEventListener('click', function (e) {
     letGo();
-    if (lastKind === 'mouse' && onDiskRim(e.clientX, e.clientY) && orbDiskTip()) return;
+    if (lastKind === 'mouse' && ORBX.state === 'corner' && nodeAt(e.clientX, e.clientY) === DISK_NODE) {
+      orbTipHide();
+      openNodeCard(DISK_NODE);
+      return;
+    }
     if (orbMenuButton()) sbSet(true);
     else orbExpand(true);
   });
