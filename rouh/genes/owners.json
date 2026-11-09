@@ -711,6 +711,7 @@
     "rouh/static/xterm*",
     "rouh/models/agents.py",
     "rouh/starting.py",
+    "rouh/codex_route.py",
     "rouh/crew.py",
     "rouh/crew_launch.py",
     "rouh/assistant_job.py",

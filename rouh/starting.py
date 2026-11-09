@@ -360,6 +360,7 @@ async def start(*, brief: str, title: str = "", preset: str = "",
                 org_id: str = "", model: str = "", use: str = "",
                 one_fields: dict | None = None, standing_rules: bool | None = None,
                 made_by: str | None = None, boxes: dict | None = None,
+                asked_for: str | None = None, agent_chosen: bool = False,
                 cfg: Any, crew: Any = None, one: Any = None,
                 emit: Callable | None = None) -> dict:
     """Start one run, whoever asked and whatever they called it.
@@ -403,6 +404,14 @@ async def start(*, brief: str, title: str = "", preset: str = "",
     run of the program collects them with the key as it starts; a worker here is
     written them by Rouh as it is made (`crew.spawn`). Either way the brief
     already says where they are, and the grant is tied to the run's id here.
+
+    ``asked_for`` is the request as the tool was given it, before anything was
+    added to it. When it names Codex, an OpenAI model such as Astra, or OpenAI as
+    the model to use, and no agent was chosen on purpose (``agent_chosen``, which
+    is the tool's agent "claude" or "codex" said out loud), the run is Codex on the
+    ChatGPT subscription, with that model, and its record says which word did it
+    (`rouh/codex_route.py`, Petar, 9 November 2026). A model of OpenAI's named for
+    the run with no agent chosen is Codex too.
     """
     from . import task_origin
 
@@ -410,6 +419,12 @@ async def start(*, brief: str, title: str = "", preset: str = "",
     brief = str(brief or "").strip()
     if not brief:
         raise CannotStart("There was nothing to do, so nothing was started.")
+    routed = route_to_codex(asked_for, agent=agent, agent_chosen=agent_chosen, model=model)
+    if routed is not None:
+        agent, model = "codex", model or routed.model
+        log.info("starting as Codex%s: the request named %r",
+                 f" on {model}" if model else "", routed.word)
+        brief = f"{brief}\n\n{routed.line()}"
     brief = with_its_task(brief, chat)
     if preset == "improve_myself":
         # Every run of gene therapy changes Rouh's code, and what it changes that a person sees goes
@@ -464,6 +479,16 @@ async def start(*, brief: str, title: str = "", preset: str = "",
         elif one_fields:
             raise CannotStart("This run can only be a run of the one program, and the program "
                               "would not take it. Nothing was started.")
+    if not run_id and agent == "codex":
+        # A worker here is always Claude Code: a run of Codex asked for by name went to the
+        # program, and only a program that is away or said no puts it here. Its record says so.
+        log.warning("a run of Codex was asked for and the one program did not take it; "
+                    "it starts as Claude Code instead")
+        agent, model = "", ""
+        brief = (f"{brief}\n\nCodex was asked for, and the one program, which runs Codex, did "
+                 "not take this run, so it is Claude Code. Do not call codex exec for the "
+                 "work itself; say in your report that it ran on Claude Code.")
+        asked = brief
     if not run_id:
         if where["policy"] == ONE:
             raise CannotStart(
@@ -505,6 +530,27 @@ async def start(*, brief: str, title: str = "", preset: str = "",
     return {"id": run_id, "status": "starting", "title": said, "mode": took,
             "workspace": written["workspace"], "policy": took, "kind": kind,
             "note": note or "It is on the orb and on the Metabolism page."}
+
+
+def route_to_codex(asked_for: str | None, *, agent: str = "", agent_chosen: bool = False,
+                   model: str = ""):
+    """The word that makes this run Codex, as `codex_route.Named`, or None.
+
+    Nothing is routed when an agent was chosen on purpose, when the run is already Codex,
+    or when the caller gave no request to read (a scheduled run that picked its own agent).
+    A model named for the run that is OpenAI's makes it Codex as well, since Claude Code
+    cannot be one.
+    """
+    if agent_chosen or agent or asked_for is None:
+        return None
+    from . import codex_route
+    from .config import is_openai
+
+    if model and is_openai(model):
+        return codex_route.Named(model, model)
+    if model:
+        return None
+    return codex_route.named(asked_for)
 
 
 #: Where what a run finishes with is said, as the model that started it is told.

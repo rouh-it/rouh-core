@@ -248,6 +248,15 @@ def _one_word(run) -> str:
     return runs.ONE_WORD.get(state, state or "unknown")
 
 
+def _agent_chosen(args) -> bool:
+    """Whether the model passed an agent on purpose, Claude Code included.
+
+    A request that names an OpenAI model is Codex (`rouh/codex_route.py`) unless
+    this is true: agent "claude" said out loud wins over the words of the request.
+    """
+    return str((args or {}).get("agent") or "").strip().lower() in AGENTS
+
+
 def _agent_asked_for(args) -> str:
     """Which agent the person asked for by name, or nothing, which is Claude Code.
 
@@ -10859,9 +10868,18 @@ class ToolRegistry:
                         "enum": ["claude", "codex"],
                         "description": (
                             "Which agent does the work. Leave it out: it "
-                            "is Claude Code, and that is right unless the "
-                            "person says otherwise. Send \"codex\" only "
-                            "when they ask for Codex by name."
+                            "is Claude Code, unless the person asks for "
+                            "Codex or an OpenAI model. Asking for an "
+                            "OpenAI model by name counts as asking for "
+                            "Codex: Astra (gpt-6-astra), Sol (gpt-6.1-sol), "
+                            "Luna, Terra, or 'with OpenAI'. Send \"codex\" "
+                            "then, and the run is Codex on the ChatGPT "
+                            "subscription with that model; a request that "
+                            "names one becomes Codex by itself when you "
+                            "leave this out. Never start Claude Code to call "
+                            "codex exec inside the job. Send \"claude\" only "
+                            "when the OpenAI model is what the work is about "
+                            "rather than who does it."
                         ),
                     },
                     "billing": BILLING_PROPERTY,
@@ -13901,6 +13919,9 @@ class ToolRegistry:
         """
         if not brief.strip():
             return "There was nothing to do, so nothing was started."
+        # The request as the model wrote it, before anything is added below: what
+        # says whether it is a run of Codex (`starting.route_to_codex`).
+        asked_for = brief
         # A job started while handling an email is that email's work, written
         # down against it, so the email stays in progress until the job's
         # report comes back: a case's (`rouh/mail_cases.py`), or the owner's own
@@ -13951,6 +13972,8 @@ class ToolRegistry:
                 preset=preset,
                 title=str(args.get("title") or "").strip(),
                 agent=_agent_asked_for(args),
+                agent_chosen=_agent_chosen(args),
+                asked_for=asked_for,
                 billing=_billing_asked_for(args),
                 expects=_expected_files(args),
                 # The conversation of the turn that called this tool, and only
@@ -14564,8 +14587,12 @@ class ToolRegistry:
                         "everything they said that the run will need. It cannot ask you anything.")},
                     "title": {"type": "string", "description": "Four or five words for the run."},
                     "agent": {"type": "string", "enum": ["claude", "codex"], "description": (
-                        "Which agent does the work. Leave it out: it is Claude Code. Send "
-                        "\"codex\" only when the person asks for Codex by name.")},
+                        "Which agent does the work. Leave it out: it is Claude Code, unless "
+                        "the person asks for Codex or an OpenAI model. Asking for an OpenAI "
+                        "model by name, Astra included, counts as asking for Codex: send "
+                        "\"codex\" and put the model in model (gpt-6-astra, gpt-6.1-sol). A "
+                        "brief that names one becomes Codex by itself. Send \"claude\" only "
+                        "when the OpenAI model is what the work is about rather than who does it.")},
                     "billing": BILLING_PROPERTY,
                     "model": {"type": "string", "description": (
                         "This run's own model, only when the person or a scheduled job names "
@@ -14670,7 +14697,11 @@ class ToolRegistry:
 
         model = str(args.get("model") or "").strip()
         if model:
-            codex = _agent_asked_for(args) == "codex"
+            from .config import is_openai
+
+            # An OpenAI model with no agent chosen is a run of Codex (`starting.route_to_codex`).
+            codex = _agent_asked_for(args) == "codex" or (not _agent_chosen(args)
+                                                          and is_openai(model))
             known = [m for m, _ in (OPENAI_CHOICES if codex else ANTHROPIC_CHOICES)]
             if model not in known:
                 return (f"{model} is not a model a {'Codex' if codex else 'Claude Code'} run "

@@ -39,7 +39,7 @@ import os
 import time
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
-from . import billing, codex_signin, rules, version
+from . import billing, codex_signin, codex_usage, rules, version
 from .config import this_machine
 from .devices import hash_token, new_device_id, new_token
 from .documents import DocumentsError
@@ -276,8 +276,35 @@ class Client:
         # as soon as it sees one, and on 14 September it saw an empty screen
         # a moment before the connection, and the attach was refused.
         live = terminal is not None and terminal.connected
-        return {"run": self._run(self.p.views.runs[run_id], full=True), "entries": entries,
-                "screen": terminal.screen_text() if live else None}
+        run = self.p.views.runs[run_id]
+        return {"run": self._run(run, full=True), "entries": entries,
+                "screen": terminal.screen_text() if live else None,
+                "codex": await self._codex_inside(run)}
+
+    async def _codex_inside(self, run: dict[str, Any]) -> dict[str, Any] | None:
+        """The Codex sessions that worked in this run's folder, counted (`one/codex_usage.py`).
+
+        Read off the run user's own ``~/.codex/sessions``, so a run of Claude Code that
+        called ``codex exec`` shows what it spent of the ChatGPT plan, and the plan's
+        five-hour and weekly windows. Nothing when there were none, or they cannot be read.
+        """
+        folder = codex_usage.run_folder(run)
+        if not folder:
+            return None
+        # The home the run's agent was given (`agent_environment`), which is its user's.
+        home = os.environ.get("ONE_ASUSER_HOME") or ""
+        if not home:
+            try:
+                home = self.p.runs._home(run)
+            except Exception:  # noqa: BLE001 - a space gone since is the program's own home
+                home = ""
+        try:
+            return await asyncio.to_thread(codex_usage.for_run, folder, home=home,
+                                           since=codex_usage.requested_epoch(run))
+        except Exception:  # noqa: BLE001 - the run's page is drawn whether or not this is
+            log.warning("the Codex sessions of run %s could not be read", run.get("id"),
+                        exc_info=True)
+            return None
 
     async def _do_transcript(self, m):
         """A run's transcript as a conversation, for the Read tab.

@@ -90,7 +90,10 @@ var ONE = {
   // stand in for it (D48).
   noTerm: false,
   // Sizes the run's terminal to this page's box (D50).
-  fit: null
+  fit: null,
+  // The Codex sessions each run started in its own folder, by run id, as the
+  // program counted them when the run was opened (`one/codex_usage.py`).
+  codex: {}
 };
 
 // Called by the orb before this section has run, so ONE may not exist yet.
@@ -340,6 +343,7 @@ function oneWatch(id, attach) {
   return oneSend('run', { run: id, entries: 1 }).then(function (detail) {
     if (!oneIsOpen(id)) return null;
     ONE.runs[id] = detail.run;
+    ONE.codex[id] = detail.codex || null;
     if (ONE_ENDED[detail.run.state]) ONE.noTerm = true;
     oneRenderHead();
     var entries = detail.entries || [];
@@ -559,6 +563,8 @@ function oneRenderHead() {
   var when = ago(ended ? run.ended_at : (run.started_at || run.requested_at));
   if (when) meta.appendChild(el('span', null, (ended ? 'Ended ' : 'Started ') + when));
 
+  oneCodexPaint(run);
+
   var said = $('oneSaid');
   var failed = run.land_reason && !run.landed;
   var words = failed ? 'Could not save to main: ' + run.land_reason : run.last_message;
@@ -581,6 +587,76 @@ function oneRenderHead() {
   $('oneSayText').placeholder = ended ? 'Carry it on with a message' : 'Send it a message';
   oneTypingNote(run);
   oneTabsPaint(run);
+}
+
+/* What Codex spent inside this run, under its heading (`one/codex_usage.py`).
+
+   Petar, 9 November 2026 (task 178): runs of Claude Code that called `codex
+   exec` used up the ChatGPT plan's five-hour window and nothing showed it.
+   So every Codex session that worked in the run's folder is counted here: the
+   sessions, turns and tokens, the model and plan, how much of the plan's
+   five-hour and weekly windows was used and when each resets, and, loudest,
+   a session that stopped because the plan was out of credits. A run with no
+   Codex session in it shows nothing. */
+function oneCodexPaint(run) {
+  var box = $('oneCodex');
+  if (!box) return;
+  var got = ONE.codex[run.id];
+  box.textContent = '';
+  box.hidden = !got || !got.count;
+  if (box.hidden) return;
+  var words = run.engine === 'codex' ? 'Codex in this run' : 'Codex called inside this run';
+  var line = el('div', 'run-codex-line');
+  line.appendChild(el('strong', null, words));
+  var tokens = (got.tokens && got.tokens.total_tokens) || 0;
+  var bits = [
+    got.count + (got.count === 1 ? ' session' : ' sessions'),
+    got.turns + (got.turns === 1 ? ' turn' : ' turns'),
+    oneTokens(tokens) + ' tokens'
+  ];
+  if (got.models && got.models.length) bits.push(got.models.join(', '));
+  if (got.plan_type) bits.push('ChatGPT ' + got.plan_type.charAt(0).toUpperCase() + got.plan_type.slice(1) + ' plan');
+  bits.forEach(function (b) { line.appendChild(el('span', null, b)); });
+  var t = got.tokens || {};
+  line.title = [['input_tokens', 'input'], ['cached_input_tokens', 'of that cached'],
+                ['output_tokens', 'output'], ['reasoning_output_tokens', 'reasoning']]
+    .filter(function (p) { return typeof t[p[0]] === 'number'; })
+    .map(function (p) { return Number(t[p[0]]).toLocaleString() + ' ' + p[1]; }).join(', ');
+  box.appendChild(line);
+  var lim = got.limits || {};
+  var windows = el('div', 'run-codex-line');
+  [[lim.primary, '5-hour window'], [lim.secondary, 'Week']].forEach(function (p) {
+    var w = p[0];
+    if (!w || typeof w.used_percent !== 'number') return;
+    var at = typeof w.resets_at === 'number' ? new Date(w.resets_at * 1000) : null;
+    var passed = at && at.getTime() <= Date.now();
+    windows.appendChild(el('span', null, p[1] + ' ' + Math.round(w.used_percent) + '% used'
+      + (at ? (passed ? ', reset ' : ', resets ') + oneWhen(at) : '')));
+  });
+  if (windows.childNodes.length) {
+    if (got.limits_at && isFinite(Date.parse(got.limits_at))) windows.appendChild(el('span', 'run-codex-asof', 'as of ' + oneWhen(new Date(got.limits_at))));
+    box.appendChild(windows);
+  }
+  if (got.out_of_credits) {
+    var out = el('div', 'run-codex-out');
+    out.setAttribute('role', 'status');
+    out.appendChild(el('strong', null, 'Out of credits'));
+    out.appendChild(document.createTextNode(got.error || 'The ChatGPT plan had nothing left, so Codex stopped.'));
+    box.appendChild(out);
+  }
+}
+
+function oneTokens(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M';
+  if (n >= 1e3) return Math.round(n / 1e3) + 'k';
+  return String(n);
+}
+
+// A reset time: the clock today, or the day and the clock on another day.
+function oneWhen(d) {
+  var clock = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  if (d.toDateString() === new Date().toDateString()) return clock;
+  return d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + clock;
 }
 
 // Where the open run belongs, on its heading. It says so whenever the column

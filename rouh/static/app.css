@@ -4914,6 +4914,20 @@ button.rule-tag:focus-visible { outline: 2px solid var(--r-accent); outline-offs
   color: var(--warn); font-weight: 600; border: 1px solid currentColor;
   border-radius: 999px; padding: 0 7px;
 }
+/* What Codex spent inside a run (one/codex_usage.py): the run's meta, a line
+   further, and its out of credits said with its words as well as its colour. */
+.run-codex { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; font-size: 12px; color: var(--dimmer); }
+.run-codex-line { display: flex; flex-wrap: wrap; gap: 3px 12px; }
+.run-codex-line strong { color: var(--text); font-weight: 600; }
+.run-codex-asof { color: var(--dim); }
+.run-codex-out {
+  display: flex; flex-wrap: wrap; gap: 3px 8px; align-items: baseline;
+  margin-top: 2px; color: var(--text); overflow-wrap: anywhere;
+}
+.run-codex-out strong {
+  color: var(--bad); font-weight: 600; border: 1px solid currentColor;
+  border-radius: 999px; padding: 0 7px;
+}
 .run-said {
   margin: 0; padding: 9px 11px; font-size: 13px;
   background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-s);
