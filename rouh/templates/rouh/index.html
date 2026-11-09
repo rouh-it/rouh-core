@@ -4387,9 +4387,20 @@ with {% asset %}, which gives it its hashed address.
            ring round the orb, which is what this replaces. {% endcomment %}
       <svg id="orbRing" class="orb-ring" viewBox="0 0 100 100" aria-hidden="true"
            fill="none" focusable="false">
+        {% comment %} Three rings, from the outside in: storage, CPU, memory.
+             Petar, 9 November 2026: "the storage should be where the cpu is
+             now. the cpu should take the RAM ring, and the ram ring should
+             shift a bit inwards as a third circle. all of them on the outside
+             of the orb." So storage is at 47, where the CPU was, on the faint
+             track that is the circle's edge; the CPU at 42, where the memory
+             was; the memory at 37. Storage is light grey below 65% used,
+             amber from 65, red above 80 (`diskClass`). The same radii are in
+             `RINGS` in app/orb.js, which finds the ring a pointer is on. {% endcomment %}
         <circle class="orb-ring-track" cx="50" cy="50" r="47"
                 vector-effect="non-scaling-stroke"></circle>
-        <path id="orbRingArc" class="orb-ring-arc" data-r="47" d=""
+        <path id="orbRingDisk" class="orb-ring-arc orb-ring-disk" data-r="47" d=""
+              stroke-linecap="butt" vector-effect="non-scaling-stroke"></path>
+        <path id="orbRingArc" class="orb-ring-arc" data-r="42" d=""
               stroke-linecap="butt" vector-effect="non-scaling-stroke"></path>
         {% comment %} One more ring inside it, for how full the machine's memory is:
              same start, same direction, as long a share of its own circle as
@@ -4400,12 +4411,13 @@ with {% asset %}, which gives it its hashed address.
              Petar had it taken away on 11 October 2026 (fr_73b8a5917def).
 
              Its radius and its thinner stroke are what keeps it apart from
-             the CPU's: 47 and 42, at two real pixels and then one and a half,
+             the CPU's: 42 and 37 (47 and 42 before the storage ring took the
+             outside), at two real pixels and then one and a half,
              leaves three clear pixels of air between them on the 96 px circle
              and a little over two on the 80 px one a phone gets, so two rings
              read as two rings rather than as a thick smear round the rim.
 
-             No track behind it. The outer ring has one so the circle still has
+             No track behind it. The outermost ring has one so the circle still has
              an edge when the machine is idle; a second full circle under this
              one would be the meaningless ring that made the load ring
              unreadable the last time.
@@ -4416,7 +4428,7 @@ with {% asset %}, which gives it its hashed address.
              the box reads the same as a twentieth of it, with the few per cent
              either side of a threshold blended so a ring creeping past one
              changes rather than jumps. The script writes it on. {% endcomment %}
-        <path id="orbRingRam" class="orb-ring-arc orb-ring-mem" data-r="42" d=""
+        <path id="orbRingRam" class="orb-ring-arc orb-ring-mem" data-r="37" d=""
               stroke-linecap="butt" vector-effect="non-scaling-stroke"></path>
       </svg>
       {% comment %} Nothing else goes here.
@@ -4491,6 +4503,9 @@ with {% asset %}, which gives it its hashed address.
         </div>
         <div class="orb-stat" id="orbStatRamRow">
           <span class="orb-stat-k">ram</span><span class="orb-stat-v" id="orbStatRam">--</span>
+        </div>
+        <div class="orb-stat" id="orbStatDiskRow">
+          <span class="orb-stat-k">disk</span><span class="orb-stat-v" id="orbStatDisk">--</span>
         </div>
         {% comment %} What is held and no longer used: working files left in a
              filesystem that lives in memory. Hidden on a machine where there
