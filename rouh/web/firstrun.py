@@ -7,17 +7,24 @@ Rouh for Mac or with ``docker compose up``, and Rouh's page takes them through
 the first run, one thing per screen, each at its own address so Back, a reload
 and a restart of Rouh land where the person was:
 
-1. ``/setup/connect``: an Independent Rouh or a Connected Rouh, two equal
-   choices, before anything about the person is asked, so they know whether
-   what they fill in is for an account or not (Petar, 8 November 2026, task 176).
-   Before the owner is made the choice is kept in the browser's session.
-   Connected is its birth: once the owner is made it is registered at once on
-   the birth service (``ROUH_BIRTH_URL``, rouh.land unless an installation names
-   its own), which gives it its official name (`birth.be_born`), asks the relay
-   for its own phone address (`rouh/relay.py`), and asks rouh.land to email the
-   owner's address a link that confirms it and makes their rouh.land account with
-   this Rouh in it (`birth.ask_account`, step 176-16): Connected is the account,
-   Independent has none. Independent: no name, no keys, only the nickname its person
+1. ``/setup/connect``: a Connected Rouh or an Independent Rouh, before
+   anything about the person is asked, so they know whether what they fill in
+   is for an account or not (Petar, 8 November 2026, task 176). Connected is on
+   the left and the primary choice, Independent beside it, quieter (Petar,
+   9 November 2026: "let connected be on the left and in different color button
+   and border. Should be the primary choice."). Before the owner is made the
+   choice is kept in the browser's session. Connected is the owner's rouh.land
+   account: once the owner is made, rouh.land emails the address a six-digit
+   code (`birth.ask_email_code`), and ``/setup/email`` ("Check your email")
+   waits for it; only a right code (`birth.check_email_code`) goes on to the
+   birth on the birth service (``ROUH_BIRTH_URL``, rouh.land unless an
+   installation names its own), which is born straight into that account and
+   given its official name (`birth.be_born` with the code's ticket), and asks
+   the relay for its own phone address (`rouh/relay.py`). Step 176-20, Petar,
+   9 November 2026: "Email verification moves before the birth, and it uses a
+   code." Before it a link was emailed after the birth (step 176-16), which is
+   still how Anatomy, You, Your account confirms a Rouh born with no account
+   (`birth.ask_account`). Independent has none. Independent: no name, no keys, only the nickname its person
    gives it (Petar, 4 November 2026). If rouh.land cannot be reached, a Connected
    choice stays independent too, and is connected later on Your profile. What the
    independent kind is called is `birth.INDEPENDENT`, and nowhere else.
@@ -26,8 +33,8 @@ and a restart of Rouh land where the person was:
    account, the owner's alone (decisions 1 and 2), kept on this computer. The
    email is how the owner signs in; the password is the way in while this Rouh
    cannot send email yet (`rouh/signin.py`, 4 November 2026).
-3. ``/setup/born``: born, its name (in orange, as on every later screen) and
-   birthday; or independent, "Your Rouh is ready". Either way it always answers
+3. ``/setup/born``: born: Name (in orange, as on every later screen),
+   Birthday and URL, each a plain line; or independent, "Your Rouh is ready". Either way it always answers
    to Rouh, and the owner may give it a nickname (changed any time on Anatomy,
    Rouh Land Account, Rouh profile).
 4. ``/setup/brain``: an Anthropic or OpenAI key, required, with each company's
@@ -94,7 +101,7 @@ log = logging.getLogger("rouh.firstrun")
 
 PATH = "/setup"
 #: The screens, in order, each at ``/setup/<screen>``.
-SCREENS = ("connect", "you", "born", "words", "brain")
+SCREENS = ("connect", "you", "email", "born", "words", "brain")
 
 #: Where a right code is kept once it has been taken out of the address.
 SESSION_KEY = "firstrun_code"
@@ -258,6 +265,8 @@ def next_screen(user) -> str:
         return ""
     if "connected" not in held:
         return "connect"
+    if held.get("connected") and held.get("email_wait") and not _born(user):
+        return "email"
     if not held.get("named_at"):
         return "born"
     return "brain"
@@ -341,7 +350,7 @@ def _rouh_name(user) -> str:
 def _render(request: HttpRequest, screen: str, *, status: int = 200, **values) -> HttpResponse:
     from rouh import birth
 
-    values.setdefault("step", {"connect": 1, "you": 2, "born": 3, "brain": 4, "key": 4}.get(screen, 0))
+    values.setdefault("step", {"connect": 1, "you": 2, "email": 2, "born": 3, "brain": 4, "key": 4}.get(screen, 0))
     values.setdefault("independent", birth.INDEPENDENT)
     response = render(request, "rouh/firstrun.html", {"screen": screen, **values}, status=status)
     response["Cache-Control"] = "no-store"
@@ -501,9 +510,10 @@ async def you(request: HttpRequest) -> HttpResponse:
     from rouh import runtime
 
     runtime.own_work_now()
-    # The kind chosen before the owner was made: Connected is its birth, now.
+    # The kind chosen before the owner was made: Connected asks for the email code now, and is born
+    # once it is typed (step 176-20); Independent goes straight on.
     await asyncio.to_thread(_choose, user, choice == "connected")
-    return _go(f"{PATH}/born")
+    return _go(await asyncio.to_thread(next_path, user))
 
 
 # --- the screens after it, all the owner's -------------------------------------------------------
@@ -527,38 +537,174 @@ async def _owner_at(request: HttpRequest, screen: str):
 
 
 def _choose(user, connected: bool) -> None:
-    from rouh import birth
-
-    _save(user, connected=connected, chose_at=time.time())
+    _save(user, connected=connected, chose_at=time.time(), email_wait=bool(connected))
     if not connected:
         # Independent: no birth, no name and no keys (4 November 2026).
         return
-    # Connected: born on rouh.land at once, with no code and no account (Petar, 28 October 2026),
-    # which gives it its name, and the relay its address. If rouh.land cannot be reached or refuses,
-    # it stays independent, the first run goes on, and it connects later on Your profile.
-    try:
-        birth.connect(_who(user))
-    except birth.Refused as exc:
-        log.info("first run: Connected, but not registered on rouh.land: %s", exc)
-        return
-    # Connected is the owner's rouh.land account (Petar, 8 November 2026, step 176-16): rouh.land
-    # emails the address typed on the you screen a link that confirms it and makes the account with
-    # this Rouh in it. Without it the email never reached rouh.land and its Sign in said "no account".
-    from rouh import signin
+    # Connected: the owner's email is confirmed with a code before the birth (Petar, 9 November 2026,
+    # task 176, step 176-20: "Email verification moves before the birth, and it uses a code"), so it
+    # is born straight into its rouh.land account. The code goes now; the email screen waits for it.
+    _send_code(user)
+
+
+#: The email screen's own words for each refusal rouh.land gives (`birth.CodeRefused.why`).
+CODE_WORDS = {
+    "wrong": "That code is not right. Check the 6 digits in the email and type them again.",
+    "expired": "That code has expired. Press Resend code for a new one.",
+    "tries": "Too many wrong tries for that code. Press Resend code for a new one.",
+    "replaced": "A newer code was sent since, and only the newest one works. Use the newest email, or press Resend code.",
+    "used": "That code was used already. Press Resend code for a new one.",
+    "unknown": "rouh.land does not know that code. Press Resend code for a new one.",
+    "ticket": "Your email needs confirming again. Press Resend code for a new one.",
+    "limit": "Too many codes went to this address in the last hour. Use the newest one, or try again later.",
+    "mail": "rouh.land could not send the email just now. Try again in a few minutes.",
+    "email": "That doesn't look like an email address. Check it for a typing mistake.",
+}
+UNREACHABLE = "rouh.land could not be reached just now. Try again in a moment."
+
+
+def _code_words(exc, to: str = "") -> str:
+    """The words for a refusal, naming the birth service as this installation calls it."""
+    return _said(exc, to).replace("rouh.land", service_name())
+
+
+def _said(exc, to: str = "") -> str:
+    from rouh import birth
+
+    if isinstance(exc, birth.CodeRefused):
+        if exc.why == "wrong" and exc.left:
+            return CODE_WORDS["wrong"] + (f" {exc.left} tries left." if exc.left > 1 else " 1 try left.")
+        if exc.why == "wait":
+            return (f"A code went to {to or 'this address'} a moment ago. You can ask for another in "
+                    f"{max(exc.seconds, 1)} seconds; look in spam meanwhile.")
+        return CODE_WORDS.get(exc.why, str(exc))
+    said = str(exc)
+    return UNREACHABLE if "could not be reached" in said else said
+
+
+def _send_code(user) -> str:
+    """Ask rouh.land to email the owner a new code; "" when it went, else what to say."""
+    from rouh import birth, signin
 
     email = signin.primary(user) or (user.email or "")
     try:
-        birth.ask_account(str(user.org_id), email)
-        _save(user, account_email=email, account_problem="")
+        got = birth.ask_email_code(email)
     except birth.Refused as exc:
-        log.info("first run: Connected, but rouh.land did not email the account link: %s", exc)
-        _save(user, account_email=email, account_problem=str(exc))
+        words = _code_words(exc, email)
+        log.info("first run: rouh.land did not email a code: %s", exc)
+        # Kept for the screen only while no code is waiting at all (the first one did not go); a
+        # resend refused for now ("too soon") is said once, and the code before still works.
+        held = record(user)
+        if not held.get("email_ticket") or held.get("email_to") != email:
+            _save(user, email_to=email, email_ticket="", email_problem=words)
+        return words
+    _save(user, email_to=email, email_ticket=got["ticket"], email_sent_at=time.time(),
+          email_minutes=got["minutes"], email_problem="", account_email=email)
+    return ""
+
+
+def _born_with(user, ticket: str) -> str:
+    """The birth, with the confirmed code's ticket: born into the rouh.land account. "" when born."""
+    from rouh import birth
+
+    try:
+        birth.connect(_who(user), email_ticket=ticket)
+    except birth.Refused as exc:
+        log.info("first run: the email is confirmed, but the birth did not go: %s", exc)
+        return _code_words(exc)
+    _save(user, email_wait=False, email_ticket="", email_problem="", account_problem="")
     # Its own address on the relay, asked for now, and open as soon as it is granted (Petar,
     # 8 November 2026: "the relay should be working immediately at the registration", `rouh/relay.py`).
     from rouh import relay
 
     if relay.enabled() and not relay.hostname():
         relay.claim_soon(user)
+    return ""
+
+
+def _check_code(user, typed: str) -> tuple[str, bool]:
+    """The typed code: (what to say, whether it is born now)."""
+    from rouh import birth
+
+    code = "".join(ch for ch in str(typed or "") if ch.isdigit())
+    if len(code) != 6:
+        return "Type the 6 digits from the email.", False
+    held = record(user)
+    ticket = held.get("email_ticket") or ""
+    if not ticket:
+        return CODE_WORDS["unknown"], False
+    if held.get("email_confirmed") != ticket:
+        try:
+            birth.check_email_code(ticket, code)
+        except birth.Refused as exc:
+            return _code_words(exc), False
+        _save(user, email_confirmed=ticket)
+    bad = _born_with(user, ticket)
+    if bad:
+        return f"Your email is confirmed, but the birth did not go: {bad} Press Confirm again.", False
+    return "", True
+
+
+def _change_email(user, typed: str) -> str:
+    """A new address for the owner, and a new code to it; "" when it went, else the problem."""
+    from rouh import accounts, signin
+
+    email = " ".join(str(typed or "").split()).lower()
+    try:
+        validate_email(email)
+    except ValidationError:
+        return "That doesn't look like an email address. Check it for a typing mistake."
+    other = accounts.get_user(email)
+    if other is not None and other.pk != user.pk:
+        return "That email belongs to another account on this Rouh."
+    if email != (user.email or "").lower():
+        # The owner signs in with this address: it replaces the one typed before, which was wrong.
+        user.username, user.email = email, email
+        user.save(update_fields=["username", "email"])
+        signin.set_primary(user, email, source="setup", keep_old=False)
+    return _send_code(user)
+
+
+def _email_values(user, **more) -> dict:
+    held = record(user)
+    return {"email_to": held.get("email_to") or "", "minutes": held.get("email_minutes") or 15,
+            "sent": bool(held.get("email_ticket")), "service": service_name(),
+            "problem": held.get("email_problem") or "", **more}
+
+
+async def email(request: HttpRequest) -> HttpResponse:
+    """``/setup/email``: "Check your email", the code rouh.land emailed, before a Connected birth."""
+    if request.method not in ("GET", "HEAD", "POST"):
+        return HttpResponse(status=405, headers={"Allow": "GET, HEAD, POST"})
+    user, away = await _owner_at(request, "email")
+    if away:
+        return away
+    if await asyncio.to_thread(next_screen, user) != "email":
+        return _go(await asyncio.to_thread(next_path, user))
+    if request.method != "POST":
+        return await asyncio.to_thread(lambda: _render(request, "email", **_email_values(user)))
+    do = request.POST.get("do", "")
+    if do == "independent":
+        # The email never came, or rouh.land cannot be reached: it goes on as Independent and can
+        # connect later, in Anatomy, Your Rouh.
+        await asyncio.to_thread(_save, user, connected=False, email_wait=False, email_ticket="")
+        return _go(f"{PATH}/born")
+    if do == "resend":
+        bad = await asyncio.to_thread(_send_code, user)
+        values = await asyncio.to_thread(_email_values, user, problem=bad,
+                                         notice="" if bad else "A new code is on its way. Only the newest one works.")
+        return await asyncio.to_thread(lambda: _render(request, "email", status=429 if bad else 200, **values))
+    if do == "change":
+        bad = await asyncio.to_thread(_change_email, user, request.POST.get("email", ""))
+        values = await asyncio.to_thread(_email_values, user, problem=bad, changing=bool(bad),
+                                         typed=request.POST.get("email", ""),
+                                         notice="" if bad else "The code is on its way to your new address.")
+        return await asyncio.to_thread(lambda: _render(request, "email", status=400 if bad else 200, **values))
+    bad, born_now = await asyncio.to_thread(_check_code, user, request.POST.get("code", ""))
+    if born_now:
+        return _go(f"{PATH}/born")
+    values = await asyncio.to_thread(_email_values, user, problem=bad, code_problem=True)
+    return await asyncio.to_thread(lambda: _render(request, "email", status=400, **values))
 
 
 async def connect(request: HttpRequest) -> HttpResponse:
@@ -586,7 +732,7 @@ async def connect(request: HttpRequest) -> HttpResponse:
         choice = request.POST.get("choice")
         if choice in ("connected", "own"):
             await asyncio.to_thread(_choose, user, choice == "connected")
-            return _go(f"{PATH}/born")
+            return _go(await asyncio.to_thread(next_path, user))
     held = await asyncio.to_thread(record, user)
     chosen = "" if "connected" not in held else ("connected" if held["connected"] else "own")
     return await asyncio.to_thread(_render, request, "connect", chosen=chosen,
@@ -616,9 +762,8 @@ def _born_values(user) -> dict:
                       "nickname": nick.nickname if nick else ""},
             "connected": bool(record(user).get("connected")), "registered": bool(row and row.registry_id),
             "service": service_name(),
-            # The rouh.land account: emailed to confirm (step 176-16), or why the email did not go.
-            "account_email": record(user).get("account_email", "") if row and row.registry_id else "",
-            "account_problem": record(user).get("account_problem", "") if row and row.registry_id else "",
+            # No account box any more: a Connected Rouh is born with its email confirmed by a code
+            # (step 176-20), so there is nothing left to check in the email.
             "address": _address_at_birth(user)}
 
 

@@ -1,13 +1,14 @@
 {% extends "rouh/signin_base.html" %}
 {% comment %}A fresh installation's first run (`rouh/web/firstrun.py`), one screen at a time, each
    at its own address: an Independent Rouh or a Connected Rouh (its birth on rouh.land), two equal
-   choices before anything about the person; who you are; its nickname; a brain. The independent
+   choices before anything about the person, Connected first and primary; who you are; for
+   Connected, the code emailed to confirm the address before the birth; its nickname; a brain. The independent
    kind's name is `birth.INDEPENDENT` ({{ independent }}), never written here. The Rouh's own name is
    orange wherever it shows (`.rn`). No keys or recovery words anywhere. One column on a phone; the
    choice and the key screen open to two columns on a desk. The birth service is named by
    its address (`firstrun.service_name`), so an installation with its own shows its own. Nobody types or sees a setup code: it came in the address, which
    the page takes it out of at once, and without it the page says in one line how to open it.{% endcomment %}
-{% block title %}{% if screen == "brain" or screen == "key" %}Give {{ name }} a brain{% elif screen == "born" and born %}{{ name }} is born{% elif screen == "born" %}Your {{ independent }} is ready{% elif screen == "connect" %}{{ independent }} or Connected Rouh{% else %}Set up Rouh{% endif %}{% endblock %}
+{% block title %}{% if screen == "brain" or screen == "key" %}Give {{ name }} a brain{% elif screen == "born" and born %}{{ name }} is born{% elif screen == "email" %}Check your email{% elif screen == "born" %}Your {{ independent }} is ready{% elif screen == "connect" %}Connected Rouh or {{ independent }}{% else %}Set up Rouh{% endif %}{% endblock %}
 {% block main_attrs %}{% if screen == "connect" or screen == "key" %} class="wide"{% endif %}{% endblock %}
 {% block body %}
  <style>
@@ -17,7 +18,10 @@
   main{width:min(calc(100vw - 32px),440px)}
   main.wide{width:min(calc(100vw - 32px),860px)}
   .rn,.bigname b.rn,.note b .rn{color:var(--rn)}
-  /* Independent or Connected: two choices of one size and one shape, neither ahead of the other. */
+  /* Connected or Independent: two cards of one size and one shape. Connected is on the left (first
+     on a phone) and the primary choice, with the accent border and a filled button; Independent is
+     the quieter second (Petar, 9 November 2026: "let connected be on the left and in different
+     color button and border. Should be the primary choice."). */
   .kinds{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px;margin:6px 0 0}
   .kinds form{display:contents}
   .kind{display:grid;grid-template-rows:auto auto 1fr auto;gap:10px;text-align:left;margin:0;padding:18px;
@@ -25,7 +29,7 @@
         font-size:14px;line-height:1.45;cursor:pointer}
   .kind:hover{background:#151a21;border-color:#4c8dff}
   .kind:focus-visible{outline:2px solid #4c8dff;outline-offset:2px}
-  .kind.was{border-color:#4c8dff}
+  .kind.was:not(.primary){border-color:#8b95a3}
   .kind .k-name{font-size:18px;font-weight:650;color:#e8ecf1}
   .kind .k-what{color:#c5ccd6}
   .kind .k-list{display:grid;gap:6px;color:#c5ccd6;align-content:start}
@@ -36,6 +40,12 @@
   .kind .k-go{display:block;text-align:center;padding:12px;border-radius:10px;border:1px solid #4c8dff;
         color:#8fb8ff;font-weight:600;font-size:15px}
   .kind:hover .k-go{background:rgba(76,141,255,.12)}
+  .kind.primary{border-color:#4c8dff;background:#121a26}
+  .kind.primary:hover{background:#15203a}
+  .kind.primary .k-go{background:#4c8dff;color:#04070c}
+  .kind.primary:hover .k-go{background:#6ba0ff}
+  .kind:not(.primary) .k-go{border-color:#3a4450;color:#c5ccd6}
+  .kind:not(.primary):hover .k-go{background:#171c22;color:#e8ecf1}
   .either{color:#8b95a3;font-size:13px}
   .stays{display:grid;grid-template-columns:18px 1fr;gap:10px;align-items:start}
   .stays svg{margin-top:2px;color:#8fb8ff}
@@ -60,11 +70,25 @@
   .note{border-radius:12px;padding:12px 14px;background:#11151a;border:1px solid #232a33;
         color:#c5ccd6;font-size:14px}
   .note b{color:#e8ecf1}
-  .note.address>b:first-child{display:block;margin-bottom:4px}
-  .note.address .host{overflow-wrap:anywhere;color:#8fb8ff}
-  .note.account{margin:12px 0 4px;border-color:#4c8dff}
-  .note.account>b:first-child{display:block;margin-bottom:4px}
-  .note.account .em{overflow-wrap:anywhere}
+  /* The born screen's three facts, each a plain line (Petar, 9 November 2026): no box. */
+  .facts{margin:2px 0 4px;display:grid;gap:6px}
+  .facts>div{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:8px}
+  .facts dt{color:#8b95a3;font-size:15px}
+  .facts dd{margin:0;color:#e8ecf1;font-size:15px;min-width:0;overflow-wrap:anywhere}
+  .facts dd.nm{font-size:22px;font-weight:650;line-height:1.25;color:var(--rn)}
+  .facts .host{color:#8fb8ff;text-decoration:underline;text-underline-offset:3px}
+  .facts .soon{color:#8b95a3}
+  /* Check your email: the code box, wide digits; Resend, Change and Independent quieter. */
+  .to{overflow-wrap:anywhere;color:#e8ecf1;font-weight:600}
+  input.code{font:600 24px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.3em;text-align:center;padding:12px 8px}
+  input.code::placeholder{color:#3a4450}
+  details.change{border-top:1px solid #232a33;padding-top:4px}
+  details.change summary{cursor:pointer;color:#8fb8ff;font-size:14px;min-height:44px;display:flex;align-items:center}
+  details.change form{margin-top:4px}
+  .out-ind{border-top:1px solid #232a33;padding-top:4px;gap:2px}
+  .out-ind button{background:none;color:#8fb8ff;font-weight:500;font-size:14px;padding:8px 0;margin:0;text-align:left;min-height:44px}
+  .out-ind button:hover{background:none;text-decoration:underline}
+  .out-ind p{font-size:13px}
   .info{display:inline}
   .info summary{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;
         border:1px solid #3a4450;color:#8fb8ff;font-size:12px;font-weight:700;cursor:pointer;
@@ -111,20 +135,7 @@
  <div class="kinds">
   <form method="post" action="/setup/connect">
    {% csrf_token %}
-   <button type="submit" name="choice" value="own" class="kind{% if chosen == 'own' %} was{% endif %}" aria-describedby="ownStays">
-    <span class="k-name">{{ independent }}</span>
-    <span class="k-what">Runs on this computer on its own, with no {{ service }} account.</span>
-    <span class="k-list" id="ownStays">
-     <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>What you fill in is <b>only for your own protection</b>: it goes nowhere and stays on this computer.</span></span>
-     <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>It answers to Rouh, or to a nickname you give it.</span></span>
-     <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>No Gene Pool, relay address or other connected services. Connect it to {{ service }} later, any time, in Anatomy, Your Rouh.</span></span>
-    </span>
-    <span class="k-go">Choose {{ independent }}</span>
-   </button>
-  </form>
-  <form method="post" action="/setup/connect">
-   {% csrf_token %}
-   <button type="submit" name="choice" value="connected" class="kind{% if chosen == 'connected' %} was{% endif %}" aria-describedby="connectedHelps">
+   <button type="submit" name="choice" value="connected" class="kind primary{% if chosen == 'connected' %} was{% endif %}" aria-describedby="connectedHelps">
     <span class="k-name">Connected Rouh</span>
     <span class="k-what">Your free {{ service }} account, made with the email you type next, and a service that helps your Rouh with:</span>
     <span class="k-list" id="connectedHelps">
@@ -137,13 +148,26 @@
     <span class="k-go">Choose Connected Rouh</span>
    </button>
   </form>
+  <form method="post" action="/setup/connect">
+   {% csrf_token %}
+   <button type="submit" name="choice" value="own" class="kind{% if chosen == 'own' %} was{% endif %}" aria-describedby="ownStays">
+    <span class="k-name">{{ independent }}</span>
+    <span class="k-what">Runs on this computer on its own, with no {{ service }} account.</span>
+    <span class="k-list" id="ownStays">
+     <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>What you fill in is <b>only for your own protection</b>: it goes nowhere and stays on this computer.</span></span>
+     <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>It answers to Rouh, or to a nickname you give it.</span></span>
+     <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>No Gene Pool, relay address or other connected services. Connect it to {{ service }} later, any time, in Anatomy, Your Rouh.</span></span>
+    </span>
+    <span class="k-go">Choose {{ independent }}</span>
+   </button>
+  </form>
  </div>
  <p class="either">Either way your files, chats and every call to a model stay on your Rouh. A Connected Rouh sends {{ service }} only its birth and your email, for your account.</p>
 
 {% elif screen == "you" %}
  <h2>Your Rouh is about to be born.</h2>
  <p class="lead">First, who are you?</p>
- <p class="small stays"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg><span>{% if connected %}This makes your account on this Rouh, on this computer. Your email also makes your {{ service }} account: {{ service }} emails you a link to confirm it. Your name and password are not sent.{% else %}This is only for your own protection: it is the lock on your {{ independent }}. It goes nowhere and stays on this computer.{% endif %}</span></p>
+ <p class="small stays"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg><span>{% if connected %}This makes your account on this Rouh, on this computer. Your email also makes your {{ service }} account: {{ service }} emails it a short code, which you type on the next screen. Your name and password are not sent.{% else %}This is only for your own protection: it is the lock on your {{ independent }}. It goes nowhere and stays on this computer.{% endif %}</span></p>
  <form method="post" action="/setup/you" id="passwordForm" novalidate>
   {% csrf_token %}
   <div class="pair">
@@ -199,17 +223,59 @@
   }());
  </script>
 
+{% elif screen == "email" %}
+ <h2>Check your email</h2>
+ {% if sent %}<p class="lead">{{ service }} sent a 6-digit code to <span class="to">{{ email_to }}</span>. Type it here to confirm your email: that makes your {{ service }} account, and your Rouh is born in it.</p>{% else %}<p class="lead">{{ service }} is to email a 6-digit code to <span class="to">{{ email_to }}</span>, to confirm it before your Rouh is born.</p>{% endif %}{% if problem and not changing %}
+ <div class="bad" role="alert" id="codeBad"><p>{{ problem }}</p></div>{% elif notice %}
+ <p class="good" role="status">{{ notice }}</p>{% endif %}
+ {% if sent %}<form method="post" action="/setup/email" novalidate>
+  {% csrf_token %}<input type="hidden" name="do" value="check">
+  <div class="field">
+   <label for="code">The code from the email</label>
+   <input id="code" name="code" class="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12"
+          placeholder="000000" required{% if not changing %} autofocus{% endif %}{% if code_problem %} aria-invalid="true" aria-describedby="codeBad"{% endif %}>
+  </div>
+  <button type="submit">Confirm</button>
+ </form>
+ <p class="small">It works for {{ minutes }} minutes. Not there? Look in spam, then press Resend code.</p>
+ <form method="post" action="/setup/email">
+  {% csrf_token %}<input type="hidden" name="do" value="resend">
+  <button type="submit" class="second">Resend code</button>
+ </form>{% else %}
+ <form method="post" action="/setup/email">
+  {% csrf_token %}<input type="hidden" name="do" value="resend">
+  <button type="submit">Try again</button>
+ </form>{% endif %}
+ <details class="change"{% if changing %} open{% endif %}>
+  <summary>Wrong email? Change it</summary>
+  <form method="post" action="/setup/email" novalidate>
+   {% csrf_token %}<input type="hidden" name="do" value="change">
+   <div class="field">
+    <label for="newEmail">Your email</label>
+    <input id="newEmail" name="email" type="email" autocomplete="email" autocapitalize="none" maxlength="254" required
+           value="{% if changing %}{{ typed }}{% else %}{{ email_to }}{% endif %}"{% if changing %} autofocus aria-invalid="true" aria-describedby="newBad"{% endif %}>{% if changing and problem %}
+    <p class="missing" id="newBad" role="alert">{{ problem }}</p>{% endif %}
+   </div>
+   <button type="submit" class="second">Send the code to this email</button>
+  </form>
+ </details>
+ <form method="post" action="/setup/email" class="out-ind">
+  {% csrf_token %}<input type="hidden" name="do" value="independent">
+  <button type="submit">Set it up as {{ independent }} instead</button>
+  <p>No {{ service }} account. You can connect it later, in Anatomy, Your Rouh.</p>
+ </form>
+
 {% elif screen == "born" %}
  {% if born %}<h2>Your Rouh is born!</h2>
- <p class="bigname">{{ service }} gave it its name: <b class="rn">{{ name }}</b></p>
- <p class="small">Birthday: {{ born_day }}, {{ born_time }} ({{ born_place }}). Its Rouh name can't be changed.</p>{% else %}<h2>Your {{ independent }} is ready</h2>
+ <dl class="facts">
+  <div><dt>Name:</dt><dd class="nm rn">{{ name }}</dd></div>
+  <div><dt>Birthday:</dt><dd>{{ born_day }}, {{ born_time }} ({{ born_place }})</dd></div>{% if address %}
+  <div><dt>URL:</dt><dd><a class="host" href="https://{{ address }}/" target="_blank" rel="noopener">{{ address }}</a></dd></div>{% elif registered %}
+  <div><dt>URL:</dt><dd class="soon">on its way; it shows in Anatomy, Your Rouh</dd></div>{% endif %}
+ </dl>{% else %}<h2>Your {{ independent }} is ready</h2>
  <p class="lead">It runs on this computer only, with no {{ service }} account: no Gene Pool, relay address or other connected services.</p>{% if connected %}
  <p class="small">{{ service }} couldn't be reached just now, so it has no official name yet. Connect it later in Anatomy, Your Rouh, and {{ service }} gives it its birth and its name.</p>{% else %}
- <p class="small">Connect it to {{ service }} any time, in Anatomy, Your Rouh: it is born there and given its own name, and {{ service }} emails you a link that makes your account.</p>{% endif %}{% endif %}{% if born and address %}
- <div class="note address"><b>Its URL: <span class="host">{{ address }}</span></b>Kept for <span class="rn">{{ name }}</span> from now on: its own web address, open now, through {{ service }}'s relay, which only passes the connection along, still locked. To use it on your phone, press <b>Show sign-in code</b> under Your Rouh's URL, in Anatomy, Your Rouh. Only people who sign in can use it, and <b>Turn off</b> there closes it.</div>{% elif born and registered %}
- <p class="small"><span class="rn">{{ name }}</span> is on {{ service }}. Its URL is on its way, on Anatomy, Your Rouh.</p>{% endif %}{% if account_email and not account_problem %}
- <div class="note account" role="status"><b>Check your email: one more step for your {{ service }} account</b>{{ service }} sent a link to <b class="em">{{ account_email }}</b>, “Confirm your email for your Rouh”. Press it to make your {{ service }} account; after that, <b>Sign in</b> on {{ service }} works with this email. The link works for three days. Not there? Look in spam, or send it again from Anatomy, You, Your account.</div>{% elif account_email %}
- <div class="note account" role="status"><b>Your {{ service }} account is not made yet</b>{{ service }} could not email <b class="em">{{ account_email }}</b> just now. Send the link from Anatomy, You, Your account, and press it to make your account.</div>{% endif %}
+ <p class="small">Connect it to {{ service }} any time, in Anatomy, Your Rouh: it is born there and given its own name.</p>{% endif %}{% endif %}
  <p class="lead"><strong>It always answers to “Rouh”.</strong> Want to call it something else too? Give it a nickname. You can change it any time.</p>{% if problem %}
  <div class="bad" role="alert"><p>{{ problem }}</p></div>{% endif %}
  <form method="post" action="/setup/born">

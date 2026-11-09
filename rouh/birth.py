@@ -84,6 +84,17 @@ class Clash(Refused):
     """rouh.land already has a Rouh of this name and tag: a name not yet given is made again."""
 
 
+class CodeRefused(Refused):
+    """rouh.land refused an email code or the birth that brings one (step 176-20), with `why` in
+    one word (`wrong`, `expired`, `tries`, `replaced`, `used`, `unknown`, `wait`, `limit`, `mail`,
+    `email`, `ticket`), `left` tries for a wrong code and `seconds` to wait for `wait`. The first
+    run says it in its own words (`rouh/web/firstrun.py`)."""
+
+    def __init__(self, said: str, why: str, *, left: int = 0, seconds: int = 0):
+        super().__init__(said)
+        self.why, self.left, self.seconds = why, left, seconds
+
+
 def _m():
     from . import models
 
@@ -239,6 +250,13 @@ def _call(url: str, key_pem: str, method: str, rest: str, body: dict | None, *, 
         raise Refused(f"rouh.land's answer was refused: {exc}.") from None
     if payload.get("clash"):
         raise Clash(_cut(payload.get("error") or "That name and tag are taken.", 300))
+    if payload.get("error") and payload.get("why"):
+        try:
+            left, seconds = int(payload.get("left") or 0), int(payload.get("seconds") or 0)
+        except (TypeError, ValueError):
+            left = seconds = 0
+        raise CodeRefused(f"rouh.land said: {_cut(payload['error'], 300)}", _cut(payload["why"], 20),
+                          left=left, seconds=seconds)
     if payload.get("error"):
         raise Refused(f"rouh.land said: {_cut(payload['error'], 300)}")
     return payload
@@ -494,12 +512,47 @@ def _signers_for_birth():
     return seed, pub, entropy, rseed, rpub
 
 
-def be_born(who, *, code: str = "", url: str = "", key_pem: str = "") -> dict:
+# --- the email code, before a Connected birth (step 176-20) ------------------------------------------
+
+
+def ask_email_code(email: str, *, url: str = "", key_pem: str = "") -> dict:
+    """Ask rouh.land to email a short code to the address the owner typed, before the birth (Petar,
+    9 November 2026, task 176, step 176-20: "Email verification moves before the birth, and it uses a
+    code"). Nothing is born yet, so the request is signed with a key made for it alone. Returns
+    {ticket, minutes, email}: the ticket is this Rouh's handle for the code, kept in the first run's
+    record until the birth uses it. Raises CodeRefused (too soon, too many, mail down) or Refused."""
+    email = str(email or "").strip().lower()[:254]
+    if "@" not in email:
+        raise Refused("There is no email to send the code to.")
+    url, key_pem = _registry(url, key_pem)
+    seed, pub = new_key()
+    got = _call(url, key_pem, "POST", "api/email-code", {"email": email}, seed=seed, public=_b64(pub))
+    ticket = str(got.get("ticket") or "")
+    if not ticket:
+        raise Refused("rouh.land answered without a code to wait for.")
+    return {"ticket": ticket, "minutes": int(got.get("minutes") or 15), "email": email}
+
+
+def check_email_code(ticket: str, code: str, *, url: str = "", key_pem: str = "") -> dict:
+    """The code the owner typed, checked by rouh.land. A right one confirms the address and makes
+    their rouh.land account if there is none: {email, account: "made"|"had"}. A wrong, old or used
+    one raises CodeRefused, saying which."""
+    url, key_pem = _registry(url, key_pem)
+    seed, pub = new_key()
+    got = _call(url, key_pem, "POST", "api/email-code/check", {"ticket": str(ticket or ""), "code": str(code or "")},
+                seed=seed, public=_b64(pub))
+    if not got.get("confirmed"):
+        raise Refused("rouh.land did not confirm the code.")
+    return {"email": str(got.get("email") or ""), "account": str(got.get("account") or "")}
+
+
+def be_born(who, *, code: str = "", url: str = "", key_pem: str = "", email_ticket: str = "") -> dict:
     """Connect a free Rouh to rouh.land, which is its birth: its keys are made now, its birth (which
     names nothing) goes to rouh.land, and rouh.land grants its official name in its signed card.
-    With a code from the owner's rouh.land account it is born into that account; with none,
-    Connected with no account yet. If rouh.land cannot be reached or refuses, nothing is kept: it
-    stays a free Rouh, with no keys and no name."""
+    With a code from the owner's rouh.land account it is born into that account; with the ticket of
+    an email code its owner confirmed in the first run (step 176-20), into the account that code
+    made; with neither, Connected with no account yet. If rouh.land cannot be reached or refuses,
+    nothing is kept: it stays a free Rouh, with no keys and no name."""
     _admin(who)
     org = str(who.org_id)
     if current(org) is not None:
@@ -510,7 +563,8 @@ def be_born(who, *, code: str = "", url: str = "", key_pem: str = "") -> dict:
     seed, pub, entropy, rseed, rpub = _signers_for_birth()
     body = {"kind": "rouh-birth", "v": 2, "birth_key": _b64(pub), "recovery_key": _b64(rpub), "born_at": _iso(now)}
     birth = statement(body, {"birth": seed, "recovery": rseed})
-    ask = {"birth": birth, **({"code": code} if code else {})}
+    email_ticket = str(email_ticket or "").strip()
+    ask = {"birth": birth, **({"code": code} if code else {}), **({"email_ticket": email_ticket} if email_ticket else {})}
     got = _call(url, key_pem, "POST", "api/born", ask, seed=seed, public=_b64(pub))
     card = _check_card(got.get("card") or {})
     if card.get("birth_key") != _b64(pub) or not card.get("granted"):
@@ -524,12 +578,12 @@ def be_born(who, *, code: str = "", url: str = "", key_pem: str = "") -> dict:
         recovery_public=_b64(rpub), recovery_words=_box().seal(" ".join(names.to_words(entropy))),
         registry_url=url, registry_key=key_pem, registry_id=str(got.get("rouh") or ""), connected_at=now,
         card={"payload": card}, checked_at=now, updated_at=now)
-    said = f"Born on rouh.land as {row.name}" + ("" if code else ", Connected with no account yet")
+    said = f"Born on rouh.land as {row.name}" + ("" if code or email_ticket else ", Connected with no account yet")
     if retro:
         said += f", after living since {_iso(began)[:10]}: its history is its own"
     _event(row, "born", said + ".")
     _joined_pool(org, row)
-    if code:
+    if code or email_ticket:
         # Born into an account: its owner signs in here with that account's email from now on
         # (`check`, `signin.follow_land`), the address before kept until the new one is used.
         try:
@@ -681,7 +735,7 @@ def _seed_of(row) -> bytes:
     return base64.b64decode(_box().open_(row.daily_private))
 
 
-def connect(who, *, code: str = "", url: str = "", key_pem: str = "") -> dict:
+def connect(who, *, code: str = "", url: str = "", key_pem: str = "", email_ticket: str = "") -> dict:
     """An independent Rouh registered on rouh.land later, with a code from its owner's account
     there: its birth as signed then, and every key change since, so rouh.land can follow its keys.
     Its name is the one it has; a clash leaves it independent, never renamed.
@@ -693,9 +747,10 @@ def connect(who, *, code: str = "", url: str = "", key_pem: str = "") -> dict:
     row = current(str(who.org_id))
     if row is None:
         # A free Rouh connecting is its birth: rouh.land gives it its name now.
-        return be_born(who, code=code, url=url, key_pem=key_pem)
+        return be_born(who, code=code, url=url, key_pem=key_pem, email_ticket=email_ticket)
     code = str(code or "").strip()
-    if row.registry_id and not code:
+    email_ticket = str(email_ticket or "").strip()
+    if row.registry_id and not code and not email_ticket:
         return {"ok": True, "said": f"{row.name} is registered on rouh.land already."}
     # Registered already and a code: rouh.land puts a Rouh registered with no account into the code's
     # account, and refuses one already in an account, in words.
@@ -703,6 +758,8 @@ def connect(who, *, code: str = "", url: str = "", key_pem: str = "") -> dict:
     body = {"birth": row.birth_statement, "changes": row.key_changes or []}
     if code:
         body["code"] = code
+    if email_ticket:
+        body["email_ticket"] = email_ticket
     try:
         got = _call(url, key_pem, "POST", "api/born", body, seed=_seed_of(row), public=row.daily_public)
     except Clash as exc:
@@ -712,10 +769,10 @@ def connect(who, *, code: str = "", url: str = "", key_pem: str = "") -> dict:
     _m().RouhBirth.objects.filter(id=row.id).update(
         registry_url=url, registry_key=key_pem, registry_id=str(got.get("rouh") or ""), connected_at=now,
         card={"payload": card}, checked_at=now, error="", updated_at=now)
-    _event(row, "connected", f"Registered on rouh.land as {row.name}" + ("." if code else ", Connected with no account yet."))
+    _event(row, "connected", f"Registered on rouh.land as {row.name}" + ("." if code or email_ticket else ", Connected with no account yet."))
     _joined_pool(str(who.org_id), row)
     said = f"{row.name} is registered on rouh.land now, under the name it has."
-    if code:
+    if code or email_ticket:
         # Ask at once which account it is in, so the owner's sign-in follows that account's email now
         # rather than at the next check (`check`, `signin.follow_land`).
         got = check(str(who.org_id), force=True)

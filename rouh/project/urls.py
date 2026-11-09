@@ -146,6 +146,7 @@ urlpatterns = [
     path("setup", firstrun_web.setup),
     path("setup/you", firstrun_web.you),
     path("setup/connect", firstrun_web.connect),
+    path("setup/email", firstrun_web.email),
     path("setup/born", firstrun_web.born),
     path("setup/brain", firstrun_web.brain),
     path("setup/brain/<str:company>", firstrun_web.company_key),
