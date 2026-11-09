@@ -116,17 +116,25 @@
   }
 
   /* A link to the thing itself. A plain press opens it here in Rouh; a press
-     with a modifier is the browser's, which opens a tab of its own. */
+     with a modifier is the browser's, which opens a tab of its own. A link to
+     another site opens in a tab of its own, and an address Rouh cannot open
+     here is followed by the browser, so a press never does nothing
+     (fr_126f4ce72bd1). */
   function link(href, cls, text, title) {
     var a = el('a', cls, text);
     a.href = href;
     if (title) a.title = title;
+    var inapp = href.charAt(0) === '/' && href.charAt(1) !== '/';
+    if (!inapp) {
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+    }
     a.addEventListener('click', function (e) {
       e.stopPropagation();
-      if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (!inapp || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       if (!host().go) return;
       e.preventDefault();
-      host().go(href);
+      if (host().go(href) === false) location.assign(href);
     });
     return a;
   }

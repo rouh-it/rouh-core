@@ -16952,7 +16952,7 @@ function controlRow() {
 // same `pin_object` the rail's menu sends (`rouh/pinning.py`). False when
 // the socket is not open, and nothing was sent.
 window.RouhControlHost = {
-  go: function (href) { goToAddress(href); },
+  go: function (href) { return goToAddress(href); },
   close: controlClose,
   pin: function (id, on) { return !!send({ type: 'pin_object', kind: 'task', id: id, on: !!on }); }
 };
@@ -17034,7 +17034,7 @@ window.RouhSynapseHost = {
     });
   },
   activeChat: function () { return (CHATS && CHATS.active) || ''; },
-  go: function (href) { goToAddress(href); },
+  go: function (href) { return goToAddress(href); },
   close: synapseClose,
   narrow: function () { return narrow(); }
 };
@@ -17109,7 +17109,7 @@ window.RouhBriefHost = {
   // Today's brief, every one kept, or one day's: '' / 'past' / YYYY-MM-DD.
   show: function (view) { briefOpen(view); },
   // An address in Rouh, from the Report: last night's attempt in the Synapse lab.
-  go: function (href) { goToAddress(href); },
+  go: function (href) { return goToAddress(href); },
   // Waiting on others' Connect a mailbox: Settings, at the mailboxes card.
   mailboxes: function () {
     settingsOpen('email');
@@ -17287,7 +17287,7 @@ function decisionsHeard(m) {
 window.RouhDecisionsHost = {
   open: function (id) { decisionsOpen(id); },
   close: decisionsClose,
-  go: function (href) { goToAddress(href); },
+  go: function (href) { return goToAddress(href); },
   // In place of the address it is at: /decisions/42 opening the item's own page, so Back
   // goes to where the person was before, never to a page that forwards again.
   forward: function (href) { ADDR.replace = true; goToAddress(href); },
@@ -17370,7 +17370,7 @@ function actionsRows() {
 window.RouhActionsHost = {
   open: function (id) { actionsOpen(id); },
   close: actionsClose,
-  go: function (href) { goToAddress(href); },
+  go: function (href) { return goToAddress(href); },
   counted: function (n, holds) {
     ACTS.count = n;
     ACTS.holds = holds;
@@ -17547,7 +17547,7 @@ function approvalsRow() {
 // tab's title.
 window.RouhApprovalsHost = {
   close: approvalsClose,
-  go: function (href) { goToAddress(href); },
+  go: function (href) { return goToAddress(href); },
   titled: function (name) {
     if (APPROVALS.name === name) return;
     APPROVALS.name = String(name || '');
@@ -17616,7 +17616,7 @@ window.RouhSourcesHost = {
     sourcesClose();
     if (back) goToAddress(addrOfFolder(back));
   },
-  go: function (href) { goToAddress(href); },
+  go: function (href) { return goToAddress(href); },
   named: function (title) {
     SOURCES.title = String(title || '');
     if (SOURCES.open) addrTouch();
@@ -17680,7 +17680,7 @@ window.RouhEvolutionHost = {
   close: evolutionClose,
   // The Markdown drawing the conversation's own bubbles use, for the answers on a gene's card.
   markdown: renderMarkdown,
-  go: function (href) { goToAddress(href); },
+  go: function (href) { return goToAddress(href); },
   /** @param {string} page @param {string} sub @param {string} [title] */
   moved: function (page, sub, title) {
     EVO.page = evolutionPage(page);
@@ -17807,7 +17807,7 @@ function thoughtsShown(m) {
 window.RouhThoughtsHost = {
   close: thoughtsClose,
   focus: function (id) { thoughtsOpen(id); },
-  go: function (href) { goToAddress(href); },
+  go: function (href) { return goToAddress(href); },
   counted: function (kept) {
     THOUGHTS.kept = kept;
     thoughtsRow();
@@ -17893,7 +17893,7 @@ function boxesHeard(m) {
 window.RouhBoxHost = {
   close: boxClose,
   focus: function (id) { boxOpen(false, id); },
-  go: function (href) { goToAddress(href); },
+  go: function (href) { return goToAddress(href); },
   say: function (text, tone) { notify(text, { tone: tone }); },
   give: function (text) {
     boxClose();
@@ -17918,7 +17918,7 @@ window.RouhBoxHost = {
 // What `heartbeatpage.js`, `paymentspage.js` and `draftedits.js` are handed: an address in
 // Rouh, such as the Heartbeat chat or a quest's page.
 window.RouhHeartbeatHost = {
-  go: function (href) { goToAddress(href); },
+  go: function (href) { return goToAddress(href); },
   /* The heartbeat's own view, which the address says (`/anatomy/behaviour/heartbeat/settings`,
      or the section alone for Today), moved to without a reload. */
   viewed: function (view) {
@@ -17951,7 +17951,7 @@ window.RouhGenesHost = {
    says: the quest it is filtered to in the path (`/anatomy/behaviour/beats/<work>`) and the rest
    in the query. A search being typed replaces the entry rather than adding one a letter. */
 window.RouhBeatsHost = {
-  go: function (href) { goToAddress(href); },
+  go: function (href) { return goToAddress(href); },
   filtered: function (work, query, typing) {
     var now = work && work !== 'all' ? String(work) : '';
     var q = String(query || '');

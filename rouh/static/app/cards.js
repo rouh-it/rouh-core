@@ -27,7 +27,7 @@ import { ASK, askDelete, askFromPage, briefClose, briefViewing, BROWSE_ROOT, bro
   tasksFrame, tasksUp, tasksViewing } from 'app/runs.js';
 import { chatById, chatIsTask, CHATS, openChat } from 'app/chats.js';
 import { findShow } from 'app/search.js';
-import { ADDR, addrAsk, addrOnCanvas, addrRead, addrTouch } from 'app/address.js';
+import { ADDR, ADDR_BROWSER, addrAsk, addrOnCanvas, addrRead, addrTouch } from 'app/address.js';
 import { canvasIsWanted, canvasShown, chatIsWanted, growInput, input, narrow, paintPaneButton, pane, sendTyped,
   setPane } from 'app/controls.js';
 import { attSize, editorOpen } from 'app/attachments.js';
@@ -3769,12 +3769,38 @@ function goToAddress(path, query) {
   var bare = cut >= 0 ? raw.slice(0, cut) : raw, ask = bare.indexOf('?');
   // A query in the link itself counts when none is given beside it (a notice's button).
   if (query === undefined && ask >= 0) query = bare.slice(ask);
+  // A workspace page's own file address, as the Control Room's Pages and a
+  // notice's link write it (`pages.url_for`), is read as the address the bar
+  // says for it, the way the server sends a tab opened on it there
+  // (`_rouh_address` in web/views.py). Until 9 November 2026 it was no
+  // address at all here, so a press on one did nothing (fr_126f4ce72bd1).
+  bare = workspaceAddress(bare.split('?')[0], query);
   var want = addrRead(bare, query);
-  if (!want) return;
+  if (!want) return false;
   if (cut >= 0 && raw.length > cut + 1) want.hash = raw.slice(cut);
   ADDR.wanted = want;
   ADDR.asked = false;
   addrAsk();
+  return true;
+}
+
+/* Rouh's address for a path under `/workspace/`, and any other path as it
+   is: the workspace's top is the task browser, an object's own page
+   (`/workspace/_task/<folder>/`, with `?doc=` one of its notes) is that
+   object, and a page or a note is `/task/<its path>`, which finds it inside a
+   project as well as a task (`addressing.inside`). */
+function workspaceAddress(path, query) {
+  if (path.indexOf(WORKSPACE_ROUTE) !== 0) return path;
+  var rel = path.slice(WORKSPACE_ROUTE.length);
+  if (!rel || rel === 'index.html') return ADDR_BROWSER;
+  var obj = WORKSPACE_ROUTE + '_task/';
+  if (path.indexOf(obj) === 0) {
+    rel = path.slice(obj.length).replace(/\/+$/, '');
+    if (!rel) return path;
+    var doc = new URLSearchParams(String(query || '')).get('doc') || '';
+    if (doc && doc.indexOf('/') < 0 && doc.charAt(0) !== '.') rel += '/' + encodeURIComponent(doc);
+  }
+  return '/task/' + rel.replace(/^\/+/, '');
 }
 
 /* ---------- what a framed workspace page asks Rouh ----------
