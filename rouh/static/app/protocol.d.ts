@@ -63,7 +63,7 @@ export interface ServerMessages {
   card_filed: { spec: any; };
   audio_start: { turn_id: any; sample_rate: any; };
   audio_end: { turn_id: any; };
-  task: { id: any; status: any; title: any; detail: any; asking: any; options: any; /** Which tab of Metabolism the run is on (`runs.kind_of`). */ kind?: 'mutation' | 'everyday'; };
+  task: { model?: string; actual_model?: string; agent?: string; id: any; status: any; title: any; detail: any; asking: any; options: any; /** Which tab of Metabolism the run is on (`runs.kind_of`). */ kind?: 'mutation' | 'everyday'; };
   tasks: { tasks: any[]; /** The whole list, after a handshake: a run not in it is gone. */ whole?: boolean; };
   rouh_version: { service: any; state: any; running: any; available: any; content: any; };
   one_version: { service: any; state: any; running: any; available: any; content: any; };

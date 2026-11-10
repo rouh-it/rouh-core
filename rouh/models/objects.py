@@ -444,6 +444,8 @@ class Run(models.Model):
     #: The process of Rouh's that started it, "process:<name>", or "" for one started from
     #: the person's own words: what the steps it brings in are made by (`rouh/task_origin.py`).
     made_by = models.TextField(blank=True, default="", db_default="")
+    model = models.TextField(blank=True, default="", db_default="")
+    actual_model = models.TextField(blank=True, default="", db_default="")
     agent = models.TextField(default="claude")
     workspace = models.TextField(blank=True, default="")
     policy = models.TextField(default="safe")

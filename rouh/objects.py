@@ -487,6 +487,8 @@ class Run:
     summary: str = ""
     #: "mutation", "everyday", or "" when nothing has said yet (`runs.kind_of`).
     kind: str = ""
+    model: str = ""
+    actual_model: str = ""
 
 
 @dataclass(frozen=True)
@@ -622,7 +624,8 @@ def _run(row) -> Run:
                cost_usd=row["cost_usd"], started_at=row["started_at"],
                updated_at=row["updated_at"], ended_at=row["ended_at"],
                seen_at=row["seen_at"] or 0.0, summary=row.get("summary") or "",
-               kind=row.get("kind") or "")
+               kind=row.get("kind") or "", model=row.get("model") or "",
+               actual_model=row.get("actual_model") or "")
 
 
 def _artifact(row) -> Artifact:
@@ -1050,7 +1053,7 @@ class ObjectStore:
         return row
 
     def create_run(self, title: str, *, id: str | None = None, brief: str = "",
-                   agent: str = "claude",
+                   agent: str = "claude", model: str = "", actual_model: str = "",
                    workspace: str = "", policy: str = "safe", state: str = "running",
                    phase: str = "", detail: str = "", archived: bool = False,
                    pinned: bool = False,
@@ -1075,6 +1078,7 @@ class ObjectStore:
         now = time.time()
         row = Run(id=id or _new_id("run"), parent_run_id=parent_run_id, title=title,
                   brief=brief, agent=_one_of(agent, AGENTS, "an agent"),
+                  model=model, actual_model=actual_model,
                   workspace=workspace,
                   policy=_one_of(policy, POLICIES, "a policy"),
                   state=_one_of(state, RUN_STATES, "a run's state"),
@@ -1090,6 +1094,7 @@ class ObjectStore:
             tables.Run.objects.create(
                 id=row.id, parent_run_id=row.parent_run_id, title=_text(row.title),
                 brief=_text(row.brief), agent=row.agent, workspace=_text(row.workspace),
+                model=row.model, actual_model=row.actual_model,
                 policy=row.policy, state=row.state, phase=_text(row.phase),
                 detail=_text(row.detail), archived=row.archived, pinned=row.pinned,
                 question=_text(row.question), branch=_text(row.branch),
@@ -1580,7 +1585,7 @@ class ObjectStore:
 
     def update_run(self, run_id: str, *, title=UNSET, brief=UNSET, summary=UNSET, state=UNSET,
                    phase=UNSET, detail=UNSET, archived=UNSET, pinned=UNSET,
-                   agent=UNSET, workspace=UNSET,
+                   agent=UNSET, workspace=UNSET, model=UNSET, actual_model=UNSET,
                    policy=UNSET, question=UNSET, branch=UNSET, worktree=UNSET,
                    exit_code=UNSET, cost_usd=UNSET, updated_at=UNSET,
                    ended_at=UNSET, seen_at=UNSET, kind=UNSET) -> Run | None:
@@ -1616,6 +1621,7 @@ class ObjectStore:
             "title": title, "brief": brief, "summary": summary, "state": state,
             "phase": phase, "detail": detail, "archived": _as_flag(archived),
             "pinned": _as_flag(pinned), "agent": agent,
+            "model": model, "actual_model": actual_model,
             "workspace": workspace, "policy": policy,
             "question": question, "branch": branch, "worktree": worktree,
             "exit_code": exit_code, "cost_usd": cost_usd, "updated_at": updated_at,

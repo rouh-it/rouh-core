@@ -267,8 +267,24 @@ def _agent_asked_for(args) -> str:
     return said if said in AGENTS and said != "claude" else ""
 
 
-#: Who pays for a run of Codex (one/billing.py): Codex's own ChatGPT
-#: subscription, unless the person asks for the OpenAI API key for this run.
+#: Per-run choices, shared by every start tool.
+RUN_MODEL_PROPERTY = {
+    "type": "string",
+    "description": (
+        "The exact model id for this run alone. Pass the OpenAI model the person named "
+        "and agent codex, on the ChatGPT subscription. Accepts the OpenAI ids listed by "
+        "model_defaults. If omitted, Astra, Sol, Luna or Terra named as doing the work "
+        "is inferred even with agent codex; otherwise the run uses its Models page default. "
+        "An unknown or unavailable model fails, never switches models. Other runs are unchanged."),
+}
+RUN_AGENT_PROPERTY = {
+    "type": "string", "enum": ["claude", "codex"],
+    "description": "Use codex when an OpenAI model does the work, and pass its id in model. "
+                   "Explicit claude means a model named in the request is only its subject.",
+}
+
+
+#: Who pays for Codex: the subscription unless the person asks for the API key.
 BILLING_PROPERTY = {
     "type": "string",
     "enum": ["subscription", "api"],
@@ -2670,6 +2686,8 @@ class ToolRegistry:
                 {
                     "type": "object",
                     "properties": {
+                        "model": RUN_MODEL_PROPERTY,
+                        "agent": RUN_AGENT_PROPERTY,
                         "task": {
                             "type": "string",
                             "description": "The full instruction for the worker. Be specific; "
@@ -10890,6 +10908,7 @@ class ToolRegistry:
             {
                 "type": "object",
                 "properties": {
+                    "model": RUN_MODEL_PROPERTY,
                     "request": {
                         "type": "string",
                         "description": (
@@ -10912,7 +10931,7 @@ class ToolRegistry:
                             "OpenAI model by name counts as asking for "
                             "Codex: Astra (gpt-6-astra), Sol (gpt-6.1-sol), "
                             "Luna, Terra, or 'with OpenAI'. Send \"codex\" "
-                            "then, and the run is Codex on the ChatGPT "
+                            "then, and pass the named model id in model. The run is Codex on the ChatGPT "
                             "subscription with that model; a request that "
                             "names one becomes Codex by itself when you "
                             "leave this out. Never start Claude Code to call "
@@ -10952,6 +10971,7 @@ class ToolRegistry:
             "its four choices are on the row, and answer_conflict is how it is "
             "answered. A run marked 'idle' has finished its turn and is still open, "
             "not done: it waits at its prompt, and reply_to_task carries it on. "
+            "actual_model is confirmed by the Codex session; model is the requested choice. "
             "Never say a job is stuck without saying what it is stuck on.",
             {
                 "type": "object",
@@ -10976,6 +10996,8 @@ class ToolRegistry:
             {
                 "type": "object",
                 "properties": {
+                    "model": RUN_MODEL_PROPERTY,
+                    "agent": RUN_AGENT_PROPERTY,
                     "change": {
                         "type": "string",
                         "description": "The whole change, in as much detail as you have.",
@@ -14012,6 +14034,7 @@ class ToolRegistry:
                 title=str(args.get("title") or "").strip(),
                 agent=_agent_asked_for(args),
                 agent_chosen=_agent_chosen(args),
+                model=str(args.get("model") or "").strip(),
                 asked_for=asked_for,
                 billing=_billing_asked_for(args),
                 expects=_expected_files(args),
@@ -14092,7 +14115,7 @@ class ToolRegistry:
     # saw two finished jobs, no waiting ones, and half a JSON object. It then
     # correctly reported that nothing was live.
     _KEEP = ("id", "title", "status", "mode", "created_at", "updated_at",
-             "finished_at", "exit_code", "branch", "repo")
+             "finished_at", "exit_code", "branch", "repo", "agent", "model", "actual_model")
     MAX_ROWS = 14
     ENDED_SHOWN = 3
 
@@ -14633,11 +14656,7 @@ class ToolRegistry:
                         "brief that names one becomes Codex by itself. Send \"claude\" only "
                         "when the OpenAI model is what the work is about rather than who does it.")},
                     "billing": BILLING_PROPERTY,
-                    "model": {"type": "string", "description": (
-                        "This run's own model, only when the person or a scheduled job names "
-                        "one for this run: a Claude model id for Claude Code, an OpenAI one "
-                        "such as gpt-6.1-sol for Codex. Leave it out and the run takes the "
-                        "pick on the Models page; naming one changes nothing for other runs.")},
+                    "model": RUN_MODEL_PROPERTY,
                     "boxes": BOXES_PROPERTY,
                 },
                 "required": ["brief"],
@@ -14732,22 +14751,8 @@ class ToolRegistry:
         A model named for this run is this run's alone (Petar, 6 October 2026: the
         nightly feature run on GPT-6.1 Sol without moving every Codex run's pick).
         """
-        from .config import ANTHROPIC_CHOICES, OPENAI_CHOICES
-
-        model = str(args.get("model") or "").strip()
-        if model:
-            from .config import is_openai
-
-            # An OpenAI model with no agent chosen is a run of Codex (`starting.route_to_codex`).
-            codex = _agent_asked_for(args) == "codex" or (not _agent_chosen(args)
-                                                          and is_openai(model))
-            known = [m for m, _ in (OPENAI_CHOICES if codex else ANTHROPIC_CHOICES)]
-            if model not in known:
-                return (f"{model} is not a model a {'Codex' if codex else 'Claude Code'} run "
-                        f"can be: it is one of {', '.join(known)}. Nothing was started.")
         return await self._started(args, emit, "one_start",
-                                   str(args.get("brief") or ""),
-                                   **({"model": model} if model else {}))
+                                   str(args.get("brief") or ""))
 
     async def _one_say(self, args, emit):
         held = await self._held_for_permission(str(args.get("run") or ""), args)

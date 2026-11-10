@@ -137,7 +137,7 @@ function since(t) {
   return Math.round(s / 86400) + ' days ago';
 }
 
-var TASK_FIELDS = ['title', 'status', 'mode', 'created_at', 'updated_at',
+var TASK_FIELDS = ['model', 'actual_model','title', 'status', 'mode', 'created_at', 'updated_at',
   'finished_at', 'exit_code', 'repo', 'branch', 'detail', 'asking', 'options',
   // What it was for, in one sentence written from its brief as it began,
   // which a green card shows in place of `detail` (`rouh/runsummary.py`).
@@ -1230,6 +1230,10 @@ function taskCard(rec) {
   // is the bin that dismisses it.
   if (!rec.dismiss) top.appendChild(taskDots(rec));
   node.appendChild(top);
+  if (rec.actual_model || rec.model) {
+    node.appendChild(el('div', 'task-detail', rec.actual_model
+      ? 'Model: ' + rec.actual_model : 'Requested model: ' + rec.model));
+  }
 
   // A job whose work will not go onto main is not the same kind of waiting as
   // a job that stopped to ask Claude Code a question, and it must not look

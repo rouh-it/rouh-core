@@ -646,6 +646,11 @@ class Views:
                 # What the subscription did, kept for a fresh session's brief.
                 run["billing_stop"] = b["stop"]
 
+    def _on_codex_model(self, e, b) -> None:
+        run = self._run(e)
+        if run:
+            run["actual_model"] = b.get("model") or ""
+
     def _on_codex_turn_failed(self, e, b) -> None:
         """Codex ended a turn with an error, and sent no hook to say so.
 
@@ -712,7 +717,7 @@ class Views:
         how = b.get("how") or "exited"
         code, signal = b.get("code"), b.get("signal")
         left = work_left({**b, "target": b.get("target") or run.get("target")})
-        state = ended_state(run, how, code, signal, left)
+        state = "failed" if how == "codex-error" else ended_state(run, how, code, signal, left)
         run.update(state=state, how=how, exit_code=code, signal=signal,
                    ended_at=e["at"], driver=None, watchers=[], question=None,
                    waiting_on_terminal=None, doing="", last_at=e["at"],

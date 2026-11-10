@@ -425,6 +425,12 @@ async def start(*, brief: str, title: str = "", preset: str = "",
         log.info("starting as Codex%s: the request named %r",
                  f" on {model}" if model else "", routed.word)
         brief = f"{brief}\n\n{routed.line()}"
+    from .config import OPENAI_CHOICES, ANTHROPIC_CHOICES
+
+    if model:
+        known = dict(OPENAI_CHOICES if agent == "codex" else ANTHROPIC_CHOICES)
+        if model not in known:
+            raise CannotStart(f"Unknown model for {agent or 'claude'}: {model}. Nothing was started.")
     brief = with_its_task(brief, chat)
     if preset == "improve_myself":
         # Every run of gene therapy changes Rouh's code, and what it changes that a person sees goes
@@ -462,15 +468,17 @@ async def start(*, brief: str, title: str = "", preset: str = "",
     took = ""
     note = ""
     billed = "api" if billing == "api" and agent == "codex" else ""
-    if billed or one_fields or _the_program_first(spec, where["policy"]):
+    if agent == "codex" or billed or one_fields or _the_program_first(spec, where["policy"]):
         # Each engine its own pick on the Models page (`modeldefaults.USES`).
         use = use or ("codex_runs" if agent == "codex" else "code_runs")
-        work = await asyncio.to_thread(modeldefaults.use_pair, use, org_id or None, cfg)
         if model:
             # A model of its own thinks at its own level, as every model does.
             from . import modelstandard
 
             work = modeldefaults.Pair(model, modelstandard.effort(model))
+        else:
+            work = await asyncio.to_thread(modeldefaults.use_pair, use, org_id or None, cfg)
+        model = work.model
         run_id = await _ask_the_program(one, brief, said, where, agent, expects, work,
                                         billing=billed, extra=one_fields, task=in_play,
                                         boxes=boxes)
@@ -480,15 +488,7 @@ async def start(*, brief: str, title: str = "", preset: str = "",
             raise CannotStart("This run can only be a run of the one program, and the program "
                               "would not take it. Nothing was started.")
     if not run_id and agent == "codex":
-        # A worker here is always Claude Code: a run of Codex asked for by name went to the
-        # program, and only a program that is away or said no puts it here. Its record says so.
-        log.warning("a run of Codex was asked for and the one program did not take it; "
-                    "it starts as Claude Code instead")
-        agent, model = "", ""
-        brief = (f"{brief}\n\nCodex was asked for, and the one program, which runs Codex, did "
-                 "not take this run, so it is Claude Code. Do not call codex exec for the "
-                 "work itself; say in your report that it ran on Claude Code.")
-        asked = brief
+        raise CannotStart("The one program could not start Codex. Nothing was started.")
     if not run_id:
         if where["policy"] == ONE:
             raise CannotStart(
@@ -506,7 +506,7 @@ async def start(*, brief: str, title: str = "", preset: str = "",
                         workspace=where["path"])
     written = _write_it_down(run_id, brief=asked, title=said, policy=took,
                              where=where, agent=agent, chat=chat, owner=owner, kind=kind,
-                             made_by=made_by)
+                             made_by=made_by, model=model)
     # The owner's own words behind it, exactly as said, so what it does for them is judged
     # against what they asked for rather than put back to them (`rouh/his_word.py`).
     from . import his_word
@@ -526,8 +526,9 @@ async def start(*, brief: str, title: str = "", preset: str = "",
     if emit is not None:
         await emit({"type": "task", "id": run_id, "status": "starting", "title": said,
                     "detail": spec.detail if spec is not None else "started",
-                    "mode": took, "kind": kind})
+                    "mode": took, "kind": kind, "model": model, "agent": agent or "claude"})
     return {"id": run_id, "status": "starting", "title": said, "mode": took,
+            "model": model, "agent": agent or "claude",
             "workspace": written["workspace"], "policy": took, "kind": kind,
             "note": note or "It is on the orb and on the Metabolism page."}
 
@@ -536,12 +537,12 @@ def route_to_codex(asked_for: str | None, *, agent: str = "", agent_chosen: bool
                    model: str = ""):
     """The word that makes this run Codex, as `codex_route.Named`, or None.
 
-    Nothing is routed when an agent was chosen on purpose, when the run is already Codex,
-    or when the caller gave no request to read (a scheduled run that picked its own agent).
+    Explicit Claude keeps a model mentioned as the subject from routing the run.
+    Explicit Codex still infers its model from the request when none was passed.
     A model named for the run that is OpenAI's makes it Codex as well, since Claude Code
     cannot be one.
     """
-    if agent_chosen or agent or asked_for is None:
+    if (agent_chosen and agent != "codex") or (agent and agent != "codex"):
         return None
     from . import codex_route
     from .config import is_openai
@@ -550,7 +551,7 @@ def route_to_codex(asked_for: str | None, *, agent: str = "", agent_chosen: bool
         return codex_route.Named(model, model)
     if model:
         return None
-    return codex_route.named(asked_for)
+    return codex_route.named(asked_for or "")
 
 
 #: Where what a run finishes with is said, as the model that started it is told.
@@ -598,9 +599,8 @@ async def _ask_the_program(one: Any, brief: str, title: str, where: dict,
     A run is told the model its tier on the Models page says (`work`, the use
     "code_runs" or "codex_runs"), and the level that comes with that model.
 
-    A run billed to the OpenAI API key is the exception to falling back: nothing
-    else can run it, so the program's no is said, rather than the job going
-    somewhere else.
+    A Codex run cannot fall back to another worker or model. Its refusal is
+    returned unchanged to the caller.
     """
     if one is None or not one.configured():
         if billing:
@@ -635,6 +635,8 @@ async def _ask_the_program(one: Any, brief: str, title: str, where: dict,
     try:
         got = await one.ask("start", **fields)
     except Exception as exc:
+        if agent == "codex":
+            raise CannotStart(str(exc)) from exc
         if billing:
             raise CannotStart(f"The one program would not start it billed to the OpenAI API "
                               f"key: {exc} Nothing was started.") from exc
@@ -701,7 +703,8 @@ def _boxes_out(text: str, given: list[dict]) -> str:
 
 def _write_it_down(run_id: str, *, brief: str, title: str, policy: str,
                    where: dict, agent: str, chat: str,
-                   owner: tuple[str, str] | None, kind: str = "", made_by: str = "") -> dict:
+                   owner: tuple[str, str] | None, kind: str = "", made_by: str = "",
+                   model: str = "") -> dict:
     """The row, and the two links, at once - so the run exists before anything asks.
 
     The workspace written here is the one this call resolved: the space when a
@@ -713,7 +716,7 @@ def _write_it_down(run_id: str, *, brief: str, title: str, policy: str,
     fill it in where it is empty, so they never overrule it.
     """
     workspace = where["space"] if policy == ONE else (where["path"] or "")
-    runs.record(run_id, title=title, brief=brief[:4000], workspace=workspace,
+    runs.record(run_id, title=title, brief=brief[:4000], workspace=workspace, model=model,
                 policy=policy if policy in objects.POLICIES else "safe",
                 agent=agent if agent in objects.AGENTS else "claude",
                 state="running", phase="starting", first=True,

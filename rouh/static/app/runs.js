@@ -521,6 +521,8 @@ function oneRenderHead() {
   meta.textContent = '';
   meta.appendChild(el('span', 'one-state s-' + run.state, oneStateWords(run)));
   meta.appendChild(el('span', null, 'Run ' + run.id));
+  if (run.actual_model || run.model) meta.appendChild(el('span', null,
+    run.actual_model ? 'Model: ' + run.actual_model : 'Requested model: ' + run.model));
   // Who pays for a run of Codex, always said, and loudly when it is the
   // OpenAI API key (one/billing.py): it is never billed quietly.
   if (run.engine === 'codex') {

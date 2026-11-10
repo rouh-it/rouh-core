@@ -204,6 +204,16 @@ def turn_error(record: Any) -> dict[str, Any] | None:
             "message": _message(error.get("message"))}
 
 
+def model_refused(failed: dict[str, Any]) -> bool:
+    """A provider's refusal of this model, rather than a quota or transient failure."""
+    if failed.get("info") in ("model_not_found", "unsupported_model", "model_not_available"):
+        return True
+    message = str(failed.get("message") or "").lower()
+    return "model" in message and any(word in message for word in (
+        "not supported", "unsupported", "not available", "unavailable", "does not exist",
+        "not found", "do not have access", "don't have access", "not allowed"))
+
+
 def _message(raw: Any) -> str:
     """The error in words. The API's own errors arrive as a JSON body, whole."""
     text = str(raw or "").strip()
@@ -211,7 +221,7 @@ def _message(raw: Any) -> str:
         with contextlib.suppress(ValueError, AttributeError, TypeError):
             inner = json.loads(text).get("error") or {}
             text = str(inner.get("message") or text)
-    return text[:600]
+    return text
 
 
 class Key:
@@ -244,7 +254,7 @@ AGAIN_AFTER = (1.0, 3.0, 10.0, 30.0)
 class Watcher:
     """One run of Codex's session file, read as Codex writes it, for turns that failed.
 
-    Only a line that says ``task_complete`` is parsed at all: the file holds
+    Only ``task_complete`` and ``turn_context`` lines are parsed: the file holds
     the whole conversation, and a run that reads a big file writes a big line.
     Every failed turn is handed to ``on_error``, the ones from before this
     watcher started too; which of them are new is the caller's to know, by
@@ -252,12 +262,14 @@ class Watcher:
     """
 
     def __init__(self, docs: "Documents", run_id: str, path: str, user: str,
-                 on_error: Callable[[str, dict[str, Any]], Awaitable[None]]) -> None:
+                 on_error: Callable[[str, dict[str, Any]], Awaitable[None]],
+                 on_model: Callable[[str, str], Awaitable[None]] | None = None) -> None:
         self.docs = docs
         self.run_id = run_id
         self.path = path
         self.user = user
         self.on_error = on_error
+        self.on_model = on_model
         self._offset = 0
         self._stopping = False
         self._proc: asyncio.subprocess.Process | None = None
@@ -315,12 +327,21 @@ class Watcher:
                                         self.run_id, rest)
                             return True
                         continue
-                    if b'"task_complete"' not in line:
+                    if b'"task_complete"' not in line and b'"turn_context"' not in line:
                         continue
                     try:
-                        found = turn_error(json.loads(line))
+                        record = json.loads(line)
                     except ValueError:
                         continue
+                    if isinstance(record, dict) and record.get("type") == "turn_context" and self.on_model:
+                        payload = record.get("payload")
+                        model = payload.get("model") if isinstance(payload, dict) else None
+                        if isinstance(model, str) and model:
+                            try:
+                                await self.on_model(self.run_id, model)
+                            except Exception:
+                                log.exception("the model of %s was not recorded", self.run_id)
+                    found = turn_error(record)
                     if found is not None:
                         try:
                             await self.on_error(self.run_id, found)

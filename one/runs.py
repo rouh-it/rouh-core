@@ -1817,7 +1817,13 @@ class Runs(_RunInteraction):
         if watcher is not None:
             self._spawn(watcher.stop())
         self.watchers[run_id] = billing.Watcher(
-            self.docs, run_id, path, self.s.space(run.get("space")).user, self._codex_turn_failed)
+            self.docs, run_id, path, self.s.space(run.get("space")).user, self._codex_turn_failed,
+            on_model=self._codex_model)
+
+    async def _codex_model(self, run_id: str, model: str) -> None:
+        run = self.views.runs.get(run_id)
+        if run is not None and run.get("actual_model") != model:
+            self.list.append("codex.model", run=run_id, body={"model": model})
 
     def _unwatch_codex(self, run_id: str) -> None:
         watcher = self.watchers.pop(run_id, None)
@@ -1845,7 +1851,7 @@ class Runs(_RunInteraction):
         resuming = bool(run.get("billing_resuming"))
         self.list.append("codex.turn-failed", run=run_id, body={
             "turn": turn, "info": failed.get("info") or "",
-            "message": agents.plain(failed.get("message"), 600), "billing": pays})
+            "message": str(failed.get("message") or ""), "billing": pays})
         if pays == billing.SUBSCRIPTION and failed.get("info") == "unauthorized":
             # A lost sign-in is the same for every run, so it is one line, said once
             # (codex_signin.tell_lost), never a question for each run: the run stops, its checkout
@@ -1862,6 +1868,8 @@ class Runs(_RunInteraction):
         else:
             self.p.tell(run_id, f"{run['title']}: Codex stopped: {failed.get('message')}",
                         reason="codex-stopped")
+            if billing.model_refused(failed):
+                await self.stop(run_id, by="codex-error", how="codex-error")
 
     def _offer_api(self, run_id: str, failed: dict[str, Any]) -> None:
         run = self._run(run_id)
