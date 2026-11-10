@@ -707,11 +707,21 @@ The answer, 200:
 Or `{"v": 1, "state": "pending", "said": "<one sentence>", "retry_after": 60}`, and the Rouh asks again later.
 An error is 4xx with `{"error": "<one plain sentence>"}`, shown to the owner as it is.
 
+### A name of the owner's own (since 10 November 2026, task 140, step 140-13)
+
+A Connected Rouh may take a second address, chosen by its owner (`petar.rouh.page`), beside its born one, which keeps working for good.
+
+- `GET <relay URL>name?name=<n>`, unsigned: `{"v": 1, "name": "<as rouh.land writes it>", "available": true|false, "why": "<one sentence, '' when available>"}`. rouh.land is the judge: taken, kept for itself, other companies' or Rouh's own names.
+- `POST <relay URL>name`, signed as the claim is, `{"v": 1, "public_key": "<daily key>", "name": "<n>"}`; `""` gives it back. The answer is the claim's granted answer plus `"chosen": "<name>.rouh.page"` (or `""`) and `"aliases": [...]`; the claim's own answer carries the same two keys from then on.
+- `POST <relay URL>address-letter`, signed, `{"v": 1, "public_key": "..."}`: rouh.land emails the owner's account the Rouh's addresses; `{"v": 1, "sent_to": "<masked email>"}`.
+
+The Rouh keeps `chosen` and `aliases` beside `hostname`, opens both names in frpc (port 80 for all; https for the names its certificate covers), gets one Let's Encrypt certificate for all of them, and opens the chosen one once that certificate covers it.
+
 ### frpc
 
 Started the moment the claim is granted, at birth (since 8 November 2026; before, only when the owner pressed Reach me from my phone), and kept off only once the owner turns it off, with frp's client of the version `rouh/relay.py` pins (and the base image carries).
 `user` is the label, `metadatas.token` the pass, the token and the pass read from frpc's environment and never written to its file; `loginFailExit = false`, so it reconnects by itself, with a heartbeat every 30 seconds.
-Two proxies, both `customDomains = [<hostname>]`:
+Two proxies, both `customDomains = [<hostname>, <the chosen name, if any>]`:
 
 - `http`, type `http`, to Rouh's own web server, for Let's Encrypt's HTTP-01 check; Rouh sends everything else on it to https.
 - `https`, type `https`, whose `https2http` plugin unlocks the traffic on the Rouh's side with its own Let's Encrypt certificate and hands it to Rouh's web server. The relay routes it by the name in the TLS hello and never holds a key that unlocks it.
