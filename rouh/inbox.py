@@ -982,6 +982,18 @@ class Mailroom:
             know = None
         if know:
             shown = dict(shown, know_them=know)
+        # Save them as a contact (night 39, `rouh/save_sender.py`): a sender not in the contacts.
+        from . import save_sender
+
+        try:
+            who = self._owner(sealed)
+            own = await self._own_addresses(who, sealed)
+            newcomer = await asyncio.to_thread(save_sender.shown, who, found, own)
+        except Exception as exc:  # noqa: BLE001 - the message opens all the same
+            log.info("save them as a contact could not be offered: %s", exc)
+            newcomer = None
+        if newcomer:
+            shown = dict(shown, save_sender=newcomer)
         # If I have not answered it, remind me (night 37, `rouh/answer_watch.py`): an email asking him something.
         from . import answer_watch
 
@@ -1015,6 +1027,23 @@ class Mailroom:
             return Answer(False, why="How you know them is switched off.")
         await asyncio.to_thread(know_them.opened, who, which)
         return Answer(True, said={"counted": True})
+
+    async def save_sender(self, message_id: str, sealed: dict | None) -> Answer:
+        """Save to contacts, pressed on an email's line: the sender written to iCloud as a new contact,
+        read from the message again here, never from the page."""
+        from . import runtime, save_sender
+
+        who = self._owner(sealed)
+        if not await asyncio.to_thread(save_sender.on, who):
+            return Answer(False, why="Save them as a contact is switched off.")
+        theirs = bool(sealed and sealed.get("m"))
+        gmail = await self._theirs(sealed) if theirs else self._gmail()
+        found = await gmail.message(message_id)
+        own = await self._own_addresses(who, sealed)
+        done, said = await save_sender.save(who, found, getattr(runtime, "contacts", None), own)
+        if not done:
+            return Answer(False, why=said)
+        return Answer(True, said={"said": said}, note=f"saved {about(found)} as a contact, pressed on the inbox card")
 
     async def _own_addresses(self, who, sealed: dict | None) -> list[str]:
         """The person's own addresses: Rouh's connection's and each read-only inbox's."""
@@ -1265,7 +1294,8 @@ def serve(room: Mailroom) -> None:
 
 #: What the page may ask of a card.
 ASKS = {"list", "open", "archive", "unarchive", "read", "unread", "compose", "send",
-        "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch", "know_them"}
+        "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch", "know_them",
+        "save_sender"}
 
 
 async def press(msg: dict, who) -> Answer:
@@ -1301,7 +1331,7 @@ async def press(msg: dict, who) -> Answer:
     if what != "list" and not message_id:
         return Answer(False, why="Say which message.")
     if theirs and what not in ("list", "open", "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch",
-                               "know_them"):
+                               "know_them", "save_sender"):
         # The person's own inbox is connected read-only (`rouh/inboxes.py`):
         # the card has no such button, and a page that asks anyway is told why.
         return Answer(False, why="This inbox is connected read-only, so it can be read "
@@ -1336,6 +1366,11 @@ async def press(msg: dict, who) -> Answer:
         if what == "waiting_too":
             # Open on Also waiting on you, counted: nothing in the mailbox changes.
             done = await ROOM.waiting_too(sealed)
+            done.chat = chat
+            return done
+        if what == "save_sender":
+            # Save them as a contact: written to iCloud, nothing in the mailbox changes.
+            done = await ROOM.save_sender(message_id, sealed)
             done.chat = chat
             return done
         if what == "know_them":

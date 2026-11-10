@@ -2832,3 +2832,53 @@ print(json.dumps(asyncio.run(go())))
 """))
     expect("last wrote with you" in out and "Stack last word" in out and "Stack first hello" in out,
            f"how you know them was not said: {out[-500:]}")
+
+
+# --- Night 39 (10 November): not sent twice; a new number in their signature; contacts kept twice;
+# save them as a contact
+
+@check("gene.sent-twice")
+def sent_twice(s: Stack) -> None:
+    """The same email sent twice to the same person goes once: the second time says it already went."""
+    google(s)
+    args = {"to": "Pat Stack <pat@twice-stack.test>", "subject": "Stack seat numbers",
+            "body": "Hi Pat,\n\nNine seats from 1 December.\n\nAlex"}
+    first = g_tool(s, "send_mail", args, "Sent to")
+    expect("already went" not in first, f"the first email was held: {first[:400]}")
+    g_tool(s, "send_mail", args, "already went")
+
+
+@check("gene.new-number")
+def new_number(s: Stack) -> None:
+    """A signature's mobile that the contact lacks is found; a number on the contact is not."""
+    out = core_py(s, _owner_py("""
+from rouh import new_number
+card = {"id": "c1", "phones": [{"number": "+44 20 7946 0000"}], "emails": [{"address": "nina@sig-stack.test"}]}
+body = "Hi,\\n\\nSee you.\\n\\nNina Stack\\nM: +359 89 555 0101\\nT: +44 20 7946 0000\\nVAT: BG204411223"
+print(json.dumps({"missing": new_number.missing(card, body)}))
+"""))
+    expect("+359 89 555 0101" in out and "7946" not in out and "204411223" not in out,
+           f"the signature's new number was not found alone: {out[-500:]}")
+
+
+@check("gene.same-contact")
+def same_contact(s: Stack) -> None:
+    """same_contact reads every contact and says who is there twice, or that nobody is."""
+    got = s.tool("same_contact", {})
+    expect(("more than once" in got or "No one is in the contacts twice" in got or "no contacts to read" in got)
+           and "switched off" not in got, f"same_contact did not read the contacts: {got[:500]}")
+
+
+@check("gene.save-sender")
+def save_sender(s: Stack) -> None:
+    """A sender on no contact gets the card that would be saved, with the company and the signature's number."""
+    out = core_py(s, _owner_py("""
+from rouh import save_sender
+cards = [{"id": "c1", "name": "Dana Stack", "organisation": "Northwind", "emails": [{"address": "dana@northwind-stack.test"}]}]
+found = {"from": "Kai Stack <kai@northwind-stack.test>", "subject": "Hello",
+         "body": "Hi,\\n\\nKai Stack\\nMobile: +386 41 555 222"}
+print(json.dumps(save_sender.card_for(found, cards, [])))
+"""))
+    expect("Kai Stack" in out and "Northwind" in out and "+386 41 555 222" in out,
+           f"the card to save was not made: {out[-500:]}")
+

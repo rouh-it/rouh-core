@@ -1209,6 +1209,11 @@ def _no_company(a):
     return "Reading which contacts have no company", ""
 
 
+@_step("same_contact")
+def _same_contact(a):
+    return "Reading which contacts are there twice", ""
+
+
 @_step("reply_times")
 def _reply_times(a):
     return "Counting reply times", _arg(a, "who") or ""

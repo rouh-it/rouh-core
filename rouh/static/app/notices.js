@@ -718,8 +718,10 @@ function follow(n, href) {
     // `/mail/case/<key>`, is Rouh's own since 15 October 2026. And a page behind a deploy goes
     // there as a whole new load, which is its Reload on the way.
     // So is a bounce's Open (`/mail/not-arrived/<key>`, rouh/not_arrived.py), which says it was
-    // used and sends the page on to the chat the email went from.
-    if (/^\/mail\/(case\/[^/?#]+\/.|not-arrived\/)/.test(link) || n.reload) location.assign(link);
+    // used and sends the page on to the chat the email went from. So are an away reply's Open
+    // (`/mail/away-after/<key>`, rouh/away_after.py) and Add it to their contact on a new number
+    // in a signature (`/mail/new-number/<key>`, rouh/new_number.py), which adds it and comes back.
+    if (/^\/mail\/(case\/[^/?#]+\/.|not-arrived\/|away-after\/|new-number\/)/.test(link) || n.reload) location.assign(link);
     else {
       // On a phone the bell is inside the navigation's drawer, which goes with the press like
       // after any other link followed from it, or it stays over the place just opened.

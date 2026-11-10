@@ -2734,6 +2734,67 @@
    "files": [
     "rouh/know_them.py"
    ]
+  },
+  "n39-sent-twice": {
+   "name": "Not sent twice",
+   "what": "Before Rouh sends an email, it reads its own Sent mail of the last day: when the same email already went to the same people, with the same subject and words, nothing is sent again and Rouh says when it went.",
+   "switch": "sent_twice",
+   "signals": {
+    "events": {
+     "held": "You asked Rouh to send an email that had already gone, and it said when it went instead of sending it twice"
+    }
+   },
+   "files": [
+    "rouh/sent_twice.py"
+   ]
+  },
+  "n39-new-number": {
+   "name": "A new number in their signature",
+   "what": "When a contact's email reaches Rouh with a phone number in its signature that their contact does not have, you are told at once, with Add it to their contact, which puts the number on the contact in iCloud.",
+   "switch": "new_number",
+   "signals": {
+    "events": {
+     "added": "You pressed Add it to their contact on a notice of a new number in somebody's signature"
+    },
+    "runs": {
+     "told": "A contact's email had a number in its signature their contact lacks, and you were told in a notice"
+    }
+   },
+   "files": [
+    "rouh/new_number.py",
+    "rouh/web/new_number.py",
+    "rouh/sig_phones.py"
+   ]
+  },
+  "n39-same-contact": {
+   "name": "Contacts kept twice",
+   "what": "Asked which contacts are there twice, Rouh reads every contact in your iCloud address book and groups the cards that are one person (the same address, the same number or the same name), with what each card has and which to keep.",
+   "switch": "same_contact",
+   "signals": {
+    "events": {
+     "asked": "You asked Rouh which of your contacts are there twice, and it read all of them"
+    }
+   },
+   "files": [
+    "rouh/same_contact.py"
+   ]
+  },
+  "n39-save-sender": {
+   "name": "Save them as a contact",
+   "what": "An email opened on the inbox card from somebody who is not in your contacts says so, with what would be saved (name, address, company, the numbers in their signature) and Save to contacts, which adds them to iCloud in one press.",
+   "switch": "save_sender",
+   "signals": {
+    "events": {
+     "saved": "You pressed Save to contacts on an email from somebody who was not in your contacts, on the inbox card"
+    },
+    "runs": {
+     "shown": "Rouh said on an email you opened that its sender is not in your contacts"
+    }
+   },
+   "files": [
+    "rouh/save_sender.py",
+    "rouh/sig_phones.py"
+   ]
   }
  }
 }

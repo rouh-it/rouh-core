@@ -2413,6 +2413,10 @@ function inboxBlock(b) {
   // something, one press has Rouh look the next working morning and remind him only if he has not answered.
   var answerRow = el('div', 'ib-remind ib-answer-watch');
   answerRow.hidden = true;
+  // Save them as a contact (night 39, rouh/save_sender.py): a sender not in the contacts, with what
+  // saving them would add, and one press that saves them to iCloud.
+  var saveRow = el('div', 'ib-remind ib-save-sender');
+  saveRow.hidden = true;
   var mailSaid = el('p', 'ib-said');
   mailSaid.hidden = true;
   mailSaid.setAttribute('role', 'status');
@@ -2430,6 +2434,7 @@ function inboxBlock(b) {
   mail.appendChild(remindRow);
   mail.appendChild(watchRow);
   mail.appendChild(answerRow);
+  mail.appendChild(saveRow);
   mail.appendChild(mailSaid);
   mail.appendChild(body);
   mail.appendChild(files);
@@ -2609,6 +2614,7 @@ function inboxBlock(b) {
     drawKnow(msg);
     drawWatch(msg);
     drawAnswerWatch(msg);
+    drawSaveSender(msg);
   }
 
   /** @param {any} msg */
@@ -2733,6 +2739,29 @@ function inboxBlock(b) {
         var see = el('a', 'ib-remind-link', 'See it on Clockwork');
         see.href = '/clockwork';
         answerRow.appendChild(see);
+      });
+    });
+  }
+
+  /** @param {any} msg */
+  function drawSaveSender(msg) {
+    saveRow.textContent = '';
+    var w = msg && msg.save_sender;
+    saveRow.hidden = !(w && w.said);
+    if (!w || !w.said) return;
+    saveRow.appendChild(el('span', 'ib-remind-note', w.said));
+    var b = inboxButton('ib-save-sender-at', 'Save to contacts', 'Adds ' + (w.name || 'them') + ' to your iCloud contacts, as said');
+    saveRow.appendChild(b);
+    b.addEventListener('click', function () {
+      busy(b, 'Saving\u2026');
+      inboxAsk(token, 'save_sender', { id: msg.id }, function (m) {
+        done(b);
+        if (!m.ok) {
+          sayBad(mailSaid, m.why || 'They could not be saved.');
+          return;
+        }
+        saveRow.textContent = '';
+        saveRow.appendChild(el('span', 'ib-remind-note', m.said || 'Saved to your contacts.'));
       });
     });
   }

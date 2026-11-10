@@ -1878,6 +1878,18 @@ class MailAlerts:
                     await self._db(self.store.record, user_id, org_id, message_id, stage=JUNK,
                                    why=f"{away} No case, and nothing was sent.")
                     return
+            # A new number in their signature (night 39, `rouh/new_number.py`): a contact's email
+            # whose signature has a phone their contact lacks is told, and the email goes on as before.
+            from . import new_number
+
+            try:
+                alert = await self._db(self.store.alert, user_id, org_id)
+                number = await new_number.seen(who, message, mailbox=str(alert.get("mailbox") or ""))
+            except Exception:  # noqa: BLE001 - the email is handled all the same
+                log.exception("mail alert %s: the signature's numbers could not be read", message_id)
+                number = ""
+            if number:
+                log.info("mail alert %s: %s", message_id, number)
         listed = None if pretender else await self._db(
             self.cases.trust.listed_for, user_id, org_id, address)
         if not existing and listed is None and not pretender and not row.get("replays"):
