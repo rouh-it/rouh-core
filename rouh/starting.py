@@ -716,7 +716,7 @@ def _write_it_down(run_id: str, *, brief: str, title: str, policy: str,
     runs.record(run_id, title=title, brief=brief[:4000], workspace=workspace,
                 policy=policy if policy in objects.POLICIES else "safe",
                 agent=agent if agent in objects.AGENTS else "claude",
-                state="running", phase="starting",
+                state="running", phase="starting", first=True,
                 **({"kind": kind} if kind in objects.RUN_KINDS and kind else {}))
     if made_by:
         # Which process started it (`rouh/task_origin.py`), on its row beside the rest.

@@ -466,7 +466,7 @@ class OneLander(Lander):
             runs.record(fresh, title=f"Again: {title}"[:120], brief=runs.request_of(brief)[:4000],
                         policy=runs.ONE_POLICY,
                         workspace=str(run.get("space") or "assistant"),
-                        state="running", phase="starting")
+                        state="running", phase="starting", first=True)
             runs.came_from(fresh, started_in)
         # Made by whoever made the first (`rouh/task_origin.py`).
         with contextlib.suppress(Exception):

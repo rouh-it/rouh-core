@@ -343,11 +343,14 @@ def request_of(brief: str) -> str:
     return rules.unruled(brief)
 
 
-def record(run_id: str, *, make: bool = True, **fields: Any) -> None:
+def record(run_id: str, *, make: bool = True, first: bool = False, **fields: Any) -> None:
     """Write one run: made if it is new, brought up to date if it is not.
 
     Everything goes through here, so there is one place that decides what a
     write costs and one place that refuses to write the same thing twice.
+
+    `first` is a start writing down a run it has just asked for: its state and phase
+    are written only when the row is new, never over what the program has said since.
 
     `make` is whether this write may be the one that makes the row, and only a
     write that says what the run *is* may: its title, what it was asked, where
@@ -376,7 +379,8 @@ def record(run_id: str, *, make: bool = True, **fields: Any) -> None:
     if _written.get(run_id) == signature:
         return
     try:
-        if st.get_run(run_id) is None:
+        existing = st.get_run(run_id)
+        if existing is None:
             if not make:
                 log.info("run %s is not in the register, so nothing was written about it (%s)",
                          run_id, ", ".join(sorted(fields)))
@@ -389,6 +393,17 @@ def record(run_id: str, *, make: bool = True, **fields: Any) -> None:
             # it started.
             fields.pop("parent_run_id", None)
             fields.pop("started_at", None)
+            if first:
+                # `first` is the start writing its row down, and its state is only for a row
+                # nobody has written yet. The program can answer first: a run refused at its
+                # launch (no sign-in, a bad space) is requested and ended in the same instant,
+                # and its "failed" reached this register before the start wrote "starting"
+                # over it, so check_tasks and one_runs said "starting" for good (runs 2b3c4962
+                # and 480de3be, 10 November 2026). What the program said about the run stands.
+                fields.pop("state", None)
+                fields.pop("phase", None)
+                if not fields:
+                    return
             st.update_run(run_id, **fields)
     except objects.Refused:
         # A refusal is a bug in what was handed over, never a reason to lose
