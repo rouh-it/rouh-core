@@ -81,15 +81,22 @@ def _sign(key, data: bytes) -> bytes:
     return r.to_bytes(32, "big") + s.to_bytes(32, "big")
 
 
-def csr_der(key_pem: str, name: str) -> bytes:
+def _names(name) -> list[str]:
+    """One name, or several (a born address and the owner's chosen one, task 140, step 140-13)."""
+    names = [name] if isinstance(name, str) else list(name)
+    return [n for i, n in enumerate(names) if n and n not in names[:i]]
+
+
+def csr_der(key_pem: str, name) -> bytes:
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.x509.oid import NameOID
 
     key = _load(key_pem)
+    names = _names(name)
     csr = (x509.CertificateSigningRequestBuilder()
-           .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)]))
-           .add_extension(x509.SubjectAlternativeName([x509.DNSName(name)]), critical=False)
+           .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, names[0])]))
+           .add_extension(x509.SubjectAlternativeName([x509.DNSName(n) for n in names]), critical=False)
            .sign(key, hashes.SHA256()))
     return csr.public_bytes(serialization.Encoding.DER)
 
@@ -203,12 +210,14 @@ class Client:
                 raise AcmeError(f"the {what} took too long (still {status})")
             time.sleep(2)
 
-    def certificate(self, name: str, key_pem: str, publish: Callable[[str, str], None],
+    def certificate(self, name, key_pem: str, publish: Callable[[str, str], None],
                     unpublish: Callable[[str], None]) -> str:
-        """A certificate chain for ``name``, signed for ``key_pem``. ``publish(token, answer)``
-        puts the check's answer where ``/.well-known/acme-challenge/<token>`` serves it."""
+        """A certificate chain for ``name`` (or a list of names, all on one certificate), signed for
+        ``key_pem``. ``publish(token, answer)`` puts the check's answer where
+        ``/.well-known/acme-challenge/<token>`` serves it."""
         self.account()
-        got = self._post(self._directory()["newOrder"], {"identifiers": [{"type": "dns", "value": name}]})
+        got = self._post(self._directory()["newOrder"],
+                         {"identifiers": [{"type": "dns", "value": n} for n in _names(name)]})
         order_url = got.headers.get("Location", "")
         order = got.json()
         tokens = []

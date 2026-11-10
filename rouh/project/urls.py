@@ -32,6 +32,7 @@ from rouh.web import dreame as dreame_web
 from rouh.web import claude_signin as claude_signin_web
 from rouh.web import codex_signin as codex_signin_web
 from rouh.web import subscriptions as subscriptions_web
+from rouh.web import setup_api
 from rouh.web import firstrun as firstrun_web
 from rouh.web import phoneapi
 from rouh.web import filesapi
@@ -152,6 +153,19 @@ urlpatterns = [
     path("setup/brain", firstrun_web.brain),
     path("setup/brain/<str:company>", firstrun_web.company_key),
     path("setup/brain/<str:company>/how", firstrun_web.company_how),
+    # The same first run for Rouh for Mac's native screens, as JSON, with the setup code as a bearer
+    # token (`rouh/web/setup_api.py`, task 140, step 140-13).
+    path("setup/api/state", setup_api.get_state),
+    path("setup/api/you", setup_api.you),
+    path("setup/api/kind", setup_api.kind),
+    path("setup/api/email", setup_api.email),
+    path("setup/api/born", setup_api.born),
+    path("setup/api/key", setup_api.key),
+    path("setup/api/plan", setup_api.plan),
+    path("setup/api/done", setup_api.done),
+    path("setup/api/name", setup_api.name),
+    path("setup/api/address/email", setup_api.address_email),
+    path("setup/api/open", setup_api.open_rouh),
     # Then Claude Code's sign-in, in the containers only (`rouh/web/claude_signin.py`).
     # The phone address: its HTTP-01 check and the QR code's sign-in (`rouh/web/relay.py`).
     path(".well-known/acme-challenge/<str:token>", relay_web.challenge),

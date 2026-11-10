@@ -192,6 +192,25 @@ def hostname() -> str:
     return str(read().get("hostname") or "")
 
 
+def hostnames(held: dict | None = None) -> list[str]:
+    """Every name this Rouh answers on: its born one, then the one its owner chose, if any (task 140,
+    step 140-13). The born name is kept for good, so links and phones signed in on it never break."""
+    held = read() if held is None else held
+    names = [str(held.get("hostname") or "")] + [str(a) for a in held.get("aliases") or []]
+    return [n for i, n in enumerate(names) if n and n not in names[:i]]
+
+
+def preferred_address(held: dict | None = None) -> str:
+    """The address to show and open: the chosen one once its certificate covers it, else the born one."""
+    held = read() if held is None else held
+    base = address(held)
+    chosen = str(held.get("chosen") or "")
+    if not base or not chosen or chosen not in _cert_names(held):
+        return base
+    port = int(held.get("https_port") or 443)
+    return f"https://{chosen}" + ("" if port == 443 else f":{port}")
+
+
 def address(held: dict | None = None) -> str:
     """The whole address, https and the port when it is not 443; "" before the claim."""
     held = read() if held is None else held
@@ -205,14 +224,13 @@ def address(held: dict | None = None) -> str:
 def allow_host(host: str = "") -> None:
     """Let Django answer on the claimed name. ALLOWED_HOSTS is one list, which the socket's origin
     check holds too (`project/asgi.py`), so it is added to in place."""
-    host = (host or hostname()).lower()
-    if not host:
-        return
     from django.conf import settings
 
     allowed = settings.ALLOWED_HOSTS
-    if isinstance(allowed, list) and host not in allowed:
-        allowed.append(host)
+    for name in ([host] if host else hostnames()):
+        name = name.lower()
+        if name and isinstance(allowed, list) and name not in allowed:
+            allowed.append(name)
 
 
 # --- requests through the relay ------------------------------------------------------------------
@@ -225,11 +243,11 @@ def through(request) -> bool:
     given = request.headers.get(MARK_HEADER, "")
     if given and mark and hmac.compare_digest(given.encode(), mark.encode()):
         return True
-    host = held.get("hostname") or ""
-    if not host:
+    names = hostnames(held)
+    if not names:
         return False
     asked = (request.headers.get("host") or "").split(":")[0].strip().lower()
-    return asked == host
+    return asked in names
 
 
 def local_only(path: str) -> bool:
@@ -381,21 +399,132 @@ def claim(user=None, *, rotate: bool = False) -> dict:
     if state != "granted" or not all(needed):
         _change(claim_error="the relay's answer was not one this Rouh understands", claim_tried_at=time.time())
         raise Refused("The relay's answer was not one this Rouh understands, so nothing was kept.")
+    chosen = str(answer.get("chosen") or "").strip().lower().rstrip(".")
+    aliases = [str(a).strip().lower().rstrip(".") for a in answer.get("aliases") or [] if str(a).strip()]
     held = _change(
         hostname=host, https_port=int(answer.get("https_port") or 443),
+        chosen=chosen or None, aliases=[a for a in aliases if a != host] or None,
         server_addr=str(relay["server_addr"]), server_port=int(relay["server_port"]), user=user_name,
         server_name=str(relay.get("server_name") or "") or None, ca=str(relay.get("ca") or "") or None,
         auth_token=_box().seal(str(relay.get("auth_token") or "")), secret=_box().seal(token),
         limit_bytes=int(answer.get("limit_bytes") or 0) or None, usage_url=str(answer.get("usage_url") or "") or None,
         public_key=me["public"], claimed_at=time.time(), pending=None, claim_error=None,
         mark=read().get("mark") or secrets.token_urlsafe(24))
-    allow_host(host)
+    allow_host()
     log.info("relay: %s claimed %s", me["name"], host)
     try:
         open_by_itself(user)
     except Exception:  # noqa: BLE001 - opened again at the next start
         log.exception("relay: the address could not be opened after the claim")
     return {"state": "granted", "address": address(held)}
+
+
+# --- 1b. a name of the owner's own (task 140, step 140-13) -----------------------------------------
+
+#: The shape rouh.land takes; rouh.land is the judge of everything else (taken, kept, brand names).
+NAME_SHAPE = "Use 3 to 30 letters, digits or dashes."
+
+
+def plain_name(text: str) -> str:
+    """What the owner typed, as an address's first part: "Petar P" -> petar-p; a whole address
+    typed (petar.rouh.page) is cut to its first part."""
+    text = str(text or "").strip().lower()
+    if text.endswith("." + domain()):
+        text = text[: -len(domain()) - 1]
+    text = text.replace("_", "-").replace(" ", "-")
+    return "".join(c for c in text if c.isalnum() or c == "-")[:40]
+
+
+def _shape_problem(name: str) -> str:
+    import re
+
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])", name or "") or "--" in name or name.isdigit():
+        return NAME_SHAPE
+    return ""
+
+
+def name_free(text: str) -> dict:
+    """Whether a name is free on the relay's domain, as rouh.land says; this Rouh's own chosen
+    name is "yours". Only a Connected Rouh asks (the API checks before calling)."""
+    import httpx
+
+    name = plain_name(text)
+    held = read()
+    out = {"name": name, "address": f"{name}.{domain()}" if name else ""}
+    bad = _shape_problem(name)
+    if bad:
+        return {**out, "available": False, "why": bad}
+    if f"{name}.{domain()}" in (held.get("chosen") or "", held.get("hostname") or ""):
+        return {**out, "available": True, "yours": True, "why": ""}
+    url = urljoin(service_url(), "name")
+    try:
+        got = httpx.get(url, params={"name": name}, timeout=TIMEOUT,
+                        headers={"Accept": "application/json", "User-Agent": "Rouh relay"})
+    except httpx.HTTPError as exc:
+        raise Refused(f"{urlsplit(url).hostname} could not be reached ({type(exc).__name__}). Try again in a moment.") from None
+    if got.status_code >= 400:
+        raise Refused(_said(got) or f"{urlsplit(url).hostname} answered {got.status_code}.")
+    try:
+        answer = got.json() or {}
+    except ValueError:
+        answer = {}
+    return {**out, "available": bool(answer.get("available")), "why": str(answer.get("why") or "")}
+
+
+def _signed_post(rest: str, payload: dict, user=None):
+    """A request to the relay's service signed with this Rouh's daily key, as the claim is."""
+    import httpx
+
+    user = user or owner()
+    if user is None:
+        raise Refused("This Rouh has no owner yet.")
+    if chose_connected(user) is not True:
+        raise Refused("This Rouh is on its own: it asks nobody for anything.")
+    me, _row = _identity(user)
+    url = urljoin(service_url(), rest)
+    body = json.dumps({"v": 1, "public_key": me["public"], **payload}, separators=(",", ":"),
+                      sort_keys=True).encode()
+    headers = {"Content-Type": "application/json", "Accept": "application/json", "User-Agent": "Rouh relay",
+               **_signed(me["seed"], "POST", url, body)}
+    try:
+        got = httpx.post(url, content=body, headers=headers, timeout=TIMEOUT)
+    except httpx.HTTPError as exc:
+        raise Refused(f"{urlsplit(url).hostname} could not be reached ({type(exc).__name__}). Try again in a moment.") from None
+    if got.status_code >= 400:
+        raise Refused(_said(got) or f"{urlsplit(url).hostname} answered {got.status_code}.")
+    try:
+        return got.json() or {}
+    except ValueError:
+        return {}
+
+
+def choose_name(text: str, user=None) -> dict:
+    """Take a name of the owner's own (petar.rouh.page) beside the born one, or give it back with
+    "". rouh.land checks and keeps it; this Rouh then answers on both, gets one certificate for
+    both, and opens the chosen one from then on. The born name keeps working for good."""
+    name = plain_name(text)
+    if name:
+        bad = _shape_problem(name)
+        if bad:
+            raise Refused(bad)
+    answer = _signed_post("name", {"name": name}, user)
+    chosen = str(answer.get("chosen") or "").strip().lower().rstrip(".")
+    aliases = [str(a).strip().lower().rstrip(".") for a in answer.get("aliases") or [] if str(a).strip()]
+    host = read().get("hostname") or str(answer.get("hostname") or "").strip().lower()
+    _change(chosen=chosen or None, aliases=[a for a in aliases if a != host] or None, chosen_at=time.time())
+    allow_host()
+    SUPERVISOR.restart_wanted = True
+    SUPERVISOR.cert_now = True
+    log.info("relay: the owner's own address is now %s", chosen or "none (the born one only)")
+    with contextlib.suppress(Exception):
+        open_by_itself(user)
+    return {"chosen": chosen, "addresses": hostnames()}
+
+
+def address_letter(user=None) -> dict:
+    """Email it to me: rouh.land emails the owner's account this Rouh's addresses."""
+    answer = _signed_post("address-letter", {}, user)
+    return {"sent_to": str(answer.get("sent_to") or "")}
 
 
 def open_by_itself(user=None) -> bool:
@@ -558,10 +687,22 @@ def cert_paths() -> tuple[str, str]:
     return os.path.join(d, "cert.pem"), os.path.join(d, "key.pem")
 
 
+def _cert_names(held: dict) -> list[str]:
+    """The names the certificate on disk was got for ("a,b" since step 140-13, one name before)."""
+    return [n for n in str(held.get("cert_for") or "").split(",") if n]
+
+
 def has_cert(held: dict | None = None) -> bool:
+    """A certificate for the born name is here (the chosen one may still be on its way)."""
     held = read() if held is None else held
     cert, key = cert_paths()
-    return bool(held.get("cert_for") == held.get("hostname") and os.path.exists(cert) and os.path.exists(key))
+    return bool(held.get("hostname") and held.get("hostname") in _cert_names(held)
+                and os.path.exists(cert) and os.path.exists(key))
+
+
+def cert_covers_all(held: dict | None = None) -> bool:
+    held = read() if held is None else held
+    return has_cert(held) and set(hostnames(held)) <= set(_cert_names(held))
 
 
 def _toml(value: str) -> str:
@@ -571,8 +712,10 @@ def _toml(value: str) -> str:
 def frpc_config(held: dict, admin_port: int, local: str) -> str:
     """frpc's settings for this Rouh. The token, the secret and the admin password are read from
     frpc's own environment, so none of them is ever written to a file."""
-    host = held["hostname"]
+    names = hostnames(held)
     mark = held["mark"]
+    # The https side only for names the certificate covers; port 80 for all, for the HTTP-01 check.
+    locked = [n for n in names if n in _cert_names(held)]
     lines = [
         f"serverAddr = {_toml(held['server_addr'])}",
         f"serverPort = {int(held['server_port'])}",
@@ -596,7 +739,7 @@ def frpc_config(held: dict, admin_port: int, local: str) -> str:
         "[[proxies]]",
         'name = "http"',
         'type = "http"',
-        f"customDomains = [{_toml(host)}]",
+        f"customDomains = [{', '.join(_toml(n) for n in names)}]",
         f"localIP = {_toml(local.split(':')[0])}",
         f"localPort = {int(local.split(':')[1])}",
         f"requestHeaders.set.{MARK_HEADER} = {_toml(mark)}",
@@ -618,7 +761,7 @@ def frpc_config(held: dict, admin_port: int, local: str) -> str:
             "[[proxies]]",
             'name = "https"',
             'type = "https"',
-            f"customDomains = [{_toml(host)}]",
+            f"customDomains = [{', '.join(_toml(n) for n in locked)}]",
             "[proxies.plugin]",
             'type = "https2http"',
             f"localAddr = {_toml(local)}",
@@ -655,7 +798,7 @@ def _renew_at(cert_pem: str) -> float:
 
 def needs_cert(held: dict | None = None) -> bool:
     held = read() if held is None else held
-    if not has_cert(held):
+    if not cert_covers_all(held):
         return True
     cert, _ = cert_paths()
     try:
@@ -684,7 +827,8 @@ def get_cert() -> dict:
         kid = client.account()
         _change(acme_account=_box().seal(account), acme_kid=kid, acme_directory=directory)
         key_pem = acme.new_key_pem()
-        chain = client.certificate(host, key_pem, publish=CHALLENGES.__setitem__,
+        names = hostnames(held)
+        chain = client.certificate(names, key_pem, publish=CHALLENGES.__setitem__,
                                    unpublish=lambda t: CHALLENGES.pop(t, None))
     finally:
         client.close()
@@ -696,8 +840,8 @@ def get_cert() -> dict:
         os.chmod(tmp, 0o600)
         os.replace(tmp, path)
     until = acme.not_after(chain)
-    _change(cert_for=host, cert_at=time.time(), cert_until=until, cert_error=None, cert_tried_at=time.time())
-    log.info("relay: a certificate for %s, good until %s", host, time.strftime("%Y-%m-%d", time.gmtime(until)))
+    _change(cert_for=",".join(names), cert_at=time.time(), cert_until=until, cert_error=None, cert_tried_at=time.time())
+    log.info("relay: a certificate for %s, good until %s", ", ".join(names), time.strftime("%Y-%m-%d", time.gmtime(until)))
     return {"until": until}
 
 
@@ -741,6 +885,8 @@ class Supervisor:
         self.ever_connected = False
         self.since = 0.0
         self.restart_wanted = False
+        # A name was just chosen: its certificate is asked for now, not after a backoff.
+        self.cert_now = False
 
     # what the page sees
 
@@ -866,6 +1012,9 @@ class Supervisor:
                     await asyncio.sleep(1.5)
                 proxies = await self._proxies()
                 now = time.time()
+                if self.cert_now:
+                    self.cert_now = False
+                    cert_wait_until = 0.0
                 if proxies.get("http") == "running":
                     wait = 2.0
                     if needs_cert(held) and now >= cert_wait_until:
@@ -922,7 +1071,7 @@ async def start() -> None:
     _LOOP = asyncio.get_running_loop()
     held = await asyncio.to_thread(read)
     if held.get("hostname"):
-        allow_host(held["hostname"])
+        allow_host()
     # A Connected Rouh never turned on or off (born before 8 November 2026, or its claim at birth
     # never got through) is opened now, as one born today is.
     try:
@@ -991,6 +1140,9 @@ def status() -> dict:
         "independent": _independent(),
         "address": address(held),
         "hostname": held.get("hostname") or "",
+        "chosen": held.get("chosen") or "",
+        "addresses": hostnames(held),
+        "preferred": preferred_address(held),
         "domain": domain(),
         "service": urlsplit(service_url()).hostname or "",
         # Where the owner of a Rouh never asked signs in to link it (Rouh profile's own link).
@@ -1013,24 +1165,26 @@ def status() -> dict:
 
 # --- signing in on the phone ---------------------------------------------------------------------
 
-_CODES: dict[str, tuple[str, float]] = {}
+_CODES: dict[str, tuple[str, float, str]] = {}
 
 
-def signin_link(user) -> dict:
+def signin_link(user, purpose: str = "phone") -> dict:
     """A one-time sign-in link to the phone address, for the owner signed in on the computer:
-    shown as a QR code, good once, for ten minutes; a new one ends the one before."""
+    shown as a QR code, good once, for ten minutes; a new one ends the one before of the same
+    purpose ("phone" for the QR code, "open" for Rouh for Mac's Open Rouh, step 140-13). It goes to
+    the chosen address once its certificate covers it, else the born one."""
     from . import birth
 
-    url = address()
+    url = preferred_address()
     if not url:
         raise Refused("This Rouh has no address yet.")
     code = secrets.token_urlsafe(24)
     digest = hashlib.sha256(code.encode()).hexdigest()
     with _LOCK:
-        for k, (uid, _) in list(_CODES.items()):
-            if uid == str(user.pk):
+        for k, (uid, _, why) in list(_CODES.items()):
+            if uid == str(user.pk) and why == purpose:
                 _CODES.pop(k, None)
-        _CODES[digest] = (str(user.pk), time.time() + SIGNIN_SECONDS)
+        _CODES[digest] = (str(user.pk), time.time() + SIGNIN_SECONDS, purpose)
     link = f"{url}{SIGNIN_PATH}?code={code}"
     return {"link": link, "address": url, "qr": birth_qr(link), "until": time.time() + SIGNIN_SECONDS,
             "seconds": SIGNIN_SECONDS, "name": getattr(birth.current(str(user.org_id)), "name", "")}
@@ -1040,7 +1194,7 @@ def take_signin(code: str) -> str:
     """The account a sign-in code was made for, once; "" for a wrong, used or old one."""
     digest = hashlib.sha256(str(code or "").encode()).hexdigest()
     with _LOCK:
-        uid, until = _CODES.pop(digest, ("", 0.0))
+        uid, until, _ = _CODES.pop(digest, ("", 0.0, ""))
     return uid if uid and until > time.time() else ""
 
 

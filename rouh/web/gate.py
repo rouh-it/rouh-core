@@ -119,6 +119,9 @@ OPEN_PREFIXES = ("/a/", "/static/", "/internal/", "/login/reset/", "/login/link/
                  # Rouh passes the one program's pages on (`rouh/onebridge.py`, which lets nothing
                  # else of the program's through without a sign-in).
                  "/one/q/",
+                 # Rouh for Mac's native first run (`rouh/web/setup_api.py`): every call there
+                 # checks the setup code itself, and the relay never lets one through.
+                 "/setup/api/",
                  sharing.ROUTE, "/join/", filelinks.ROUTE, picturelinks.ROUTE)
 
 #: Where a guest may go, past the addresses open to everybody. A guest is an
@@ -136,7 +139,12 @@ def _plain_through_relay(request: HttpRequest) -> str:
 
     if request.is_secure() or request.path.startswith(relay.CHALLENGE_PATH) or not relay.through(request):
         return ""
-    base = relay.address()
+    asked = (request.headers.get("host") or "").split(":")[0].strip().lower()
+    held = relay.read()
+    base = relay.address(held)
+    if base and asked in relay.hostnames(held) and asked != held.get("hostname"):
+        # The owner's own name (step 140-13): sent on to https on the same name.
+        base = base.replace(f"//{held.get('hostname')}", f"//{asked}", 1)
     return base + request.get_full_path() if base else ""
 
 
