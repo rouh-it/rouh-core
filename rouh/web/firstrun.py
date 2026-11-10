@@ -366,7 +366,9 @@ def _not_open(request: HttpRequest, status: int = 200) -> HttpResponse:
 
 
 #: The pages the setup code may send its owner on to, once signed in (``/setup?code=...&next=``).
-AFTER_SIGN_IN = {"/setup/claude"}
+#: Rouh for Mac's "Sign In" for a subscription opens Claude's or Codex's (a ChatGPT plan) page this way
+#: (task 140, step 140-12: a Claude or an OpenAI plan, the person's choice).
+AFTER_SIGN_IN = {"/setup/claude", "/setup/codex"}
 
 
 def _go(where: str) -> HttpResponseRedirect:
@@ -393,7 +395,7 @@ async def setup(request: HttpRequest) -> HttpResponse:
         await alogin(request, person, backend="rouh.accounts.CaseInsensitiveBackend")
         log.info("first run: the owner %s signed in with the setup code from %s", person.username, client_ip(request))
         where = await asyncio.to_thread(next_path, person)
-        # Rouh for Mac's "Sign in to Claude" goes on to Claude's page, once the first run is over.
+        # Rouh for Mac's "Sign In" goes on to Claude's or Codex's page, once the first run is over.
         if where == "/" and request.GET.get("next") in AFTER_SIGN_IN:
             where = request.GET["next"]
         return _go(where)
