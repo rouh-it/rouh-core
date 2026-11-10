@@ -683,8 +683,7 @@ var WHAT = {
   worker: 'A background job',
   subagent: 'A helper inside a job',
   tool: 'One thing being done',
-  self: 'Rouh itself',
-  ring: 'A ring round the orb'
+  self: 'Rouh itself'
 };
 
 function durationWords(seconds) {
@@ -1083,13 +1082,7 @@ function openNodeCard(node) {
   var raw = node.raw || {};
   var title = '', facts = '', more = '';
 
-  if (kind === 'ring') {
-    var ring = RINGS[raw.which] || RINGS.disk;
-    var said = ring.facts(LOAD.last);
-    title = said.title;
-    for (var fi = 0; fi < said.facts.length; fi++) facts += fact(said.facts[fi][0], escapeHtml(said.facts[fi][1]));
-    more = '<p class="node-card-note">' + escapeHtml(ring.about) + '</p>';
-  } else if (kind === 'root') {
+  if (kind === 'root') {
     var m = machineSummary();
     title = m.idle ? 'Idle - nothing is running' : 'Working';
     facts += fact('Background jobs', String(m.jobs));
@@ -1814,24 +1807,16 @@ function diskWords(d) {
 
    The radii are the markup's (`data-r` in index.html); these are the same
    numbers, for finding which ring a pointer is on, and the words each ring
-   says, pointed at in a tip or clicked in a card. */
+   says when it is pointed at. The rings are a picture and a hover, never a
+   button: Petar, 10 November 2026, "while it is a circle, the rings should
+   not be clickable. the entire area of the circle should be dedicated to be
+   clickable for the navigation." */
 var RINGS = {
   disk: {
     r: 47, name: 'Storage',
     words: function (v) { return diskWords(v && v.disk); },
     shade: function (v) { return diskClass(v && v.disk && v.disk.percent_used); },
-    facts: function (v) {
-      var d = v && v.disk, out = [];
-      if (d && d.total_bytes) {
-        out.push(['Used', loadGb(d.used_bytes) + ' GB (' + Math.round(d.percent_used) + '%)']);
-        out.push(['Free', loadGb(d.free_bytes, true) + ' GB']);
-        out.push(['Size', loadGb(d.total_bytes, true) + ' GB']);
-      }
-      return { title: diskWords(d) || 'Storage of this machine', facts: out };
-    },
-    about: 'The outermost ring round the orb is how full this machine’s disk is, filled ' +
-      'clockwise from the top. It is light grey while there is room, amber from 65% used and ' +
-      'red above 80%. It is read once a minute.'
+    scale: 'Light grey below 65% used, amber from 65%, red above 80%.'
   },
   cpu: {
     r: 42, name: 'CPU',
@@ -1840,13 +1825,7 @@ var RINGS = {
       return c === null ? '' : 'CPU of this machine: ' + Math.round(c) + '% busy';
     },
     shade: function (v) { return loadClass(loadShare(v && v.cpu_percent)); },
-    facts: function (v) {
-      var c = loadShare(v && v.cpu_percent);
-      return { title: RINGS.cpu.words(v) || 'CPU of this machine',
-               facts: c === null ? [] : [['Busy', Math.round(c) + '%']] };
-    },
-    about: 'The middle ring round the orb is how busy this machine’s processor is, filled ' +
-      'clockwise from the top. It is green below 50%, amber from 50% and red above 70%.'
+    scale: 'Green below 50%, amber from 50%, red above 70%.'
   },
   ram: {
     r: 37, name: 'Memory',
@@ -1857,17 +1836,7 @@ var RINGS = {
         loadGb(m.used_bytes) + ' of ' + loadGb(m.total_bytes, true) + ' GB';
     },
     shade: function () { return ''; },
-    facts: function (v) {
-      var m = v && v.memory, out = [];
-      if (m && m.total_bytes) {
-        out.push(['Used', loadGb(m.used_bytes) + ' GB (' + Math.round(m.percent_used) + '%)']);
-        out.push(['Size', loadGb(m.total_bytes, true) + ' GB']);
-      }
-      return { title: RINGS.ram.words(v) || 'Memory of this machine', facts: out };
-    },
-    about: 'The innermost ring round the orb is how much of this machine’s memory is in use, ' +
-      'filled clockwise from the top. It is baby blue while there is room, purple from half and ' +
-      'red from three quarters.'
+    scale: 'Baby blue while there is room, purple from half, red from three quarters.'
   }
 };
 
@@ -1899,7 +1868,7 @@ function orbRingTip(key) {
   var col = key === 'ram' ? memColour(LOAD.last.memory.percent_used) : '';
   tip.innerHTML = '<span class="k">' + escapeHtml(ring.name) + ' ring</span><span class="l ' +
     ring.shade(LOAD.last) + '"' + (col ? ' style="color:' + col + '"' : '') + '>' +
-    escapeHtml(words) + '</span><div class="d">Click for what the ring means</div>';
+    escapeHtml(words) + '</span><div class="d">' + escapeHtml(ring.scale) + '</div>';
   tip.hidden = false;
   var s = tipScreen(tip), b = box.getBoundingClientRect(), size = tipSize(tip);
   var y = b.top - size.h - 8;
@@ -3011,11 +2980,9 @@ wireOrbPanel();
   });
   /* The three rings round the corner circle, storage, CPU and memory from
      the outside in, and a mouse can point at each: pointed at, a ring says
-     what it is and its reading, and clicked, it opens its card rather than
-     the menu or the orb. A finger is broader than a ring is wide at this
-     size, so a tap is the circle's as it always was. */
-  var lastKind = '';
-  btn.addEventListener('pointerdown', function (e) { lastKind = e.pointerType; }, true);
+     what it is, its reading and its colours. That is all a ring does. A
+     click or a tap anywhere on the circle, on a ring or not, is the
+     circle's: the menu where it is the menu button, the orb elsewhere. */
   btn.addEventListener('pointermove', function (e) {
     if (e.pointerType !== 'mouse' || flick || ORBX.state !== 'corner') return;
     var key = ringAt(e.clientX, e.clientY);
@@ -3025,13 +2992,6 @@ wireOrbPanel();
   });
   btn.addEventListener('click', function (e) {
     letGo();
-    var key = lastKind === 'mouse' ? ringAt(e.clientX, e.clientY) : '';
-    if (key) {
-      orbTipHide();
-      openNodeCard({ id: 'ring-' + key, kind: 'ring', label: RINGS[key].name, state: 'running',
-                     parent: null, raw: { which: key } });
-      return;
-    }
     if (orbMenuButton()) sbSet(true);
     else orbExpand(true);
   });
