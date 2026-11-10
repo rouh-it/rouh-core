@@ -13,17 +13,22 @@ import os
 import re
 import time
 from pathlib import Path
-from uuid import UUID
 
 from . import codexhome
 
-TEAM_PLANS = {"team", "business", "enterprise", "edu"}
-PERSONAL_PLANS = {"free", "go", "plus", "pro", "max"}
+# The plan names OpenAI gives a shared workspace. Any other plan it names - free, go, plus,
+# pro, prolite and whatever it adds next - is a person's own. Until 10 November 2026 only a
+# fixed list of personal plans was known, so "prolite" was shown as "Unknown", and a gate
+# at the start of every run refused it as "a different workspace than the one chosen".
+# The label is only ever a label: whatever is signed in through Connections is what runs.
+TEAM_PLANS = {"team", "business", "enterprise", "edu", "education", "k12", "gov"}
 
 
 def workspace(plan: str) -> str:
-    plan = plan.lower()
-    return "Team" if plan in TEAM_PLANS else "Personal" if plan in PERSONAL_PLANS else "Unknown"
+    plan = (plan or "").strip().lower()
+    if not plan:
+        return ""
+    return "Team" if plan in TEAM_PLANS or plan.startswith(("enterprise", "edu")) else "Personal"
 
 
 def read(path: Path) -> dict:
@@ -34,36 +39,31 @@ def read(path: Path) -> dict:
         return {}
 
 
-def choice(home: str | None = None) -> dict:
-    return read(Path(codexhome.folder(home)) / "rouh-workspace.json")
+def release(home: str | None = None) -> None:
+    """Forget any workspace held from before, so the account signed in is the one Codex uses.
 
-
-def keep_choice(data: dict) -> None:
-    path = Path(codexhome.folder()) / "rouh-workspace.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".new")
-    tmp.write_text(json.dumps(data) + "\n")
-    tmp.chmod(0o600)
-    tmp.replace(path)
-
-
-def pin(account_id: str) -> None:
-    """Change just the root workspace setting; preserve every other TOML setting."""
-    if account_id:
-        account_id = str(UUID(account_id))
-    path = Path(codexhome.folder()) / "config.toml"
-    text = path.read_text() if path.exists() else ""
+    From 9 to 10 November 2026 Connections kept a chosen workspace beside the sign-in
+    (``rouh-workspace.json``) and could write ``forced_chatgpt_workspace_id`` into Codex's
+    own ``config.toml``, with which Codex itself refuses a login to any other workspace.
+    Both are taken away here; every other setting in the file is kept as it was.
+    """
+    folder = Path(codexhome.folder(home))
+    with contextlib.suppress(OSError):
+        (folder / "rouh-workspace.json").unlink()
+    path = folder / "config.toml"
+    try:
+        text = path.read_text()
+    except OSError:
+        return
     lines = text.splitlines(keepends=True)
-    root = True
+    root, changed = True, False
     for i, line in enumerate(lines):
         if line.lstrip().startswith("["):
             root = False
         if root and re.match(r"\s*forced_chatgpt_workspace_id\s*=", line):
-            lines[i] = ""
-    if account_id:
-        lines.insert(0, f'forced_chatgpt_workspace_id = {json.dumps(account_id)}\n')
-    import tomllib
-    tomllib.loads("".join(lines))
+            lines[i], changed = "", True
+    if not changed:
+        return
     tmp = path.with_suffix(".toml.new")
     tmp.write_text("".join(lines))
     tmp.chmod(0o600)
@@ -189,23 +189,3 @@ async def capacity(provider: str, load) -> dict:
     result = await load()
     _CACHE[provider] = (stamp, time.monotonic(), result)
     return dict(result)
-
-
-def codex_workspace_matches(home: str | None = None) -> bool:
-    chosen = choice(home)
-    if not chosen:
-        return True
-    from .codex_signin import _claims
-    claims = _claims(codexhome.auth_file(home))
-    kind = chosen.get("kind")
-    return (kind == "any" or claims.get("workspace", "").lower() == kind) and (
-        not chosen.get("account_id") or chosen["account_id"] == claims.get("account_id"))
-
-
-def held_workspace() -> str:
-    import tomllib
-    try:
-        config = tomllib.loads((Path(codexhome.folder()) / "config.toml").read_text())
-        return str(config.get("forced_chatgpt_workspace_id") or "")
-    except (OSError, ValueError):
-        return ""

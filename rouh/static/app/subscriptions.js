@@ -33,7 +33,7 @@ function show(provider, s) {
   const body = card.querySelector('.subscription-body');
   const oldCode = /** @type {HTMLInputElement|null} */ (card.querySelector('input[name="code"]'));
   const typed = oldCode ? oldCode.value : '';
-  // Polling must never replace a field while someone is typing or choosing a workspace.
+  // Polling must never replace a field while someone is typing.
   if (card.contains(document.activeElement) && /^(INPUT|SELECT)$/.test(document.activeElement.tagName)) return;
   body.replaceChildren();
   if (!s.reached) {
@@ -47,17 +47,11 @@ function show(provider, s) {
     const facts = el('dl', null, 'subscription-facts');
     fact(facts, 'Account', s.email || 'Email unavailable');
     fact(facts, 'Plan and workspace', [s.plan || (s.on_plan ? 'Plan unavailable' : 'API key'),
-      s.workspace || 'Workspace unavailable', s.workspace_name && s.workspace_name !== s.workspace ? s.workspace_name : ''].filter(Boolean).join(' · '));
+      s.workspace, s.workspace_name && s.workspace_name !== s.workspace ? s.workspace_name : ''].filter(Boolean).join(' · '));
     if (s.account_id) fact(facts, 'Workspace ID', s.account_id);
     body.append(facts);
-  }
-  if (s.workspace_mismatch) {
-    const mismatch = s.workspace_expected_id ? 'This is a different workspace ID than ' + s.workspace_expected_id + '.' :
-      'This is still ' + (s.workspace || 'an unknown workspace') + '. You chose ' + (s.workspace_choice === 'personal' ? 'Personal' : 'Team') + '.';
-    const warning = el('p', mismatch + ' Jobs wait for the chosen workspace. Sign out and sign in with it.', 'subscription-warning');
-    warning.setAttribute('role', 'alert'); body.append(warning);
-  } else if (s.workspace_locked && s.on_plan) {
-    body.append(el('p', 'This workspace is held for future Codex sign-ins.', 'subscription-muted'));
+    // Whatever is signed in here is what jobs use; there is no workspace to choose or wait for.
+    if (s.on_plan) body.append(el('p', 'Jobs use this account. To use another, sign in with it; it replaces this one.', 'subscription-muted'));
   }
   if (s.api_key_chosen) body.append(el('p', 'Jobs are currently billed to the OpenAI API key. Sign in to use your ChatGPT plan.', 'subscription-warning'));
   if (!s.on_plan && provider === 'claude') body.append(el('p', s.proxy ?
@@ -96,23 +90,7 @@ function show(provider, s) {
   });
   signout.disabled = !s.signed_in || waiting; actions.append(signout);
   if (!waiting) {
-    let workspace, account;
-    if (provider === 'codex') {
-      workspace = el('select'); workspace.name = 'workspace';
-      [['personal','Personal'], ['team','Team'], ['any','Any workspace']].forEach(([value, label]) => {
-        const option = el('option', label); option.value = value; workspace.append(option);
-      });
-      workspace.value = s.workspace_choice || 'personal';
-      body.append(field('Workspace to use', workspace));
-      if (s.workspace_supported) {
-        const more = el('details'); const summary = el('summary', 'Hold a specific workspace');
-        account = el('input'); account.name = 'account_id'; account.placeholder = 'Workspace UUID (optional)';
-        more.append(summary, field('Workspace ID', account)); body.append(more);
-      }
-      body.append(el('p', 'On OpenAI’s page, pick Personal, not Team, when using your personal plan.', 'subscription-muted'));
-    }
-    const signin = button('Sign in', () => act(provider, {do: 'start', ...(workspace ?
-      {workspace: workspace.value, account_id: account ? account.value.trim() : ''} : {})}), !s.on_plan);
+    const signin = button('Sign in', () => act(provider, {do: 'start'}), !s.on_plan);
     signin.disabled = !s.installed; actions.append(signin);
   }
   body.append(actions);
@@ -131,8 +109,7 @@ function show(provider, s) {
         catch (_) { const note = el('p', 'Select the code above to copy it.', 'subscription-muted'); note.setAttribute('role','status'); signin.append(note); return; }
         const note = el('p', 'Code copied.', 'subscription-muted'); note.setAttribute('role','status'); signin.append(note);
       }));
-      signin.append(el('p', 'Choose ' + (s.workspace_choice === 'team' ? 'Team' : s.workspace_choice === 'any' ? 'the workspace you want' : 'Personal, not Team') +
-        '. Return here after approving. This code expires in 15 minutes.', 'subscription-muted'));
+      signin.append(el('p', 'On OpenAI’s page, pick the workspace jobs should use. Return here after approving. This code expires in 15 minutes.', 'subscription-muted'));
     } else {
       const code = el('input'); code.name = 'code'; code.autocomplete = 'off'; code.value = typed;
       signin.append(field('Code from Claude', code));

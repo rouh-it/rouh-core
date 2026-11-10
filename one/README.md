@@ -527,8 +527,12 @@ Only the owner gate used by setup can read or change these instance subscription
 POST actions start or cancel the vendor's own sign-in, finish Claude's returned-code flow, or sign out after confirmation.
 
 Codex uses `login --device-auth` and `logout` in the worker's shared Codex home.
-The workspace choice is kept beside its sign-in; a matching approval holds its workspace ID through `forced_chatgpt_workspace_id` on supported versions.
-A mismatched choice is shown on the card and subscription jobs wait until it matches.
+Whatever account is signed in there is the one every run uses, whatever its plan or workspace: there is no workspace to choose and nothing a run waits for.
+A new sign-in replaces the earlier login in every home a run reads it from (`codexhome.spread`, which in the containers is the one `/home/rouh/.codex`), and a sign-out removes it from all of them.
+The card's "Personal" or "Team" is only a label read from the plan OpenAI names (`subscriptions.workspace`): a known shared-workspace plan is Team and any other plan is Personal.
+The only refusal at the start of a subscription run is no ChatGPT login at all, which says to sign in under Anatomy > Connections.
+From 9 to 10 November 2026 a workspace chosen on the card was a gate: a run was refused unless the signed-in workspace matched it, and a plan the code did not know, such as `prolite` (ChatGPT Pro Lite), was labelled "Unknown" and so never matched, whatever was signed in.
+The gate is gone; `subscriptions.release` takes away what it left behind, the chosen workspace file and any `forced_chatgpt_workspace_id` in Codex's `config.toml`, at every sign-in and at the start of every subscription run.
 Capacity comes from Codex's `account/rateLimits/read`, with no model request; Claude's usage endpoint stays inside the worker.
 Unknown windows and credit balances stay unknown, and capacity cached for at most 45 seconds is invalidated when credentials change.
 

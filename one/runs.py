@@ -761,9 +761,14 @@ class Runs(_RunInteraction):
             # told once until Codex is signed in again (codex_signin.py), not once a run.
             self.p.codex_signin.tell_lost()
             raise RunError(codex_signin.needs_line(self.s.public_url))
-        if engine == "codex" and pays == billing.SUBSCRIPTION and not subscriptions.codex_workspace_matches(self._home(run)):
-            raise RunError("Codex is signed in to a different workspace than the one chosen in "
-                           "Anatomy Connections. Sign out and sign in to the chosen workspace there.")
+        if engine == "codex" and pays == billing.SUBSCRIPTION:
+            # Whatever account is signed in through Connections is the one that runs, whatever
+            # its plan or workspace. From 9 to 10 November 2026 a run was refused here when the
+            # signed-in workspace was not the one chosen beside the sign-in, and a "prolite" plan
+            # was never recognised as either, so every subscription run failed. A workspace still
+            # held from then is let go, so Codex itself never refuses the account signed in.
+            with contextlib.suppress(OSError):
+                subscriptions.release(self._home(run))
         where = await self._checkout(run)
         cwd, branch = where["cwd"], where["branch"]
         if not resume:

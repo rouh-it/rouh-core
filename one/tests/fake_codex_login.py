@@ -10,10 +10,12 @@ making a file in Codex's folder, the way OpenAI's page would answer the real one
 
     touch "$CODEX_HOME/fake-approve"     signed in as alex@example.test, on ChatGPT Plus
     touch "$CODEX_HOME/fake-refuse"      Codex's own error for a code that was not approved
+    echo prolite > "$CODEX_HOME/fake-plan"   the plan the next approval signs in on (else plus)
 
 Only the standard library.
 """
 import base64
+import contextlib
 import json
 import os
 import random
@@ -57,8 +59,13 @@ def device():
             return 1
         if os.path.exists(approve):
             os.unlink(approve)
+            plan = "plus"
+            with contextlib.suppress(OSError):
+                with open(os.path.join(home(), "fake-plan")) as fh:
+                    plan = fh.read().strip() or plan
             claims = {"email": "alex@example.test",
-                      "https://api.openai.com/auth": {"chatgpt_plan_type": "plus"}}
+                      "https://api.openai.com/auth": {"chatgpt_plan_type": plan,
+                                                      "chatgpt_account_id": "0b7c1e2a-5d4f-4c3b-9a8e-112233445566"}}
             token = _b64({"alg": "none"}) + "." + _b64(claims) + ".stand-in"
             with open(auth(), "w") as fh:
                 json.dump({"OPENAI_API_KEY": None, "tokens": {"id_token": token, "access_token": "stand-in",

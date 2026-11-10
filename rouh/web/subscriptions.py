@@ -49,7 +49,7 @@ async def endpoint(request, provider):
                 return JsonResponse({"problem": "Choose a sign-in action."}, status=400)
             if do == "logout" and body.get("confirmed") is not True:
                 return JsonResponse({"problem": "Confirm Sign out first."}, status=400)
-            fields = {k: body[k] for k in ("workspace", "account_id", "code") if k in body}
+            fields = {k: body[k] for k in ("code",) if k in body}
             await ask(do, timeout=100 if do == "code" else 60, **fields)
             if provider == "codex" and do == "start":
                 # Signing in with a plan is an explicit choice of subscription billing.
