@@ -1,0 +1,130 @@
+[2mSetting up your Rouh. Ctrl-C stops; rouh setup carries on where you left off.[0m
+
+[1mWhat kind of Rouh do you want?[0m
+You can change this later.
+
+  [1mC  Connected Rouh[0m (recommended)
+     A free rouh.land account with the email you type next, and a service that helps your Rouh with:
+       · Models: which model to use for what, at the best price.
+       · Security: fixes as soon as they are out.
+       · Updates: new versions of Rouh as they come out.
+       · Gene ideas: from other Rouhs, in the Gene Pool.
+       · Your own address: reach your Rouh from your phone, from anywhere, with nothing to open on this server.
+
+  [1mI  Independent Rouh[0m
+     Runs on this server on its own, with no rouh.land account.
+       · What you fill in stays on this server and goes nowhere.
+       · It answers to Rouh, or to a nickname you give it.
+       · No Gene Pool, no address for your phone. You reach it through SSH, your own VPN or your own domain.
+
+[2mEither way your files, chats and every call to a model stay on your Rouh. A Connected Rouh sends rouh.land only its birth and your email, for your account.[0m
+
+Connected or Independent? [C/i] 
+[32m✓[0m Connected Rouh.
+
+[1mAbout you[0m
+Your name and email make your rouh.land account. rouh.land emails you a code next.
+
+First name: Tess
+Last name (only one name? put one letter): Proof
+Email: rouh+t17625a@bigbongo.ai
+Your time zone [Etc/UTC]: Europe/Sofia
+
+A password, for signing in to your Rouh from any browser. It needs:
+  · A letter
+  · A number
+  · A symbol, such as ! ? # or a space
+  · At least 10 characters
+  · Not too like your name or email address
+  · Not a commonly used password
+  · The same twice
+Password (hidden): 
+  [32m✓[0m A letter
+  [32m✓[0m A number
+  [32m✓[0m A symbol, such as ! ? # or a space
+  [32m✓[0m At least 10 characters
+  [32m✓[0m Not too like your name or email address
+  [32m✓[0m Not a commonly used password
+The same password again (hidden): 
+  [32m✓[0m The same twice
+[32m✓[0m You are the owner of this Rouh.
+
+[1mCheck your email[0m
+rouh.land sent a 6-digit code to rouh+t17625a@bigbongo.ai. Type it here. It works for 15 minutes.
+[2mOr: r to resend the code, c to change the email, i to set it up as Independent instead.[0m
+Code: 658050
+[32m✓[0m Your email is confirmed, and your rouh.land account is made.
+
+[1mYour Rouh is born![0m
+  Name:      [38;2;255;154;77m[1mDiligent Eyebright[0m
+  Birthday:  11 November 2026
+  URL:       https://diligent-eyebright.rouh.page
+
+It always answers to Rouh. You can also give it a nickname, which it answers to as well.
+Nickname (optional, Enter for none): 
+
+[1mGive [38;2;255;154;77m[1mDiligent Eyebright[0m[1m a brain[0m
+Choose a company and paste its API key. Rouh's chats use it. One is enough, and it is required.
+
+Anthropic or OpenAI? [A/o] a
+
+  1. Open the Claude Console, at the address below, on any computer or phone, and sign in.
+  2. Add credit under Billing: Rouh pays per use.
+  3. Under API keys, press Create Key, then copy it.
+  4. Paste it here. It is not shown as you paste.
+
+     https://console.anthropic.com/settings/keys
+
+Your Anthropic key (hidden): 
+Checking it with Anthropic: a real question, and its answer…
+[32m✓[0m Anthropic answered: the key works. Rouh's chats use it.
+
+[1mRun Rouh's agents on a plan (strongly recommended)[0m
+Rouh's agents do the long jobs: in Claude Code on a Claude Pro or Max plan, or in Codex on a ChatGPT plan. On a plan they cost a fixed monthly price. Without one, every job is billed by use on your API key, and that costs much more.
+
+  [1m1  Claude plan[0m (Pro or Max): Claude Code runs the agents (recommended)
+  [1m2  ChatGPT plan[0m (Plus or Pro): Codex runs the agents
+  [2m3  Go on without a plan…[0m
+
+Connect a plan now? [1/2/3] 3
+
+[33m![0m [1mRun the agents on your API key?[0m
+Every job the agents do is then billed by use on your API key, and costs much more than a plan. You can connect a plan later: run rouh setup again, or in Rouh, Settings, Models.
+Use my API key for agents? [y/N] y
+[33m![0m The agents run on your API key, billed by use. rouh status reminds you until a plan is connected.
+Choose your own address on rouh.page too, such as yourname.rouh.page? [y/N] n
+
+[1mRouh is ready[0m
+Your Rouh [38;2;255;154;77m[1mDiligent Eyebright[0m is set up. Its agents run on your API key until you connect a plan.
+[2mWaiting for your address to answer from the internet…[0m
+
+Open Rouh, on any computer or phone (it signs you in once, for 10 minutes):
+
+    [1mhttps://diligent-eyebright.rouh.page/phone/in?code=<hidden>[0m
+
+  █████████████████████████████████████████
+  ██ ▄▄▄▄▄ █ █▄▄ ██▀ ▀▄█▄█▄  █▄▄ █ ▄▄▄▄▄ ██
+  ██ █   █ █▀█▄ █▀  ▄▀▄▀▄█ ▄▀ █▄▀█ █   █ ██
+  ██ █▄▄▄█ ██▄ ▄██▄▀▀█▀ ██ █ ▀▄▄ █ █▄▄▄█ ██
+  ██▄▄▄▄▄▄▄█ ▀ █▄█▄█▄▀▄█ █ █ █ ▀ █▄▄▄▄▄▄▄██
+  ██▄▀  █ ▄ ▀▀██▀ ▀▀▄█▄ ▀▀▀██▀  ▀▀ ▀█▄▀ ▄██
+  ██▀  ███▄█▄ ▄ ▄▀▄█▀█ ▀██  ▄▀▀████▄ █ ████
+  ██▀▀ ▄▄▄▄▀  █▄█ ▀ ▀▄█▀▄███ ▄  ▀  ▀ ▀▄  ██
+  ███▀▀  ▄▄▄  ▀█   █ █▀ ▀ ▄█ █ ▀▀ ▄▀ █▄ ▀██
+  ██▄ ▀ ██▄█ ▄▄ ▀▄ ▄▀█▀▄█▀ ▀▀▀█▀███ █ ▄  ██
+  ██▄▄█▄▀▄▄▀▀██ █ ▀▄█▀▀█ █▄█▀█▄ ▀██ ▀▀▄ ▄██
+  ██▀█▀ █▄▄  ▄ ▄▀▄▀▄ ▄▀ █▄▀▀██ █ ▄█▄▄▀██▄██
+  ██▄▀▄███▄▀▄  ██ ▄▀▄▄▀▀▄██ █▀▀▀▄ ▄▄▀▀▀▀▀██
+  ██▄███ ▀▄ ▀▄█▄▀▀▀▀▄▄  ▄█▄▀▀ █▄ ▀ ▀ █▄ ▀██
+  ██▀▄▄█▄▀▄█ ▀█▀█▀▀▀▄▄▄ █ ▄██▄▀▀▀▄  █▄█ ███
+  ████▄▄██▄█▀▀▀▀ ▄▄ ██ ▄   ▀  ██ ▄▄▄ █ ▄▀██
+  ██ ▄▄▄▄▄ █ ▀▄▀ █▀▄█▀▄█▄▄▀█▄█ ▀ █▄█ █▄█▄██
+  ██ █   █ █▀▀███▄  ▀█▄▄ █▀▀██▄█▄  ▄ ▄▀ ▀██
+  ██ █▄▄▄█ █▄ ▄ ▀ █▀▀▄█▀ ▄▄  ▀▀▀   ▀   ████
+  ██▄▄▄▄▄▄▄█▄▄███▄▄▄█▄██▄█▄▄▄▄▄██▄▄█▄▄▄▄▄██
+  █████████████████████████████████████████
+
+[2mYour Rouh's address: https://diligent-eyebright.rouh.page. rouh open makes a new link.[0m
+
+Rouh updates itself every night between 03:00 and 05:00, after a backup.
+Any time: [1mrouh status[0m, and [1mrouh open[0m for a new sign-in link.

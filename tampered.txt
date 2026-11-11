@@ -1,0 +1,25 @@
+Rouh on Linux: one command. It checks this server, installs what is missing, and starts Rouh.
+
+Checking this server
+  ✓ Ubuntu 24.04.5 LTS, x86_64
+  ✓ 4 processor cores
+  ✓ 16 GB of memory
+  ✓ 105 GB of free disk
+  ✓ Python 3.12.3 for Rouh's updater
+  ✓ Port 8420 is free (Rouh's page, on this machine only)
+  ✓ Reaches rouh.land, ghcr.io and github.com
+
+What happens now
+  · Install Docker, from Docker's own packages (get.docker.com), with sudo
+  · Get Rouh's updater (rouh-core) into /home/runner/rouh-core, at the commit rouh.land signed
+  · Install the rouh command, and turn on the nightly update (03:00 to 05:00, after a backup)
+  · Download and start Rouh: about 2 GB, about 5 minutes
+  · Then set your Rouh up, here in this terminal: rouh setup
+  Nothing of Rouh's listens beyond this machine. Uninstall any time: rouh uninstall
+
+Installing what is missing
+
+Checking what rouh.land hands out, before anything is installed
+
+Rouh is not installed: the release rouh.land handed out did not check out (its signature does not match Rouh's release key), so nothing of it was used.
+exit 1

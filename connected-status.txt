@@ -1,0 +1,31 @@
+[ok] Rouh Diligent Eyebright is running.
+  Kind:        Connected Rouh
+  Address:     https://diligent-eyebright.rouh.page
+  Release:     base 1.0.11 (release 20261106170446), signature checked
+  Updates:     every night between 03:00 and 05:00, after a backup; next Thu 2026-11-12 04:21:06 UTC; last: none yet
+  Backups:     1 nightly copies, newest rouh-20261111-082558.dump, 0.7 MB
+  Open ports:  127.0.0.1:8420 (this machine only)
+  AI:          API key: Anthropic works
+  [!] No plan is connected: Rouh's agents run on your API key, billed by use, which costs much more. Connect a Claude or ChatGPT plan with: rouh setup
+
+Rouh's doctor: checking this server
+[ok] 4 processor cores
+[ok] 16 GB of memory
+[ok] 101 GB free disk
+[ok] Python 3.12.3 for the updater
+[ok] Docker answers: 5.7.0
+[ok] Release 20261106170446 (base 1.0.11): its signature checks out
+[ok] Every part of Rouh runs
+[ok] Nightly update on (next Thu 2026-11-12 04:21:06 UTC)
+[ok] Listening: 0.0.0.0:18080, 127.0.0.1:8420, 127.0.0.1:9999, 127.0.0.53%lo:53, 127.0.0.54:53
+[!] Something listens to the outside: 0.0.0.0:18080
+[!] The firewall (ufw) is off. Rouh needs no port open to the outside. If nothing else protects this server: sudo ufw allow OpenSSH && sudo ufw enable
+[ok] The setup code is in no log
+[ok] An AI key works
+[!] No plan is connected: Rouh's agents run on your API key, billed by use, which costs much more. Connect a Claude or ChatGPT plan with: rouh setup
+[ok] https://diligent-eyebright.rouh.page answers from the internet
+[ok] Reaches rouh.land
+[ok] Reaches ghcr.io
+[ok] Reaches github.com
+
+[ok] Nothing to fix.

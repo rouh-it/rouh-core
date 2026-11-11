@@ -1,0 +1,82 @@
+== __run
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+== __run_2
+Rouh on Linux: one command. It checks this server, installs what is missing, and starts Rouh.
+
+Checking this server
+  ✓ Ubuntu 24.04.5 LTS, x86_64
+  ✓ 4 processor cores
+  ✓ 16 GB of memory
+  ✓ 105 GB of free disk
+  ✓ Python 3.12.3 for Rouh's updater
+  ✓ Port 8420 is free (Rouh's page, on this machine only)
+  ✓ Reaches rouh.land, ghcr.io and github.com
+
+What happens now
+  · Install Docker, from Docker's own packages (get.docker.com), with sudo
+  · Get Rouh's updater (rouh-core) into /home/runner/rouh-core, at the commit rouh.land signed
+  · Install the rouh command, and turn on the nightly update (03:00 to 05:00, after a backup)
+  · Download and start Rouh: about 2 GB, about 5 minutes
+  · Then set your Rouh up, here in this terminal: rouh setup
+  Nothing of Rouh's listens beyond this machine. Uninstall any time: rouh uninstall
+
+Installing what is missing
+
+Checking what rouh.land hands out, before anything is installed
+
+Rouh is not installed: the release rouh.land handed out did not check out (its signature does not match Rouh's release key), so nothing of it was used.
+exit 1
+== __run_3
+Rouh on Linux: one command. It checks this server, installs what is missing, and starts Rouh.
+
+Checking this server
+  ✓ Ubuntu 24.04.5 LTS, x86_64
+  ✓ 4 processor cores
+  ✓ 16 GB of memory
+  ✓ 105 GB of free disk
+  ✓ Python 3.12.3 for Rouh's updater
+  ✓ Port 8420 is free (Rouh's page, on this machine only)
+  ✓ Reaches rouh.land, ghcr.io and github.com
+
+What happens now
+  · Install Docker, from Docker's own packages (get.docker.com), with sudo
+  · Get Rouh's updater (rouh-core) into /home/runner/rouh-core, at the commit rouh.land signed
+  · Install the rouh command, and turn on the nightly update (03:00 to 05:00, after a backup)
+  · Download and start Rouh: about 2 GB, about 5 minutes
+  Nothing of Rouh's listens beyond this machine. Uninstall any time: rouh uninstall
+
+Installing what is missing
+
+Checking what rouh.land hands out, before anything is installed
+  ✓ rouh.land's release: signed with Rouh's key
+  ✓ rouh.land's newest tested code: signed with Rouh's key (5e37300e32)
+  Installing Docker (a few minutes)…
+  ✓ Docker version 29.9.3, Compose 5.7.0
+
+Getting Rouh's updater
+  ✓ Rouh's updater at the signed, tested commit 5e37300e32
+Made the settings file /home/runner/rouh/.env.
+
+Starting Rouh (the first time downloads about 2 GB)
+Updating to base 1.0.11, release 20261106170446
+No code yet: nothing to check the new base with.
+The stack in use is the release's own.
+Started base 1.0.11 (release 20261106170446): every part is healthy
+[ok] Nightly update is on: every night between 03:00 and 05:00 (this server's time), after a backup. Next: Thu 2026-11-12 04:21:06 UTC
+[ok] Rouh is running (base 1.0.11, release 20261106170446, signature checked).
+
+Next, set your Rouh up in a terminal on this server:
+
+    rouh setup
+
+ To use docker yourself without sudo, sign out and back in once.
+== __run_7
