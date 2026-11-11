@@ -632,7 +632,11 @@ function paintLabels(mode) {
     if (!el.firstChild) el.innerHTML = '<i></i><b>NEEDS YOU</b>';
     var tip = r.centres[Math.min(SEGMENTS, Math.round(r.reveal * SEGMENTS))];
     DPOS.copy(tip).applyMatrix4(group.matrixWorld).project(camera);
-    el.style.transform = 'translate(' + ((DPOS.x + 1) / 2 * rect.w).toFixed(1) + 'px,' + ((1 - DPOS.y) / 2 * rect.h).toFixed(1) + 'px)';
+    var x = (DPOS.x + 1) / 2 * rect.w, y = (1 - DPOS.y) / 2 * rect.h;
+    // The words go on whichever side of the square has room for them, so
+    // they are never cut off at the edge of a phone.
+    el.classList.toggle('left', mode === 'open' && x > rect.w - 96);
+    el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
     el.hidden = DPOS.z > 1;
     n++;
   });

@@ -780,7 +780,7 @@ var WHAT = {
   root: 'This machine',
   worker: 'A background job',
   subagent: 'A helper inside a job',
-  tool: 'One thing being done',
+  tool: 'A tool call',
   self: 'Rouh itself'
 };
 
@@ -1241,14 +1241,15 @@ function openNodeCard(node) {
     if (loadDisk && loadDisk.total_bytes) {
       facts += fact('Storage', escapeHtml(diskWords(loadDisk).replace('Storage of this machine: ', '')));
     }
-    more = '<p class="node-card-note">This is the core, this machine. Every branch growing out ' +
+    more = '<details class="node-card-about"><summary>What the orb shows</summary>' +
+      '<p class="node-card-note">This is the core, this machine. Every branch growing out ' +
       'of it is a piece of work: a turquoise branch is a background job, a thinner turquoise ' +
       'branch off it is a helper inside that job, a short coloured twig is one tool call - its ' +
       'colour says what kind, and the longer it ran the longer it is - and a branch in the ' +
       'core’s own pale colour is Rouh itself working on an answer. Red and dashed is waiting ' +
       'for you. Finished work fades, holds, turns to a grey trace and goes. ' +
       (m.idle ? 'Nothing is running, so nothing is growing out of it.' : 'Point at a branch to see which.') +
-      '</p>';
+      '</p></details>';
   } else if (kind === 'worker') {
     var rec = (typeof taskRecs !== 'undefined' && taskRecs[node.id]) || {};
     title = rec.title || node.label || 'A background job';
