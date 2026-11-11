@@ -150,8 +150,10 @@ class Stack:
             return r.stdout
 
     # The page's own HTTP and socket, signed in as the owner.
-    def get(self, path: str, *, cookie: bool = True, follow: bool = True) -> tuple[int, str, dict]:
-        req = urllib.request.Request(self.url + path, headers={"Cookie": self.cookie} if cookie and self.cookie else {})
+    def get(self, path: str, *, cookie: bool = True, follow: bool = True,
+            headers: dict | None = None) -> tuple[int, str, dict]:
+        req = urllib.request.Request(self.url + path, headers={
+            **({"Cookie": self.cookie} if cookie and self.cookie else {}), **(headers or {})})
         opener = urllib.request.build_opener() if follow else urllib.request.build_opener(_NoRedirect())
         try:
             with opener.open(req, timeout=30) as r:

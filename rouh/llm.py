@@ -331,7 +331,7 @@ async def ask_model(model: str, effort: str, *, system: str = "", messages, max_
 async def ask(use: str, *, messages, max_tokens: int, system: str = "", who=None,
               org_id: str | None = None, cfg=None, purpose: str | None = None,
               session_id: str = "", subject: str = "", read_only: bool = False,
-              timeout: float | None = None, on_text=None) -> Answer:
+              timeout: float | None = None, on_text=None, required_tier: str = "") -> Answer:
     """Ask the model the Models page has for `use` one question, and give back its answer.
 
     `messages` is a string (one question) or messages in Anthropic's shape, text
@@ -347,6 +347,11 @@ async def ask(use: str, *, messages, max_tokens: int, system: str = "", who=None
     cfg = cfg or _config
     org = org_id or (str(getattr(who, "org_id", "") or "") or None)
     pair = await asyncio.to_thread(modeldefaults.use_pair, use, org, cfg)
+    if required_tier:
+        from . import modelstandard
+
+        if pair.model not in modelstandard.tier_pick(required_tier):
+            raise Cannot("needs a frontier model")
     if not pair.model or pair.model == modeldefaults.OFF:
         raise Cannot(f"{modeldefaults.BY_ID[use].name} is off")
     if pair.model == modeldefaults.NONE:

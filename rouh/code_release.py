@@ -1,9 +1,10 @@
-"""The Creator Rouh's releases of Rouh's code: the pointer every other Rouh updates itself to.
+"""Released changes of shared rouh-it/rouh-core main, after the early-test Rouhs' day with them.
 
-Task 140, step 140-18 (11 November 2026). A release is not every commit of main. It is a commit
-that has run on the Creator Rouh - the maker's own, where Rouh's code is made and which pushes
-each checked change to rouh-core's main (guard/rouh_guard/upstream.py) - for at least a day, with
-nothing put back and its checks passed. This module decides that, by itself, and moves rouh.land's
+Task 140, steps 140-18 and 140-19 (11 November 2026). The source is shared main, including changes
+published by collaborators. A release boundary has passed master's checks and has run on an
+authorised early-test Rouh for at least a day with nothing put back. Initially there is one
+early tester; authorised collaborators can join without changing the source branch. Local private
+commits are never released: candidate() requires membership on shared main. This module moves rouh.land's
 pointer (``POST /mac/code/release``) forward, at most once a day; nobody approves each release
 (Petar, 11 November 2026). Every Rouh reads the pointer (``rouh/code_update.py``).
 
@@ -17,6 +18,8 @@ How a release is chosen (``candidate``):
   contains it: nothing put it back, by the doctor or by a press of Put back. The looks must
   cover the day, with no gap longer than ``GAP``: a day this Rouh was not running is not a day it
   ran.
+* **Master checked.** Tests on main at GitHub succeeded for this exact commit, including both
+  container platforms. An unavailable or unsuccessful result keeps it waiting.
 * **Public.** It is on rouh-core's main, as the protected core keeps it fetched into /code
   (``refs/upstream/heads/main``), so every Rouh can download it.
 * **Forward only.** It contains the release before it.
@@ -37,11 +40,13 @@ import os
 import re
 import subprocess
 import time
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 log = logging.getLogger("rouh.code_release")
 
-#: How long a change must have run on the Creator Rouh before it is a release.
+#: How long a checked change on shared main must run on an authorised early-test Rouh.
 LIVE_FOR = float(os.environ.get("ROUH_RELEASE_LIVE_FOR", str(24 * 3600)))
 #: The longest gap between two looks that still counts as running throughout.
 GAP = float(os.environ.get("ROUH_RELEASE_GAP", str(3 * 3600)))
@@ -134,6 +139,28 @@ def ran_throughout(commit: str, since: float, now: float, looks: list[dict]) -> 
 # --- the choice ----------------------------------------------------------------------------------
 
 
+def master_checked(commit: str) -> tuple[bool, str]:
+    """The exact source boundary passed all of master's checks, not just a tester's checks.
+
+    Tests on main publishes only after its quick, protected-core and two-platform stack jobs
+    pass. A later green commit does not bless an earlier broken one. This public read needs no
+    person's GitHub credential; a failed read keeps the release waiting.
+    """
+    query = urllib.parse.urlencode({"head_sha": commit, "status": "success", "per_page": 10})
+    url = "https://api.github.com/repos/rouh-it/rouh-core/actions/workflows/main-tests.yml/runs?" + query
+    try:
+        req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "Rouh releases"})
+        with urllib.request.urlopen(req, timeout=30) as response:
+            doc = json.loads(response.read(2 * 1024 * 1024))
+        if any(r.get("head_sha") == commit and r.get("head_branch") == "main"
+               and r.get("event") in ("push", "workflow_dispatch") and r.get("conclusion") == "success"
+               for r in doc.get("workflow_runs", [])):
+            return True, ""
+        return False, f"{commit[:12]} has not passed master's Tests on main"
+    except Exception as exc:
+        return False, "master's check result could not be read (" + type(exc).__name__ + ")"
+
+
 def candidate(points: list[dict], published: str, now: float | None = None,
               looks: list[dict] | None = None) -> tuple[dict | None, str]:
     """(the undo point to release, "") or (None, why there is none)."""
@@ -160,6 +187,10 @@ def candidate(points: list[dict], published: str, now: float | None = None,
         said = ran_throughout(commit, float(p["at"]), now, looks)
         if said:
             why = f"{commit[:12]} was {said}"
+            continue
+        passed, said = master_checked(commit)
+        if not passed:
+            why = said
             continue
         return p, ""
     return None, why

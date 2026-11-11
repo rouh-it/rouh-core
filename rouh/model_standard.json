@@ -1365,6 +1365,10 @@
           "xai"
         ]
       }
+    },
+    "code_adapt": {
+      "tier": "smart",
+      "why": "Adapting this Rouh, migrations and security require a frontier model. A weaker selection waits."
     }
   },
   "double_calls": {

@@ -228,7 +228,7 @@ services:
         condition: service_completed_successfully
       checkdb:
         condition: service_healthy
-    networks: [workers, guard-check]
+    networks: [workers, guard-check, db]
     environment:
       HTTPS_PROXY: http://keyproxy:8080
       https_proxy: http://keyproxy:8080
@@ -237,6 +237,11 @@ services:
       ROUH_GUARD_STATE: /guard
       ROUH_GUARD_SIGNAL: /run/guard-signal
       ROUH_GUARD_CHECK_DB: checkdb
+      # The protected migration gate alone uses this connection. Never passed to ordinary checks.
+      ROUH_GUARD_DB_HOST: postgres
+      ROUH_GUARD_DB_NAME: rouh
+      ROUH_GUARD_DB_USER: rouh
+      ROUH_GUARD_DB_PASSWORD: ${POSTGRES_PASSWORD:?the settings file must set POSTGRES_PASSWORD}
       ROUH_GUARD_HEALTH: http://core:8021/healthz
       # The Creator Rouh only (task 161, guard/rouh_guard/upstream.py): where a checked change is
       # pushed once it has run healthy. Blank in every Rouh instance, and then nothing is pushed.

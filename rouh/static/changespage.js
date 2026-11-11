@@ -149,6 +149,7 @@
     if (d.makes_releases) return 'This Rouh makes Rouh’s releases.';
     if (d.busy) return 'Updating Rouh…';
     if (d.pending) return 'Checking the update before it goes live…';
+    if (d.ledger && d.ledger.waiting) return d.ledger.waiting + ' change' + (d.ledger.waiting === 1 ? ' is' : 's are') + ' waiting.';
     if (!d.newest) return d.on_its_own ? 'This Rouh is on its own, so it does not look for releases by itself.'
       : 'The newest release of Rouh is not known yet.';
     if (d.up_to_date) return 'This Rouh is up to date.';
@@ -179,6 +180,33 @@
     if (d.makes_releases && d.publishing) rows.push(['Releases', d.publishing.said || 'None published from here yet.']);
     rows.forEach(function (row) { dl.appendChild(el('dt', '', row[0])); dl.appendChild(el('dd', '', row[1])); });
     if (rows.length) s.appendChild(dl);
+    s.appendChild(el('p', 'ch-sub', 'Changes come from Rouh’s shared main branch, after checks and a day on the early-test Rouhs.'));
+
+    var ledger = d.ledger;
+    if (ledger && ledger.changes && ledger.changes.length) {
+      var counts = ledger.counts || {};
+      s.appendChild(el('p', 'cu-sub-h', (counts.copied || 0) + ' copied exactly · ' +
+        (counts.adapted || 0) + ' adapted · ' + (ledger.waiting || 0) + ' waiting'));
+      var record = el('details', 'brown-toggle');
+      record.open = !!U.ledgerOpen;
+      record.addEventListener('toggle', function () { if (record.isConnected) U.ledgerOpen = record.open; });
+      record.appendChild(el('summary', '', 'Every change since this Rouh was installed'));
+      var body = el('div', 'brown-toggle-body');
+      var list = el('ol', 'hb-list ch-list');
+      ledger.changes.forEach(function (change) {
+        var item = el('li', 'hb-beat ch-row');
+        item.appendChild(el('div', 'ch-why', change.purpose || short(change.master)));
+        item.appendChild(el('div', 'ch-sub', (change.urgent && change.status !== 'copied' && change.status !== 'adapted'
+          ? 'Urgent security update · ' : '') + change.status_label));
+        if (change.reason) item.appendChild(el('p', '', change.reason));
+        list.appendChild(item);
+      });
+      body.appendChild(list);
+      record.appendChild(body);
+      s.appendChild(record);
+    } else {
+      s.appendChild(el('p', 'ch-sub', 'The record of copied, adapted and waiting changes begins with the first update.'));
+    }
 
     if (d.whats_new && d.whats_new.length && !d.up_to_date) {
       s.appendChild(el('p', 'cu-sub-h', 'What is new'));
@@ -246,13 +274,13 @@
       lp.appendChild(document.createTextNode(lastLine(last)));
       s.appendChild(lp);
     }
-    s.appendChild(el('p', 'settings-help', 'Only Rouh’s code changes. Your rules, memory, mail, people and ' +
-      'settings stay as they are, and your own changes are kept on top. Each update is checked first and ' +
-      'becomes an undo point below.'));
+    s.appendChild(el('p', 'settings-help', 'Each change is fitted to this Rouh and checked before it becomes an ' +
+      'undo point. Database changes are rehearsed on a copy first, with a full backup and checks that existing memory is kept.'));
     page.appendChild(s);
   }
 
   function lastLine(last) {
+    if (Object.prototype.hasOwnProperty.call(last, 'waiting')) return last.said || 'The record above shows what came in and what is waiting.';
     if (!last.ok) return 'did not update to ' + (last.label || 'the newest release') + ': ' + (last.said || '');
     var t = 'updated to ' + (last.label || 'the newest release') + '.';
     (last.kept || []).forEach(function (k) {
