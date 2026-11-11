@@ -8,6 +8,7 @@ executes the proposed proof and owns the database rehearsal and real migration.
 from __future__ import annotations
 
 import asyncio
+import ast
 import contextlib
 import hashlib
 import json
@@ -152,6 +153,47 @@ def _blob(repo: Path, revision: str, file: str) -> str:
     return r.stdout.strip().split("\t", 1)[0]
 
 
+def _module(path: str) -> str:
+    p = Path(path)
+    name = str(p.with_suffix(""))
+    if p.stem == "__init__":
+        name = str(p.parent)
+    return name.replace("/", ".")
+
+
+def imports_of(row: dict) -> set[str]:
+    """Direct module dependencies are checked even when two purposes touch different files."""
+    from importlib.util import resolve_name
+
+    found: set[str] = set()
+    for path in row["files"]:
+        if Path(path).suffix not in (".py", ".js", ".ts"):
+            continue
+        source_text = u._git("show", row["master"] + ":" + path, cwd=master_repo()).stdout
+        if path.endswith(".py"):
+            try:
+                tree = ast.parse(source_text)
+            except SyntaxError:
+                continue  # The protected code checks still refuse a malformed module.
+            package = str(Path(path).parent).replace("/", ".")
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    found.update(a.name for a in node.names)
+                elif isinstance(node, ast.ImportFrom):
+                    name = node.module or ""
+                    if node.level:
+                        with contextlib.suppress(ImportError, ValueError):
+                            name = resolve_name("." * node.level + name, package)
+                    if name:
+                        found.add(name)
+                        found.update(name + "." + a.name for a in node.names)
+        else:
+            for relative in re.findall(r"(?:from\s*|import\s*|require\s*\(\s*)['\"]([^'\"]+)['\"]", source_text):
+                if relative.startswith("."):
+                    found.add(_module(os.path.normpath(os.path.join(os.path.dirname(path), relative))))
+    return found
+
+
 def exact(row: dict, work: Path) -> bool:
     return all(_blob(master_repo(), row["parent"], f) == _blob(work, "HEAD", f) for f in row["files"])
 
@@ -282,8 +324,10 @@ def adapt(row: dict, work: Path, feedback: str = "") -> dict:
 
 
 def dependencies(row: dict, previous: list[dict]) -> list[dict]:
+    imports = imports_of(row) if any(p.get("status") not in TAKEN for p in previous) else set()
     return [p for p in previous if p.get("status") not in TAKEN and
-            (set(row["files"]) & set(p["files"]) or any(p["master"].startswith(d) for d in row["depends_on"]))]
+            (set(row["files"]) & set(p["files"]) or imports.intersection(_module(f) for f in p["files"])
+             or any(p["master"].startswith(d) for d in row["depends_on"]))]
 
 
 def _waiting(doc: dict, row: dict, reason: str, status: str = "waiting") -> None:

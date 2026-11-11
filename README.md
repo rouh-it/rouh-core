@@ -1577,7 +1577,7 @@ The record makes drift visible; a waiting change never makes this Rouh appear up
   Tests may be fitted to local code, never weakened.
 - Every accepted change goes through the protected core as its own undo point, with code backups; a restart resumes the remaining changes from the durable ledger.
 - A change that truly cannot be fitted stays not taken yet with its reason.
-  Later changes touching its files, and changes naming it with a `Depends-on:` commit trailer, wait for it.
+  Later changes touching its files, directly importing its modules, or naming it with a `Depends-on:` commit trailer wait for it.
   Unrelated changes can continue.
   Waiting changes are retried on the next update; urgent security work is retried in half an hour, using the already downloaded release.
   General gives one plain note per outcome, including what was copied, adapted and waiting, without asking a person to solve implementation details.
