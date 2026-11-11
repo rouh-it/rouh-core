@@ -140,7 +140,7 @@ jobs:
       - name: The stack check in the proof guard image refuses 80 and 443 with no domain
         run: |
           mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"
-          docker run --rm --network none --entrypoint python "$GUARD" -I /opt/rouh-guard/policy/fixtures/check.py 2>&1 | tail -8 | tee "$OUT/guard-check.txt"
+          docker run --rm --network none -v "$GITHUB_WORKSPACE/guard/policy/fixtures:/opt/rouh-guard/policy/fixtures:ro" --entrypoint python "$GUARD" -I /opt/rouh-guard/policy/fixtures/check.py 2>&1 | tail -8 | tee "$OUT/guard-check.txt"
       - name: Keep my data, then Bring back your Rouh, identical
         run: |
           mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"
