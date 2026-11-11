@@ -135,7 +135,7 @@ def scan(release: dict, b: dict, *, report: bool = True) -> dict:
         code_changed = any(Path(f).suffix in (".py", ".js", ".html", ".sh", ".toml", ".yml", ".yaml",
                                                ".json", ".ini", ".cfg", ".sql", ".env") or Path(f).name == ".env"
                            for f in all_files)
-        security = bool((code_changed and SENSITIVE.search(message + "\n" + diff)) or
+        security = bool(SENSITIVE.search(message) or (code_changed and SENSITIVE.search(diff)) or
                         any(f.startswith(SECURITY_PATHS) for f in all_files))
         purpose = message.splitlines()[0]
         already_here = bool(doc.get("history_first_point")) and u._git(
