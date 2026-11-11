@@ -111,13 +111,13 @@ jobs:
           python3 proof-176-24/open_check.py "$OUT/independent.typescript" independent "$OUT" 2>&1 | tee "$OUT/open-independent.txt"
           python3 - "$OUT/standin.log" <<'PY' | tee "$OUT/greeting-in-history.txt"
           import json, sys
+          body = {}
           for line in open(sys.argv[1]):
               if line.startswith("POST /v1/messages") and "Gmail please" in line:
-                  body = json.loads(line.split(" ", 2)[2]) if line.count("{") else {}
+                  body = json.loads(line.split(" ", 2)[2])
           print("the turn that answered 'Gmail please' was sent", len(body.get("messages", [])), "messages:")
           for m in body.get("messages", []):
-              c = m["content"] if isinstance(m["content"], str) else " ".join(b.get("text", "") for b in m["content"] if isinstance(b, dict))
-              print(" ", m["role"], "|", c[:160].replace("\n", " "))
+              print(" ", m["role"], "|", m["text"][:160].replace("\n", " "))
           PY
       - name: Every rouh command
         env:
