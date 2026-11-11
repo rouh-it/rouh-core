@@ -80,8 +80,11 @@ def _rewritten(name: str) -> bool:
     # The ONNX runtime locates its own .wasm and .mjs through the paths vad.js
     # gives it, not through a string in its source, and rewriting names inside
     # its minified bundle would only corrupt it.
+    # Nor three.js (`rouh/static/three/`), which names no file of ours and is
+    # served exactly as it was published, bar the imports its README describes.
     return (os.path.splitext(name)[1] in REWRITTEN_KINDS
-            and not os.path.basename(name).startswith("ort"))
+            and not os.path.basename(name).startswith("ort")
+            and not name.startswith("three/"))
 
 
 #: One pass over a script for every name it might mention, in each of the
@@ -184,7 +187,28 @@ def import_map() -> str:
     import json
 
     imports = {name: address(name) for name in _modules()}
+    imports.update(_three())
     return json.dumps({"imports": imports}, indent=1).replace("</", "<\\/")
+
+
+#: The folder three.js is vendored in, for the 3D orb (`rouh/static/three/README.md`).
+THREE = "three/"
+
+
+def _three() -> dict[str, str]:
+    """three.js by the names its own add-ons import it by: ``three`` for the
+    library and ``three/addons/...`` for each add-on, each at its own hashed
+    address. Only the 3D orb asks for them, and only once it knows this
+    browser can draw in WebGL, so none of them is preloaded."""
+    out = {}
+    for name in sorted(FILES):
+        if not name.startswith(THREE) or not name.endswith(".js"):
+            continue
+        if name == THREE + "three.module.min.js":
+            out["three"] = address(name)
+        elif name.startswith(THREE + "addons/"):
+            out[name] = address(name)
+    return out
 
 
 def fingerprint(text: str) -> str:
