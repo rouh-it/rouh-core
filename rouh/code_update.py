@@ -17,32 +17,14 @@ brought newer code to it after its first start. This is that, for whoever wants 
 A Rouh on its own (Independent, 140-13) asks nobody anything by itself, so it never rides along and
 never looks for a release until its person presses a button here.
 
-**A release** is not every commit of main: it is a commit that ran on the Creator Rouh for at least
-a day with nothing put back and its checks passed (``rouh/code_release.py`` moves the pointer once a
-day). rouh.land serves it at ``/mac/code/release.json``, publicly, as Rouh's code is free.
+**A release** is a checked boundary on the shared main branch of rouh-it/rouh-core, after its
+changes have run for a day on the early-test Rouhs. Collaborators publish on that branch too.
 
-**An update**, the same for a press, a ride along and the tool (``_apply``):
-
-1. The release's tarball, from the public rouh-core on GitHub, must say it is that very commit (as
-   a first start's ``rouh-code-install`` checks).
-2. In a clone of /code (``code-update/work`` in the data folder), the release's files are committed
-   on top of the release this Rouh came from: the first commit a first start made ("as installed",
-   with ``.git/rouh-installed.json``), or the release commit the last update made (a commit with a
-   ``Rouh-release:`` line). So that commit holds exactly what a fresh install of the release would.
-   The release tools a Rouh never runs are left out, as a first start leaves them out (``LEFT_OUT``).
-3. The Rouh's own changes since - its genes, its own commits - are merged on top (three ways, with
-   git). Where a change of its own and the release changed the same lines, its own file stays as it
-   was: neither overwritten nor dropped, and the gene is named in plain words afterwards.
-4. Libraries the release needs that the base lacks go into /extra first (the protected core's
-   ``rouh-code-install --extra-only``), held to the base's pins.
-5. A backup: the whole of /code as a git bundle, and the newest nightly copy of the database kept
-   aside (the stack's backup part makes it; the core has no PostgreSQL client of its own). A release
-   that changes the database is not taken while that copy is more than a day old.
-6. The merged commit is handed to the protected core (``propose``), as a run's change is: checked,
-   kept as an undo point, then live. A failed check changes nothing.
-
-Only code moves. Rules, memory, mail, people and settings are in the database and the data folder,
-and nothing here touches them (shared rules keep coming through rules/defaults.json).
+**An update** takes each released change in order (``code_evolution.py``). Untouched files are
+copied exactly without model spend. A frontier model rebuilds any change whose files differ,
+and proves its purpose against this Rouh. Database and security changes always need frontier
+checks, a protected rehearsal or a failing-before/passing-after security proof, respectively.
+Each accepted change is a protected undo point. Waiting changes and dependants stay in the ledger.
 
 **After the restart.** A change that goes live starts Rouh again, which cuts off whatever started it,
 so the update is written down first (``state.json``, ``pending``) and the next start reads what the
@@ -58,6 +40,7 @@ import asyncio
 import contextlib
 import datetime as dt
 import fcntl
+import hashlib
 import io
 import json
 import logging
@@ -238,11 +221,13 @@ def base(code: Path | None = None) -> dict:
 
 
 def _own_commits(code: Path, local: str) -> int:
-    r = _git("rev-list", "--count", "--no-merges", f"{local}..HEAD", cwd=code)
-    try:
-        return int(r.stdout.strip() or 0)
-    except ValueError:
-        return 0
+    from . import code_evolution
+
+    r = _git("rev-list", "--no-merges", "--invert-grep", "--grep=^Rouh-master-change:",
+             "--grep=^Rouh-release:", f"{local}..HEAD", cwd=code)
+    master = {row["master"] for row in code_evolution.ledger().get("changes", [])
+              if row.get("status") in code_evolution.TAKEN and row.get("local") == row["master"]}
+    return len(set(r.stdout.split()) - master) if r.returncode == 0 else 0
 
 
 # --- the release, from rouh.land ---------------------------------------------------------------
@@ -341,11 +326,16 @@ def public(who, *, look: bool = False) -> dict:
         raise Refused("Sign in first.")
     s = state()
     b = base()
+    from . import code_evolution
+
+    evolution = code_evolution.shown()
     own = on_its_own()
     out = {"mode": mode(), "modes": MODES, "admin": bool(getattr(who, "is_admin", False)), "on_its_own": own,
-           "guard": _guard(), "how": b.get("how"), "busy": s.get("busy") or None, "pending": s.get("pending") or None,
+           "guard": _guard(), "how": b.get("how"),
+           "busy": s.get("busy") or ({"step": "working through the released changes"} if s.get("continue_update") else None),
+           "pending": s.get("pending") or None,
            "last": s.get("last") or None, "checked_at": s.get("checked_at"), "check_error": s.get("check_error") or "",
-           "makes_releases": False, "ride": s.get("ride") or None}
+           "makes_releases": False, "ride": s.get("ride") or None, "ledger": evolution}
     if b.get("how") == "history" and makes_releases():
         out["makes_releases"] = True
         from . import code_release
@@ -359,18 +349,28 @@ def public(who, *, look: bool = False) -> dict:
             out["check_error"] = str(exc)
     else:
         rel = s.get("release") or {}
-    here = b.get("release") or ""
+    if rel:
+        try:
+            code_evolution.observe(rel, b)
+        except Refused as exc:
+            out["check_error"] = str(exc)
+        evolution = code_evolution.shown()
+        out["ledger"] = evolution
+    here = evolution.get("through") or b.get("release") or ""
+    own_base = b.get("local") or evolution.get("installed")
     out["current"] = {"commit": here, "label": label(here, rel) if here else "",
-                      "own_commits": _own_commits(code_dir(), b["local"]) if b.get("local") else 0}
+                      "own_commits": _own_commits(code_dir(), own_base) if own_base else 0}
     if rel:
         out["newest"] = {"commit": rel["commit"], "label": label(rel["commit"], rel),
                          "released_at": rel.get("released_at"), "live_since": rel.get("live_since")}
-        if b.get("how") == "history":
+        if evolution.get("installed"):
+            out["up_to_date"] = here == rel["commit"] and not evolution["waiting"]
+        elif b.get("how") == "history":
             has = _git("cat-file", "-e", f"{rel['commit']}^{{commit}}", cwd=code_dir()).returncode == 0
             out["up_to_date"] = has and _git("merge-base", "--is-ancestor", rel["commit"], "HEAD",
                                                cwd=code_dir()).returncode == 0
         else:
-            out["up_to_date"] = here == rel["commit"]
+            out["up_to_date"] = here == rel["commit"] and not evolution["waiting"]
         out["whats_new"] = [] if out["up_to_date"] else whats_new(rel, here)
     out["why_not"] = why_not(b, rel, s)
     return out
@@ -412,17 +412,21 @@ def why_not(b: dict, rel: dict, s: dict | None = None) -> str:
         return "An update is already on its way."
     if s.get("pending"):
         return "The last update is still with the protected core."
+    if s.get("continue_update"):
+        return "The update is working through the released changes."
     if not _guard():
         return ("This Rouh has no protected core beside it: it runs on a server, where its code is "
                 "updated by land.sh.")
-    if b.get("how") == "history":
-        return ("This Rouh's code is a whole copy of Rouh's history (it makes Rouh's releases, or runs from "
-                "a checkout), so it is updated with git, not here.")
-    if b.get("how") != "install" and b.get("how") != "update":
+    from . import code_evolution
+
+    if b.get("how") == "history" and not code_evolution.ledger().get("installed"):
+        return "This Rouh needs its protected core's recorded starting version before it can take master changes."
+    if b.get("how") not in ("install", "update", "history"):
         return "This Rouh's code does not say which release it came from, so it cannot be updated this way."
     if not rel:
         return "The newest release is not known yet."
-    if rel.get("commit") == b.get("release"):
+    progress = code_evolution.shown()
+    if rel.get("commit") == (progress.get("through") or b.get("release")) and not progress["waiting"]:
         return "This Rouh already has the newest release."
     return ""
 
@@ -476,13 +480,17 @@ def _step(text: str) -> None:
 
 def _fail(rel: dict, by: str, said: str) -> None:
     log.warning("update to %s did not happen: %s", str(rel.get("commit"))[:12], said)
-    _change(busy=None, pending=None,
+    ident = "fail-" + hashlib.sha256((str(rel.get("commit")) + said).encode()).hexdigest()[:20]
+    previous = state().get("last") or {}
+    _change(busy=None, pending=None, continue_update=None,
+            retry_release=rel, retry_at=time.time() + 1800,
             last={"ok": False, "at": time.time(), "release": rel.get("commit"), "label": label(rel.get("commit", ""), rel),
-                  "said": said, "by": by, "kept": [], "id": f"fail-{int(time.time())}", "told": False})
+                  "said": said, "by": by, "kept": [], "id": ident, "evolution_failure": True,
+                  "told": previous.get("id") == ident and previous.get("told", False)})
 
 
 def _apply(rel: dict, by: str) -> None:
-    """The whole update (the module's steps 1-6). Never raises: an outcome is always written."""
+    """One pass through the released changes. An outcome is always written."""
     work = folder() / "work"
     try:
         folder().mkdir(parents=True, exist_ok=True)
@@ -508,110 +516,9 @@ def _apply(rel: dict, by: str) -> None:
 
 
 def _apply_locked(rel: dict, by: str, work: Path) -> None:
-    code = code_dir()
-    commit = rel["commit"]
-    b = base(code)
-    reason = why_not(b, rel, {})
-    if reason:
-        raise Refused(reason)
-    if not _git("status", "--porcelain", "--untracked-files=normal", cwd=code).stdout.strip() == "":
-        raise Refused("this Rouh's code has work in it that is not committed.")
+    from . import code_evolution
 
-    _step("downloading the release")
-    data = _download(tarball_url(commit))
-
-    _step("laying the release over the one this Rouh came from")
-    if work.exists():
-        shutil.rmtree(work)
-    work.parent.mkdir(parents=True, exist_ok=True)
-    _git("clone", "-q", "--no-hardlinks", str(code), str(work), cwd=work.parent, check=True)
-    head = _out("rev-parse", "HEAD", cwd=work)
-    branch = _out("rev-parse", "--abbrev-ref", "HEAD", cwd=work)
-    _git("checkout", "-q", "-b", "rouh-release", b["local"], cwd=work, check=True)
-    for p in work.iterdir():
-        if p.name != ".git":
-            shutil.rmtree(p) if p.is_dir() and not p.is_symlink() else p.unlink()
-    _unpack(data, work, commit)
-    if not (work / "manage.py").is_file() or not (work / "rouh").is_dir():
-        raise Refused("the download holds no Rouh code.")
-    for rel_path in LEFT_OUT:
-        if _git("cat-file", "-e", f"{b['local']}:{rel_path}", cwd=work).returncode == 0:
-            continue
-        p = work / rel_path
-        if p.is_dir():
-            shutil.rmtree(p)
-        elif p.exists():
-            p.unlink()
-    _git("add", "-A", cwd=work, check=True)
-    day = _day(rel.get("released_at") or "") or "today"
-    _git("commit", "-q", "--allow-empty", "-m", f"Rouh {commit[:12]}, the release of {day}, as released",
-         "-m", f"Commit {commit} of rouh-core's main, a release of Rouh's code (rouh.land, /mac/code/release.json), "
-               "exactly as a fresh install of it would have it. This Rouh's own changes are merged on top of it.",
-         "-m", f"{TRAILER}: {commit}", cwd=work, check=True)
-    local_release = _out("rev-parse", "HEAD", cwd=work)
-    changed = _out("diff", "--name-only", b["local"], local_release, cwd=work).splitlines()
-
-    _git("checkout", "-q", branch, cwd=work, check=True)
-    kept: list[dict] = []
-    own = _own_commits(work, b["local"])
-    if head == b["local"]:
-        merged = local_release
-    else:
-        _step("keeping this Rouh's own changes")
-        r = _git("merge", "--no-ff", "--no-commit", "rouh-release", cwd=work)
-        clashes = [f for f in _out("diff", "--name-only", "--diff-filter=U", cwd=work).splitlines() if f]
-        if r.returncode and not clashes:
-            raise Refused("its own changes could not be laid over the release: "
-                          + (r.stderr or r.stdout).strip()[-300:])
-        for f in clashes:
-            ours = _git("cat-file", "-e", f":2:{f}", cwd=work).returncode == 0
-            if ours:
-                _git("checkout", "-q", "--ours", "--", f, cwd=work, check=True)
-                _git("add", "--", f, cwd=work, check=True)
-            else:
-                _git("rm", "-q", "--", f, cwd=work, check=True)
-            kept.append({"file": f, "genes": _genes_of(work, b["local"], head, f)})
-        message = [f"Rouh {commit[:12]}, the release of {day}, with this Rouh's own changes kept",
-                   f"The release's files merged with this Rouh's own {own} change{'s' if own != 1 else ''}."]
-        if kept:
-            message.append("Kept as they were, because the release changed the same lines:\n"
-                           + "\n".join(f"- {k['file']} ({', '.join(k['genes'])})" for k in kept))
-        _git("commit", "-q", "--no-edit", "-m", message[0], "-m", "\n\n".join(message[1:]), cwd=work, check=True)
-        merged = _out("rev-parse", "HEAD", cwd=work)
-
-    libs = [f for f in changed if f in LIBRARIES]
-    if libs:
-        _step("adding the libraries the release needs")
-        _libraries(work)
-
-    _step("saving a copy of the code and the database")
-    backup = _backup(code, any("/migrations/" in f for f in changed))
-
-    _step("handing it to the protected core")
-    name = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
-    _git("fetch", "-q", str(work), f"+{merged}:refs/rouh/update/{name}", f"+{local_release}:refs/rouh/release/{name}",
-         cwd=code, check=True)
-    pending = {"release": commit, "label": label(commit, rel), "local_release": local_release, "commit": merged,
-               "at": time.time(), "by": by, "kept": kept, "own": own, "backup": backup, "ref": name,
-               "from": b.get("release"), "from_label": label(b.get("release") or "", rel)}
-    _change(pending=pending)
-    _step("checking it")
-    from . import guardface
-
-    why = f"Rouh's update to {pending['label']}" + (f", {own} own change{'s' if own != 1 else ''} kept" if own else "")
-    try:
-        answer = guardface.ask("propose", commit=merged, why=why, by=f"Rouh's update ({by})", timeout=3600.0)
-    except guardface.Refused as exc:
-        raise Refused(f"the protected core refused it: {exc}") from None
-    except guardface.Unavailable as exc:
-        # The answer may still come, or the restart may have cut the line: the next start reads it.
-        log.warning("the protected core's answer was not heard (%s); the next start reads it", exc)
-        _change(busy=None)
-        return
-    if not answer.get("ok"):
-        _change(pending=None)
-        raise Refused(_plain_refusal(str(answer.get("refused") or answer.get("error") or "")))
-    _done(pending, answer.get("point") or {})
+    code_evolution.advance(rel, by, work)
 
 
 def _plain_refusal(said: str) -> str:
@@ -624,6 +531,11 @@ def _plain_refusal(said: str) -> str:
 
 
 def _done(pending: dict, point: dict) -> None:
+    if pending.get("master_change"):
+        from . import code_evolution
+
+        code_evolution.finish(pending, point)
+        return
     code = code_dir()
     with contextlib.suppress(Exception):
         _git("update-ref", "refs/rouh/release", pending["local_release"], cwd=code)
@@ -745,6 +657,9 @@ def _backup(code: Path, database_changes: bool) -> dict:
 
 def reconcile() -> None:
     """What the protected core did with an update this Rouh handed it before it started again."""
+    from . import code_evolution
+
+    code_evolution.reconcile_ledger()
     s = state()
     p = s.get("pending")
     if not p:
@@ -778,6 +693,21 @@ def reconcile() -> None:
 
 def note(last: dict) -> str:
     """The line said in General about the last update."""
+    if last.get("evolution_failure"):
+        return ("Rouh could not finish this update: " + str(last.get("said") or "the check could not finish")
+                + ". Settings, Changes shows what came in and what is waiting. It will be tried again.")
+    if "waiting" in last:
+        text = "Rouh's update: " + last["said"]
+        for status, label in (("copied", "Copied exactly"), ("adapted", "Adapted for this Rouh")):
+            purposes = [r["purpose"] for r in last.get("came_in", []) if r["status"] == status]
+            if purposes:
+                text += " " + label + ": " + "; ".join(purposes[:5])
+                if len(purposes) > 5:
+                    text += f"; and {len(purposes) - 5} more"
+                text += "."
+        for row in last["waiting"]:
+            text += (" Urgent security update" if row.get("urgent") else " Waiting") + ": " + row["purpose"] + ": " + row["reason"] + "."
+        return text + " Settings, Changes has the full record. Waiting changes are tried again."
     if last.get("ok"):
         text = f"Rouh updated itself to {last.get('label') or 'the newest release'}"
         if last.get("from_label"):
@@ -861,6 +791,21 @@ async def ride_once() -> str:
 async def _ride_once() -> str:
     await asyncio.to_thread(reconcile)
     await tell()
+    s = state()
+    continuation = s.get("continue_update")
+    retry = s.get("retry_release") if time.time() >= float(s.get("retry_at") or 0) else None
+    if continuation or retry:
+        urgent = any(r.get("urgent") for r in (s.get("last") or {}).get("waiting", []))
+        if continuation or (urgent and mode() != "own" and not on_its_own()) or (mode() == "ride" and not on_its_own()):
+            if not s.get("pending") and not quiet() and _run_lock.acquire(blocking=False):
+                rel = continuation["release"] if continuation else retry
+                by = continuation.get("by", "riding along") if continuation else "retrying a waiting change"
+                try:
+                    await asyncio.to_thread(_apply, rel, by)
+                finally:
+                    _run_lock.release()
+                await tell()
+                return "continued the update"
     if mode() != "ride" or on_its_own() or not _guard():
         return "not riding"
     s = state()
@@ -871,6 +816,13 @@ async def _ride_once() -> str:
     except Refused:
         return "no release"
     b = await asyncio.to_thread(base)
+    from . import code_evolution
+
+    try:
+        await asyncio.to_thread(code_evolution.observe, rel, b)
+    except Refused as exc:
+        _change(check_error=str(exc))
+        return "waiting: " + str(exc)
     if why_not(b, rel, s):
         return "nothing to take"
     busy = quiet()
@@ -917,4 +869,4 @@ class Watch:
                 raise
             except Exception:  # noqa: BLE001 - one bad look never stops the next
                 log.exception("the look for a newer Rouh stumbled; continuing")
-            await asyncio.sleep(min(self.every, 600) if state().get("pending") else self.every)
+            await asyncio.sleep(min(self.every, 30) if state().get("pending") or state().get("continue_update") else self.every)

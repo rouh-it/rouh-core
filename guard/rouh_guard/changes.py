@@ -227,7 +227,7 @@ class Changes:
                 out[Path(path).stem] = str(need)
         return out
 
-    async def propose(self, ref: str, why: str = "", *, by: str = "the Rouh") -> dict:
+    async def propose(self, ref: str, why: str = "", *, by: str = "the Rouh", update: dict | None = None) -> dict:
         commit = self.resolve(ref)
         if not commit:
             return {"ok": False, "refused": f"/code has no commit {str(ref)[:40]!r}"}
@@ -264,6 +264,21 @@ class Changes:
                 self._event("refused", said, commit=commit, why=why, by=by)
                 self._save()
                 return {"ok": False, "refused": said, "failed": checked["failed"]}
+            if update is not None:
+                from . import updatecheck
+
+                self.busy = f"proving master change {commit[:12]}"
+                self._save()
+                try:
+                    proof = await asyncio.to_thread(updatecheck.run, self.code, cur["commit"], commit, update, self.state)
+                finally:
+                    self.busy = ""
+                if not proof["ok"]:
+                    said = "; ".join(f["why"] for f in proof["failed"])
+                    self._event("refused", said, commit=commit, why=why, by=by)
+                    self._save()
+                    return {"ok": False, "refused": said, "failed": proof["failed"]}
+                checked["passed"] += proof["passed"]
             n = max((p["n"] for p in self.data["points"]), default=0) + 1
             self._keep(commit, n)
             old = cur["commit"] if cur else ""

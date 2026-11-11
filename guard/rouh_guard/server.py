@@ -67,7 +67,8 @@ class Server:
         self.upstream = upstream
 
     def status(self) -> dict:
-        out = {"ok": True, "version": VERSION, "contracts": CONTRACTS}
+        out = {"ok": True, "version": VERSION, "contracts": CONTRACTS,
+               "features": {"master_changes": 1, "database_rehearsal": 1}}
         if self.changes is not None:
             out.update(self.changes.status())
         if self.doctor is not None:
@@ -86,13 +87,17 @@ class Server:
             return self.status()
         if op == "gene":
             return await asyncio.to_thread(_gene, req)
+        if op == "database_inventory":
+            from . import database_update
+
+            return {"ok": True, **await asyncio.to_thread(database_update.inventory)}
         if self.changes is None:
             return {"ok": False, "error": "this protected core keeps no undo points here"}
         if op == "points":
             return {"ok": True, "points": self.changes.points()}
         if op == "propose":
             return await self.changes.propose(str(req.get("commit") or ""), str(req.get("why") or "")[:500],
-                                              by=str(req.get("by") or "the Rouh")[:80])
+                                              by=str(req.get("by") or "the Rouh")[:80], update=req.get("update"))
         if op == "undo":
             return await self.changes.undo(req.get("point"), by=str(req.get("by") or "the Rouh")[:80])
         if op == "verify":

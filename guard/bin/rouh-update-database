@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+"""The protected transactional migration helper; database_update.py is its only caller."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from rouh_guard.database_update import migrate
+
+migrate(Path(sys.argv[1]), sys.argv[2])

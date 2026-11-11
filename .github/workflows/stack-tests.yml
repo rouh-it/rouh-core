@@ -74,12 +74,36 @@ jobs:
       - name: A browser for the smoke test
         run: |
           set -euo pipefail
-          # age opens the encrypted off-site copy the backup check makes (tests/stack/checks_backup.py).
-          sudo apt-get install -y -qq age >/dev/null
-          python3 -m pip install --quiet --break-system-packages -r tests/stack/requirements.txt
-          python3 -m playwright install --with-deps chromium >/dev/null
-          # The real age, which opens the weekly copy off the machine (backup.offsite).
-          sudo apt-get install -y -qq age >/dev/null
+          setup_log=$(mktemp)
+          setup_step() {
+            if "$@" >"$setup_log" 2>&1; then
+              cat "$setup_log"
+            else
+              result=$?
+              cat "$setup_log"
+              while IFS= read -r line; do
+                line=${line//'%'/'%25'}
+                line=${line//$'\r'/'%0D'}
+                echo "::error title=Runner browser setup::$line"
+              done < <(tail -n 20 "$setup_log")
+              exit "$result"
+            fi
+          }
+          # The hosted images already carry Chrome's system libraries. Keep provisioning off
+          # Ubuntu's regional apt mirrors: an outage there must not prevent a stack proof.
+          age_arch=${{ matrix.arch }}
+          age_archive=$(mktemp)
+          age_dir=$(mktemp -d)
+          setup_step curl --fail --location --retry 3 --output "$age_archive" \
+            "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-${age_arch}.tar.gz"
+          tar -xzf "$age_archive" -C "$age_dir"
+          sudo install -m 0755 "$age_dir/age/age" "$age_dir/age/age-keygen" /usr/local/bin/
+          rm -rf "$age_archive" "$age_dir"
+          setup_step python3 -m pip install --quiet --break-system-packages -r tests/stack/requirements.txt
+          setup_step python3 -m playwright install chromium
+          setup_step python3 -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); b=p.chromium.launch(headless=True); b.close(); p.stop()'
+          setup_step npm install --prefix "$RUNNER_TEMP/update-browser" @playwright/mcp@0.0.83
+          echo "STACK_PLAYWRIGHT_MCP=$RUNNER_TEMP/update-browser/node_modules/.bin/playwright-mcp" >> "$GITHUB_ENV"
 
       - name: Build, start and check the stack
         env:
@@ -87,11 +111,20 @@ jobs:
           STACK_TEST_OUT: ${{ github.workspace }}/.stack-test
         run: |
           set -o pipefail
-          tests/stack/run.sh | tee stack-test.log
+          set +e
+          tests/stack/run.sh 2>&1 | tee stack-test.log
           status=$?
           grep '^STACK-TEST ' stack-test.log | tail -1 | cut -d' ' -f2- > ".stack-test/summary-$ARCH.json" || true
           { echo "### The stack on $ARCH, at ${GITHUB_SHA:0:12}"; echo; echo '```';
             grep -E '^(ok |FAIL|now passes|broken|untested|manual|[0-9]+ passed|stack-test:)' stack-test.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" != 0 ]; then
+            detail=$(grep -Ei 'error|failed|did not|not found|no such|denied' stack-test.log | tail -n 12)
+            [ -n "$detail" ] || detail=$(tail -n 8 stack-test.log)
+            detail=${detail//'%'/'%25'}
+            detail=${detail//$'\r'/'%0D'}
+            detail=${detail//$'\n'/'%0A'}
+            echo "::error title=Container proof::$detail"
+          fi
           exit $status
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2

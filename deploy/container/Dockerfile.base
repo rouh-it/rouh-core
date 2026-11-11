@@ -27,10 +27,19 @@
 
 ARG PYTHON_IMAGE=python:3.12.14-slim-trixie
 ARG NODE_IMAGE=node:24.22.1-trixie-slim
+ARG PGCLIENT_IMAGE=pgvector/pgvector:0.8.7-pg18-trixie@sha256:5895949dfcdf308eb0cd31c950c93c14895c77f33fbedfecf1fa511ab1d4bcd2
+
+FROM ${PGCLIENT_IMAGE} AS pgclient
+RUN mkdir -p /opt/pg/bin /opt/pg/lib \
+ && cp /usr/lib/postgresql/18/bin/pg_dump /usr/lib/postgresql/18/bin/pg_restore /opt/pg/bin/ \
+ && ldd /opt/pg/bin/pg_dump | awk '$1 == "libpq.so.5" && $2 == "=>" {print $3}' | xargs cp -t /opt/pg/lib/
 
 FROM ${NODE_IMAGE} AS node
 
 FROM ${PYTHON_IMAGE}
+COPY --from=pgclient /opt/pg /opt/pg
+COPY --from=pgclient /usr/lib/postgresql/18 /usr/lib/postgresql/18
+COPY --from=pgclient /usr/share/postgresql/18 /usr/share/postgresql/18
 
 ARG BASE_LINE=dev
 ARG BASE_LEVEL=dev
@@ -59,8 +68,13 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates tzdata util-linux \
         libheif1 libheif-plugin-libde265 \
         curl bash procps less ripgrep openssh-client jq unzip xz-utils \
-        chromium fonts-liberation \
+        chromium fonts-liberation libxml2 libicu76 liblz4-1 libzstd1 libnuma1 liburing2 libsystemd0 libpam0g libldap2 \
  && rm -rf /var/lib/apt/lists/*
+
+RUN LD_LIBRARY_PATH=/opt/pg/lib /opt/pg/bin/pg_dump --version \
+ && LD_LIBRARY_PATH=/opt/pg/lib /opt/pg/bin/pg_restore --version \
+ && LD_LIBRARY_PATH=/opt/pg/lib /usr/lib/postgresql/18/bin/postgres --version \
+ && for tool in initdb pg_ctl postgres; do ln -s /usr/lib/postgresql/18/bin/$tool /opt/pg/bin/$tool; done
 
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
@@ -94,6 +108,9 @@ RUN groupadd -g 10001 rouh \
  && groupadd -g 10002 keys \
  && useradd -u 10002 -g 10002 -M -d /nonexistent -s /usr/sbin/nologin keys \
  && usermod -aG keys rouh \
+ && for pair in 10005:guard-db-proof 10006:guard-pg 10007:guard-db-apply; do \
+      uid=${pair%%:*}; name=${pair#*:}; groupadd -g "$uid" "$name"; \
+      useradd -u "$uid" -g "$uid" -M -d /nonexistent -s /usr/sbin/nologin "$name"; done \
  && printf '[user]\n\tname = Rouh\n\temail = rouh@localhost\n[init]\n\tdefaultBranch = main\n' \
         > /home/rouh/.gitconfig \
  && chown rouh:rouh /home/rouh/.gitconfig \
@@ -198,5 +215,14 @@ ENV ROUH_APP_DIR=/code \
     ONE_PLAYWRIGHT_MCP=@playwright/mcp@${PLAYWRIGHT_MCP_VERSION} \
     ONE_PLAYWRIGHT_CHROMIUM=/usr/bin/chromium \
     PATH=/home/rouh/.local/bin:/opt/venv/bin:/extra/python3.12/bin:$PATH
+
+# Debian's versioned sample configuration links to this shared file. Keep the target too,
+# and initialize a database as the reserved server user so a broken server package cannot ship.
+COPY --from=pgclient /usr/share/postgresql/postgresql.conf.sample /usr/share/postgresql/postgresql.conf.sample
+RUN task_pg_dir="$(mktemp -d)" \
+ && chown 10006:10006 "$task_pg_dir" \
+ && setpriv --reuid=10006 --regid=10006 --clear-groups -- \
+      env LD_LIBRARY_PATH=/opt/pg/lib /opt/pg/bin/initdb -D "$task_pg_dir/data" --no-sync --auth=trust --locale=C \
+ && rm -rf "$task_pg_dir"
 
 WORKDIR /code

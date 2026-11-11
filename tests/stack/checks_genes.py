@@ -818,11 +818,18 @@ ON_ITS_OWN = ("from rouh.models import RouhBirth\nfrom rouh import relay\n"
 def connected(s: Stack, fn) -> None:
     """Run `fn` with this Rouh registered on rouh.land and given a relay address, and take both
     away after, so no other check sees a Rouh it is not."""
-    expect("connected" in core_py(s, CONNECT), "the stand-in registration could not be made")
+    def fixture(code):
+        # relay's private state is 0600. Docker exec defaults to root; a root-written
+        # fixture cannot be read by the real app, which runs as rouh (10001).
+        r = s.py("core", "from rouh.project import setup\nsetup()\n" + code, user="10001:10001")
+        expect(r.returncode == 0, "the sharing fixture could not be set: " + (r.stderr or r.stdout)[-600:])
+        return r.stdout
+
+    expect("connected" in fixture(CONNECT), "the stand-in registration could not be made")
     try:
         fn()
     finally:
-        core_py(s, ON_ITS_OWN)
+        fixture(ON_ITS_OWN)
 
 
 @check("page.shared-guests")
@@ -842,12 +849,16 @@ def shared_guests(s: Stack) -> None:
         expect(sam and "opened" in sam[0], f"the person shared with is not listed: {json.dumps(people)[:300]}")
         code, body, _ = s.get("/shared")
         expect(code == 200, f"/shared answered {code}")
-        code, _, heads = s.get("/shared/" + sam[0]["token"], cookie=False, follow=False)
-        expect(code == 303 and heads.get("Location", "").startswith("/shared/in?"),
-               f"opened signed out, it did not go to rouh.land's sign-in: {code} {heads.get('Location')}")
-        code, _, heads = s.get(heads["Location"], cookie=False, follow=False)
-        expect(code == 303 and heads.get("Location", "").startswith(f"https://{STACK_RELAY}/shared/in?"),
-               f"it did not go on to the relay address: {code} {heads.get('Location')}")
+        shared_link = "/shared/" + sam[0]["token"]
+        code, _, _ = s.get(shared_link, cookie=False, follow=False)
+        expect(code == 401, f"a signed-out script was not refused: {code}")
+        navigation = {"Accept": "text/html", "Sec-Fetch-Mode": "navigate"}
+        code, _, heads = s.get(shared_link, cookie=False, follow=False, headers=navigation)
+        expect(code == 303 and next((v for k, v in heads.items() if k.lower() == "location"), "").startswith("/shared/in?"),
+               f"opened signed out, it did not go to rouh.land's sign-in: {code} {next((v for k, v in heads.items() if k.lower() == 'location'), None)}")
+        code, _, heads = s.get(next(v for k, v in heads.items() if k.lower() == "location"), cookie=False, follow=False, headers=navigation)
+        expect(code == 303 and next((v for k, v in heads.items() if k.lower() == "location"), "").startswith(f"https://{STACK_RELAY}/shared/in?"),
+               f"it did not go on to the relay address: {code} {next((v for k, v in heads.items() if k.lower() == 'location'), None)}")
         post(s, "/api/share/uninvite", {"rel": doc, "token": sam[0].get("token")})
 
     connected(s, shared)

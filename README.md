@@ -1559,26 +1559,68 @@ A Rouh's code is its own (`/code`, changed by its genes and by itself, each chan
 A Rouh on its own (Independent) asks nobody anything by itself, so it never rides along and asks rouh.land only when its person presses a button.
 A Rouh with no protected core beside it (a server, a test world) shows the card and says its code is updated by `land.sh` there.
 
-**A release** is not every commit of main.
-It is a commit that ran on the Creator Rouh for at least a day with nothing put back and its checks passed.
-`rouh/code_release.py`, on the Creator Rouh only, writes down the commit that runs at every look and, once a day, publishes the newest undo point that ran a whole day (no gap of more than three hours between looks, every commit seen since containing it), whose checks passed, that the doctor never put back, that is on rouh-core's main and that contains the release before it.
-It is sent to rouh.land (`POST /mac/code/release`), signed with the Creator Rouh's daily key; rouh.land takes it only from a registry id in `ROUH_IT_RELEASE_MAKERS`, forward only, and serves it publicly at `https://rouh.land/mac/code/release.json` with the recent releases and their notes, which are the commits' subjects with the task numbers taken off.
-Nobody approves each release.
-`https://rouh.land/mac/code/newest.json` stays what it was: the newest commit that passed its tests, for a first start.
+**A release** is a checked boundary on the shared main branch of `rouh-it/rouh-core`, including changes published by collaborators.
+It is eligible after the master's checks pass and it runs a day on an authorised early-test Rouh without being put back (`rouh/code_release.py`).
+Initially there is one early tester; collaborators can be authorised through the release service's registry allow-list.
+The exact source commit must also have a successful **Tests on main** run at GitHub (including Intel and Arm); a later successful commit does not approve an earlier failed one. If that result cannot be read, publishing waits.
+The public release pointer remains `/mac/code/release.json`.
+A private change on an early tester cannot become a release: the publisher verifies that the commit is on shared main and contains the preceding release.
 
-**An update** (`rouh/code_update.py`, the same for a press, a ride along and the tool):
+**An update** takes the changes up to that boundary in order, grouped by the purpose in each commit and its diff (`rouh/code_evolution.py`).
+It fetches shared main and verifies that the installed version and the released boundary belong to that history.
+The durable record, `code-update/ledger.json`, keeps every change since installation, its purpose, result, plain reason and protected undo point.
+Released purposes appear in the record before Update is pressed, without applying code or spending on a model.
+For older installations that kept full Git history, the protected core’s first recorded version establishes the verified shared-main starting point; master commits already present are recorded as such. An unknown starting point is refused rather than guessed.
+Settings, Meta, Changes shows the counts and the full record: copied exactly, adapted for this Rouh, not taken yet, or waiting for an earlier change.
+The record makes drift visible; a waiting change never makes this Rouh appear up to date.
 
-1. The release's tarball comes from the public rouh-it/rouh-core on GitHub and must say it is that commit, as a first start checks.
-2. In a clone of `/code` in the data folder (`code-update/work`), the release's files are committed on top of the release the Rouh came from: its first commit with `.git/rouh-installed.json`, or the last update's release commit, which carries a `Rouh-release: <commit>` line. That commit holds exactly what a fresh install of the release has; the release tools a Rouh never runs are left out where the Rouh never had them.
-3. The Rouh's own changes since are merged on top. Where a change of its own and the release changed the same lines, its own file stays as it was, neither overwritten nor dropped, and the gene is named by the `Gene:` lines of its commits, else by the gene map.
-4. Libraries the release needs and the base lacks go into `/extra` first, with the protected core's `rouh-code-install --extra-only`.
-5. A backup in `code-update/backups`: the whole of `/code` as a git bundle, and the newest nightly copy of the database kept aside (the core has no PostgreSQL client). A release that changes the database waits while that copy is more than 26 hours old. The newest three of each are kept.
-6. The merged commit is proposed to the protected core: checked, kept as an undo point, then live; a refused one changes nothing.
+- When all touched files still match the preceding master version, copy exactly those files, including deletions, binary contents and modes, with no model call.
+- Otherwise a background adapting job reads the master commit, diff, change tests, checks catalogue and README alongside this Rouh's files, own commits and genes.
+  It replans and builds the purpose for this Rouh, preserving local behaviour, then the protected core runs its adapted master proof and this Rouh's own checks.
+  Tests may be fitted to local code, never weakened.
+  Large files are supplied as marked excerpts; the job can inspect additional local or master lines and diffs, and must use exact edits rather than replacing an incompletely read file.
+- Every accepted change goes through the protected core as its own undo point, with code backups; a restart resumes the remaining changes from the durable ledger.
+- A change that truly cannot be fitted stays not taken yet with its reason.
+  Later changes touching its files, directly importing its modules, or naming it with a `Depends-on:` commit trailer wait for it.
+  Unrelated changes can continue.
+  Waiting changes are retried on the next update; urgent security work is retried in half an hour, using the already downloaded release. My own path still prevents automatic retries.
+  General gives one plain note per outcome, including what was copied, adapted and waiting, without asking a person to solve implementation details.
 
-The update is written down before it is proposed (`code-update/state.json`), because going live starts Rouh again and cuts off what started it; the next start asks the protected core what became of it and says it once in General ("Rouh updated itself to ...", or "Rouh did not update itself to ...: ... Nothing was changed."), and as a notice when it did not happen.
-Only code moves: rules, memory, mail, people and settings are the database's and the data folder's, and are never touched (shared rules keep coming through `rules/defaults.json`).
+**The model bar.** `ROUH_CODE_UPDATE_MODEL_TIER=smart` is the required frontier tier; a lower bar is refused.
+Models has a dedicated use, **Adapting master updates** (`code_adapt`), initially Smart.
+The actual selected model must belong to the published standard's Smart tier, including when the use is Custom or the installation is in Saver.
+The LLM service checks the tier again immediately before asking, and does not fall back to a weaker model.
+If it cannot ask a frontier model, the change waits as **needs a frontier model**, and the person is told once.
+Sensitive database and security changes always need these frontier checks, including when the original files match exactly.
+Ordinary exact copies need no model key and spend nothing.
+The job's brief is the editable Agent rule **Adapting a released master change**, shipped through the same rule-default machinery as the other agent rules.
+It tells the job to be responsible and choose what is best for this Rouh.
 
-Checked in the containers by `updates.press` and `updates.ride` (CONTAINERS.md, `tests/stack/checks_updates.py`).
+**Database changes** are adapted, never automatically skipped.
+The protected core's gate (`guard/rouh_guard/database_update.py`) makes a fresh full database backup, restores it into a private, disk-backed PostgreSQL instance, rehearses the adapted atomic migration there, and checks counts and preservation of existing row values for every table, allowing declared table and column renames.
+The job's change proof and this Rouh's own self-checks run on that copy before anything is applied for real.
+The code still running must also pass its own checks against the migrated copy, so activation or an undo can safely retain the earlier code. A migration that breaks it must be replanned as expand and contract.
+For the real migration, the core holds writer locks while taking another full backup of that exact snapshot, runs migrations and preservation checks in one transaction, then reads back the result after commit.
+Original values are compared while writer locks still hold; later committed counts are recorded separately, because the running app may update sessions or memory as soon as those locks release.
+The applied database is copied into a second private instance and the change proof and self-checks run again there.
+Both private instances, including their WAL, are removed; protected backup and result records remain. Rehearsals require free disk space for the real database rather than the ordinary checks’ small synthetic database.
+The materialised code and proof stay root-owned and read-only; the check users can only write scratch data.
+The live helper starts without usable credentials, refuses database access during application startup, and receives its live connection only after startup is complete.
+A failed rehearsal never changes the real database; a failed transaction rolls back.
+If final verification is interrupted after application may have started, the protected record marks the outcome as needing checking, never as a known rollback.
+Backups, table counts, preservation results, the job's reverse or restore procedure and the outcome are kept in the protected core's `database-updates/` folder, outside the Rouh's own code.
+An operation that is not atomic must be replanned as expand and contract, preserving the old representation until it can safely be retired.
+The stack gives only the protected core a migration connection to the live database; ordinary checks and the worker never receive it.
+An older protected core without this gate makes these updates wait until the signed core update arrives.
+
+**Security changes** are also adapted.
+The same named assertions must demonstrate the vulnerability before and its closure after, with an explicit result and the expected failure and success codes; a crashed check does not count as a reproduced hole.
+A change proved not to apply records that proof with the same assertions passing before and after.
+Waiting security work is visibly urgent and is retried soon.
+
+The three modes, Independent choice, existing button and chat tool keep their meaning.
+A server checkout continues to use `land.sh`.
+`ROUH_CODE_MASTER` is an installation/test override for the shared source; its default is the public rouh-core repository, never an early tester's private code.
 
 ## Where the code lives, and how to change it
 

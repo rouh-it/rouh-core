@@ -1,4 +1,4 @@
-"""CONTAINERS.md: Rouh's updates (rouh/code_update.py, task 140, step 140-18).
+"""CONTAINERS.md: Rouh's updates (task 140, steps 140-18 and 140-19).
 
 The stack's Rouh is made an older one: its code says it came from a release (.git/rouh-installed.json,
 as a first start writes it), it gets two genes of its own - one the release does not touch, one that
@@ -7,14 +7,18 @@ the stand-ins, `ROUH_CODE_RELEASE_URL` and `ROUH_CODE_TARBALL` in settings.env) 
 built from that same code, as GitHub's tarball of a commit is (`git archive`, which names its commit).
 
     updates.press   Update to the newest Rouh, pressed on Meta, Changes: the release's files come in,
-                    the gene is kept, the clashing gene's file stays as it was and is named, the
+                    the gene is kept, the clashing purpose is adapted to its local title, the
                     protected core makes it an undo point, Rouh starts again, and General says so
     updates.ride    Ride along, for a Connected Rouh: a second release is taken by itself at a quiet
                     moment, with no press
 """
 from __future__ import annotations
 
+import asyncio
 import json
+import os
+import shlex
+import shutil
 import time
 
 import smoke
@@ -25,9 +29,81 @@ SERVE = "/tmp/release"
 _DONE: dict = {}
 
 
+def _browser(s: Stack, phase: str, expected: list[str] | None = None) -> None:
+    """The update button and its visible result, in Chromium driven over Playwright MCP.
+
+    Sign in through the real form, never by a cookie or a function inside the page. The
+    transcript and screenshot are kept with the container proof on both platforms.
+    """
+    from pathlib import Path
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        executable = p.chromium.executable_path
+
+    transcript = []
+    async def drive():
+        params = StdioServerParameters(command=os.environ.get("STACK_PLAYWRIGHT_MCP", "playwright-mcp"),
+                                       args=["--headless", "--isolated", "--browser=chromium", "--executable-path=" + executable])
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+
+                async def call(name, **args):
+                    result = await session.call_tool(name, args)
+                    text = "\n".join(c.text for c in result.content if getattr(c, "type", "") == "text")
+                    transcript.append(name + "\n" + text)
+                    expect(not result.is_error and "### Error" not in text, "Playwright MCP: " + text[-1200:])
+                    return text
+
+                await call("browser_navigate", url=s.url + "/login")
+                await call("browser_type", target="#email", text="alex@example.com")
+                await call("browser_click", target="#continueBtn")
+                page = await call("browser_snapshot")
+                email_link = "Check your email" in page
+                if email_link:
+                    await call("browser_click", target="text=Can't get the email?")
+                await call("browser_type", target="#password", text=smoke.STACK_PASSWORD)
+                await call("browser_click", target="button:text-is('Sign in with password')" if email_link
+                           else "button:text-is('Sign in')")
+                await call("browser_navigate", url=s.url + "/anatomy/meta/changes")
+                await call("browser_wait_for", text="How new releases come")
+                if phase == "press":
+                    await call("browser_click", target="summary:text-is('Every change since this Rouh was installed')")
+                    record = await call("browser_snapshot", target="#changesBody")
+                    for words in ("Exact master change one", "Exact master change two", "Stack release 1", "Not taken yet"):
+                        expect(words in record, "the ledger before pressing Update did not show " + words)
+                    await call("browser_click", target="button:text-is('Update to the newest Rouh')")
+                else:
+                    await call("browser_click", target="summary:text-is('Every change since this Rouh was installed')")
+                    record = await call("browser_snapshot", target="#changesBody")
+                    for words in expected or []:
+                        expect(words in record, "the visible update record did not show " + words)
+                    shot = Path.cwd() / ".playwright-mcp" / ("updates-" + phase + ".png")
+                    await call("browser_take_screenshot", filename=str(shot), scale="css")
+                    shutil.copyfile(shot, s.out / shot.name)
+                    await call("browser_navigate", url=s.url + "/?chat=conversation")
+                    await call("browser_wait_for", time=3)
+                    general = await call("browser_snapshot")
+                    result_words = "needs a frontier model" if phase == "frontier-wait" else "Adapted for this Rouh:"
+                    expect("Rouh's update:" in general and result_words in general,
+                           "General did not visibly explain the update's result")
+    try:
+        asyncio.run(drive())
+    except BaseException as exc:
+        def reason(e):
+            return "; ".join(reason(c) for c in e.exceptions) if isinstance(e, BaseExceptionGroup) else str(e)
+        raise Failed("Playwright MCP: " + reason(exc)[-1200:]) from None
+    finally:
+        Path(s.out / ("updates-" + phase + "-mcp.txt")).write_text("\n\n".join(transcript))
+
+
 def _release(s: Stack, n: int, script: str) -> str:
     """A release built in the stand-ins from this Rouh's first commit (n=1) or the release before,
     served at standins:9021; its commit."""
+    extra = '-m "Security: closes an access hole"' if n == 3 else ''
     r = s.run("standins", f"""set -e
 cd /tmp
 if [ ! -d rel ]; then
@@ -37,8 +113,9 @@ fi
 cd rel
 {script}
 git add -A
-git -c user.name=Rouh -c user.email=rouh@localhost commit -q -m "Stack release {n}"
+git -c user.name=Rouh -c user.email=rouh@localhost commit -q -m "Stack release {n}" {extra}
 sha=$(git rev-parse HEAD)
+git -C /tmp/git/rouh-core.git fetch -q /tmp/rel +HEAD:refs/heads/main
 mkdir -p {SERVE}/mac/code {SERVE}/tarball
 git archive --format=tar.gz --prefix=rouh-core-$sha/ $sha > {SERVE}/tarball/$sha
 python3 - "$sha" <<'PY'
@@ -113,8 +190,10 @@ def _until_updated(s: Stack, want: str, limit: float, why: str) -> dict:
             continue
         if (last.get("current") or {}).get("commit") == want and not last.get("pending") and not last.get("busy"):
             return last
-        if (last.get("last") or {}).get("ok") is False and (last["last"].get("release") == want):
-            raise Failed(f"{why}: it did not update: {last['last'].get('said')}")
+        if (last.get("last") or {}).get("ok") is False and (last["last"].get("release") == want) and not last.get("busy") and not last.get("pending"):
+            raise Failed(f"{why}: it did not update: {last['last'].get('said')}; waiting: "
+                         + json.dumps([r for r in (last.get("ledger") or {}).get("changes", [])
+                                       if r.get("status") not in ("copied", "adapted")])[-2400:])
         time.sleep(10)
     raise Failed(f"{why}: still {json.dumps({k: last.get(k) for k in ('current', 'busy', 'pending', 'last', 'why_not', 'ride')})[:900]}; "
                  f"the guard said: {s.logs('guard', 40)[-900:]}")
@@ -143,7 +222,7 @@ def _older(s: Stack) -> str:
     time.sleep(20)
     _healthy(s)
     root = s.run("core", f"{CODE} rev-list --max-parents=0 HEAD").stdout.split()[0]
-    came_from = "c0ffee" + root[6:]
+    came_from = root
     r = s.run("core", f"""set -e
 printf '{{"commit": "{came_from}", "named_by": "the stack test"}}\\n' > /code/.git/rouh-installed.json
 rm -rf /tmp/genes && git -c safe.directory='*' clone -q /code /tmp/genes && cd /tmp/genes
@@ -172,27 +251,35 @@ def _press(s: Stack) -> None:
     _post_again(s, "/api/settings/updates/mode", {"mode": "press"})
     before = _updates(s)
     expect((before.get("current") or {}).get("commit") == came_from, f"this Rouh does not say it came from the old release: {before.get('current')}")
-    r1 = _release(s, 1, "mkdir -p docs && printf 'New in release 1.\\n' > docs/stack-release-1.md\n"
+    r1 = _release(s, 1, "mkdir -p docs\n"
+                        "printf 'Exact one.\\n' > docs/stack-exact-one.md\n"
+                        "git add -A && git -c user.name=Rouh -c user.email=rouh@localhost commit -qm 'Exact master change one'\n"
+                        "printf 'Exact two.\\n' > docs/stack-exact-two.md\n"
+                        "git add -A && git -c user.name=Rouh -c user.email=rouh@localhost commit -qm 'Exact master change two'\n"
+                        "printf 'New in release 1.\\n' > docs/stack-release-1.md\n"
                         "sed -i '1s/.*/# Rouh (release 1 words)/' README.md")
     seen = _updates(s, look=True)
     expect((seen.get("newest") or {}).get("commit") == r1, f"the newest release is not the stand-in's: {seen.get('newest')} {seen.get('check_error')}")
     expect(not seen.get("up_to_date") and "Stack release 1" in (seen.get("whats_new") or []),
            f"it does not say what is new: {seen.get('whats_new')}")
     expect(not seen.get("why_not"), f"it says it cannot update: {seen.get('why_not')}")
-    started = _post_again(s, "/api/settings/updates/now", {})
-    expect(started.get("ok"), f"Update to the newest Rouh: {started}")
+    expect((seen.get("ledger") or {}).get("waiting") == 3,
+           f"released changes are missing before the press: {seen.get('ledger')}")
+    _browser(s, "press")
     after = _until_updated(s, r1, 1800, "the pressed update")
     time.sleep(20)
     _healthy(s)
-    files = s.run("core", "cat /code/docs/stack-release-1.md /code/docs/stack-gene.md; head -1 /code/README.md").stdout
+    files = s.run("core", "cat /code/docs/stack-release-1.md /code/docs/stack-gene.md; head -4 /code/README.md").stdout
     expect("New in release 1" in files, f"the release's file is not in the code: {files}")
     expect("A gene of this Rouh own" in files, f"the gene of its own was lost: {files}")
-    expect("this Rouh own words" in files and "release 1 words" not in files, f"the clashing gene's file was overwritten: {files}")
-    kept = (after.get("last") or {}).get("kept") or []
-    expect(any(k.get("file") == "README.md" and "the gene stack-clash" in (k.get("genes") or []) for k in kept),
-           f"the clashing gene was not named: {after.get('last')}")
-    said = _general_says(s, "Rouh updated itself to")
-    expect("stack-clash" in said and "README.md" in said, f"General's note does not name the clash: {said}")
+    expect("this Rouh own words" in files and "Release 1 words, fitted" in files,
+           f"the master change was not adapted while keeping the local title: {files}")
+    ledger = after.get("ledger") or {}
+    expect((ledger.get("counts") or {}).get("copied") == 2, f"the two exact changes are not recorded: {ledger}")
+    expect((ledger.get("counts") or {}).get("adapted") == 1, f"the adapted change is not in the ledger: {ledger}")
+    said = _general_says(s, "Rouh's update:")
+    expect("1 adapted" in said and "0 waiting" in said, f"General does not report the adaptation: {said}")
+    _browser(s, "copied-and-adapted", ["Copied exactly", "Adapted for this Rouh", "Stack release 1"])
     points = s.manage("from rouh import guardface\nprint(guardface.ask('status')['code']['point'])")
     expect("Rouh's update" in points, f"the update is not the undo point that runs: {points[-400:]}")
 
@@ -213,6 +300,10 @@ def updates_press(s: Stack) -> None:
 
 @check("updates.ride")
 def updates_ride(s: Stack) -> None:
+    if "ride" in _DONE:
+        if _DONE["ride"]:
+            raise Failed(_DONE["ride"])
+        return
     updates_press(s)
     # Ride along is for a Connected Rouh: the stack's first run chose On its own, which asks nobody.
     s.manage("""
@@ -228,7 +319,11 @@ firstrun._save(relay.owner(), connected=True)
         _healthy(s)
         files = s.run("core", "cat /code/docs/stack-release-2.md; head -1 /code/README.md").stdout
         expect("New in release 2" in files and "this Rouh own words" in files, f"after the ride along: {files}")
-        _general_says(s, "Rouh updated itself to Rouh of 12 November")
+        _general_says(s, "copied exactly")
+        _DONE["ride"] = ""
+    except Exception as exc:
+        _DONE["ride"] = str(exc)[:900]
+        raise
     finally:
         s.manage("""
 from rouh import relay
@@ -239,5 +334,90 @@ firstrun._save(relay.owner(), connected=False)
 
 # At the very end, before only import.existing (which stops this stack): these change the code that
 # runs, which the Creator's checks and Put back, among the last, read as theirs.
-smoke.FINAL.update({"updates.press", "updates.ride"})
-smoke.LIMIT.update({"updates.press": 3600, "updates.ride": 2700})
+def _local_sensitive(s: Stack) -> None:
+    """Local code and schema, made as a normal gene through this Rouh's protected core."""
+    migration = ("from django.db import migrations\nclass Migration(migrations.Migration):\n"
+                 " dependencies=[('rouh','0248_user_land_id')]\n"
+                 " operations=[migrations.RunSQL('CREATE TABLE update_memory_local (id integer PRIMARY KEY, body text, local_word text)',"
+                 "'DROP TABLE update_memory_local')]\n")
+    files = {"rouh/stack_access.py": "GREETING='local greeting'\ndef allowed(name): return True\n",
+             "rouh/migrations/9000_local_update_memory.py": migration}
+    program = "import json\nfrom pathlib import Path\nfiles=json.loads(" + repr(json.dumps(files)) + ")\n"
+    program += "for n,v in files.items(): Path(n).write_text(v)\n"
+    r = s.run("core", "set -e\nrm -rf /tmp/update-local\ngit -c safe.directory='*' clone -q /code /tmp/update-local\n"
+                     "cd /tmp/update-local\npython - <<'PY'\n" + program + "PY\ngit add -A\n"
+                     "git -c user.name=Rouh -c user.email=rouh@localhost commit -qm 'Local memory schema and greeting'\n"
+                     + CODE + " fetch -q /tmp/update-local +HEAD:refs/proposals/update-local\n"
+                     + CODE + " rev-parse refs/proposals/update-local", user="10001:10001", timeout=120)
+    expect(r.returncode == 0, f"the local sensitive fixtures could not be committed: {r.stderr[-500:]}")
+    sha = r.stdout.strip().splitlines()[-1]
+    result = _again(lambda: s.manage("from rouh import guardface\nprint(guardface.ask('propose',commit=" + repr(sha)
+                                    + ",why='local memory schema and greeting',timeout=1800))", timeout=1900))
+    expect("'ok': True" in result, f"the local schema gene did not pass: {result[-700:]}")
+    time.sleep(25)
+    _healthy(s)
+    _again(lambda: s.manage("from django.db import connection\nwith connection.cursor() as c: "
+                            "c.execute(\"INSERT INTO update_memory_local VALUES (1,'memory one','local one'),(2,'memory two','local two') ON CONFLICT DO NOTHING\")"))
+
+
+@check("updates.security-database-frontier")
+def updates_sensitive(s: Stack) -> None:
+    updates_ride(s)
+    # Older installations retain complete Git history. Their durable ledger is sufficient;
+    # removing the snapshot marker must not restore the old "updated with git" block.
+    s.run("core", "rm /code/.git/rouh-installed.json", user="10001:10001")
+    full = _updates(s)
+    expect(full.get("how") == "history" and full.get("up_to_date"),
+           f"the full-history installation lost its accepted boundary: {full.get('current')}")
+    _post_again(s, "/api/settings/updates/mode", {"mode": "press"})
+    _local_sensitive(s)
+    # Three independent purposes: an ordinary adapted change, security, and database work.
+    # A cheaper model must be refused for all three before any request is sent.
+    from checks_nightly import _post
+    s.manage("from rouh import modeldefaults,relay\no=relay.owner().org_id\n"
+             "modeldefaults.put(o,'auto',on=False,box='uses',by='stack')\n"
+             "modeldefaults.put(o,'code_adapt',tier='cheaper',by='stack')\n"
+             "modeldefaults.put(o,'code_adapt',lock=True,by='stack')")
+    r3 = _release(s, 3, "printf \"GREETING='master greeting'\\ndef allowed(name): return name == 'owner'\\n\" > rouh/stack_access.py")
+    migration = ("from django.db import migrations\nclass Migration(migrations.Migration):\n"
+                 " dependencies=[('rouh','0248_user_land_id')]\n"
+                 " operations=[migrations.RunSQL('CREATE TABLE IF NOT EXISTS update_memory "
+                 "(id integer PRIMARY KEY, body text); ALTER TABLE update_memory ADD COLUMN source text',"
+                 "'ALTER TABLE update_memory DROP COLUMN source')]\n")
+    r4 = _release(s, 4, "printf %s " + shlex.quote(migration) + " > rouh/migrations/9001_master_update.py")
+    r5 = _release(s, 5, "printf 'Master improved naming again.\\n' >> README.md")
+    _post_again(s, "/api/settings/updates/now", {})
+    end = time.time() + 180
+    while time.time() < end:
+        result = _updates(s)
+        if not result.get("busy") and not result.get("pending"):
+            break
+        time.sleep(3)
+    waiting = [r for r in result["ledger"]["changes"] if r["master"] in (r3, r4, r5)]
+    expect(len(waiting) == 3 and all(r["status"] == "waiting" and "frontier model" in r["reason"] for r in waiting),
+           f"weaker model was not refused for the sensitive jobs: {waiting}")
+    _browser(s, "frontier-wait", ["Not taken yet", "needs a frontier model", "Urgent security update"])
+    s.manage("from rouh import modeldefaults,relay\no=relay.owner().org_id\n"
+             "modeldefaults.put(o,'code_adapt',tier='smart',by='stack')")
+    _post_again(s, "/api/settings/updates/now", {})
+    after = _until_updated(s, r5, 2700, "security and database adaptation")
+    rows = {r["master"]: r for r in after["ledger"]["changes"]}
+    expect(rows[r3]["status"] == rows[r4]["status"] == "adapted", f"the sensitive changes were not adapted: {rows}")
+    values = _again(lambda: s.manage("from django.db import connection\nwith connection.cursor() as c:\n"
+                                    " c.execute('SELECT body,local_word,source FROM update_memory_local ORDER BY id')\n print(c.fetchall())"))
+    expect("memory one" in values and "local one" in values and "memory two" in values, f"memory lost: {values}")
+    records = s.py("guard", "from pathlib import Path\nimport json\n"
+                  "rows=[json.loads(p.read_text()) for p in Path('/guard/database-updates').glob('*/outcome.json')]\n"
+                  "print(json.dumps([r for r in rows if r.get('applied')]))").stdout
+    expect('"rehearsal": true' in records and '"private_copy_removed": true' in records
+           and '"running_code_compatible": true' in records
+           and '"verified_after_application": true' in records
+           and '"preserved": true' in records and '"before": 2' in records,
+           f"no protected backup, rehearsal or counts: {records[-1000:]}")
+    copies = s.py("guard", "from pathlib import Path\nprint(list(Path('/guard').glob('rehearsal-*')))").stdout
+    expect(copies.strip() == "[]", f"the private real-data copy was not removed: {copies}")
+    _browser(s, "security-and-database", ["Adapted for this Rouh", "Stack release 3", "Stack release 4"])
+
+
+smoke.FINAL.update({"updates.press", "updates.ride", "updates.security-database-frontier"})
+smoke.LIMIT.update({"updates.press": 3600, "updates.ride": 2700, "updates.security-database-frontier": 5400})
