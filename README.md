@@ -1614,6 +1614,7 @@ The stack gives only the protected core a migration connection to the live datab
 An older protected core without this gate makes these updates wait until the signed core update arrives.
 
 **Security changes** are also adapted.
+Security policy changes in JSON, YAML, TOML, INI and environment files get the same frontier checks before an exact copy.
 The same named assertions must demonstrate the vulnerability before and its closure after, with an explicit result and the expected failure and success codes; a crashed check does not count as a reproduced hole.
 A change proved not to apply records that proof with the same assertions passing before and after.
 Waiting security work is visibly urgent and is retried soon.

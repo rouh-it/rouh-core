@@ -132,7 +132,9 @@ def scan(release: dict, b: dict, *, report: bool = True) -> dict:
         diff = _git("diff", "--no-ext-diff", parent, sha)
         database = any("/migrations/" in f or "/models/" in f or f.endswith("schema.sql") for f in all_files)
         database = database or bool(re.search(r"\b(?:ALTER|CREATE|DROP)\s+(?:TABLE|INDEX|SCHEMA)\b", diff))
-        code_changed = any(Path(f).suffix in (".py", ".js", ".html", ".sh", ".toml", ".yml") for f in all_files)
+        code_changed = any(Path(f).suffix in (".py", ".js", ".html", ".sh", ".toml", ".yml", ".yaml",
+                                               ".json", ".ini", ".cfg", ".sql", ".env") or Path(f).name == ".env"
+                           for f in all_files)
         security = bool((code_changed and SENSITIVE.search(message + "\n" + diff)) or
                         any(f.startswith(SECURITY_PATHS) for f in all_files))
         purpose = message.splitlines()[0]
