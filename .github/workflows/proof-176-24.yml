@@ -132,7 +132,7 @@ jobs:
         run: |
           mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"
           sudo systemctl start rouh-update.service
-          systemctl status rouh-update.service --no-pager | head -8 | tee "$OUT/timer.txt"
+          { systemctl status rouh-update.service --no-pager || true; } | head -8 | tee "$OUT/timer.txt"
           tail -n 25 ~/rouh/logs/update.log | tee -a "$OUT/timer.txt"
           systemctl list-timers rouh-update.timer --no-pager | tee -a "$OUT/timer.txt"
       - name: Your own domain, with Pebble (Let's Encrypt's test server)
