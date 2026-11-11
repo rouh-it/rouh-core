@@ -25,6 +25,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: A server with no Docker (as 176-11)
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           mkdir -p "$OUT"
           sudo systemctl stop docker.socket docker containerd 2>/dev/null || true
           sudo apt-get purge -y -qq 'docker-*' 'moby-*' containerd.io containerd runc podman buildah >/dev/null 2>&1 || true
@@ -35,22 +36,26 @@ jobs:
           (id; python3 -V; nproc; free -g; df -h "$HOME") | tee "$OUT/machine.txt"
       - name: The proof's own tools (a terminal driver, Chromium)
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           python3 -m pip install -q --break-system-packages pexpect playwright
           python3 -m playwright install --with-deps chromium >/dev/null
       - name: A stand-in for Anthropic, so the key check gets a real answer with no real key
         run: nohup python3 proof-176-24/standin_model.py "$OUT/standin.log" >/dev/null 2>&1 &
       - name: Docker, as a new server gets it (get.docker.com)
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           curl -fsSL https://get.docker.com | sudo sh >/dev/null
           sudo chmod 666 /var/run/docker.sock
           docker version --format '{{.Server.Version}}' | tee -a "$OUT/machine.txt"
       - name: The updater, at this commit
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           git clone -q "$GITHUB_WORKSPACE" ~/rouh-core
           git -C ~/rouh-core remote set-url origin https://github.com/rouh-it/rouh-core.git
           git -C ~/rouh-core log -1 --format='%H %s' | tee "$OUT/commit.txt"
       - name: A proof guard image of this commit, and a test release with the edge part
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           exec > >(tee "$OUT/guard-image.txt") 2>&1
           echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           docker buildx create --use --name proof >/dev/null
@@ -64,6 +69,7 @@ jobs:
         env:
           ROUH_KEEP_UPDATER: "1"
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           mkdir -p ~/rouh && chmod 700 ~/rouh
           cp ~/rouh-core/deploy/stack/settings.env.example ~/rouh/.env && chmod 600 ~/rouh/.env
           sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 32)|" ~/rouh/.env
@@ -73,6 +79,7 @@ jobs:
           which rouh; systemctl list-timers rouh-update.timer --no-pager | tee -a "$OUT/install.txt"
       - name: The setup code is in no log; a domain is refused before an owner exists
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           cd ~/rouh
           docker compose -p rouh -f stack/stack.json --env-file .env --env-file stack/release.env exec -T core python manage.py setup_code > ~/code-before.txt
           docker compose -p rouh -f stack/stack.json --env-file .env --env-file stack/release.env logs --no-log-prefix core > "$OUT/core-start.log"
@@ -85,9 +92,11 @@ jobs:
         run: python3 proof-176-24/drive.py proof-176-24/independent.txt "$OUT/independent.typescript" rouh setup
       - name: The old setup code is refused now
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           echo "the code read before rouh setup: HTTP $(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $(cat ~/code-before.txt)" http://127.0.0.1:8420/setup/api/state)" | tee -a "$OUT/code-hygiene.txt"
       - name: The link it printed opens General, with the greeting part of the conversation
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           python3 proof-176-24/open_check.py "$OUT/independent.typescript" independent "$OUT" 2>&1 | tee "$OUT/open-independent.txt"
           python3 - "$OUT/standin.log" <<'PY' | tee "$OUT/greeting-in-history.txt"
           import json, sys
@@ -103,23 +112,27 @@ jobs:
         env:
           ROUH_KEEP_UPDATER: "1"
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           for c in "status" "open" "update" "update --off" "update --on" "back" "logs core -n 8" "logs edge" "backup" "backup --list" \
                    "doctor" "relay" "relay https://relay.example.test/relay/ --domain rouh.example.test" "relay" "relay --default" "--version"; do
             echo "\$ rouh $c"; (rouh $c 2>&1 || echo "(exit $?)") | sed 's/code=[A-Za-z0-9_-]*/code=<hidden>/'; echo
           done | tee "$OUT/commands.txt"
       - name: The nightly update, started by hand
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           sudo systemctl start rouh-update.service
           systemctl status rouh-update.service --no-pager | head -8 | tee "$OUT/timer.txt"
           tail -n 25 ~/rouh/logs/update.log | tee -a "$OUT/timer.txt"
           systemctl list-timers rouh-update.timer --no-pager | tee -a "$OUT/timer.txt"
       - name: Your own domain, with Pebble (Let's Encrypt's test server)
-        run: cd "$OUT" && bash "$GITHUB_WORKSPACE/proof-176-24/edge.sh" 2>&1 | tee "$OUT/edge.txt"
+        run: mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; cd "$OUT" && bash "$GITHUB_WORKSPACE/proof-176-24/edge.sh" 2>&1 | tee "$OUT/edge.txt"
       - name: The stack check in the proof guard image refuses 80 and 443 with no domain
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           docker run --rm --network none --entrypoint python "$GUARD" -I /opt/rouh-guard/policy/fixtures/check.py 2>&1 | tail -8 | tee "$OUT/guard-check.txt"
       - name: Keep my data, then Bring back your Rouh, identical
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           cd ~/rouh
           C="docker compose -p rouh -f stack/stack.json --env-file .env --env-file stack/release.env"
           $C stop core worker browser backup guard keyproxy >/dev/null 2>&1
@@ -136,6 +149,7 @@ jobs:
           rouh status 2>&1 | tee -a "$OUT/bring-back.txt"
       - name: Wipe my data, then a fresh install offers nothing to bring back
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           rouh uninstall --wipe --yes 2>&1 | tee "$OUT/uninstall-wipe.txt"
           docker volume ls -q | tee -a "$OUT/uninstall-wipe.txt"
           git clone -q "$GITHUB_WORKSPACE" ~/rouh-core
@@ -144,11 +158,13 @@ jobs:
       - name: What runs, and the core's log
         if: always()
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           cd ~/rouh 2>/dev/null && docker compose -p rouh -f stack/stack.json --env-file .env --env-file stack/release.env ps --all > "$OUT/ps.txt" 2>&1 || true
           cd ~/rouh 2>/dev/null && docker compose -p rouh -f stack/stack.json --env-file .env --env-file stack/release.env logs --no-log-prefix --tail 200 core > "$OUT/core-tail.log" 2>&1 || true
       - name: Results to a branch
         if: always()
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           cd "$OUT"
           sed -i -E 's/(code=)[A-Za-z0-9_-]{8,}/\1<hidden>/g; s/(Bearer )[A-Za-z0-9_-]{8,}/\1<hidden>/g' *.txt *.typescript *.log 2>/dev/null || true
           git init -q -b results && git add -A
@@ -166,6 +182,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: A server with no Docker (as 176-11)
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           mkdir -p "$OUT"
           sudo systemctl stop docker.socket docker containerd 2>/dev/null || true
           sudo apt-get purge -y -qq 'docker-*' 'moby-*' containerd.io containerd runc podman buildah >/dev/null 2>&1 || true
@@ -178,6 +195,7 @@ jobs:
           nohup python3 proof-176-24/standin_model.py "$OUT/standin.log" >/dev/null 2>&1 &
       - name: A tampered release stops the install, with nothing used
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           python3 proof-176-24/tamper.py 9999 >/dev/null 2>&1 &
           sleep 2
           set +e
@@ -187,6 +205,7 @@ jobs:
           cat "$OUT/tampered.txt"; grep -q "did not check out" "$OUT/tampered.txt"; ! command -v docker; ! test -d ~/rouh-core
       - name: The one command, as a stranger runs it (setup afterwards, in a real terminal)
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           set -o pipefail
           curl -fsSL https://rouh.land/install.sh | sh -s -- --yes --no-setup 2>&1 | tee "$OUT/one-line.txt"
           printf 'ANTHROPIC_BASE_URL=http://host.docker.internal:18080\n' >> ~/rouh/.env
@@ -201,6 +220,7 @@ jobs:
       - name: Results to a branch
         if: always()
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           cd "$OUT"
           sed -i -E 's/(code=)[A-Za-z0-9_-]{8,}/\1<hidden>/g; s/(Bearer )[A-Za-z0-9_-]{8,}/\1<hidden>/g' *.txt *.typescript *.log 2>/dev/null || true
           git init -q -b results && git add -A
@@ -218,6 +238,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: KVM and a Debian 12 virtual machine (cloud image, cloud-init)
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           mkdir -p "$OUT"
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
@@ -240,10 +261,12 @@ jobs:
           ssh -i vmkey -p 2222 -o StrictHostKeyChecking=no rouh@127.0.0.1 'cat /etc/os-release | head -2; python3 -V; nproc; free -g' | tee "$OUT/vm.txt"
       - name: The one command, in the VM (Debian 12 has Python 3.11)
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           ssh -i vmkey -p 2222 -o StrictHostKeyChecking=no rouh@127.0.0.1 'curl -fsSL https://rouh.land/install.sh | sh -s -- --yes --no-setup' 2>&1 | tee "$OUT/vm-install.txt"
           ssh -i vmkey -p 2222 -o StrictHostKeyChecking=no rouh@127.0.0.1 'rouh status; systemctl list-timers rouh-update.timer --no-pager' 2>&1 | tee -a "$OUT/vm-install.txt"
       - name: A reboot, and Rouh comes back running by itself
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           ssh -i vmkey -p 2222 -o StrictHostKeyChecking=no rouh@127.0.0.1 'sudo systemctl reboot' || true
           sleep 30
           for i in $(seq 1 60); do ssh -i vmkey -p 2222 -o StrictHostKeyChecking=no -o ConnectTimeout=5 rouh@127.0.0.1 true 2>/dev/null && break; sleep 5; done
@@ -252,6 +275,7 @@ jobs:
       - name: Results to a branch
         if: always()
         run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"; set -x
           cd "$OUT"
           sed -i -E 's/(code=)[A-Za-z0-9_-]{8,}/\1<hidden>/g; s/(Bearer )[A-Za-z0-9_-]{8,}/\1<hidden>/g' *.txt *.typescript *.log 2>/dev/null || true
           git init -q -b results && git add -A
