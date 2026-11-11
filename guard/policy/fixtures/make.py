@@ -148,12 +148,33 @@ volumes:
 }
 
 
+#: The owner's own domain (task 176, step 176-24): resolved with --profile edge and ROUH_DOMAIN set, as
+#: linux_stack.py resolves a stack once `rouh domain` has turned a domain on, against a reference
+#: resolved the same way ("good-edge-as-released"). Written to expect-edge.json, which check.py holds
+#: the Python check to; Rouh for Mac never turns the edge on, so its tests read expect.json alone.
+EDGE_CASES = {
+    "good-edge-as-released": ("", True, ""),
+    "bad-edge-no-domain": ("", False, "no domain set"),
+    "bad-edge-another-port": ("services:\n  edge:\n    ports: [\"8443:8443\"]\n", False, "may publish only 80 and 443"),
+    "bad-edge-changed": ("services:\n  edge:\n    volumes: [\"core-data:/rouh-data:ro\"]\n", False, "protected core"),
+    "bad-edge-port-elsewhere": ("services:\n  core:\n    ports: [\"443:8021\"]\n", False, "only 127.0.0.1 is allowed"),
+}
+
+
 def main() -> int:
+    for cases, file, env in ((CASES, "expect.json", ""), (EDGE_CASES, "expect-edge.json", "ROUH_DOMAIN=rouh.example.com\n")):
+        if run_cases(cases, file, env):
+            return 1
+    return 0
+
+
+def run_cases(cases: dict, expect_file: str, extra_env: str) -> int:
+    edge = expect_file == "expect-edge.json"
     with tempfile.TemporaryDirectory() as t:
         stack = Path(t) / "stack"
         stack.mkdir()
         (stack / "release.env").write_text(RELEASE_ENV)
-        (stack / "stack.env").write_text(STACK_ENV)
+        (stack / "stack.env").write_text(STACK_ENV + extra_env)
         (stack / "images" / "core").mkdir(parents=True)
         (stack / "images" / "core" / "Dockerfile").write_text(
             "ARG ROUH_BASE_IMAGE\nFROM ${ROUH_BASE_IMAGE}\nRUN echo a Rouh's own image on its base\n")
@@ -169,7 +190,8 @@ def main() -> int:
         shutil.copytree(stack / "images", HERE / "images", dirs_exist_ok=True)
         text = REFERENCE.read_text()
         expect = {}
-        for name, (change, ok, says) in CASES.items():
+        for name, (change, ok, says) in cases.items():
+            (stack / "stack.env").write_text(STACK_ENV + ("" if name == "bad-edge-no-domain" else extra_env))
             files = ["compose.yml"]
             whole = change(text).replace("@HOSTDIR@", str(host)) if callable(change) else text
             (stack / "compose.yml").write_text(whole)
@@ -179,6 +201,8 @@ def main() -> int:
             elif (stack / "override.yml").exists():
                 (stack / "override.yml").unlink()
             cmd = ([COMPOSE] if COMPOSE else ["docker", "compose"]) + ["--project-name", "rouh", "--env-file", "stack.env", "--env-file", "release.env"]
+            if edge:
+                cmd += ["--profile", "edge"]
             for f in files:
                 cmd += ["-f", f]
             r = subprocess.run(cmd + ["config", "--format", "json", "--no-env-resolution"], cwd=stack, capture_output=True, text=True)
@@ -198,8 +222,8 @@ def main() -> int:
                 return 1
             expect[name] = {"ok": ok, "says": says}
             print(f"{name}: resolved")
-        (HERE / "expect.json").write_text(json.dumps({"base": BASE, "reference": "good-as-released",
-                                                     "cases": expect}, indent=1) + "\n")
+        (HERE / expect_file).write_text(json.dumps({"base": BASE, "reference": "good-edge-as-released" if edge else "good-as-released",
+                                                   "cases": expect}, indent=1) + "\n")
     return 0
 
 

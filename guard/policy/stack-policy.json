@@ -6,7 +6,7 @@
                    "restart", "user", "init", "working_dir", "labels", "networks", "volumes", "tmpfs", "ports",
                    "expose", "cap_drop", "cap_add", "security_opt", "read_only", "shm_size", "logging",
                    "stop_grace_period", "stop_signal", "hostname", "mem_limit", "mem_reservation", "cpus",
-                   "pids_limit", "ulimits", "network_mode", "platform", "pull_policy", "extra_hosts"],
+                   "pids_limit", "ulimits", "network_mode", "platform", "pull_policy", "extra_hosts", "profiles"],
   "build_keys": ["context", "dockerfile", "args", "target", "labels"],
   "network_keys": ["name", "internal", "driver", "ipam", "labels", "enable_ipv6"],
   "volume_keys": ["name", "driver", "labels"],
@@ -19,8 +19,10 @@
   "cap_add": ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETUID", "SETGID", "DAC_READ_SEARCH"],
   "security_opt": ["no-new-privileges:true", "no-new-privileges"],
   "published_host_ips": ["127.0.0.1"],
+  "public_ports_about": "The one part that may listen beyond this machine: the edge (Caddy, for the owner's own domain, task 176, step 176-24), on 80 and 443 only, each to the same port inside, and only with ROUH_DOMAIN set to a domain name in its environment. linux_stack.py adds it to the stack only with that setting and an owner (rouh domain).",
+  "public_ports": {"edge": {"ports": [80, 443], "needs": "ROUH_DOMAIN"}},
   "refused_words": ["include", "extends", "label_file"],
-  "protected_services": ["guard-init", "guard", "keyproxy", "code-install", "checkdb", "worker-perms"],
+  "protected_services": ["guard-init", "guard", "keyproxy", "code-install", "checkdb", "worker-perms", "edge"],
   "required_services": ["guard-init", "guard", "keyproxy", "code-install", "checkdb", "worker-perms", "core", "worker"],
   "pinned": {
     "core": ["entrypoint", "user", "init", "cap_drop", "security_opt", "read_only"],
@@ -32,7 +34,7 @@
   "protected_networks": ["db", "workers", "guard-check", "egress", "edge", "browser"],
   "network_only": {
     "egress": ["keyproxy"],
-    "edge": ["core"],
+    "edge": ["core", "edge"],
     "browser": ["core", "keyproxy", "browser"],
     "guard-check": ["guard", "checkdb"]
   },
@@ -43,6 +45,7 @@
                   "browser": "ro", "backup": "ro"},
     "guard-state": {"guard": "rw"},
     "guard-run": {"guard": "rw", "core": "ro"},
-    "guard-signal": {"guard": "rw", "core": "ro", "worker": "ro"}
+    "guard-signal": {"guard": "rw", "core": "ro", "worker": "ro"},
+    "edge-data": {"edge": "rw"}
   }
 }

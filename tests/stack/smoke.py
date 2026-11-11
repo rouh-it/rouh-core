@@ -262,11 +262,13 @@ def stack_up(s: Stack) -> None:
 
 @check("first-run")
 def first_run(s: Stack) -> None:
-    """The setup address the core prints, opened in a real Chromium, every page answered as a person
-    would, ending signed in on Rouh's own page."""
-    logs = s.setup_url or s.logs("core", 2000)
+    """The setup address the core gives (manage.py setup_link; since step 176-24 a start never prints
+    the code into the logs, and the logs must not hold it), opened in a real Chromium, every page
+    answered as a person would, ending signed in on Rouh's own page."""
+    logs = s.setup_url or s.run("core", "cd /code && python manage.py setup_link").stdout
     codes = re.findall(r"/setup\?code=([A-Za-z0-9_\-]+)", logs)
-    expect(codes, "the core never printed a setup address: " + logs[-400:])
+    expect(codes, "the core gave no setup address: " + logs[-400:])
+    expect(codes[-1] not in s.logs("core", 4000), "the setup code is in the core's logs, where the docker group reads it")
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:

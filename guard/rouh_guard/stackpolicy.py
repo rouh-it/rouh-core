@@ -13,7 +13,8 @@ with one plain sentence:
   security_opt but no-new-privileges); devices; sysctls; capabilities beyond today's list;
 * bind mounts, the Docker socket, image mounts, and volumes that are really binds (a driver or
   driver options, or an external volume);
-* a published port on anything but 127.0.0.1;
+* a published port on anything but 127.0.0.1, but for the edge part on 80 and 443 with a domain set
+  (``public_ports``: the owner's own domain, ``rouh domain``, task 176, step 176-24);
 * any change to the protected core's services (guard-init, guard, keyproxy, code-install,
   checkdb, worker-perms) or to the walls' networks, and a protected volume mounted where it was not;
 * a build that is not a plain Dockerfile on top of the release's base, with no extra rights;
@@ -183,6 +184,8 @@ def check(resolved: dict, reference: dict, policy: dict | None = None, *, base: 
         if name in ref_services and name not in services:
             out.append(f"the service {name!r} is gone, and it is one the stack cannot run without")
 
+    out += public_port_problems(services, p)
+
     for name, s in services.items():
         where = f"the service {name!r}"
         if name in p["protected_services"]:
@@ -254,12 +257,7 @@ def check(resolved: dict, reference: dict, policy: dict | None = None, *, base: 
                         out.append(f"{where} mounts {src!r} so it can write it; it may only read it")
                 if (v.get("volume") or {}).get("subpath") and rule is not None:
                     out.append(f"{where} mounts part of {src!r}")
-        # Ports, on this machine only.
-        for port in s.get("ports") or []:
-            ip = str(port.get("host_ip") or "") if isinstance(port, dict) else ""
-            if port.get("published") if isinstance(port, dict) else True:
-                if ip not in p["published_host_ips"]:
-                    out.append(f"{where} publishes a port on {ip or 'every address'}; only 127.0.0.1 is allowed")
+        # Ports, on this machine only (the edge part's are public_port_problems').
 
         # Images and builds.
         build = s.get("build")
@@ -270,6 +268,42 @@ def check(resolved: dict, reference: dict, policy: dict | None = None, *, base: 
             out += [f"{where}: {why}" for why in _dockerfile_problems(build, base, stack_dir)]
         elif name in p["base_image_services"] and s.get("image") != base:
             out.append(f"{where} runs {s.get('image')!r}; it runs on the release's base, or on an image built on it")
+    return out
+
+
+#: A domain name the edge part may get a certificate for: at least one dot, no scheme, no port.
+DOMAIN = re.compile(r"^(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
+
+
+def public_port_problems(services: dict, p: dict) -> list[str]:
+    """Every published port is on 127.0.0.1, but a part named in ``public_ports``: it may publish
+    exactly its ports, each to the same port inside, and only with its setting (ROUH_DOMAIN) holding
+    a domain name in its own environment. Checked for every part, the protected ones too."""
+    out = []
+    allowed = p.get("public_ports") or {}
+    for name, s in services.items():
+        where = f"the service {name!r}"
+        rule = allowed.get(name)
+        for port in s.get("ports") or []:
+            ip = str(port.get("host_ip") or "") if isinstance(port, dict) else ""
+            if not (port.get("published") if isinstance(port, dict) else True) or ip in p["published_host_ips"]:
+                continue
+            if rule is None:
+                out.append(f"{where} publishes a port on {ip or 'every address'}; only 127.0.0.1 is allowed")
+                continue
+            try:
+                published, target = int(str(port.get("published")).split("-")[0]), int(port.get("target"))
+            except (TypeError, ValueError):
+                out.append(f"{where} publishes a port this check cannot read")
+                continue
+            if published not in rule["ports"] or target != published or "-" in str(port.get("published")):
+                out.append(f"{where} publishes port {port.get('published')}; it may publish only "
+                           f"{' and '.join(map(str, rule['ports']))}, each to the same port")
+            env = s.get("environment") or {}
+            value = env.get(rule["needs"]) if isinstance(env, dict) else None
+            if not isinstance(value, str) or not DOMAIN.match(value.strip().lower()):
+                out.append(f"{where} publishes port {published} to every address with no domain set "
+                           f"({rule['needs']}); it is opened only for the owner's own domain")
     return out
 
 

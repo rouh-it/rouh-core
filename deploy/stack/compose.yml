@@ -42,6 +42,8 @@
 #   browser       the one Chromium every browser of the core's is a connection to (the Live
 #                 browser, pages read once, PDFs, transcripts). Nothing of anybody's in it;
 #                 out only through the key proxy.
+#   edge          only with the owner's own domain (profile edge, `rouh domain`): Caddy on ports
+#                 80 and 443, with a Let's Encrypt certificate, passing everything on to the core.
 
 name: ${ROUH_STACK_NAME:-rouh}
 
@@ -67,7 +69,8 @@ networks:
     internal: true
   # The key proxy's way out to the internet.
   egress: {}
-  # The core's way out, and where its page is published from.
+  # The core's way out, and where its page is published from; and the edge part's (Caddy, for the
+  # owner's own domain), which reaches the core here and Let's Encrypt beyond.
   edge: {}
   # The core and its browser, with the key proxy as the browser's only way out.
   browser:
@@ -97,6 +100,8 @@ volumes:
   # The nightly copies of the database. The backup part writes it; the core reads it, to say when
   # the newest was made and to send the weekly copy off the machine (rouh/offsite.py).
   backups: {}
+  # The edge part's certificates, for the owner's own domain (rouh domain). Only the edge mounts it.
+  edge-data: {}
 
 services:
   postgres:
@@ -484,3 +489,48 @@ services:
       timeout: 5s
       retries: 4
       start_period: 30s
+
+  # The owner's own domain, with HTTPS (task 176, step 176-24): Caddy, which gets and renews a Let's
+  # Encrypt certificate for ROUH_DOMAIN and passes every request on to the core, marked as from the
+  # internet (X-Rouh-Edge, rouh/web/gate.py: no setup page, and nothing at all before the owner
+  # exists). In the stack only when the owner turns a domain on (`rouh domain NAME` on a Linux
+  # server, which runs Compose with --profile edge), and only then does anything of Rouh's listen
+  # beyond this machine: ports 80 and 443, nothing else. The stack check holds it to exactly what is
+  # written here (guard/policy/stack-policy.json: a protected service, and public_ports), so a Rouh
+  # cannot change it. Its image is pinned by digest. Certificates live in edge-data.
+  edge:
+    <<: *hardening
+    profiles: [edge]
+    image: caddy:2.11-alpine@sha256:78bd35025c7ba85961dd149ae670315129954e77abe2383ac47c89106b35ade9
+    depends_on:
+      core:
+        condition: service_started
+    # The Caddyfile is the environment's: written to memory at each start, nothing of it on disk.
+    entrypoint: ["/bin/sh", "-c", "printenv ROUH_EDGE_CADDYFILE > /tmp/Caddyfile && exec caddy run --config /tmp/Caddyfile --adapter caddyfile"]
+    environment:
+      # Set by rouh domain NAME; the stack check refuses ports 80 and 443 without it.
+      ROUH_DOMAIN: ${ROUH_DOMAIN:-}
+      XDG_DATA_HOME: /data
+      XDG_CONFIG_HOME: /tmp/config
+      ROUH_EDGE_CADDYFILE: |
+        {
+          admin off
+          acme_ca ${ROUH_EDGE_ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
+        }
+        ${ROUH_DOMAIN} {
+          encode zstd gzip
+          reverse_proxy core:8021 {
+            header_up X-Rouh-Edge 1
+            flush_interval -1
+          }
+        }
+    networks: [edge]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - edge-data:/data
+    tmpfs:
+      - /tmp
+    read_only: true
+    cap_drop: [ALL]

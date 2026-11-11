@@ -19,9 +19,10 @@
 # workspace on the first start, write a setup code while there is no owner
 # (`rouh/web/firstrun.py`), and start Rouh with deploy/run-server.sh.
 #
-# No key is ever printed. The setup address is, with its code, once per start
-# without an owner, for whoever installed Rouh on a server to open; nobody types
-# the code, and Rouh for Mac reads it from the file and opens the address itself.
+# No key is ever printed, and since 11 November 2026 (task 176, step 176-24) no
+# setup code either: a start without an owner says how to set Rouh up, and the
+# code goes only to whoever asks the core for it (Rouh for Mac reads the file;
+# `rouh setup` on a Linux server asks manage.py setup_code).
 set -euo pipefail
 
 RUN_AS=(setpriv --reuid=10001 --regid=10001 --init-groups --)
@@ -147,8 +148,10 @@ if [ "$owner" = no ]; then
     umask 077
     python -c 'import secrets; print(secrets.token_urlsafe(18))' > "$code_file"
   fi
-  port="${ROUH_PUBLISHED_PORT:-8420}"
-  echo "core: this Rouh has no owner yet. Open http://127.0.0.1:${port}/setup?code=$(cat "$code_file")"
+  # The code itself is never printed here: whatever a start prints stays in `docker logs`, which
+  # anyone in the docker group reads (task 176, step 176-24). It goes only to whoever asks the core
+  # for it: Rouh for Mac reads the file, `rouh setup` on a Linux server asks manage.py setup_code.
+  echo "core: this Rouh has no owner yet. Set it up: rouh setup on a Linux server, Rouh for Mac on a Mac, or open the address python manage.py setup_link prints"
 fi
 
 # Rouh attaches to the one program once, when it starts, if it has been paired

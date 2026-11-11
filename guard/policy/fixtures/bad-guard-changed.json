@@ -31,6 +31,73 @@
   }
  },
  "services": {
+  "backup": {
+   "cap_add": [
+    "CHOWN",
+    "DAC_OVERRIDE",
+    "FOWNER",
+    "SETUID",
+    "SETGID"
+   ],
+   "cap_drop": [
+    "ALL"
+   ],
+   "command": null,
+   "depends_on": {
+    "guard-init": {
+     "condition": "service_completed_successfully",
+     "required": true
+    },
+    "postgres": {
+     "condition": "service_healthy",
+     "required": true
+    }
+   },
+   "entrypoint": [
+    "/opt/rouh-guard/bin/rouh-backup",
+    "serve"
+   ],
+   "environment": {
+    "PGDATABASE": "rouh",
+    "PGHOST": "postgres",
+    "PGPASSWORD": "fixture-password",
+    "PGUSER": "rouh",
+    "ROUH_BACKUP_AT": "03:40",
+    "ROUH_BACKUP_DIR": "/backups",
+    "ROUH_BACKUP_KEEP": "7"
+   },
+   "image": "pgvector/pgvector:0.8.2-pg18-trixie@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+   "logging": {
+    "driver": "local",
+    "options": {
+     "max-file": "3",
+     "max-size": "10m"
+    }
+   },
+   "networks": {
+    "db": null
+   },
+   "restart": "unless-stopped",
+   "security_opt": [
+    "no-new-privileges:true"
+   ],
+   "user": "0:0",
+   "volumes": [
+    {
+     "source": "backups",
+     "target": "/backups",
+     "type": "volume",
+     "volume": {}
+    },
+    {
+     "read_only": true,
+     "source": "guard-bin",
+     "target": "/opt/rouh-guard",
+     "type": "volume",
+     "volume": {}
+    }
+   ]
+  },
   "browser": {
    "cap_drop": [
     "ALL"
@@ -166,7 +233,7 @@
     "HTTPS_PROXY": "http://keyproxy:8080",
     "NO_PROXY": "keyproxy,localhost,127.0.0.1",
     "ROUH_INSTALL_CODE": "",
-    "ROUH_INSTALL_URL": "https://rouh.it/mac/code/install",
+    "ROUH_INSTALL_URL": "https://rouh.land/mac/code/install",
     "ROUH_RELEASE_COMMIT": "",
     "https_proxy": "http://keyproxy:8080"
    },
@@ -249,11 +316,13 @@
    "environment": {
     "PATH": "/opt/rouh-guard/bin:/home/rouh/.local/bin:/opt/venv/bin:/extra/python3.12/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
     "ROUH_ALLOWED_HOSTS": "core",
+    "ROUH_BACKUP_DIR": "/backups",
     "ROUH_BROWSER": "1",
     "ROUH_BROWSER_REMOTE": "ws://browser:9230/browser",
     "ROUH_DB_NAME": "rouh",
     "ROUH_DB_PASSWORD": "fixture-password",
     "ROUH_DB_USER": "rouh",
+    "ROUH_ENCRYPTION_KEY_FILE": "/keys/encryption.key",
     "ROUH_GUARD_SIGNAL": "/run/guard-signal",
     "ROUH_GUARD_SOCKET": "/run/guard/guard.sock",
     "ROUH_INTERNAL_URL": "http://core:8021",
@@ -370,6 +439,13 @@
      "target": "/run/guard-signal",
      "type": "volume",
      "volume": {}
+    },
+    {
+     "read_only": true,
+     "source": "backups",
+     "target": "/backups",
+     "type": "volume",
+     "volume": {}
     }
    ]
   },
@@ -414,6 +490,9 @@
     "ROUH_GUARD_SIGNAL": "/run/guard-signal",
     "ROUH_GUARD_SOCKET": "/run/guard/guard.sock",
     "ROUH_GUARD_STATE": "/guard",
+    "ROUH_GUARD_UPSTREAM": "",
+    "ROUH_GUARD_UPSTREAM_EVERY": "60",
+    "ROUH_GUARD_UPSTREAM_SETTLE": "120",
     "https_proxy": "http://keyproxy:8080"
    },
    "healthcheck": {
@@ -669,6 +748,7 @@
     "ROUH_GUARD_SIGNAL": "/run/guard-signal",
     "ROUH_LAND_THROUGH": "/code/bin/rouh-land",
     "ROUH_MODEL_PROXY": "http://keyproxy:8080",
+    "ROUH_SANDBOX": "required",
     "ROUH_WORKER_KEY_FILE": "/run/one/rouh-worker.json",
     "http_proxy": "http://keyproxy:8080",
     "https_proxy": "http://keyproxy:8080",
@@ -801,6 +881,9 @@
   }
  },
  "volumes": {
+  "backups": {
+   "name": "rouh_backups"
+  },
   "code": {
    "name": "rouh_code"
   },

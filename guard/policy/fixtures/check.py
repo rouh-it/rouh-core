@@ -26,7 +26,14 @@ def load(name: str) -> dict:
 
 
 def main() -> int:
-    expect = json.loads((HERE / "expect.json").read_text())
+    bad = 0
+    for f in ("expect.json", "expect-edge.json"):
+        if (HERE / f).is_file():
+            bad += one(json.loads((HERE / f).read_text()))
+    return 1 if bad else 0
+
+
+def one(expect: dict) -> int:
     ref = load(expect["reference"])
     bad = 0
     for name, want in expect["cases"].items():
@@ -44,7 +51,7 @@ def main() -> int:
         else:
             print(f"ok    {name}" + (f": {got[0]}" if got else ""))
     print(f"{len(expect['cases']) - bad} of {len(expect['cases'])} as they must be")
-    return 1 if bad else 0
+    return bad
 
 
 if __name__ == "__main__":

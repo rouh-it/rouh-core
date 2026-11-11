@@ -1,0 +1,3 @@
+services:
+  core:
+    ports: ["443:8021"]

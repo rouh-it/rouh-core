@@ -1,7 +1,7 @@
 # Rouh's stack file: which containers run, and what each may see and do.
 #
 # Since 24 October 2026 (task 98, step 98-23) this file is the Rouh's own. A
-# Rouh installed from rouh.it has it in its code, /code/deploy/stack/, and may
+# Rouh installed from rouh.land has it in its code, /code/deploy/stack/, and may
 # change it as it changes anything else of its own: swap its database, add a
 # service, give a container more memory. No update replaces it. What it may not
 # change is the protected core's part of it (guard-init, guard, keyproxy,
@@ -15,7 +15,7 @@
 # Docker socket. Only Rouh for Mac does, or linux_stack.py on a Linux machine,
 # after the check.
 #
-# The images are not named here. A signed release on rouh.it names the base,
+# The images are not named here. A signed release on rouh.land names the base,
 # the protected core and PostgreSQL by digest, and the app hands them in as
 # ROUH_BASE_IMAGE, ROUH_GUARD_IMAGE and ROUH_POSTGRES_IMAGE (release.env beside
 # the person's own settings file, stack.env on a Mac, .env on Linux).
@@ -25,11 +25,13 @@
 # The parts, and the rules they keep (deploy/container/README.md has the reasons):
 #
 #   postgres      the database. The Rouh's to swap for another.
+#   backup        a copy of the database every night into the backups volume, with PostgreSQL's
+#                 own pg_dump (guard/bin/rouh-backup). On the database network only.
 #   checkdb       a throwaway PostgreSQL for the guard's checks of a proposed change, on a
 #                 network of its own, in memory only.
 #   guard-init    on every start, the protected core's files into the guard-bin volume, which
 #                 every other part mounts read-only at /opt/rouh-guard.
-#   code-install  the first start only: the newest tested Rouh from rouh.it into /code.
+#   code-install  the first start only: the newest tested Rouh, free, into /code (no account).
 #   guard         the protected core: the change step with its undo points, and the doctor.
 #                 The only part besides the core that writes /code, and the only one that
 #                 puts it back.
@@ -40,6 +42,8 @@
 #   browser       the one Chromium every browser of the core's is a connection to (the Live
 #                 browser, pages read once, PDFs, transcripts). Nothing of anybody's in it;
 #                 out only through the key proxy.
+#   edge          only with the owner's own domain (profile edge, `rouh domain`): Caddy on ports
+#                 80 and 443, with a Let's Encrypt certificate, passing everything on to the core.
 
 name: ${ROUH_STACK_NAME:-rouh}
 
@@ -65,7 +69,8 @@ networks:
     internal: true
   # The key proxy's way out to the internet.
   egress: {}
-  # The core's way out, and where its page is published from.
+  # The core's way out, and where its page is published from; and the edge part's (Caddy, for the
+  # owner's own domain), which reaches the core here and Let's Encrypt beyond.
   edge: {}
   # The core and its browser, with the key proxy as the browser's only way out.
   browser:
@@ -92,6 +97,11 @@ volumes:
   guard-run: {}
   # What the start scripts read from the guard. The guard writes it, the core and worker read it.
   guard-signal: {}
+  # The nightly copies of the database. The backup part writes it; the core reads it, to say when
+  # the newest was made and to send the weekly copy off the machine (rouh/offsite.py).
+  backups: {}
+  # The edge part's certificates, for the owner's own domain (rouh domain). Only the edge mounts it.
+  edge-data: {}
 
 include:
   - @TMP@/host/other.yml
@@ -114,6 +124,36 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  # The nightly copies (guard/bin/rouh-backup). PostgreSQL's own image, so pg_dump is the
+  # server's version; the database's password and nothing else. Root only long enough to give
+  # the backups volume to rouh.
+  backup:
+    <<: *hardening
+    image: ${ROUH_POSTGRES_IMAGE:?release.env must name ROUH_POSTGRES_IMAGE}
+    # No init: the script is the first process, and answers a stop itself (an init that is root
+    # could not pass a stop on to it once it is rouh, with no capability to signal another user).
+    user: "0:0"
+    entrypoint: ["/opt/rouh-guard/bin/rouh-backup", "serve"]
+    depends_on:
+      guard-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    networks: [db]
+    environment:
+      PGHOST: postgres
+      PGUSER: rouh
+      PGDATABASE: rouh
+      PGPASSWORD: ${POSTGRES_PASSWORD:?the settings file must set POSTGRES_PASSWORD}
+      ROUH_BACKUP_DIR: /backups
+      ROUH_BACKUP_AT: ${ROUH_BACKUP_AT:-03:40}
+      ROUH_BACKUP_KEEP: ${ROUH_BACKUP_KEEP:-7}
+    volumes:
+      - backups:/backups
+      - guard-bin:/opt/rouh-guard:ro
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
 
   checkdb:
     <<: *hardening
@@ -160,12 +200,13 @@ services:
         condition: service_healthy
     networks: [workers]
     environment:
-      # Out only through the key proxy, as the worker; to rouh.it and to PyPI.
+      # Out only through the key proxy, as the worker; to rouh.land, GitHub and PyPI. No install
+      # code is needed (8 November 2026): one, when there is one, is an optional extra.
       HTTPS_PROXY: http://keyproxy:8080
       https_proxy: http://keyproxy:8080
       NO_PROXY: keyproxy,localhost,127.0.0.1
       ROUH_INSTALL_CODE: ${ROUH_INSTALL_CODE:-}
-      ROUH_INSTALL_URL: ${ROUH_INSTALL_URL:-https://rouh.it/mac/code/install}
+      ROUH_INSTALL_URL: ${ROUH_INSTALL_URL:-https://rouh.land/mac/code/install}
       ROUH_RELEASE_COMMIT: ${ROUH_RELEASE_COMMIT:-}
     volumes:
       - guard-bin:/opt/rouh-guard:ro
@@ -199,6 +240,11 @@ services:
       ROUH_GUARD_SIGNAL: /run/guard-signal
       ROUH_GUARD_CHECK_DB: checkdb
       ROUH_GUARD_HEALTH: http://core:8021/healthz
+      # The Creator Rouh only (task 161, guard/rouh_guard/upstream.py): where a checked change is
+      # pushed once it has run healthy. Blank in every Rouh instance, and then nothing is pushed.
+      ROUH_GUARD_UPSTREAM: ${ROUH_GUARD_UPSTREAM:-}
+      ROUH_GUARD_UPSTREAM_SETTLE: ${ROUH_GUARD_UPSTREAM_SETTLE:-120}
+      ROUH_GUARD_UPSTREAM_EVERY: ${ROUH_GUARD_UPSTREAM_EVERY:-60}
     volumes:
       - guard-bin:/opt/rouh-guard:ro
       - code:/code
@@ -265,6 +311,9 @@ services:
       ROUH_PUBLISHED_PORT: ${ROUH_PORT:-8420}
       ROUH_GUARD_SOCKET: /run/guard/guard.sock
       ROUH_GUARD_SIGNAL: /run/guard-signal
+      # The key Rouh seals credentials with, for a command run in the core beside it
+      # (`docker compose exec core ...`); the start puts it in Rouh's own environment.
+      ROUH_ENCRYPTION_KEY_FILE: /keys/encryption.key
       # The runs are in the worker: the key they show Rouh's internal addresses, in the volume
       # the two share, and the name they reach Rouh by (rouh/workerkey.py).
       ROUH_WORKER_KEY_FILE: /run/one/rouh-worker.json
@@ -287,6 +336,8 @@ services:
       ROUH_BROWSER: ${ROUH_BROWSER:-1}
       ROUH_YOUTUBE_BROWSER: ${ROUH_YOUTUBE_BROWSER:-1}
       ROUH_BROWSER_REMOTE: ws://browser:9230/browser
+      # The nightly copies, read only (rouh/offsite.py).
+      ROUH_BACKUP_DIR: /backups
       PATH: /opt/rouh-guard/bin:/home/rouh/.local/bin:/opt/venv/bin:/extra/python3.12/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     networks: [db, workers, edge, browser]
     # The machine itself, by name, for what Rouh reads off it on purpose: its UPS (ROUH_UPS).
@@ -304,6 +355,7 @@ services:
       - guard-bin:/opt/rouh-guard:ro
       - guard-run:/run/guard:ro
       - guard-signal:/run/guard-signal:ro
+      - backups:/backups:ro
     # Root only long enough to give the volumes to their users (rouh-core-entrypoint).
     cap_drop: [ALL]
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
@@ -383,6 +435,10 @@ services:
       ONE_WORKSPACE_ORIGIN: /workspace-origin/workspace.git
       ROUH_LAND_THROUGH: /code/bin/rouh-land
       ONE_SHELL_FOR_ROUH: "1"
+      # Rouh's shell runs each command in a box the kernel holds, files read-only and no network
+      # (rouh/sandbox.py: Landlock here, since Docker's filter refuses bubblewrap its namespaces),
+      # and with no box it runs nothing rather than running unprotected.
+      ROUH_SANDBOX: required
       PATH: /opt/rouh-guard/bin:/home/rouh/.local/bin:/opt/venv/bin:/extra/python3.12/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     volumes:
       - worker-home:/home/rouh
@@ -435,3 +491,48 @@ services:
       timeout: 5s
       retries: 4
       start_period: 30s
+
+  # The owner's own domain, with HTTPS (task 176, step 176-24): Caddy, which gets and renews a Let's
+  # Encrypt certificate for ROUH_DOMAIN and passes every request on to the core, marked as from the
+  # internet (X-Rouh-Edge, rouh/web/gate.py: no setup page, and nothing at all before the owner
+  # exists). In the stack only when the owner turns a domain on (`rouh domain NAME` on a Linux
+  # server, which runs Compose with --profile edge), and only then does anything of Rouh's listen
+  # beyond this machine: ports 80 and 443, nothing else. The stack check holds it to exactly what is
+  # written here (guard/policy/stack-policy.json: a protected service, and public_ports), so a Rouh
+  # cannot change it. Its image is pinned by digest. Certificates live in edge-data.
+  edge:
+    <<: *hardening
+    profiles: [edge]
+    image: caddy:2.11-alpine@sha256:78bd35025c7ba85961dd149ae670315129954e77abe2383ac47c89106b35ade9
+    depends_on:
+      core:
+        condition: service_started
+    # The Caddyfile is the environment's: written to memory at each start, nothing of it on disk.
+    entrypoint: ["/bin/sh", "-c", "printenv ROUH_EDGE_CADDYFILE > /tmp/Caddyfile && exec caddy run --config /tmp/Caddyfile --adapter caddyfile"]
+    environment:
+      # Set by rouh domain NAME; the stack check refuses ports 80 and 443 without it.
+      ROUH_DOMAIN: ${ROUH_DOMAIN:-}
+      XDG_DATA_HOME: /data
+      XDG_CONFIG_HOME: /tmp/config
+      ROUH_EDGE_CADDYFILE: |
+        {
+          admin off
+          acme_ca ${ROUH_EDGE_ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
+        }
+        ${ROUH_DOMAIN} {
+          encode zstd gzip
+          reverse_proxy core:8021 {
+            header_up X-Rouh-Edge 1
+            flush_interval -1
+          }
+        }
+    networks: [edge]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - edge-data:/data
+    tmpfs:
+      - /tmp
+    read_only: true
+    cap_drop: [ALL]

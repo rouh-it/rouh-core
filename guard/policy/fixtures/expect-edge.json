@@ -1,0 +1,26 @@
+{
+ "base": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+ "reference": "good-edge-as-released",
+ "cases": {
+  "good-edge-as-released": {
+   "ok": true,
+   "says": ""
+  },
+  "bad-edge-no-domain": {
+   "ok": false,
+   "says": "no domain set"
+  },
+  "bad-edge-another-port": {
+   "ok": false,
+   "says": "may publish only 80 and 443"
+  },
+  "bad-edge-changed": {
+   "ok": false,
+   "says": "protected core"
+  },
+  "bad-edge-port-elsewhere": {
+   "ok": false,
+   "says": "only 127.0.0.1 is allowed"
+  }
+ }
+}

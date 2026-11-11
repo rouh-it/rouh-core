@@ -1,0 +1,3 @@
+services:
+  edge:
+    volumes: ["core-data:/rouh-data:ro"]
