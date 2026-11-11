@@ -348,7 +348,14 @@ def cmd_logs(a) -> int:
 
 def _backups() -> list[str]:
     r = run(compose("exec", "-T", "backup", "/opt/rouh-guard/bin/rouh-backup", "list"), timeout=60)
-    return [x.strip() for x in (r.stdout or b"").decode(errors="replace").splitlines() if x.strip().endswith(".dump")]
+    # "rouh-20261111-074419.dump  856904 bytes", oldest first (guard/bin/rouh-backup list).
+    out = []
+    for line in (r.stdout or b"").decode(errors="replace").splitlines():
+        parts = line.split()
+        if parts and parts[0].endswith(".dump"):
+            size = f", {int(parts[1]) / 2**20:.1f} MB" if len(parts) > 1 and parts[1].isdigit() else ""
+            out.append(parts[0] + size)
+    return out
 
 
 def cmd_backup(a) -> int:
@@ -532,7 +539,7 @@ def cmd_relay(a) -> int:
 def cmd_doctor(a) -> int:
     problems = 0
 
-    def good(text):
+    def good(text, fix=""):
         say(f"{OK} {text}")
 
     def bad(text, fix=""):
@@ -540,8 +547,8 @@ def cmd_doctor(a) -> int:
         problems += 1
         say(f"{NO} {text}" + (f"\n    {DIM}Fix:{RESET} {fix}" if fix else ""))
 
-    def note(text):
-        say(f"{WARN} {text}")
+    def note(text, fix=""):
+        say(f"{WARN} {text}" + (f"\n    {DIM}Fix:{RESET} {fix}" if fix else ""))
 
     heading("Rouh's doctor: checking this server")
     cores = os.cpu_count() or 0
