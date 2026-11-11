@@ -151,6 +151,7 @@ jobs:
           rouh uninstall --keep --yes 2>&1 | tee "$OUT/uninstall-keep.txt"
           ls -la ~/rouh-kept/*/ | tee -a "$OUT/uninstall-keep.txt"; cat ~/rouh-kept/*/manifest.json | jq '{tables, checked, volumes: [.volumes[].name]}' | tee -a "$OUT/uninstall-keep.txt"
           docker volume ls | tee -a "$OUT/uninstall-keep.txt"; { ls ~/rouh ~/rouh-core /usr/local/bin/rouh 2>&1 || true; } | tee -a "$OUT/uninstall-keep.txt"
+          cd ~
           git clone -q "$GITHUB_WORKSPACE" ~/rouh-core
           ROUH_KEEP_UPDATER=1 ROUH_STOP_AFTER_BRING_BACK=1 python3 ~/rouh-core/deploy/linux/rouh.py install --yes --no-setup 2>&1 | tee "$OUT/bring-back.txt"
           cd ~/rouh; $C up -d --no-deps postgres >/dev/null; sleep 8
@@ -161,6 +162,7 @@ jobs:
       - name: Wipe my data, then a fresh install offers nothing to bring back
         run: |
           mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== $GITHUB_ACTION"
+          cd ~
           rouh uninstall --wipe --yes 2>&1 | tee "$OUT/uninstall-wipe.txt"
           docker volume ls -q | tee -a "$OUT/uninstall-wipe.txt"
           git clone -q "$GITHUB_WORKSPACE" ~/rouh-core
