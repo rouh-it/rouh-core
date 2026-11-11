@@ -378,7 +378,8 @@ def cmd_domain(a) -> int:
             say("No domain of your own is on.")
             return 0
         old = setting("ROUH_DOMAIN")
-        set_settings(ROUH_DOMAIN=None, ROUH_PUBLIC_HOSTS=_hosts_without(old), ROUH_CSRF_TRUSTED_ORIGINS=_origins_without(old))
+        set_settings(ROUH_DOMAIN=None, ROUH_PUBLIC_HOSTS=_hosts_without(old), ROUH_CSRF_TRUSTED_ORIGINS=_origins_without(old),
+                     ROUH_EDGE_ACME_CA=None, ROUH_EDGE_ACME_ROOT_B64=None)
         subprocess.run(["docker", "rm", "--force", f"{common.PROJECT}-edge-1"], capture_output=True)
         r = stack_tool("apply")
         _recreate_core()
@@ -408,8 +409,14 @@ def cmd_domain(a) -> int:
             raise Stop(f"Something on this server already listens on port {p}. Stop it first: Rouh's own domain needs 80 and 443.")
     say(f"{OK} {host} points at this server{' (' + mine + ')' if mine else ''}.")
     set_settings(ROUH_DOMAIN=host, ROUH_PUBLIC_HOSTS=_hosts_with(host), ROUH_CSRF_TRUSTED_ORIGINS=_origins_with(host))
-    if a.staging:
-        set_settings(ROUH_EDGE_ACME_CA="https://acme-staging-v02.api.letsencrypt.org/directory")
+    # A test: Let's Encrypt's staging service, or another (Pebble) with its own root certificate.
+    ca = "https://acme-staging-v02.api.letsencrypt.org/directory" if a.staging else (a.acme_ca or "")
+    root = ""
+    if a.acme_root:
+        import base64
+
+        root = base64.b64encode(Path(a.acme_root).read_bytes()).decode()
+    set_settings(ROUH_EDGE_ACME_CA=ca, ROUH_EDGE_ACME_ROOT_B64=root)
     say("Starting the edge part, which gets a certificate from Let's Encrypt…")
     r = stack_tool("apply")
     _recreate_core()
@@ -422,7 +429,7 @@ def cmd_domain(a) -> int:
                    "rouh logs edge says why.")
     end = time.monotonic() + 180
     while time.monotonic() < end:
-        if _https_answers(host, staging=bool(a.staging)):
+        if _https_answers(host, staging=bool(a.staging or a.acme_ca), root=a.acme_root):
             say(f"{OK} https://{host} answers, with its own certificate.")
             say("Sign in there: rouh open")
             return 0
@@ -431,7 +438,9 @@ def cmd_domain(a) -> int:
     return 1
 
 
-def _https_answers(host: str, staging: bool = False) -> bool:
+def _https_answers(host: str, staging: bool = False, root: str | None = None) -> bool:
+    """https://HOST/healthz answers 200. A test's certificate is not one a browser trusts: then the
+    certificate is not checked here (the proof checks it against the test service's own root)."""
     import ssl
 
     ctx = ssl.create_default_context()
@@ -821,6 +830,8 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("name", nargs="?")
     d.add_argument("--off", action="store_true")
     d.add_argument("--staging", action="store_true", help=argparse.SUPPRESS)
+    d.add_argument("--acme-ca", help=argparse.SUPPRESS)
+    d.add_argument("--acme-root", help=argparse.SUPPRESS)
     rl = sub.add_parser("relay", help="the relay for a Connected Rouh's phone address")
     rl.add_argument("url", nargs="?")
     rl.add_argument("--domain")

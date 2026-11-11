@@ -463,11 +463,13 @@
    "entrypoint": [
     "/bin/sh",
     "-c",
-    "printenv ROUH_EDGE_CADDYFILE > /tmp/Caddyfile && exec caddy run --config /tmp/Caddyfile --adapter caddyfile"
+    "{ echo '{'; echo '  admin off'; echo \"  acme_ca $${ROUH_EDGE_ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}\"; if [ -n \"$${ROUH_EDGE_ACME_ROOT_B64:-}\" ]; then echo \"$$ROUH_EDGE_ACME_ROOT_B64\" | base64 -d > /tmp/acme-root.pem; echo '  acme_ca_root /tmp/acme-root.pem'; fi; echo '}'; printenv ROUH_EDGE_SITE; } > /tmp/Caddyfile && exec caddy run --config /tmp/Caddyfile --adapter caddyfile"
    ],
    "environment": {
     "ROUH_DOMAIN": "",
-    "ROUH_EDGE_CADDYFILE": "{\n  admin off\n  acme_ca https://acme-v02.api.letsencrypt.org/directory\n}\n {\n  encode zstd gzip\n  reverse_proxy core:8021 {\n    header_up X-Rouh-Edge 1\n    flush_interval -1\n  }\n}\n",
+    "ROUH_EDGE_ACME_CA": "",
+    "ROUH_EDGE_ACME_ROOT_B64": "",
+    "ROUH_EDGE_SITE": " {\n  encode zstd gzip\n  reverse_proxy core:8021 {\n    header_up X-Rouh-Edge 1\n    flush_interval -1\n  }\n}\n",
     "XDG_CONFIG_HOME": "/tmp/config",
     "XDG_DATA_HOME": "/data"
    },

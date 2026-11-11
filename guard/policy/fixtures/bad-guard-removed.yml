@@ -455,18 +455,25 @@ services:
     depends_on:
       core:
         condition: service_started
-    # The Caddyfile is the environment's: written to memory at each start, nothing of it on disk.
-    entrypoint: ["/bin/sh", "-c", "printenv ROUH_EDGE_CADDYFILE > /tmp/Caddyfile && exec caddy run --config /tmp/Caddyfile --adapter caddyfile"]
+    # The Caddyfile is made in memory at each start, from its settings: nothing of it on disk.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        { echo '{'; echo '  admin off'; echo "  acme_ca $${ROUH_EDGE_ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}";
+        if [ -n "$${ROUH_EDGE_ACME_ROOT_B64:-}" ]; then echo "$$ROUH_EDGE_ACME_ROOT_B64" | base64 -d > /tmp/acme-root.pem;
+        echo '  acme_ca_root /tmp/acme-root.pem'; fi; echo '}'; printenv ROUH_EDGE_SITE; } > /tmp/Caddyfile
+        && exec caddy run --config /tmp/Caddyfile --adapter caddyfile
     environment:
       # Set by rouh domain NAME; the stack check refuses ports 80 and 443 without it.
       ROUH_DOMAIN: ${ROUH_DOMAIN:-}
       XDG_DATA_HOME: /data
       XDG_CONFIG_HOME: /tmp/config
-      ROUH_EDGE_CADDYFILE: |
-        {
-          admin off
-          acme_ca ${ROUH_EDGE_ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
-        }
+      # Let's Encrypt unless the settings name another certificate service, and that service's
+      # own root certificate (base64), for a test against Let's Encrypt's staging or Pebble.
+      ROUH_EDGE_ACME_CA: ${ROUH_EDGE_ACME_CA:-}
+      ROUH_EDGE_ACME_ROOT_B64: ${ROUH_EDGE_ACME_ROOT_B64:-}
+      ROUH_EDGE_SITE: |
         ${ROUH_DOMAIN} {
           encode zstd gzip
           reverse_proxy core:8021 {
