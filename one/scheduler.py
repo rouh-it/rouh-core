@@ -20,12 +20,15 @@ next to the word "queued": "6 runs are already working; it starts when one
 finishes", not "waiting to start" on its own.
 
 **How many at once.** Thirty runs of Claude Code may work at the same time.
-That number is set in one place only, ``ONE_MAX_RUNS`` in the service's
-drop-in ``/etc/systemd/system/one.service.d/limits.conf``; the 4 in
-``config.py`` is the fallback for a machine without one and is not tuned by
-hand. A run sitting at its prompt costs almost nothing, so the count is no
-longer what protects the machine: the processor share (``ONE_CPU_BUDGET``,
-nine tenths of the service's ``CPUQuota``) and the memory share below are.
+That number is set in one place only, ``ONE_MAX_RUNS`` in the stack's
+settings file (the machine's ``.env``, ``deploy/stack/settings.env.example``),
+which ``deploy/stack/compose.yml`` hands to the worker, 30 when the settings
+file says nothing; before the containers (31 October 2026) it was the systemd
+drop-in ``one.service.d/limits.conf``. The 4 in ``config.py`` is the fallback
+for a machine with neither and is not tuned by hand. A run sitting at its
+prompt costs almost nothing, so the count is no longer what protects the
+machine: the processor share (``ONE_CPU_BUDGET``) and the memory share below
+are, read from the worker container's own limits (``ROUH_WORKER_MEMORY``).
 
 **Memory.** Every run stays open until the person closes it, their decision of
 15 September (D49): a run that has finished its turn waits at its prompt, with

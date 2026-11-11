@@ -138,7 +138,7 @@ These steps use UTM (free, from mac.getutm.app) with Ubuntu Server 24.04 for ARM
 1. Download the Ubuntu Server 24.04 **ARM64** installer from ubuntu.com/download/server/arm.
 2. In UTM: Create a New Virtual Machine, then Virtualize, then Linux. Pick the installer file.
 3. Give it at least **4 CPU cores, 8 GB of memory and 64 GB of disk**.
-   The stack takes about 2 GB, and each run of Claude Code or Codex takes about 1.7 GB more (`ONE_MAX_RUNS=2` by default; with more, raise `ROUH_WORKER_MEMORY` in the settings file to match).
+   The stack takes about 2 GB, and each run of Claude Code or Codex takes about 1.7 GB more (`ONE_MAX_RUNS=30` by default, but no run starts while the worker is past 85% of `ROUH_WORKER_MEMORY`, 6g by default, so about 3 work at once; raise `ROUH_WORKER_MEMORY` in the settings file for more).
 4. Leave the network on **Shared Network**.
 5. Install Ubuntu with the defaults. When it asks, tick **Install OpenSSH server**.
 6. After the restart, sign in on the VM's screen and find its address with `ip -4 addr show | grep inet`.

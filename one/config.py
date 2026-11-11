@@ -254,10 +254,11 @@ class Settings:
 
     # --- The scheduler ------------------------------------------------------------
     #: Runs of Claude Code at once. More wait, visibly, until one ends.
-    #: The live number is set by ONE_MAX_RUNS in the service's drop-in,
-    #: /etc/systemd/system/one.service.d/limits.conf, which is the one place
-    #: it is decided. This 4 is only the fallback for a machine with no
-    #: drop-in; do not tune it by hand.
+    #: The live number is set by ONE_MAX_RUNS in the stack's settings file
+    #: (the machine's .env), which deploy/stack/compose.yml hands to the
+    #: worker, 30 when the file says nothing; that is the one place it is
+    #: decided. This 4 is only the fallback for a machine with neither; do
+    #: not tune it by hand.
     max_runs: int = field(default_factory=lambda: int(_num("ONE_MAX_RUNS", 4)))
     #: New runs wait while the program's processes use more than this share of
     #: the processor they are allowed (the service's CPUQuota).
