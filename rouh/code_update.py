@@ -40,6 +40,7 @@ import asyncio
 import contextlib
 import datetime as dt
 import fcntl
+import hashlib
 import io
 import json
 import logging
@@ -469,9 +470,13 @@ def _step(text: str) -> None:
 
 def _fail(rel: dict, by: str, said: str) -> None:
     log.warning("update to %s did not happen: %s", str(rel.get("commit"))[:12], said)
-    _change(busy=None, pending=None,
+    ident = "fail-" + hashlib.sha256((str(rel.get("commit")) + said).encode()).hexdigest()[:20]
+    previous = state().get("last") or {}
+    _change(busy=None, pending=None, continue_update=None,
+            retry_release=rel, retry_at=time.time() + 1800,
             last={"ok": False, "at": time.time(), "release": rel.get("commit"), "label": label(rel.get("commit", ""), rel),
-                  "said": said, "by": by, "kept": [], "id": f"fail-{int(time.time())}", "told": False})
+                  "said": said, "by": by, "kept": [], "id": ident, "evolution_failure": True,
+                  "told": previous.get("id") == ident and previous.get("told", False)})
 
 
 def _apply(rel: dict, by: str) -> None:
@@ -678,6 +683,9 @@ def reconcile() -> None:
 
 def note(last: dict) -> str:
     """The line said in General about the last update."""
+    if last.get("evolution_failure"):
+        return ("Rouh could not finish this update: " + str(last.get("said") or "the check could not finish")
+                + ". Settings, Changes shows what came in and what is waiting. It will be tried again.")
     if "waiting" in last:
         text = "Rouh's update: " + last["said"]
         for row in last["waiting"]:

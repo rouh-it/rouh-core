@@ -116,11 +116,12 @@ jobs:
           { echo "### The stack on $ARCH, at ${GITHUB_SHA:0:12}"; echo; echo '```';
             grep -E '^(ok |FAIL|now passes|broken|untested|manual|[0-9]+ passed|stack-test:)' stack-test.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           if [ "$status" != 0 ]; then
-            while IFS= read -r line; do
-              line=${line//'%'/'%25'}
-              line=${line//$'\r'/'%0D'}
-              echo "::error title=Container proof::$line"
-            done < <(tail -n 25 stack-test.log)
+            detail=$(grep -Ei 'error|failed|did not|not found|no such|denied' stack-test.log | tail -n 12)
+            [ -n "$detail" ] || detail=$(tail -n 8 stack-test.log)
+            detail=${detail//'%'/'%25'}
+            detail=${detail//$'\r'/'%0D'}
+            detail=${detail//$'\n'/'%0A'}
+            echo "::error title=Container proof::$detail"
           fi
           exit $status
 
