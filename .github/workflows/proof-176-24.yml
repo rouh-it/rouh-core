@@ -1,0 +1,251 @@
+# Task 176, step 176-24: Rouh on a clean Linux server, proved. A proof branch only; never on main.
+#   command   the rouh command, setup in a real terminal, the timer, the own domain (Pebble), Keep, Wipe and Bring back
+#   one-line  the real `curl -fsSL https://rouh.land/install.sh | sh`, a tampered release stopping it, a Connected setup
+#   vm        Debian 12 in a KVM virtual machine: the one command, then a reboot that comes back running
+# Results (transcripts, logs, screenshots) go to the branch proof/176-24-results-<part>.
+name: proof-176-24
+on:
+  workflow_dispatch:
+    inputs:
+      part:
+        type: choice
+        options: [command, one-line, vm]
+        default: command
+permissions:
+  contents: write
+  packages: write
+env:
+  OUT: ${{ github.workspace }}/out
+jobs:
+  command:
+    if: inputs.part == 'command'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 170
+    steps:
+      - uses: actions/checkout@v4
+      - name: A server with no Docker (as 176-11)
+        run: |
+          mkdir -p "$OUT"
+          sudo systemctl stop docker.socket docker containerd 2>/dev/null || true
+          sudo apt-get purge -y -qq 'docker-*' 'moby-*' containerd.io containerd runc podman buildah >/dev/null 2>&1 || true
+          sudo rm -rf /var/lib/docker /var/lib/containerd /etc/docker /usr/libexec/docker /usr/local/bin/docker* /usr/bin/docker*
+          sudo groupdel docker 2>/dev/null || true
+          ! command -v docker
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          (id; python3 -V; nproc; free -g; df -h "$HOME") | tee "$OUT/machine.txt"
+      - name: The proof's own tools (a terminal driver, Chromium)
+        run: |
+          python3 -m pip install -q --break-system-packages pexpect playwright
+          python3 -m playwright install --with-deps chromium >/dev/null
+      - name: A stand-in for Anthropic, so the key check gets a real answer with no real key
+        run: nohup python3 proof-176-24/standin_model.py "$OUT/standin.log" >/dev/null 2>&1 &
+      - name: Docker, as a new server gets it (get.docker.com)
+        run: |
+          curl -fsSL https://get.docker.com | sudo sh >/dev/null
+          sudo chmod 666 /var/run/docker.sock
+          docker version --format '{{.Server.Version}}' | tee -a "$OUT/machine.txt"
+      - name: The updater, at this commit
+        run: |
+          git clone -q "$GITHUB_WORKSPACE" ~/rouh-core
+          git -C ~/rouh-core remote set-url origin https://github.com/rouh-it/rouh-core.git
+          git -C ~/rouh-core log -1 --format='%H %s' | tee "$OUT/commit.txt"
+      - name: A proof guard image of this commit, and a test release with the edge part
+        run: |
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker buildx build --platform linux/amd64 -f guard/Dockerfile \
+            --output "type=image,name=ghcr.io/rouh-it/rouh-guard,push-by-digest=true,name-canonical=true,push=true" \
+            --metadata-file meta.json . >/dev/null
+          GUARD="ghcr.io/rouh-it/rouh-guard@$(jq -r '."containerimage.digest"' meta.json)"
+          echo "GUARD=$GUARD" >> "$GITHUB_ENV"
+          python3 proof-176-24/make_release.py "$GUARD" ~/rouh-core "$HOME/test-release.json" | tee "$OUT/test-release.txt"
+      - name: First start on the test release, then rouh install
+        env:
+          ROUH_KEEP_UPDATER: "1"
+        run: |
+          mkdir -p ~/rouh && chmod 700 ~/rouh
+          cp ~/rouh-core/deploy/stack/settings.env.example ~/rouh/.env && chmod 600 ~/rouh/.env
+          sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 32)|" ~/rouh/.env
+          printf 'ANTHROPIC_BASE_URL=http://host.docker.internal:18080\n' >> ~/rouh/.env
+          python3 ~/rouh-core/deploy/container/linux_stack.py update --release ~/test-release.json 2>&1 | tail -5 | tee "$OUT/first-start.txt"
+          python3 ~/rouh-core/deploy/linux/rouh.py install --yes --no-setup 2>&1 | tee "$OUT/install.txt"
+          which rouh; systemctl list-timers rouh-update.timer --no-pager | tee -a "$OUT/install.txt"
+      - name: The setup code is in no log; a domain is refused before an owner exists
+        run: |
+          cd ~/rouh
+          docker compose -p rouh -f stack/stack.json --env-file .env --env-file stack/release.env exec -T core python manage.py setup_code > ~/code-before.txt
+          docker compose -p rouh -f stack/stack.json --env-file .env --env-file stack/release.env logs --no-log-prefix core > "$OUT/core-start.log"
+          { echo "code in the core's log: $(grep -c "$(cat ~/code-before.txt)" "$OUT/core-start.log" || true) times";
+            grep "no owner yet" "$OUT/core-start.log" | head -1; } | tee "$OUT/code-hygiene.txt"
+          (rouh domain rouh-proof.example.test || true) 2>&1 | tee "$OUT/domain-before-owner.txt"
+      - name: rouh setup, an Independent Rouh, typed into a real terminal
+        env:
+          ROUH_KEEP_UPDATER: "1"
+        run: python3 proof-176-24/drive.py proof-176-24/independent.txt "$OUT/independent.typescript" rouh setup
+      - name: The old setup code is refused now
+        run: |
+          echo "the code read before rouh setup: HTTP $(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $(cat ~/code-before.txt)" http://127.0.0.1:8420/setup/api/state)" | tee -a "$OUT/code-hygiene.txt"
+      - name: The link it printed opens General, with the greeting part of the conversation
+        run: |
+          python3 proof-176-24/open_check.py "$OUT/independent.typescript" independent "$OUT" 2>&1 | tee "$OUT/open-independent.txt"
+          python3 - "$OUT/standin.log" <<'PY' | tee "$OUT/greeting-in-history.txt"
+          import json, sys
+          for line in open(sys.argv[1]):
+              if line.startswith("POST /v1/messages") and "Gmail please" in line:
+                  body = json.loads(line.split(" ", 2)[2]) if line.count("{") else {}
+          print("the turn that answered 'Gmail please' was sent", len(body.get("messages", [])), "messages:")
+          for m in body.get("messages", []):
+              c = m["content"] if isinstance(m["content"], str) else " ".join(b.get("text", "") for b in m["content"] if isinstance(b, dict))
+              print(" ", m["role"], "|", c[:160].replace("\n", " "))
+          PY
+      - name: Every rouh command
+        env:
+          ROUH_KEEP_UPDATER: "1"
+        run: |
+          for c in "status" "open" "update" "update --off" "update --on" "back" "logs core -n 8" "logs edge" "backup" "backup --list" \
+                   "doctor" "relay" "relay https://relay.example.test/relay/ --domain rouh.example.test" "relay" "relay --default" "--version"; do
+            echo "\$ rouh $c"; (rouh $c 2>&1 || echo "(exit $?)") | sed 's/code=[A-Za-z0-9_-]*/code=<hidden>/'; echo
+          done | tee "$OUT/commands.txt"
+      - name: The nightly update, started by hand
+        run: |
+          sudo systemctl start rouh-update.service
+          systemctl status rouh-update.service --no-pager | head -8 | tee "$OUT/timer.txt"
+          tail -n 25 ~/rouh/logs/update.log | tee -a "$OUT/timer.txt"
+          systemctl list-timers rouh-update.timer --no-pager | tee -a "$OUT/timer.txt"
+      - name: Your own domain, with Pebble (Let's Encrypt's test server)
+        run: cd "$OUT" && bash "$GITHUB_WORKSPACE/proof-176-24/edge.sh" 2>&1 | tee "$OUT/edge.txt"
+      - name: The stack check in the proof guard image refuses 80 and 443 with no domain
+        run: |
+          docker run --rm --network none --entrypoint python "$GUARD" -I /opt/rouh-guard/policy/fixtures/check.py 2>&1 | tail -8 | tee "$OUT/guard-check.txt"
+      - name: Keep my data, then Bring back your Rouh, identical
+        run: |
+          cd ~/rouh
+          C="docker compose -p rouh -f stack/stack.json --env-file .env --env-file stack/release.env"
+          $C stop core worker browser backup guard keyproxy >/dev/null 2>&1
+          rouh fingerprint > "$OUT/fingerprint-before.json"
+          rouh uninstall --keep --yes 2>&1 | tee "$OUT/uninstall-keep.txt"
+          ls -la ~/rouh-kept/*/ | tee -a "$OUT/uninstall-keep.txt"; cat ~/rouh-kept/*/manifest.json | jq '{tables, checked, volumes: [.volumes[].name]}' | tee -a "$OUT/uninstall-keep.txt"
+          docker volume ls | tee -a "$OUT/uninstall-keep.txt"; ls ~/rouh ~/rouh-core /usr/local/bin/rouh 2>&1 | tee -a "$OUT/uninstall-keep.txt"
+          git clone -q "$GITHUB_WORKSPACE" ~/rouh-core
+          ROUH_KEEP_UPDATER=1 ROUH_STOP_AFTER_BRING_BACK=1 python3 ~/rouh-core/deploy/linux/rouh.py install --yes --no-setup 2>&1 | tee "$OUT/bring-back.txt"
+          cd ~/rouh; $C up -d --no-deps postgres >/dev/null; sleep 8
+          rouh fingerprint > "$OUT/fingerprint-after.json"
+          if diff "$OUT/fingerprint-before.json" "$OUT/fingerprint-after.json"; then echo "IDENTICAL" | tee -a "$OUT/bring-back.txt"; else echo "DIFFERENT" | tee -a "$OUT/bring-back.txt"; exit 1; fi
+          ROUH_KEEP_UPDATER=1 rouh update 2>&1 | tail -3 | tee -a "$OUT/bring-back.txt"
+          rouh status 2>&1 | tee -a "$OUT/bring-back.txt"
+      - name: Wipe my data, then a fresh install offers nothing to bring back
+        run: |
+          rouh uninstall --wipe --yes 2>&1 | tee "$OUT/uninstall-wipe.txt"
+          docker volume ls -q | tee -a "$OUT/uninstall-wipe.txt"
+          git clone -q "$GITHUB_WORKSPACE" ~/rouh-core
+          ROUH_KEEP_UPDATER=1 python3 ~/rouh-core/deploy/linux/rouh.py install --yes --no-setup 2>&1 | tee "$OUT/fresh-after-wipe.txt"
+          cd ~/rouh; docker compose -p rouh -f stack/stack.json --env-file .env --env-file stack/release.env exec -T core python manage.py setup_code --status | tee -a "$OUT/fresh-after-wipe.txt"
+      - name: What runs, and the core's log
+        if: always()
+        run: |
+          cd ~/rouh 2>/dev/null && docker compose -p rouh -f stack/stack.json --env-file .env --env-file stack/release.env ps --all > "$OUT/ps.txt" 2>&1 || true
+          cd ~/rouh 2>/dev/null && docker compose -p rouh -f stack/stack.json --env-file .env --env-file stack/release.env logs --no-log-prefix --tail 200 core > "$OUT/core-tail.log" 2>&1 || true
+      - name: Results to a branch
+        if: always()
+        run: |
+          cd "$OUT"
+          sed -i -E 's/(code=)[A-Za-z0-9_-]{8,}/\1<hidden>/g; s/(Bearer )[A-Za-z0-9_-]{8,}/\1<hidden>/g' *.txt *.typescript *.log 2>/dev/null || true
+          git init -q -b results && git add -A
+          git -c user.name=proof -c user.email=proof@rouh.invalid commit -qm "proof 176-24 ${{ inputs.part }} ${{ github.run_id }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" "results:refs/heads/proof/176-24-results-${{ inputs.part }}"
+
+  one-line:
+    if: inputs.part == 'one-line'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: A server with no Docker (as 176-11)
+        run: |
+          mkdir -p "$OUT"
+          sudo systemctl stop docker.socket docker containerd 2>/dev/null || true
+          sudo apt-get purge -y -qq 'docker-*' 'moby-*' containerd.io containerd runc podman buildah >/dev/null 2>&1 || true
+          sudo rm -rf /var/lib/docker /var/lib/containerd /etc/docker /usr/libexec/docker /usr/local/bin/docker* /usr/bin/docker*
+          sudo groupdel docker 2>/dev/null || true
+          ! command -v docker
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          python3 -m pip install -q --break-system-packages pexpect playwright
+          python3 -m playwright install --with-deps chromium >/dev/null
+          nohup python3 proof-176-24/standin_model.py "$OUT/standin.log" >/dev/null 2>&1 &
+      - name: A tampered release stops the install, with nothing used
+        run: |
+          python3 proof-176-24/tamper.py 9999 >/dev/null 2>&1 &
+          sleep 2
+          set +e
+          curl -fsSL https://rouh.land/install.sh | ROUH_LAND=http://127.0.0.1:9999 sh -s -- --yes > "$OUT/tampered.txt" 2>&1
+          echo "exit $?" >> "$OUT/tampered.txt"
+          set -e
+          cat "$OUT/tampered.txt"; grep -q "did not check out" "$OUT/tampered.txt"; ! command -v docker; ! test -d ~/rouh-core
+      - name: The one command, as a stranger runs it (setup afterwards, in a real terminal)
+        run: |
+          set -o pipefail
+          curl -fsSL https://rouh.land/install.sh | sh -s -- --yes --no-setup 2>&1 | tee "$OUT/one-line.txt"
+          printf 'ANTHROPIC_BASE_URL=http://host.docker.internal:18080\n' >> ~/rouh/.env
+          sg docker -c "docker compose -p rouh -f $HOME/rouh/stack/stack.json --env-file $HOME/rouh/.env --env-file $HOME/rouh/stack/release.env up -d --no-deps --force-recreate core" >/dev/null 2>&1
+          sleep 60
+      - name: rouh setup, a Connected Rouh against live rouh.land, with the code it really emailed
+        run: sg docker -c "python3 proof-176-24/drive.py proof-176-24/connected.txt $OUT/connected.typescript rouh setup"
+      - name: The rouh.page link opens General, from outside, in Chromium
+        run: python3 proof-176-24/open_check.py "$OUT/connected.typescript" connected "$OUT" 2>&1 | tee "$OUT/open-connected.txt"
+      - name: rouh status and rouh doctor
+        run: sg docker -c "rouh status; rouh doctor" 2>&1 | tee "$OUT/connected-status.txt" || true
+      - name: Results to a branch
+        if: always()
+        run: |
+          cd "$OUT"
+          sed -i -E 's/(code=)[A-Za-z0-9_-]{8,}/\1<hidden>/g; s/(Bearer )[A-Za-z0-9_-]{8,}/\1<hidden>/g' *.txt *.typescript *.log 2>/dev/null || true
+          git init -q -b results && git add -A
+          git -c user.name=proof -c user.email=proof@rouh.invalid commit -qm "proof 176-24 ${{ inputs.part }} ${{ github.run_id }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" "results:refs/heads/proof/176-24-results-${{ inputs.part }}"
+
+  vm:
+    if: inputs.part == 'vm'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: KVM and a Debian 12 virtual machine (cloud image, cloud-init)
+        run: |
+          mkdir -p "$OUT"
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          sudo apt-get update -qq && sudo apt-get install -y -qq qemu-system-x86 qemu-utils cloud-image-utils >/dev/null
+          curl -fsSL -o debian.qcow2 https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2
+          qemu-img resize debian.qcow2 60G
+          ssh-keygen -q -t ed25519 -N "" -f vmkey
+          cat > user-data <<EOF
+          #cloud-config
+          users:
+            - name: rouh
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              shell: /bin/bash
+              ssh_authorized_keys: ["$(cat vmkey.pub)"]
+          EOF
+          cloud-localds seed.img user-data
+          qemu-system-x86_64 -enable-kvm -cpu host -smp 4 -m 10240 -drive file=debian.qcow2,if=virtio -drive file=seed.img,if=virtio,format=raw \
+            -netdev user,id=n,hostfwd=tcp::2222-:22 -device virtio-net,netdev=n -display none -daemonize -pidfile vm.pid
+          for i in $(seq 1 60); do ssh -i vmkey -p 2222 -o StrictHostKeyChecking=no -o ConnectTimeout=5 rouh@127.0.0.1 true 2>/dev/null && break; sleep 5; done
+          ssh -i vmkey -p 2222 -o StrictHostKeyChecking=no rouh@127.0.0.1 'cat /etc/os-release | head -2; python3 -V; nproc; free -g' | tee "$OUT/vm.txt"
+      - name: The one command, in the VM (Debian 12 has Python 3.11)
+        run: |
+          ssh -i vmkey -p 2222 -o StrictHostKeyChecking=no rouh@127.0.0.1 'curl -fsSL https://rouh.land/install.sh | sh -s -- --yes --no-setup' 2>&1 | tee "$OUT/vm-install.txt"
+          ssh -i vmkey -p 2222 -o StrictHostKeyChecking=no rouh@127.0.0.1 'rouh status; systemctl list-timers rouh-update.timer --no-pager' 2>&1 | tee -a "$OUT/vm-install.txt"
+      - name: A reboot, and Rouh comes back running by itself
+        run: |
+          ssh -i vmkey -p 2222 -o StrictHostKeyChecking=no rouh@127.0.0.1 'sudo systemctl reboot' || true
+          sleep 30
+          for i in $(seq 1 60); do ssh -i vmkey -p 2222 -o StrictHostKeyChecking=no -o ConnectTimeout=5 rouh@127.0.0.1 true 2>/dev/null && break; sleep 5; done
+          ssh -i vmkey -p 2222 -o StrictHostKeyChecking=no rouh@127.0.0.1 'uptime; for i in $(seq 1 60); do rouh status >/dev/null 2>&1 && break; sleep 10; done; rouh status' 2>&1 | tee "$OUT/vm-reboot.txt"
+          grep -q "is running" "$OUT/vm-reboot.txt" || grep -q "is not finished" "$OUT/vm-reboot.txt"
+      - name: Results to a branch
+        if: always()
+        run: |
+          cd "$OUT"
+          sed -i -E 's/(code=)[A-Za-z0-9_-]{8,}/\1<hidden>/g; s/(Bearer )[A-Za-z0-9_-]{8,}/\1<hidden>/g' *.txt *.typescript *.log 2>/dev/null || true
+          git init -q -b results && git add -A
+          git -c user.name=proof -c user.email=proof@rouh.invalid commit -qm "proof 176-24 ${{ inputs.part }} ${{ github.run_id }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" "results:refs/heads/proof/176-24-results-${{ inputs.part }}"
