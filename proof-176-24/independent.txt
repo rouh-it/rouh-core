@@ -1,0 +1,19 @@
+# An Independent Rouh, typed as a person would, with a wrong key first (the stand-in refuses it).
+Connected or Independent\? => i
+First name: => Mira
+Last name => Kovac
+Email: => mira@example.test
+time zone => <enter>
+Password \(hidden\): => short
+Password \(hidden\): => Lantern?River-2026
+The same password again => Lantern?River-2026
+Nickname => Ivy
+Anthropic or OpenAI => a
+key \(hidden\): => sk-ant-WRONG-not-a-real-key-0000000000000000000000
+key \(hidden\): => sk-ant-api03-standin-key-for-the-proof-00000000000000000000
+Connect a plan now => 1
+The code Claude shows => <enter>
+Connect a plan now => 2
+Waiting for you to approve it => <ctrl-c>
+Connect a plan now => 3
+Use my API key for agents\? => y

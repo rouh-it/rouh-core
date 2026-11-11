@@ -1,0 +1,15 @@
+# A Connected Rouh against live rouh.land: the code is the one rouh.land really emailed.
+Connected or Independent\? => <enter>
+First name: => Tess
+Last name => Proof
+Email: => rouh+t17624a@bigbongo.ai
+time zone => Europe/Sofia
+Password \(hidden\): => Harbour#Lights-24
+The same password again => Harbour#Lights-24
+Code: => <emailed-code>
+Nickname => <enter>
+Anthropic or OpenAI => a
+key \(hidden\): => sk-ant-api03-standin-key-for-the-proof-00000000000000000000
+Connect a plan now => 3
+Use my API key for agents\? => y
+Choose your own address on rouh.page too => n
