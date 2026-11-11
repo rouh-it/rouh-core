@@ -281,6 +281,13 @@ def settings_of(folder: Path) -> Path | None:
     return f if f.is_file() else None
 
 
+#: A volume's fingerprint: every path with its type, mode, owner and link target, and every file's
+#: contents. Not a folder's own size, which on Linux grows with files once deleted from it and is no
+#: part of what the folder holds (a restored git repository's differs from the original's).
+FINGERPRINT = ("cd /v && { find . -printf '%p %y %m %U %G %l\\n' | LC_ALL=C sort; "
+               "find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum; } | sha256sum")
+
+
 def fingerprint() -> dict:
     """What is in Rouh's volumes and database now, to compare before and after (for the proof):
     each volume's file list with sizes and modes, hashed, and the database's row counts per table."""
@@ -289,7 +296,7 @@ def fingerprint() -> dict:
     out: dict = {}
     for n in names:
         r = run(["docker", "run", "--rm", "--network", "none", "--user", "0:0", "-v", f"{PROJECT}_{n}:/v:ro", "--entrypoint", "sh",
-                 base, "-c", "cd /v && find . -printf '%p %s %m %U %G\\n' | LC_ALL=C sort | sha256sum"], timeout=600)
+                 base, "-c", FINGERPRINT], timeout=600)
         out[n] = (r.stdout or b"").decode().split()[0] if r.returncode == 0 else "unreadable"
     q = ("select format('%s.%s', schemaname, tablename) || '=' || (xpath('/row/c/text()', query_to_xml("
          "format('select count(*) as c from %I.%I', schemaname, tablename), false, true, '')))[1]::text "
