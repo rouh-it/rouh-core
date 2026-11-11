@@ -89,11 +89,19 @@ jobs:
               exit "$result"
             fi
           }
-          setup_step sudo apt-get update -qq
-          # age opens the encrypted off-site copy the backup check makes (tests/stack/checks_backup.py).
-          setup_step sudo apt-get install -y -qq age
+          # The hosted images already carry Chrome's system libraries. Keep provisioning off
+          # Ubuntu's regional apt mirrors: an outage there must not prevent a stack proof.
+          age_arch=${{ matrix.arch }}
+          age_archive=$(mktemp)
+          age_dir=$(mktemp -d)
+          setup_step curl --fail --location --retry 3 --output "$age_archive" \
+            "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-${age_arch}.tar.gz"
+          tar -xzf "$age_archive" -C "$age_dir"
+          sudo install -m 0755 "$age_dir/age/age" "$age_dir/age/age-keygen" /usr/local/bin/
+          rm -rf "$age_archive" "$age_dir"
           setup_step python3 -m pip install --quiet --break-system-packages -r tests/stack/requirements.txt
-          setup_step python3 -m playwright install --with-deps chromium
+          setup_step python3 -m playwright install chromium
+          setup_step python3 -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); b=p.chromium.launch(headless=True); b.close(); p.stop()'
 
       - name: Build, start and check the stack
         env:
