@@ -253,21 +253,25 @@ def brief(row: dict, work: Path) -> dict:
             "master_readme": readme(u._git("show", row["master"] + ":README.md", cwd=master).stdout),
             "master_checks_catalogue": u._git("show", row["master"] + ":CONTAINERS.md", cwd=master).stdout,
             "local_files": local, "local_readme": readme((work / "README.md").read_text(errors="replace"))
-            if (work / "README.md").is_file() else "",
+            if (work / "README.md").is_file() and not (work / "README.md").is_symlink() else "",
             "local_changes": _git("log", "-40", "--format=%B", cwd=work),
-            "genes": {p.name: p.read_text() for p in (work / "rouh/genes/manifests").glob("*.json") if p.stem in relevant_genes},
+            "genes": {p.name: p.read_text() for p in (work / "rouh/genes/manifests").glob("*.json")
+                      if p.stem in relevant_genes and not p.is_symlink()},
             "all_gene_names": [p.stem for p in (work / "rouh/genes/manifests").glob("*.json")],
             "protected_core": {k: core.get(k) for k in ("version", "features")},
             "local_schema": guardface.ask("database_inventory").get("schema", []) if row["database"] else [],
             "local_migrations": {p.name: p.read_text() for p in (work / "rouh/migrations").glob("*.py")
-                                 if row["database"] and u._git("cat-file", "-e", row["parent"] + ":rouh/migrations/" + p.name,
+                                 if row["database"] and not p.is_symlink()
+                                 and u._git("cat-file", "-e", row["parent"] + ":rouh/migrations/" + p.name,
                                                               cwd=master).returncode},
             "database": row["database"], "security": row["security"]}
 
 
 def _path(work: Path, name: str) -> Path:
     p = work / name
-    if not name or name.startswith("-") or ".git" in Path(name).parts or not p.resolve().is_relative_to(work.resolve()):
+    resolved, root = p.resolve(), work.resolve()
+    if not name or name.startswith("-") or ".git" in Path(name).parts or not resolved.is_relative_to(root) \
+            or ".git" in resolved.relative_to(root).parts:
         raise u.Refused("The adapting job proposed a file outside its checkout.")
     return p
 
