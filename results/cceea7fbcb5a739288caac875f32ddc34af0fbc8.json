@@ -1,0 +1,8 @@
+{
+  "commit": "cceea7fbcb5a739288caac875f32ddc34af0fbc8",
+  "ref": "proof/stack-140-18b",
+  "ok": false,
+  "result": "failure",
+  "at": "2026-11-11T09:13:18Z",
+  "run": "https://github.com/rouh-it/rouh-core/actions/runs/42990362548"
+}
