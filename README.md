@@ -1545,6 +1545,41 @@ Until that day these were "Your words" on this page, every one told in every tur
 
 What stays outside the Rules page, on purpose: the tools' schemas (the registry that runs them is their one source), the model provider's own rules, every permission check, the one-off prompts of single-purpose model calls that answer in a fixed shape (titles, filing, the mail case's own reading, a helper's brief, Ask AI), and what a background job is told, which is the Agent instructions page.
 
+## Rouh's updates: ride along, update when pressed, or its own path
+
+Petar, 11 November 2026 (task 140, step 140-18): "one time click that updates your code from our repo", and "an option to stay in sync with the creator rouh ... people that will be happy to just ride along".
+A Rouh's code is its own (`/code`, changed by its genes and by itself, each change through its protected core), so until this nothing newer reached it after its first start.
+
+**The choice**, on Anatomy, Meta, Changes, in the card Rouh's updates, and through the `update_rouh` tool:
+
+- **Ride along** (the default): the Rouh takes each new release by itself, at a quiet moment (no turn in progress, no run going, no deploy waiting), at most once a day.
+- **Update when I press**: nothing comes in until the person presses "Update to the newest Rouh", which shows the version they have, the newest, and a short list of what is new.
+- **My own path**: the Rouh never looks for releases by itself; the button still works.
+
+A Rouh on its own (Independent) asks nobody anything by itself, so it never rides along and asks rouh.land only when its person presses a button.
+A Rouh with no protected core beside it (a server, a test world) shows the card and says its code is updated by `land.sh` there.
+
+**A release** is not every commit of main.
+It is a commit that ran on the Creator Rouh for at least a day with nothing put back and its checks passed.
+`rouh/code_release.py`, on the Creator Rouh only, writes down the commit that runs at every look and, once a day, publishes the newest undo point that ran a whole day (no gap of more than three hours between looks, every commit seen since containing it), whose checks passed, that the doctor never put back, that is on rouh-core's main and that contains the release before it.
+It is sent to rouh.land (`POST /mac/code/release`), signed with the Creator Rouh's daily key; rouh.land takes it only from a registry id in `ROUH_IT_RELEASE_MAKERS`, forward only, and serves it publicly at `https://rouh.land/mac/code/release.json` with the recent releases and their notes, which are the commits' subjects with the task numbers taken off.
+Nobody approves each release.
+`https://rouh.land/mac/code/newest.json` stays what it was: the newest commit that passed its tests, for a first start.
+
+**An update** (`rouh/code_update.py`, the same for a press, a ride along and the tool):
+
+1. The release's tarball comes from the public rouh-it/rouh-core on GitHub and must say it is that commit, as a first start checks.
+2. In a clone of `/code` in the data folder (`code-update/work`), the release's files are committed on top of the release the Rouh came from: its first commit with `.git/rouh-installed.json`, or the last update's release commit, which carries a `Rouh-release: <commit>` line. That commit holds exactly what a fresh install of the release has; the release tools a Rouh never runs are left out where the Rouh never had them.
+3. The Rouh's own changes since are merged on top. Where a change of its own and the release changed the same lines, its own file stays as it was, neither overwritten nor dropped, and the gene is named by the `Gene:` lines of its commits, else by the gene map.
+4. Libraries the release needs and the base lacks go into `/extra` first, with the protected core's `rouh-code-install --extra-only`.
+5. A backup in `code-update/backups`: the whole of `/code` as a git bundle, and the newest nightly copy of the database kept aside (the core has no PostgreSQL client). A release that changes the database waits while that copy is more than 26 hours old. The newest three of each are kept.
+6. The merged commit is proposed to the protected core: checked, kept as an undo point, then live; a refused one changes nothing.
+
+The update is written down before it is proposed (`code-update/state.json`), because going live starts Rouh again and cuts off what started it; the next start asks the protected core what became of it and says it once in General ("Rouh updated itself to ...", or "Rouh did not update itself to ...: ... Nothing was changed."), and as a notice when it did not happen.
+Only code moves: rules, memory, mail, people and settings are the database's and the data folder's, and are never touched (shared rules keep coming through `rules/defaults.json`).
+
+Checked in the containers by `updates.press` and `updates.ride` (CONTAINERS.md, `tests/stack/checks_updates.py`).
+
 ## Where the code lives, and how to change it
 
 This repository is the only copy of Rouh's code. On a development machine it is
