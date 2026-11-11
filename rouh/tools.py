@@ -1646,10 +1646,12 @@ class ToolRegistry:
         self._own(
             "update_rouh",
             "Rouh's updates: bring this Rouh's own code to the newest release of Rouh, the same way "
-            "Anatomy, Meta, Changes does with its button 'Update to the newest Rouh'. Its own changes "
-            "(genes, its own commits) are kept on top; a change of its own that clashes with the "
-            "release stays as it was and is named afterwards; rules, memory, mail, people and settings "
-            "are never touched. 'action' 'check' (the default) says the version here, the newest, what "
+            "Anatomy, Meta, Changes does with its button 'Update to the newest Rouh'. Released changes "
+            "from shared rouh-core main come in one at a time: exact copies when their files match, "
+            "otherwise a frontier job adapts their purpose while respecting this Rouh's genes. "
+            "Database changes require a protected backup and rehearsal; security changes require "
+            "proof before and after. Changes that cannot pass stay waiting with a reason, and "
+            "dependants wait too. 'action' 'check' (the default) says the version here, the newest, what "
             "is new and how the last update went; 'update' starts the update now (only on the "
             "person's own words, such as 'update yourself to the newest Rouh'), which restarts "
             "Rouh: say that it has started and that a note in General will say how it went; "
