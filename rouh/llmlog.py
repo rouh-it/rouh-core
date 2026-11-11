@@ -41,8 +41,9 @@ cost:
   pieces (`llm_pieces`), each system prompt, tool list and message once, it is
   about what the transcripts take. `request_of` puts one back together.
 - **The reasoning and the answer have columns of their own** (`reasoning`,
-  `text`), rather than being dug out of a metadata blob, and the whole answer
-  is kept as it came: every block, tool calls and web results included.
+  `text`), rather than being dug out of a metadata blob. Readable reasoning
+  summaries are kept there; encrypted reasoning credentials and provider
+  signatures are removed from the request and response copies in the log.
 - **Nothing waits for the database.** Rows are written by one thread of their
   own, in the order things happened, so a spoken turn is never slower for being
   written down, and a database that is down costs a warning in the log and
@@ -84,6 +85,8 @@ import sys
 import threading
 import time
 from decimal import Decimal
+
+from django.db import connection, transaction
 
 import anthropic
 import httpx
@@ -608,14 +611,15 @@ class Entry:
         # system prompt and its input the conversation (`rouh/luna.py`). A
         # picture's words are its one message, and the rest of what it was
         # asked with its settings.
-        system = _piece(pieces, "system", body.pop("instructions" if openai else "system", None))
-        tools = _piece(pieces, "tools", body.pop("tools", None))
+        system = _piece(pieces, "system", _log_safe(
+            body.pop("instructions" if openai else "system", None), self.provider))
+        tools = _piece(pieces, "tools", _log_safe(body.pop("tools", None), self.provider))
         messages = body.pop("input" if openai else "messages", None)
         if picture and body.get("prompt") is not None:
             messages = str(body.pop("prompt"))
         if isinstance(messages, str):
             messages = [{"role": "user", "content": messages}]
-        message_pieces = [_piece(pieces, "message", m)
+        message_pieces = [_piece(pieces, "message", _log_safe(m, self.provider))
                           for m in (messages if isinstance(messages, list) else [])]
 
         thinking = body.get("thinking")
@@ -652,7 +656,7 @@ class Entry:
             max_tokens=max_tokens,
             effort=str(output.get("effort") or ""),
             thinking=thought,
-            settings=body,
+            settings=_log_safe(body, self.provider),
             system_piece=system,
             tools_piece=tools,
             message_pieces=message_pieces,
@@ -724,7 +728,7 @@ class Entry:
             reasoning=(str(message.get("reasoning") or "") if self.provider in (OPENAI, VOYAGE) + COMPAT else
                        "\n\n".join(str(b.get("thinking") or "") for b in blocks
                                     if b.get("type") == "thinking" and b.get("thinking"))),
-            response=message or None,
+            response=_log_safe(message, self.provider) if message else None,
             input_tokens=took["input"],
             output_tokens=took["output"],
             cache_read_tokens=took["cache_read"],
@@ -815,6 +819,110 @@ def _dump(value) -> str:
     """The JSON a piece is kept as, and its digest taken of: compact, every key
     in the order it was sent, and every character as itself."""
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def _log_safe(value, provider: str, parent_type: str = ""):
+    """Copy a model payload without turn-only or provider-private reasoning data.
+
+    This affects only the database copy. The SDK sends and receives the
+    original values, so reasoning can still be handed back within a turn.
+    """
+    if isinstance(value, list):
+        return [_log_safe(item, provider, parent_type) for item in value]
+    if not isinstance(value, dict):
+        return value
+    kind = str(value.get("type") or parent_type)
+    clean = {}
+    for key, item in value.items():
+        if provider == OPENAI and key == "encrypted_content":
+            continue
+        if provider == PROVIDER and ((kind == "thinking" and key == "signature")
+                                     or (kind == "redacted_thinking" and key == "data")):
+            continue
+        clean[key] = _log_safe(item, provider, kind)
+    return clean
+
+
+def scrub_historical_reasoning(batch_size: int = 2000, pause: float = 0.1,
+                               after_request_id: int = 0, after_piece_hash: str = "",
+                               progress=None) -> dict[str, int]:
+    """Idempotently remove private reasoning fields from stored log batches.
+
+    Each read and its updates share one short transaction. The keyset cursor
+    and idempotent rewrite make an interrupted run safe to restart from the
+    beginning. New rows already use the safe writer above.
+    """
+    if not 1 <= batch_size <= 5000:
+        raise ValueError("batch_size must be between 1 and 5000")
+    if pause < 0 or pause > 60:
+        raise ValueError("pause must be between 0 and 60 seconds")
+    if after_request_id < 0:
+        raise ValueError("after_request_id must not be negative")
+    report = {"request_rows": 0, "request_bytes": 0,
+              "piece_rows": 0, "piece_bytes": 0}
+    scanned = {"requests": 0, "pieces": 0}
+
+    def say(stage: str, cursor_value: str, batch: int):
+        if progress:
+            progress(stage, cursor_value, batch, dict(scanned), dict(report))
+
+    last_id = after_request_id
+    while True:
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute("""SELECT id, provider, settings, response FROM llm_requests
+                    WHERE id > %s ORDER BY id LIMIT %s""", (last_id, batch_size))
+                rows = cursor.fetchall()
+                for row_id, provider, settings, response in rows:
+                    safe_settings = _log_safe(settings or {}, provider)
+                    safe_response = _log_safe(response, provider) if response is not None else None
+                    before = len(_dump([settings, response]).encode())
+                    after = len(_dump([safe_settings, safe_response]).encode())
+                    if before == after:
+                        continue
+                    cursor.execute("UPDATE llm_requests SET settings = %s::jsonb, "
+                                   "response = %s::jsonb WHERE id = %s",
+                                   (json.dumps(safe_settings, ensure_ascii=False),
+                                    None if safe_response is None else
+                                    json.dumps(safe_response, ensure_ascii=False), row_id))
+                    report["request_rows"] += 1
+                    report["request_bytes"] += before - after
+        if not rows:
+            break
+        scanned["requests"] += len(rows)
+        last_id = int(rows[-1][0])
+        say("requests", str(last_id), len(rows))
+        if pause:
+            time.sleep(pause)
+
+    last_hash = after_piece_hash
+    while True:
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute("""SELECT hash, body FROM llm_pieces
+                    WHERE hash > %s ORDER BY hash LIMIT %s""", (last_hash, batch_size))
+                rows = cursor.fetchall()
+                for digest, body in rows:
+                    try:
+                        original = json.loads(body)
+                    except (TypeError, ValueError):
+                        continue
+                    safe = _log_safe(_log_safe(original, OPENAI), PROVIDER)
+                    new_body = _dump(safe)
+                    if new_body == body:
+                        continue
+                    report["piece_bytes"] += len(body.encode()) - len(new_body.encode())
+                    cursor.execute("UPDATE llm_pieces SET body = %s, size = %s WHERE hash = %s",
+                                   (new_body, len(new_body.encode()), digest))
+                    report["piece_rows"] += 1
+        if not rows:
+            break
+        scanned["pieces"] += len(rows)
+        last_hash = rows[-1][0]
+        say("pieces", last_hash, len(rows))
+        if pause:
+            time.sleep(pause)
+    return report
 
 
 def _piece(pieces: dict, kind: str, value) -> str:

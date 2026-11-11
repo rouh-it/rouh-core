@@ -395,6 +395,8 @@ async def _generate(model: str, instructions: str, text: str, schema: dict, name
                 max_output_tokens=max_tokens)
     if effort and not model.startswith("gpt-4"):
         body["reasoning"] = {"effort": effort}
+        if effort != "none":
+            body["reasoning"]["summary"] = "auto"
     if cache_key:
         # Requests with the same long start sent to the same cache, so it is read rather than paid again.
         body["prompt_cache_key"] = cache_key

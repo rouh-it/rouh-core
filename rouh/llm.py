@@ -285,7 +285,10 @@ async def _ask_openai(model: str, effort: str, system: str, messages: list[dict]
     if system:
         request["instructions"] = system
     if effort and not model.startswith("gpt-4"):
-        request["reasoning"] = {"effort": "none" if effort == "none" else effort_of(effort, model)}
+        level = "none" if effort == "none" else effort_of(effort, model)
+        request["reasoning"] = {"effort": level}
+        if level != "none":
+            request["reasoning"]["summary"] = "auto"
     said: list[str] = []
     usage: dict = {}
     stream = await _client(OPENAI, cfg, org_id).responses.create(**request)

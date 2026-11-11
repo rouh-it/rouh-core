@@ -50,10 +50,10 @@ Rouh's turn, and what it is on this side:
 - **Speech.** The words are cut into sentences and spoken as they arrive, by
   the same splitter.
 - **Reasoning.** `reasoning.effort`, the level of the kind of chat it is
-  answering in: General's, or the default's (`rouh/modeldefaults.py`). OpenAI's reasoning is carried across the tool
-  calls of one turn as its encrypted items, handed back with the tool results
-  as OpenAI asks, and like Claude's thinking it is never spoken, never shown
-  and never stored: it belongs to the turn it happened in.
+  answering in: General's, or the default's (`rouh/modeldefaults.py`). When
+  effort is on, OpenAI is asked for a readable summary, which is logged in the
+  reasoning column. Encrypted reasoning is handed back with tool results
+  within the same turn, but removed from both sides of the request log.
 - **Caching.** OpenAI caches the front of a prompt by itself, at the end of the
   newest message, with nothing to mark and nothing to ask for. What Claude's
   loop does by hand to keep a prefix the same (`rouh/promptcache.py`) is done
@@ -100,10 +100,10 @@ log = logging.getLogger("rouh.luna")
 #: What OpenAI takes for `reasoning.effort` on GPT-6 Luna.
 EFFORTS = ("none", "low", "medium", "high", "xhigh", "max")
 
-#: What each request asks to be given back beside the answer: the reasoning,
-#: encrypted, so it can be handed back with the tool results of the same turn
-#: (nothing is stored on OpenAI's side, `store` is off), and every page a
-#: search went through, for its line on the screen.
+#: What each request asks to be given back beside the answer: encrypted
+#: reasoning for handoff with tool results during this turn, and every page a
+#: search went through. Encrypted reasoning is never logged; the readable
+#: reasoning summary is logged (`llmlog.py`).
 INCLUDE = ["reasoning.encrypted_content", "web_search_call.action.sources"]
 
 #: A function's name, as OpenAI takes one.
@@ -152,6 +152,14 @@ def effort_of(level: str, model: str = "") -> str:
     said = said if said in EFFORTS else "medium"
     if said == "max" and (model or "").startswith("gpt-5"):
         return "xhigh"
+    return said
+
+
+def reasoning_settings(effort: str, model: str) -> dict:
+    """Ask for a readable reasoning summary whenever this call reasons."""
+    said = {"effort": effort}
+    if effort != "none" and not model.startswith("gpt-4"):
+        said["summary"] = "auto"
     return said
 
 
@@ -1012,7 +1020,7 @@ async def turn(brain, session_id: str, user_content, emit, on_sentence, model: s
             "model": model,
             "instructions": instructions + notes,
             "input": inputs(),
-            "reasoning": {"effort": effort},
+            "reasoning": reasoning_settings(effort, model),
             "max_output_tokens": getattr(cfg, "luna_max_tokens", 32000),
             # Nothing kept on OpenAI's side: the conversation is Rouh's, in
             # its own database, and every request carries what it needs.

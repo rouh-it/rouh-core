@@ -937,6 +937,8 @@ def build_app(record_dir: str) -> FastAPI:
         usage = usage_of(raw, body)
         rid = f"resp_luna{next(_ids):04d}"
         n = next(_ids)
+        summary = ([{"type": "summary_text", "text": "Fake readable reasoning summary."}]
+                   if (body.get("reasoning") or {}).get("summary") == "auto" else [])
 
         def response(status: str, output: list) -> dict:
             return {"id": rid, "object": "response", "created_at": int(time.time()),
@@ -951,7 +953,8 @@ def build_app(record_dir: str) -> FastAPI:
             # (`rouh/synapse/ai.py`): the whole response at once.
             part = {"type": "output_text", "text": shaped, "annotations": [], "logprobs": []}
             whole = response("completed", [
-                {"type": "reasoning", "id": f"rs_luna{n:04d}", "summary": [], "encrypted_content": f"enc-{n:04d}"},
+                {"type": "reasoning", "id": f"rs_luna{n:04d}", "summary": summary,
+                 "encrypted_content": f"enc-{n:04d}"},
                 {"type": "message", "id": f"msg_luna{next(_ids):04d}", "role": "assistant",
                  "status": "completed", "content": [part]}])
             whole["output_text"] = shaped
@@ -971,7 +974,7 @@ def build_app(record_dir: str) -> FastAPI:
                                    "message": "The model broke off part way through."}
                 yield ev("response.failed", response=failed)
                 return
-            reasoning = {"type": "reasoning", "id": f"rs_luna{n:04d}", "summary": [],
+            reasoning = {"type": "reasoning", "id": f"rs_luna{n:04d}", "summary": summary,
                          "encrypted_content": f"enc-{n:04d}"}
             yield ev("response.output_item.added", output_index=0, item=dict(reasoning))
             yield ev("response.output_item.done", output_index=0, item=reasoning)

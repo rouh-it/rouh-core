@@ -57,7 +57,8 @@ class LLMRequest(models.Model):
     #: "adaptive", "adaptive/summarized", "disabled", or "" when not said.
     thinking = models.TextField(blank=True, default="")
     #: Everything else the request said, beside its system prompt, its tools
-    #: and its messages: `output_config`, `container`, `tool_choice`, ...
+    #: and its messages: `output_config`, `container`, `tool_choice`, ...;
+    #: turn-only reasoning data is removed from the logged copy.
     settings = models.JSONField(default=dict)
     system_piece = models.CharField(max_length=64, blank=True, default="")
     tools_piece = models.CharField(max_length=64, blank=True, default="")
@@ -88,8 +89,9 @@ class LLMRequest(models.Model):
     #: is still in `response`.
     text = models.TextField(blank=True, default="")
     reasoning = models.TextField(blank=True, default="")
-    #: The whole answer as the API sent it: every content block, tool calls
-    #: and web results included, and its usage.
+    #: The answer as the API sent it, with encrypted reasoning credentials
+    #: and thinking signatures removed: content blocks, tools, web results
+    #: and usage.
     response = models.JSONField(null=True, blank=True)
 
     # --- what it took -----------------------------------------------------
