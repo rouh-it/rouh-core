@@ -137,6 +137,13 @@ def clean_message(raw) -> str:
     return text[:MESSAGE_MAX].strip()
 
 
+#: What the invitation says about rouh.land (Petar, 11 November 2026: "people should not have accounts
+#: in places they did not explicitly agree to signup for"): nobody gets an account by opening the link.
+LAND_SAID = ("To view it you need a rouh.land account for {email}. If you have none, you create one "
+             "yourself when you open the link (no password: rouh.land emails you a link to confirm "
+             "the address), then open what was shared. Opening the link alone creates nothing.")
+
+
 def _letter(owner: str, share: dict, has_account: bool, message: str = "") -> mailer.Letter:
     """The invitation, or the note to somebody who already has an account.
 
@@ -176,13 +183,11 @@ def _letter(owner: str, share: dict, has_account: bool, message: str = "") -> ma
 
         link = landshare.link(share["path"])
         text = (head + f"You can {can}. Open it here:\n\n  {link}\n\n"
-                f"You sign in with rouh.land as {share['email']}: an email link, no password. "
-                "If you have no rouh.land account yet, the same step makes one.\n\n"
+                + LAND_SAID.format(email=share["email"]) + "\n\n"
                 f"This invitation is for {share['email']} alone. If you were not expecting "
                 "it, you can ignore this letter.\n")
         button = f"Open the {what[2:]}"
-        lead = (f"You can {can}. You sign in with rouh.land as {share['email']}: an email link, "
-                "no password. If you have no rouh.land account yet, the same step makes one.")
+        lead = f"You can {can}. " + LAND_SAID.format(email=share["email"])
     e = html.escape
     said = ("" if not message else
             f'<p style="margin:16px 0 4px;color:#5d6674;font-size:13px">{e(owner)} wrote:</p>'
@@ -467,7 +472,8 @@ def said_of(told: Told, email: str) -> str:
         return (f"Shared with {email}, and an email with the link went to them. "
                 "It may land in their spam.")
     return (f"Shared with {email}, and an email with the link went to them: they sign in with "
-            "rouh.land as that address, and sign up there if they are new. It may land in their spam.")
+            "rouh.land as that address, or create a rouh.land account themselves if they have none, "
+            "then open what was shared. It may land in their spam.")
 
 
 @only("POST")
@@ -666,13 +672,35 @@ async def shared_in(request: HttpRequest):
     if not landshare.on_address(request):
         return HttpResponseRedirect(landshare.link(landshare.IN_PATH + "?" + urlencode({"next": then})),
                                     status=303)
-    email = ""
+    share = None
     token = then.split("/")[2] if then.startswith("/shared/") else ""
     if token:
-        share = await asyncio.to_thread(_store().find, token.split("?")[0])
-        email = share["email"] if share else ""
-    go = await sync_to_async(landshare.start)(request, then, email)
+        share = await asyncio.to_thread(lambda: _with_owner(_store().find(token.split("?")[0])))
+    email = share["email"] if share else ""
+    way = str(request.GET.get("go") or "")
+    if way not in landshare.WAYS:
+        # Who shared what, and that a rouh.land account is needed to view it: two presses, one to
+        # create an account and one to sign in, and nothing is made or sent until one is pressed
+        # (Petar, 11 November 2026: "a shared link to a project should ask you to make an account
+        # to view it").
+        return await asyncio.to_thread(_shared_door_page, request, share, then)
+    go = await sync_to_async(landshare.start)(request, then, email, way)
     return HttpResponseRedirect(go, status=303)
+
+
+def _shared_door_page(request, share, then: str):
+    what = ("a task" if taskshare.is_task(share["rel"]) else "a page") if share else ""
+    role = share["role"] if share else ""
+    access = ("Can decide" if role == sharing.DECIDE else "Can edit" if role and sharing.can_edit(role)
+              else "Can view") if share else ""
+    q = {"next": then}
+    response = render(request, "rouh/shared_in.html", {
+        "door": True, "share": share, "what": what, "access": access,
+        "door_up": "/shared/in?" + urlencode({**q, "go": "up"}),
+        "door_in": "/shared/in?" + urlencode({**q, "go": "in"})}, status=200)
+    for name, value in READER_HEADERS.items():
+        response[name] = value
+    return response
 
 
 @only("GET")
@@ -690,7 +718,8 @@ async def shared_back(request: HttpRequest):
         if then:
             # Opened on another device than the one that asked: ask again here, which rouh.land,
             # signed in now on this device, answers with one press.
-            return HttpResponseRedirect(landshare.IN_PATH + "?" + urlencode({"next": then}), status=303)
+            return HttpResponseRedirect(landshare.IN_PATH + "?" + urlencode({"next": then, "go": "in"}),
+                                        status=303)
         log.info("landshare: an answer from rouh.land was not let in: %s", exc)
         return await asyncio.to_thread(_landshare_page, request, str(exc))
     try:

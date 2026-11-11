@@ -3367,8 +3367,9 @@ class ToolRegistry:
                 "anywhere else, such as a Google Doc, unless the person asks for one. "
                 "The email always goes, from Rouh's own address and in the person's name, "
                 "and says what they can do, with the link. They sign in with rouh.land as "
-                "that address (an email link, no password; signing up there in the same "
-                "step if they are new): no account is made on this Rouh, and only what was "
+                "that address (an email link, no password), or create a rouh.land account "
+                "themselves if they have none, then open what was shared; opening the link "
+                "never makes an account anywhere. No account is made on this Rouh, and only what was "
                 "shared with that address opens to them. Only a Connected Rouh can do this: "
                 "a Rouh On its own answers that it cannot share privately, and then the way "
                 "is a public link (publish_task). Sharing it again with "
@@ -13919,8 +13920,9 @@ class ToolRegistry:
                     "somebody tells them.")
         return (f"Shared {what} with {email}, and an email with the link went to {email}"
                 + ("" if told.has_account else
-                   ": they open it by signing in with rouh.land as that address, and sign up "
-                   "there in the same step if they are new; no account is made on this Rouh")
+                   ": they sign in with rouh.land as that address, or create a rouh.land "
+                   "account themselves if they have none, then open what was shared; no "
+                   "account is made for them on this Rouh or on rouh.land")
                 + ". Say in your reply that the email went, and to whom. It may land in "
                 "their spam. Never read the link out.")
 

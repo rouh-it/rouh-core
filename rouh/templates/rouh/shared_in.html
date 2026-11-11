@@ -1,13 +1,15 @@
 {% load rouh_assets %}<!doctype html>
-{% comment %}What somebody opening a share sees when rouh.land's answer could not let them in
-   (`rouh/web/guests.py`, `shared_back`; `rouh/landshare.py`): the reason, and the way to try again.
-   Its look is the list of what is shared with them (`shared.html`).{% endcomment %}
+{% comment %}What somebody opening a share sees, not signed in (`rouh/web/guests.py`, `shared_in` and
+   `shared_back`; `rouh/landshare.py`). With `door`: who shared what with them, and that a rouh.land account is
+   needed to view it, with two presses, Create a rouh.land account and Sign in; nothing is made or sent before
+   one is pressed (Petar, 11 November 2026). Otherwise: why rouh.land's answer could not let them in, and the
+   way to try again. Its look is the list of what is shared with them (`shared.html`).{% endcomment %}
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>Opening what was shared - Rouh</title>
+<title>{% if door and share %}{{ share.owner_name }} shared {{ what }} with you{% elif door %}Shared with you{% else %}Opening what was shared{% endif %} - Rouh</title>
 <link rel="icon" type="image/svg+xml" href="{% asset "icon.svg" %}">
 <style>
  :root{color-scheme:dark;--bg:#0a0c10;--panel:#12161c;--panel-2:#171c24;--line:#232a34;
@@ -55,6 +57,22 @@
  .again{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:10px;
         background:var(--accent);color:#04070c;font-weight:600}
  .again:hover{text-decoration:none;filter:brightness(1.08)}
+ .item{display:grid;gap:3px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;
+       background:var(--panel);margin:14px 0 18px}
+ .item .t{font-weight:600;font-size:16px;overflow-wrap:anywhere}
+ .item .m{color:var(--dim);font-size:13px;overflow-wrap:anywhere}
+ .need{margin:0 0 6px}
+ .doors{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 14px}
+ .doors a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 18px;
+          border-radius:10px;font-weight:600;text-align:center}
+ .doors a:hover{text-decoration:none}
+ .doors .up{background:var(--accent);color:#04070c}
+ .doors .up:hover{filter:brightness(1.08)}
+ .doors .in{border:1px solid var(--line);color:var(--text);background:var(--panel)}
+ .doors .in:hover{background:var(--panel-2)}
+ .doors a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+ .fine{color:var(--dimmer);font-size:13px;margin:0}
+ @media (max-width:480px){.doors a{flex:1 1 100%}}
 </style>
 </head>
 <body>
@@ -62,10 +80,22 @@
  <span class="dot" aria-hidden="true"></span><span class="brand">Rouh</span>
 </header>
 <main>
+{% if door %}
+ <h1>{% if share %}{{ share.owner_name }} shared {{ what }} with you{% else %}Something was shared with you{% endif %}</h1>
+ {% if share %}<div class="item"><span class="t">{{ share.title|default:what }}</span><span class="m">{{ access }} &middot; shared with {{ share.email }}</span></div>{% endif %}
+ <p class="need">To view it you need a rouh.land account{% if share %} for {{ share.email }}{% endif %}. rouh.land says who you are, and this Rouh lets in only the address it was shared with.</p>
+ <p class="lead">No account yet? Create one yourself: rouh.land emails you a link to confirm the address, with no password. Already have one? Sign in.</p>
+ <div class="doors">
+  <a class="up" href="{{ door_up }}">Create a rouh.land account</a>
+  <a class="in" href="{{ door_in }}">I have an account: Sign in</a>
+ </div>
+ <p class="fine">Nothing is made until you create an account and confirm your email. rouh.land is told your email address, never what was shared.</p>
+{% else %}
  <h1>This could not be opened</h1>
  <p class="bad" role="alert">{{ said }}</p>
  <p class="lead">rouh.land says who you are, and this Rouh lets in only the email address something was shared with. Open the link in the email you were sent once more to try again.</p>
  <p><a class="again" href="/shared">Try again</a></p>
+{% endif %}
 </main>
 </body>
 </html>

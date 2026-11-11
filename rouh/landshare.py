@@ -10,11 +10,16 @@ rouh.land who they are instead:
 
 1. **The letter** links to the share on this Rouh's relay address (`address`), the same address the
    phone uses: `https://<its name>.rouh.page/shared/<token>`.
-2. **Not signed in here**, they are sent to `/shared/in` (`rouh/web/gate.py`), which puts a one-time
-   `state` in this browser's session and sends them to rouh.land's vouch page (`start`), naming this
-   Rouh, the relay name to come back to, the address the share was for, and where to go after.
-3. **On rouh.land** they sign in with the one-email sign-in (an emailed link, an optional passkey),
-   or sign up in the same step if they have no account yet, and press Continue. rouh.land answers
+2. **Not signed in here**, they are sent to `/shared/in` (`rouh/web/gate.py`), which says who shared
+   what with them and that they need a rouh.land account to view it, with two presses: **Create a
+   rouh.land account** and **Sign in** (Petar, 11 November 2026: "people should not have accounts in
+   places they did not explicitly agree to signup for. a shared link to a project should ask you to
+   make an account to view it."). The press (`?go=up` or `?go=in`) puts a one-time `state` in this
+   browser's session and sends them to rouh.land's vouch page (`start`), naming this Rouh, the relay
+   name to come back to, the address the share was for, where to go after, and the door they chose.
+3. **On rouh.land** they create an account themselves if they have none (the Terms and the Privacy
+   Notice, a box to tick, and their email confirmed by a link; a passkey after, optional), or sign
+   in with the one-email sign-in, whose link never makes an account, and press Continue. rouh.land answers
    with a note of their email signed by its own key, the one this Rouh already pins for its birth
    answers (`birth.defaults`), kind ``rouh-identity`` (rouh-it-site `birth/vouch.py`).
 4. **Back at `/shared/in/back`** this Rouh holds the note to everything (`check`): rouh.land's
@@ -144,8 +149,13 @@ def _then(value) -> str:
     return "/shared"
 
 
-def start(request, then: str, email: str = "") -> str:
-    """The address on rouh.land to send this browser to, with a new state kept in its session."""
+#: The two doors on rouh.land (rouh-it-site `birth/vouch.py`, `WAYS`): create an account, or sign in.
+WAYS = ("up", "in")
+
+
+def start(request, then: str, email: str = "", way: str = "") -> str:
+    """The address on rouh.land to send this browser to, with a new state kept in its session.
+    `way` is the door the person chose here: "up", create a rouh.land account; "in", sign in."""
     from . import birth, relay
 
     row = _row()
@@ -160,6 +170,8 @@ def start(request, then: str, email: str = "") -> str:
          "host": host if host in names else (names[0] if names else host)}
     if email:
         q["email"] = email
+    if way in WAYS:
+        q["way"] = way
     base = row.registry_url or birth.defaults()[0]
     return base.rstrip("/") + "/" + VOUCH + "?" + urlencode(q)
 
