@@ -402,7 +402,10 @@ def push_level(repo: Path, branch: str) -> str:
         from . import guardface
 
         sha = _git("rev-parse", "HEAD", cwd=repo, timeout=20).stdout.strip()
-        r = _git("push", "-q", str(_app_dir()), f"HEAD:refs/base-patch/{level}", cwd=repo)
+        # Forced: the ref is only how the commit reaches /code, and a level tried again is cut afresh
+        # on rouh-core's main as it is now, so it is never on top of the last try. Without the force
+        # the second try of 1.0.13 (10 November 2026) was refused as "behind its remote counterpart".
+        r = _git("push", "-q", "--force", str(_app_dir()), f"HEAD:refs/base-patch/{level}", cwd=repo)
         if r.returncode:
             return f"the level could not be handed to the protected core: {r.stderr.strip()[-300:]}"
         try:
