@@ -18,6 +18,9 @@ jobs:
     if: endsWith(github.ref_name, '-command')
     runs-on: ubuntu-24.04
     timeout-minutes: 170
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - name: A server with no Docker (as 176-11)
@@ -48,10 +51,12 @@ jobs:
           git -C ~/rouh-core log -1 --format='%H %s' | tee "$OUT/commit.txt"
       - name: A proof guard image of this commit, and a test release with the edge part
         run: |
+          exec > >(tee "$OUT/guard-image.txt") 2>&1
           echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker buildx create --use --name proof >/dev/null
           docker buildx build --platform linux/amd64 -f guard/Dockerfile \
             --output "type=image,name=ghcr.io/rouh-it/rouh-guard,push-by-digest=true,name-canonical=true,push=true" \
-            --metadata-file meta.json . >/dev/null
+            --metadata-file meta.json . 2>&1 | tail -20
           GUARD="ghcr.io/rouh-it/rouh-guard@$(jq -r '."containerimage.digest"' meta.json)"
           echo "GUARD=$GUARD" >> "$GITHUB_ENV"
           python3 proof-176-24/make_release.py "$GUARD" ~/rouh-core "$HOME/test-release.json" | tee "$OUT/test-release.txt"
@@ -154,6 +159,9 @@ jobs:
     if: endsWith(github.ref_name, '-one-line')
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - name: A server with no Docker (as 176-11)
@@ -203,6 +211,9 @@ jobs:
     if: endsWith(github.ref_name, '-vm')
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - name: KVM and a Debian 12 virtual machine (cloud image, cloud-init)
