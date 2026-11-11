@@ -89,6 +89,8 @@ guard_dir="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 if [ -S "${ROUH_GUARD_SOCKET:-/run/guard/guard.sock}" ]; then
   echo "core: asking the protected core whether this code may run"
   python -I "$guard_dir/bin/rouh-guard" verify core | python -c 'import json,sys; r=json.load(sys.stdin); print("core: " + (r.get("said") or "it runs undo point %s" % ((r.get("point") or {}).get("n"))) if r.get("ok") else "core: the protected core said: %s" % (r.get("refused") or r.get("error")))' || true
+  # The core's restart number as this start found it, for the migration's watch below.
+  guard_seen="$(python -I -c 'import json,os,sys; print(json.load(open(os.path.join(os.environ.get("ROUH_GUARD_SIGNAL", "/run/guard-signal"), "state.json")))["restart"]["core"])' 2>/dev/null || true)"
 fi
 cd "$CODE"
 # Where a gene update will come in: a gene is a commit in /code made by this
@@ -109,7 +111,13 @@ PY
 done
 
 echo "core: migrating the database"
-python manage.py migrate --noinput
+if [ -n "${guard_seen:-}" ]; then
+  # Watched, so that when the guard puts other code in place meanwhile (the doctor, because this
+  # took too long), the migration stops and the container starts again on that code (exit 75).
+  python -I "$guard_dir/bin/rouh-guard-run" core --step --since "$guard_seen" -- python manage.py migrate --noinput
+else
+  python manage.py migrate --noinput
+fi
 
 if [ ! -f /data/workspace/_migration-map.json ]; then
   echo "core: making the empty workspace, first start only"

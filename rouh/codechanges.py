@@ -132,6 +132,14 @@ def take(bundle: Path) -> dict:
         except (guardface.Refused, guardface.Unavailable):
             point = None
         return {"ok": True, "commit": commit, "point": point, "said": "It is already in the code that runs."}
+    if base and commit and _git("merge-base", "--is-ancestor", base, commit).returncode != 0:
+        # Made on top of older code: another change went live while this one waited its turn.
+        # Running it would take that change out again (11 November 2026: undo point 174 was made on
+        # 172 while 173 was being checked, and put 173's change out of the code that ran). The run's
+        # landing fits it on top of the code that runs and hands it over again (bin/rouh-land).
+        return {"ok": False, "commit": commit, "moved_on": base,
+                "refused": f"it is not on top of the code that runs ({base[:12]}): another change went live "
+                           "while it waited, so it has to be fitted on top of that one first"}
     try:
         answer = guardface.ask("propose", commit=commit, why=why, by=str(meta.get("by") or "a run")[:80],
                                timeout=3600.0)
@@ -181,7 +189,8 @@ def _left_by_an_earlier_start(result: Path) -> bool:
 def quiet(got: dict) -> tuple[str, str] | None:
     """What the person is told about one proposal's answer, as (title, body), or None for a
     change that passed its checks and is live: that one is only an undo point on Changes."""
-    if got.get("ok"):
+    if got.get("ok") or got.get("moved_on"):
+        # A change made on older code is fitted again and handed over by its own landing.
         return None
     refused = str(got.get("refused") or "")
     if refused.startswith("Waiting for a Rouh update"):

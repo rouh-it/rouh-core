@@ -7,6 +7,13 @@ made, not the first one), it went live less than ``WINDOW`` ago, and Rouh has no
 ``PATIENCE`` without a break. Then it puts /code back to the undo point that ran before the change
 (``Changes.undo``, kind "doctor"), never the data, and the core starts again on it.
 
+``PATIENCE`` is fifteen minutes (Petar, 11 November 2026: five was too low, "sometimes operations
+take longer"). Its clock starts only once the core has really started on the code that runs, as the
+core's start says by asking ``verify`` (``Changes.started``): a core still busy with the code before,
+still in that code's migration, has not run this code at all, so this code is not what failed. On
+11 November 2026 undo point 174 held the core in a 14-minute data migration; the doctor put 173
+back at five minutes, the core never got to 173, and five minutes later the doctor blamed 173 too.
+
 It never goes back later on its own, never twice for the same change, and never because of a slow
 first start: a slow start or a network outage after the window is not its business. It says what
 it did once: a notice in the guard's signal, which Rouh shows its person when it is up again, and
@@ -23,7 +30,7 @@ import urllib.request
 log = logging.getLogger("rouh-guard")
 
 EVERY = float(os.environ.get("ROUH_GUARD_DOCTOR_EVERY", "15"))
-PATIENCE = float(os.environ.get("ROUH_GUARD_DOCTOR_PATIENCE", "300"))
+PATIENCE = float(os.environ.get("ROUH_GUARD_DOCTOR_PATIENCE", "900"))
 WINDOW = float(os.environ.get("ROUH_GUARD_DOCTOR_WINDOW", "1800"))
 
 
@@ -61,9 +68,16 @@ class Doctor:
             return None
         cur = self.changes.point(self.changes.data.get("current"))
         back = self.changes.doctor_target()
-        if cur is None or back is None or now - cur["at"] > WINDOW:
+        if cur is None or back is None:
             return None
-        if now - max(self.failing_since, cur["at"]) < PATIENCE:
+        # When the core started on this point; None when it has not since the point went live.
+        began = self.changes.started("core", cur["n"])
+        if began is None:
+            return None
+        live = max(cur["at"], float(cur.get("live") or 0))
+        if now - live > WINDOW:
+            return None
+        if now - max(self.failing_since, live, began) < PATIENCE:
             return None
         minutes = max(1, int(round(PATIENCE / 60)))
         said = (f"Rouh did not answer for {minutes} minute{'s' if minutes != 1 else ''} after the change “{cur['why'][:120]}” "

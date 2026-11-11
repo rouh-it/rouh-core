@@ -68,7 +68,9 @@ guard/bin/check-base.sh --base rouh-base:1.0.2 --guard rouh-guard --code-dir .
 3. The guard checks the commit in a folder of its own, as a user that can write nothing of its own (`checks.py`): the frozen security checks, then the Rouh's own, against `checkdb`. About 30 seconds.
 4. Passed: an undo point is kept in `/guard/history.git`, `/code`'s main moves to it, and the core (and the worker, when the one program changed) start again on it. Failed: nothing runs, and a commit already on main is kept on a branch `refused/<time>`.
 5. The person sees each in Meta, Changes, with Put back on every earlier point, and a notice.
-6. If Rouh then stops answering for five minutes (within half an hour of the change), the doctor puts the code back to the point before and says so once.
+6. If Rouh then stops answering for fifteen minutes (within half an hour of the change), the doctor puts the code back to the point before and says so once (`ROUH_GUARD_DOCTOR_PATIENCE`, 900 seconds; five until 11 November 2026, when Petar found it too low because some operations take longer).
+   The fifteen minutes count from when the core really started on the change, as its start asks `verify`, never from a core still busy with the code before: a start still migrating for other code has not run this one.
+   The start's migrations run under `rouh-guard-run --step`, so a migration that takes too long is stopped when the doctor puts other code back, and the container starts again on that code (11 November 2026: undo point 174's migration ran for fourteen minutes, nothing stopped it, and the doctor blamed 173 too, which had never started).
 
 Proven on 24 October 2026 in this server's Docker, with every step driven in a real browser (task 98, step 98-23).
 

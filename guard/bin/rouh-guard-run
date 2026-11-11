@@ -21,6 +21,16 @@ Before either is stopped for other code, the answers Rouh is giving are let fini
 Rouh, which holds new turns back after a short grace period and says when the last answer is over;
 the worker only watches the same count, which the core keeps beside the runs, since a run may not
 ask the core to hold anything. Ten minutes at most, and then it goes anyway, saying what it cut.
+
+    rouh-guard-run core --step [--since N] -- python manage.py migrate --noinput
+
+runs one step of a start the same way: the core's migrations. When the number moves while the step
+runs - the doctor put other code back because this step took too long - the step is stopped and
+this exits 75, so the start script ends and Docker starts the container again on the code that now
+runs. No answer can be in progress while a start is still migrating, so nothing is waited for.
+``--since`` is the number the start saw when it asked ``verify``. On 11 November 2026 the migration
+of undo point 174 ran for fourteen minutes and nothing watched it: the doctor put 173 back, then 172,
+and the core went on migrating for 174 until somebody restarted it by hand.
 """
 from __future__ import annotations
 
@@ -61,11 +71,18 @@ def number(who: str):
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) < 3 or argv[1] != "--":
-        print("usage: rouh-guard-run core|worker -- command ...", file=sys.stderr)
+    if "--" not in argv or argv.index("--") < 1 or argv.index("--") == len(argv) - 1:
+        print("usage: rouh-guard-run core|worker [--step [--since N]] -- command ...", file=sys.stderr)
         return 2
-    who, cmd = argv[0], argv[2:]
+    cut = argv.index("--")
+    who, opts, cmd = argv[0], argv[1:cut], argv[cut + 1:]
+    step = "--step" in opts
     start = number(who)
+    if "--since" in opts:
+        try:
+            start = int(opts[opts.index("--since") + 1])
+        except (IndexError, ValueError):
+            pass
     child = subprocess.Popen(cmd, start_new_session=True)
     stopping = {"why": ""}
     # Started again in place rather than by restarting the container (see above).
@@ -90,6 +107,9 @@ def main(argv: list[str]) -> int:
         now = number(who)
         if now is not None and start is not None and now != start:
             print(f"{who}: the protected core put other code in place; starting again on it", flush=True)
+            if step:
+                stop("restart")
+                return 75
             wait_for_answers(who, lambda: bool(stopping["why"]) or child.poll() is not None)
             if stopping["why"]:
                 break
@@ -106,6 +126,9 @@ def main(argv: list[str]) -> int:
         if start is None:
             start = now
     code = child.wait()
+    if step:
+        # A step stopped by Docker must not let the start go on to the server.
+        return 143 if stopping["why"] else code
     return 0 if stopping["why"] else code
 
 

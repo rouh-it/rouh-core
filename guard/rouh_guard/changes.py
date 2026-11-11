@@ -307,6 +307,7 @@ class Changes:
             old = self.head()
             self._move(p["commit"])
             self.data["current"] = n
+            p["live"] = _now()
             who = self._restart(old, p["commit"])
             text = said or f"Put back to undo point {n} ({p['commit'][:12]}), by {by}."
             self._event(kind, text, point=n, by=by, before=cur["n"] if cur else None)
@@ -338,7 +339,21 @@ class Changes:
             got = await self.propose(head, "", by=f"the {who or 'Rouh'}'s start: main was moved without the guard")
             said.append(got.get("refused") or f"The new commit {head[:12]} passed and is undo point {got['point']['n']}.")
         cur = self.point(self.data.get("current"))
+        if cur is not None:
+            # Which code each container really started on, and when: the doctor's clock starts here.
+            self.data.setdefault("started", {})[who or "core"] = {"point": cur["n"], "at": _now()}
+            self._save()
         return {"ok": True, "point": cur, "commit": cur["commit"] if cur else head, "said": " ".join(said)}
+
+    def started(self, who: str, n: int) -> float | None:
+        """When `who` started on undo point n since it last went live, or None if it has not yet:
+        a core still stopping, or still migrating for the code before, has not run point n."""
+        got = (self.data.get("started") or {}).get(who) or {}
+        p = self.point(n)
+        if p is None or got.get("point") != n:
+            return None
+        at = float(got.get("at") or 0)
+        return at if at >= max(p["at"], float(p.get("live") or 0)) else None
 
     def doctor_target(self) -> dict | None:
         """The point the doctor would go back to: the one that ran before the current one."""

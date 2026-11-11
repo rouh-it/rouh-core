@@ -218,7 +218,7 @@ def fit(a, path: str, target: str) -> dict:
         subprocess.run(["rm", "-rf", str(scratch)], check=False)
 
 
-def land_code(a, path: str) -> int:
+def land_code(a, path: str, tries: int = 3) -> int:
     base, target, why = onto(path)
     head = git("rev-parse", "HEAD", cwd=path).stdout.strip()
     if not base or head == base or git("merge-base", "--is-ancestor", head, base, cwd=path).returncode == 0:
@@ -259,6 +259,11 @@ def land_code(a, path: str) -> int:
     got = wait_for(result)
     if got is None:
         return say(state="error", reason="the protected core did not answer in an hour; Changes in Rouh says what became of it")
+    if got.get("moved_on") and tries > 1:
+        # Another change went live while this one waited its turn: fitted on top of it, and again.
+        print("rouh-land: another change went live meanwhile; fitting the work on top of it again",
+              file=sys.stderr, flush=True)
+        return land_code(a, path, tries - 1)
     if got.get("ok"):
         point = (got.get("point") or {}).get("n")
         return say(state="landed", landed=True, sha=got.get("commit") or head, deployed=True, deploy="live",
