@@ -206,8 +206,20 @@ def update_updater() -> None:
     before = json.loads(held.read_text()).get("version", 0) if held.is_file() else 0
     if here == commit or version < before:
         return
-    say(f"The updater: to the newest tested Rouh code, {commit[:10]}")
     run(["git", "-C", str(CORE), "fetch", "-q", "--depth", "1", "origin", commit], timeout=600, check=True)
+
+    def when(rev: str) -> int:
+        out = run(["git", "-C", str(CORE), "log", "-1", "--format=%ct", rev], timeout=30).stdout or b"0"
+        return int(out.decode().strip() or 0)
+
+    # Forward only: never onto a commit older than the one this updater runs, and never onto one
+    # that has no rouh command (the launcher in /usr/local/bin runs this checkout's rouh.py).
+    if when(commit) <= when("HEAD"):
+        return
+    has = run(["git", "-C", str(CORE), "cat-file", "-e", f"{commit}:deploy/linux/rouh.py"], timeout=30).returncode == 0
+    if not has:
+        return
+    say(f"The updater: to the newest tested Rouh code, {commit[:10]}")
     run(["git", "-C", str(CORE), "checkout", "-q", "--force", commit], timeout=120, check=True)
     now = (run(["git", "-C", str(CORE), "rev-parse", "HEAD"], timeout=30).stdout or b"").decode().strip()
     if now != commit:
@@ -761,6 +773,10 @@ def cmd_install(a) -> int:
         if r.returncode:
             raise Stop("The release could not be got ready to bring your Rouh back into; nothing was changed.")
         kept.bring_back(back)
+        if os.environ.get("ROUH_STOP_AFTER_BRING_BACK") == "1":
+            # For a proof: the data as it came back, compared before Rouh starts and changes it.
+            say("Brought back; not started (ROUH_STOP_AFTER_BRING_BACK). Start it: rouh update")
+            return 0
     heading("Starting Rouh (the first time downloads about 2 GB)")
     r = stack_tool("update")
     if r.returncode:
