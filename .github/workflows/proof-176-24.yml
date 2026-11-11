@@ -65,6 +65,17 @@ jobs:
           GUARD="ghcr.io/rouh-it/rouh-guard@$(jq -r '."containerimage.digest"' meta.json)"
           echo "GUARD=$GUARD" >> "$GITHUB_ENV"
           python3 proof-176-24/make_release.py "$GUARD" ~/rouh-core "$HOME/test-release.json" | tee "$OUT/test-release.txt"
+      - name: This commit as the Rouh's own code (rouh.land's newest tested code is older than it)
+        run: |
+          mkdir -p "$OUT"; exec > >(tee -a "$OUT/steps.log") 2>&1; echo "== own code"
+          BASE=$(python3 -c "import json;print(json.loads(json.load(open('$HOME/test-release.json'))['payload'])['images']['base'])")
+          for v in code extra; do docker volume create --label com.docker.compose.project=rouh --label com.docker.compose.volume=$v rouh_$v >/dev/null; done
+          docker volume create proofguard >/dev/null
+          docker run --rm --user 0:0 --network none -v proofguard:/out --entrypoint /opt/rouh-guard/bin/rouh-guard-install "$GUARD" /out
+          git archive HEAD | docker run -i --rm --user 0:0 --network none -v rouh_code:/code --entrypoint sh "$BASE" -c \
+            'tar -x -C /code && chown -R 10001:10001 /code && cd /code && setpriv --reuid=10001 --regid=10001 --init-groups sh -c "git init -q -b main && git add -A && git -c user.name=Rouh -c user.email=rouh@localhost commit -qm \"Rouh, the proof commit, as installed\""'
+          docker run --rm --user 0:0 -v proofguard:/opt/rouh-guard:ro -v rouh_extra:/extra -v rouh_code:/src:ro --entrypoint python "$BASE" -I /opt/rouh-guard/bin/rouh-code-install --extra-only /src | tail -3
+          docker volume rm proofguard >/dev/null
       - name: First start on the test release, then rouh install
         env:
           ROUH_KEEP_UPDATER: "1"
