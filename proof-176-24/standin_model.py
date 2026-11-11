@@ -33,7 +33,10 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers.get("content-length") or 0)) or b"{}")
-        LOG.write(f"POST {self.path} {json.dumps(body)[:2000]}\n")
+        def text(c):
+            return c if isinstance(c, str) else " ".join(b.get("text", "") for b in c if isinstance(b, dict))
+        LOG.write("POST " + self.path + " " + json.dumps({"model": body.get("model"), "messages": [
+            {"role": m.get("role"), "text": text(m.get("content", ""))[:240]} for m in body.get("messages", [])]}) + "\n")
         if self._key_bad():
             return
         model = body.get("model", "claude-haiku-4-5")
