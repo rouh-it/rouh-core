@@ -125,7 +125,7 @@ sed -i '1s/.*/# Rouh (this Rouh own words)/' README.md && git add -A
 git -c user.name=Rouh -c user.email=rouh@localhost commit -q -m "Its own words at the top" -m "Gene: stack-clash"
 {CODE} fetch -q /tmp/genes +HEAD:refs/proposals/stack-genes
 {CODE} rev-parse refs/proposals/stack-genes
-""")
+""", user="10001:10001", env={"HOME": "/tmp"})
     expect(r.returncode == 0, f"the genes could not be made: {(r.stderr or r.stdout)[-400:]}")
     genes = r.stdout.strip().splitlines()[-1]
     got = s.manage(f"""
