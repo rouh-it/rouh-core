@@ -2,7 +2,7 @@
 Connected or Independent\? => <enter>
 First name: => Tess
 Last name => Proof
-Email: => rouh+t17624a@bigbongo.ai
+Email: => rouh+t17625a@bigbongo.ai
 time zone => Europe/Sofia
 Password \(hidden\): => Harbour#Lights-24
 The same password again => Harbour#Lights-24
