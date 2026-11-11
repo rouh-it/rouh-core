@@ -204,12 +204,35 @@ def published() -> dict:
 
 
 def publish(point: dict, since: str) -> dict:
-    from . import relay
+    """POST /mac/code/release, signed with this Rouh's daily key in the relay client's format (the key
+    in the body, the four X-Rouh headers). Not `relay._signed_post`, which asks the first run's
+    Connected choice: the Creator Rouh is older than that question, and rouh.land judges it by its
+    registry id alone."""
+    import httpx
 
+    from . import relay
+    from .site import url as site_url
+
+    user = relay.owner()
+    if user is None:
+        raise RuntimeError("this Rouh has no owner yet")
+    me, _row = relay._identity(user)
     live = dt.datetime.fromtimestamp(float(point["at"]), dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    body = {"commit": point["commit"], "live_since": live, "notes": notes(since, point["commit"]),
-            "checks": {"passed": (point.get("checked") or {}).get("passed"), "point": point.get("n")}}
-    return relay._signed_post("/mac/code/release", body)
+    payload = {"v": 1, "public_key": me["public"], "commit": point["commit"], "live_since": live,
+               "notes": notes(since, point["commit"]),
+               "checks": {"passed": (point.get("checked") or {}).get("passed"), "point": point.get("n")}}
+    url = os.environ.get("ROUH_CODE_RELEASE_PUBLISH") or site_url("/mac/code/release")
+    raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+    got = httpx.post(url, content=raw, timeout=30, headers={
+        "Content-Type": "application/json", "Accept": "application/json", "User-Agent": "Rouh releases",
+        **relay._signed(me["seed"], "POST", url, raw)})
+    try:
+        answer = got.json() or {}
+    except ValueError:
+        answer = {}
+    if got.status_code >= 400:
+        raise RuntimeError(str(answer.get("error") or f"rouh.land answered {got.status_code}"))
+    return answer
 
 
 def once(now: float | None = None, *, force: bool = False) -> dict:
