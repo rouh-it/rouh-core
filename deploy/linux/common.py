@@ -353,13 +353,36 @@ def local_url(path: str = "/") -> str:
 
 
 def core_exec(*args: str, timeout: float = 120) -> subprocess.CompletedProcess:
-    return run(compose("exec", "-T", "core", *args), timeout=timeout)
+    """A command in the core, as Rouh's own user (10001), the way Rouh itself runs there: a file it
+    writes (a new setup code) stays Rouh's, not root's."""
+    return run(compose("exec", "-T", "--user", "10001:10001", "core", *args), timeout=timeout)
+
+
+#: A Rouh's code is its own and no update overwrites it, so a Rouh installed before 11 November 2026
+#: has no `manage.py setup_code`: then the code is read from its file and written afresh by Python
+#: in the core, with the same rules (step 176-25).
+OLDER_READ = "import sys; sys.stdout.write(open('/data/first-run-code').read().strip())"
+OLDER_RENEW = ("import os, secrets, tempfile; p = '/data/first-run-code'; c = secrets.token_urlsafe(18); "
+               "fd, t = tempfile.mkstemp(dir='/data'); os.write(fd, (c + '\\n').encode()); os.close(fd); "
+               "os.chmod(t, 0o600); os.replace(t, p); print(c)")
+OLDER_STATUS = ("from rouh.project import setup; setup(); import json; from rouh.web import firstrun; "
+                "u = firstrun.the_owner(); h = firstrun.record(u) if u else {}; "
+                "print(json.dumps({'owner': u is not None, 'setup_done': bool(h.get('done_at')) or (u is not None and not h), "
+                "'kind': None if 'connected' not in h else ('connected' if h['connected'] else 'independent'), 'code': True, "
+                "'expired': False, 'hours': 0}))")
+
+
+def _older(r: subprocess.CompletedProcess) -> bool:
+    return b"Unknown command" in (r.stderr or b"") + (r.stdout or b"")
 
 
 def setup_code(renew: bool = False) -> str:
     """The setup code, out of the core by ``docker compose exec``: it reaches this terminal and
     nothing else. Renewed when asked (``rouh setup`` always asks), or when it has expired."""
     r = core_exec("python", "manage.py", "setup_code", *(["--renew"] if renew else []))
+    if _older(r):
+        debug("this Rouh's code has no setup_code; reading its file")
+        r = core_exec("python", "-c", OLDER_RENEW if renew else OLDER_READ)
     code = (r.stdout or b"").decode(errors="replace").strip().splitlines()
     if r.returncode or not code or not re.fullmatch(r"[A-Za-z0-9_-]{16,}", code[-1]):
         raise Stop("Rouh's setup code could not be read from the core. Is Rouh running? Try: rouh status")
@@ -368,6 +391,8 @@ def setup_code(renew: bool = False) -> str:
 
 def code_status() -> dict:
     r = core_exec("python", "manage.py", "setup_code", "--status")
+    if _older(r):
+        r = core_exec("python", "-c", OLDER_STATUS)
     try:
         return json.loads((r.stdout or b"").decode(errors="replace").strip().splitlines()[-1])
     except (ValueError, IndexError):
