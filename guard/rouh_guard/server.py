@@ -90,7 +90,7 @@ class Server:
         if op == "database_inventory":
             from . import database_update
 
-            return {"ok": True, "schema": await asyncio.to_thread(database_update.inventory)}
+            return {"ok": True, **await asyncio.to_thread(database_update.inventory)}
         if self.changes is None:
             return {"ok": False, "error": "this protected core keeps no undo points here"}
         if op == "points":

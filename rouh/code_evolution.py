@@ -250,6 +250,7 @@ def brief(row: dict, work: Path) -> dict:
 
     relevant_genes = {g for f in row["files"] for g in owners.owners_of(f)}
     core = guardface.ask("status")
+    database_state = guardface.ask("database_inventory") if row["database"] else {}
     return {"change": row, "commit_message": _git("show", "-s", "--format=%B", row["master"]),
             "master_diff": _git("diff", "--no-ext-diff", row["parent"], row["master"]),
             "master_tests": {f: u._git("show", row["master"] + ":" + f, cwd=master).stdout for f in tests},
@@ -262,7 +263,8 @@ def brief(row: dict, work: Path) -> dict:
                       if p.stem in relevant_genes and not p.is_symlink()},
             "all_gene_names": [p.stem for p in (work / "rouh/genes/manifests").glob("*.json")],
             "protected_core": {k: core.get(k) for k in ("version", "features")},
-            "local_schema": guardface.ask("database_inventory").get("schema", []) if row["database"] else [],
+            "local_schema": database_state.get("schema", []),
+            "local_migration_history": database_state.get("migrations", []),
             "local_migrations": {p.name: p.read_text() for p in (work / "rouh/migrations").glob("*.py")
                                  if row["database"] and not p.is_symlink()
                                  and u._git("cat-file", "-e", row["parent"] + ":rouh/migrations/" + p.name,

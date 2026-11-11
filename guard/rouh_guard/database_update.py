@@ -28,7 +28,7 @@ def _kw(db: dict) -> dict:
             "password": db["PASSWORD"], "connect_timeout": 10}
 
 
-def inventory() -> list[dict]:
+def inventory() -> dict:
     """Schema for a frontier planning job, never people's rows or credentials."""
     import psycopg
 
@@ -36,7 +36,10 @@ def inventory() -> list[dict]:
         rows = conn.execute("SELECT table_schema,table_name,column_name,data_type FROM information_schema.columns "
                             "WHERE table_schema NOT IN ('pg_catalog','information_schema') AND table_schema NOT LIKE 'pg_%' "
                             "ORDER BY table_schema,table_name,ordinal_position").fetchall()
-    return [{"table": t if s == "public" else s + "." + t, "column": c, "type": ty} for s, t, c, ty in rows]
+        history = conn.execute("SELECT app,name FROM django_migrations ORDER BY app,name").fetchall() \
+            if conn.execute("SELECT to_regclass('django_migrations')").fetchone()[0] else []
+    return {"schema": [{"table": t if s == "public" else s + "." + t, "column": c, "type": ty} for s, t, c, ty in rows],
+            "migrations": [{"app": app, "name": name} for app, name in history]}
 
 
 def pg(tool: str, db: dict, *args: str) -> None:
@@ -66,13 +69,24 @@ def _real(helper: Path, tree: Path, data: Path, db: dict, planfile: Path, backup
     from .rehearsal import APPLY_USER, stop_children
 
     pre = ["setpriv", f"--reuid={APPLY_USER}", f"--regid={APPLY_USER}", "--clear-groups", "--"] if os.getuid() == 0 else []
-    snapshot, go = data / "snapshot", data / "go"
+    snapshot, go, ready = data / "snapshot", data / "go", data / "ready"
     snapshot.unlink(missing_ok=True)
     go.unlink(missing_ok=True)
+    ready.unlink(missing_ok=True)
     with open(data / "real.log", "w+") as log:
+        unavailable = {"HOST": "/no-live-database-during-setup", "PORT": "5432", "NAME": "unavailable",
+                       "USER": "unavailable", "PASSWORD": "unavailable"}
         proc = subprocess.Popen([*pre, "python", str(helper), str(planfile), "real"], cwd=tree,
-                                env=env(data, db), stdout=log, stderr=log)
+                                env=env(data, unavailable), stdin=subprocess.PIPE, stdout=log, stderr=log)
         try:
+            end = time.monotonic() + 120
+            while not ready.exists():
+                if proc.poll() is not None or time.monotonic() >= end:
+                    log.seek(0)
+                    raise ValueError("the migration's startup must finish without database access: " + log.read()[-1200:])
+                time.sleep(.2)
+            proc.stdin.write((json.dumps(db) + "\n").encode())
+            proc.stdin.close()
             end = time.monotonic() + 120
             while not snapshot.exists():
                 if proc.poll() is not None or time.monotonic() >= end:
@@ -108,14 +122,15 @@ def run(tree: Path, proof: Path, plan: dict, state: Path, commit: str, *, before
     keep.mkdir(parents=True, mode=0o700)
     backup = keep / "before.dump"
     record = {"commit": commit, "at": time.time(), "plan": plan, "backup": str(backup),
-              "restore": "Stop the core, then restore before.dump with pg_restore into a new database; "
+              "restore": "Stop the core, then restore immediately-before.dump (before.dump if application never began) "
+                         "with pg_restore into a new database; "
                          "check it, and switch the database names before starting the earlier undo point.",
               "rehearsal": False, "applied": False}
     _write(keep / "outcome.json", record)
     with psycopg.connect(**_kw(db)) as conn:
         size = conn.execute("SELECT pg_database_size(current_database())").fetchone()[0]
-    if shutil.disk_usage(state).free < max(3 * size, 1024**3) + 1024**3:
-        raise ValueError("more free disk space is needed for two full backups and the real-data rehearsal")
+    if shutil.disk_usage(state).free < max(4 * size, 1024**3) + 1024**3:
+        raise ValueError("more free disk space is needed for the full backups and private real-data verification copies")
     # Full pg_dump, not last night's copy. No backup is pruned while its undo point may need it.
     pg("pg_dump", db, "-Fc", "--file=" + str(backup))
     os.chmod(backup, 0o600)
@@ -174,6 +189,24 @@ def run(tree: Path, proof: Path, plan: dict, state: Path, commit: str, *, before
                              "against the protected backup and restore path: " + (r.stdout + r.stderr)[-1400:])
         record.update(applied=True, after=json.loads((real_data / "counts.json").read_text()))
         _write(keep / "outcome.json", record)
+        # Prove the result actually applied, without giving a general proof live credentials.
+        after_backup = keep / "after.dump"
+        pg("pg_dump", db, "-Fc", "--file=" + str(after_backup))
+        os.chmod(after_backup, 0o600)
+        with rehearsal.database(state) as actual:
+            pg("pg_restore", actual, "--no-owner", "--no-privileges", "--exit-on-error", str(after_backup))
+            r = test(proof, tree, env(data, actual))
+            if r.returncode:
+                raise ValueError("master's proof on a copy of the applied database failed: " + (r.stdout + r.stderr)[-1200:])
+            if security:
+                result = security_result(r)
+                if result.get("vulnerable") is not False or result.get("checks") != b.get("checks"):
+                    raise ValueError("the applied database did not pass the same security assertions")
+            r = test(check, tree, env(data, actual))
+            if r.returncode:
+                raise ValueError("the applied database did not pass this Rouh's self-checks: " + (r.stdout + r.stderr)[-1200:])
+        record.update(verified_after_application=True)
+        _write(keep / "outcome.json", record)
     except Exception as exc:
         record["error"] = str(exc)
         _write(keep / "outcome.json", record)
@@ -188,7 +221,30 @@ def migrate(planfile: Path, phase: str) -> None:
 
     sys.path.insert(0, str(Path.cwd()))
     import django
-    django.setup()
+    if phase == "real":
+        import threading
+        from django.db.backends.base.base import BaseDatabaseWrapper
+
+        connect = BaseDatabaseWrapper.ensure_connection
+        attempted = []
+        def no_startup_database(*args, **kwargs):
+            attempted.append(True)
+            raise ValueError("startup database work must move into the protected migration transaction")
+        BaseDatabaseWrapper.ensure_connection = no_startup_database
+        try:
+            django.setup()
+        finally:
+            BaseDatabaseWrapper.ensure_connection = connect
+        if attempted or threading.active_count() != 1:
+            raise ValueError("database access and background threads during startup must be replanned before migrating")
+        planfile.with_name("ready").write_text("startup completed without live credentials")
+        db = json.loads(sys.stdin.readline())
+        from django.db import connections
+        connections.close_all()
+        connections["default"].settings_dict.update(db)
+        os.environ.update({"ROUH_DB_" + k: str(v) for k, v in db.items()})
+    else:
+        django.setup()
     from django.core.management import call_command
     from django.db import connection, transaction
     from django.db.migrations.executor import MigrationExecutor
