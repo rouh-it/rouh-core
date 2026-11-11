@@ -94,8 +94,11 @@ def scan(release: dict, b: dict) -> dict:
     if ledger().get("seen") != release["commit"]:
         u._git("fetch", "-q", source(), "+refs/heads/main:refs/heads/main", cwd=repo, check=True)
     end = release["commit"]
-    installed = u._read(u.code_dir() / ".git/rouh-installed.json").get("commit") or b["release"]
-    doc = ledger() or {"v": 1, "installed": installed, "through": installed, "changes": []}
+    doc = ledger()
+    installed = doc.get("installed") or u._read(u.code_dir() / ".git/rouh-installed.json").get("commit") or b.get("release")
+    if not installed:
+        raise u.Refused("This Rouh has no record of its installed master version; its history must be established before updating.")
+    doc = doc or {"v": 1, "installed": installed, "through": installed, "changes": []}
     start = doc.get("seen") or doc["installed"]
     for older, newer in ((start, end), (end, "refs/heads/main")):
         if u._git("merge-base", "--is-ancestor", older, newer, cwd=repo).returncode:
@@ -110,7 +113,7 @@ def scan(release: dict, b: dict) -> dict:
         files = list(all_files)
         # A first install omits release infrastructure; it remains outside this Rouh's own code.
         files = [f for f in files if not any((f == p or f.startswith(p + "/")) and
-                  u._git("cat-file", "-e", f"{b['local']}:{p}", cwd=u.code_dir()).returncode
+                  u._git("cat-file", "-e", f"{b.get('local') or 'HEAD'}:{p}", cwd=u.code_dir()).returncode
                   for p in u.LEFT_OUT)]
         diff = _git("diff", "--no-ext-diff", parent, sha)
         database = any("/migrations/" in f or "/models/" in f or f.endswith("schema.sql") for f in all_files)

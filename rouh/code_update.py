@@ -349,12 +349,15 @@ def public(who, *, look: bool = False) -> dict:
     else:
         rel = s.get("release") or {}
     here = evolution.get("through") or b.get("release") or ""
+    own_base = b.get("local") or evolution.get("installed")
     out["current"] = {"commit": here, "label": label(here, rel) if here else "",
-                      "own_commits": _own_commits(code_dir(), b["local"]) if b.get("local") else 0}
+                      "own_commits": _own_commits(code_dir(), own_base) if own_base else 0}
     if rel:
         out["newest"] = {"commit": rel["commit"], "label": label(rel["commit"], rel),
                          "released_at": rel.get("released_at"), "live_since": rel.get("live_since")}
-        if b.get("how") == "history":
+        if evolution.get("installed"):
+            out["up_to_date"] = here == rel["commit"] and not evolution["waiting"]
+        elif b.get("how") == "history":
             has = _git("cat-file", "-e", f"{rel['commit']}^{{commit}}", cwd=code_dir()).returncode == 0
             out["up_to_date"] = has and _git("merge-base", "--is-ancestor", rel["commit"], "HEAD",
                                                cwd=code_dir()).returncode == 0
