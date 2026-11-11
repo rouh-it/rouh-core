@@ -61,10 +61,32 @@ echo "$sha"
     return r.stdout.strip().splitlines()[-1]
 
 
+def _again(fn, limit: float = 300):
+    """fn(), tried again while Rouh is starting again (an update or a gene going live restarts it)."""
+    end = time.time() + limit
+    while True:
+        try:
+            return fn()
+        except (OSError, ValueError) as e:
+            if time.time() > end:
+                raise Failed(f"Rouh did not answer for {int(limit)} s: {e}") from None
+            time.sleep(5)
+
+
 def _updates(s: Stack, look: bool = False) -> dict:
-    code, body, _ = s.get("/api/settings/updates" + ("?look=1" if look else ""))
-    expect(code == 200, f"/api/settings/updates answered {code}: {body[:300]}")
-    return json.loads(body)
+    def one():
+        code, body, _ = s.get("/api/settings/updates" + ("?look=1" if look else ""))
+        if code in (502, 503, 504):
+            raise OSError(f"it answered {code}")
+        expect(code == 200, f"/api/settings/updates answered {code}: {body[:300]}")
+        return json.loads(body)
+    return _again(one)
+
+
+def _post_again(s: Stack, path: str, body: dict) -> dict:
+    from checks_nightly import _post
+
+    return _again(lambda: _post(s, path, body))
 
 
 def _healthy(s: Stack, limit: float = 600) -> None:
@@ -135,15 +157,15 @@ from rouh import guardface
 print(guardface.ask("propose", commit={genes!r}, why="the stack test's two genes", by="the stack test", timeout=1800.0))
 """, timeout=1900)
     expect("'ok': True" in got, f"the genes did not go live: {got[-600:]}")
+    # Rouh starts again on them once the answers in progress are over: let it, then wait for it.
+    time.sleep(30)
     _healthy(s)
     return came_from
 
 
 def _press(s: Stack) -> None:
-    from checks_nightly import _post
-
     came_from = _older(s)
-    _post(s, "/api/settings/updates/mode", {"mode": "press"})
+    _post_again(s, "/api/settings/updates/mode", {"mode": "press"})
     before = _updates(s)
     expect((before.get("current") or {}).get("commit") == came_from, f"this Rouh does not say it came from the old release: {before.get('current')}")
     r1 = _release(s, 1, "mkdir -p docs && printf 'New in release 1.\\n' > docs/stack-release-1.md\n"
@@ -153,9 +175,10 @@ def _press(s: Stack) -> None:
     expect(not seen.get("up_to_date") and "Stack release 1" in (seen.get("whats_new") or []),
            f"it does not say what is new: {seen.get('whats_new')}")
     expect(not seen.get("why_not"), f"it says it cannot update: {seen.get('why_not')}")
-    started = _post(s, "/api/settings/updates/now", {})
+    started = _post_again(s, "/api/settings/updates/now", {})
     expect(started.get("ok"), f"Update to the newest Rouh: {started}")
     after = _until_updated(s, r1, 1800, "the pressed update")
+    time.sleep(20)
     _healthy(s)
     files = s.run("core", "cat /code/docs/stack-release-1.md /code/docs/stack-gene.md; head -1 /code/README.md").stdout
     expect("New in release 1" in files, f"the release's file is not in the code: {files}")
@@ -186,8 +209,6 @@ def updates_press(s: Stack) -> None:
 
 @check("updates.ride")
 def updates_ride(s: Stack) -> None:
-    from checks_nightly import _post
-
     updates_press(s)
     # Ride along is for a Connected Rouh: the stack's first run chose On its own, which asks nobody.
     s.manage("""
@@ -197,7 +218,7 @@ firstrun._save(relay.owner(), connected=True)
 """)
     try:
         r2 = _release(s, 2, "printf 'New in release 2.\\n' > docs/stack-release-2.md")
-        _post(s, "/api/settings/updates/mode", {"mode": "ride"})
+        _post_again(s, "/api/settings/updates/mode", {"mode": "ride"})
         after = _until_updated(s, r2, 1800, "riding along")
         expect((after.get("last") or {}).get("by") == "riding along", f"it was not the ride along: {after.get('last')}")
         _healthy(s)
@@ -212,5 +233,7 @@ firstrun._save(relay.owner(), connected=False)
 """)
 
 
-smoke.LAST.update({"updates.press", "updates.ride"})
+# At the very end, before only import.existing (which stops this stack): these change the code that
+# runs, which the Creator's checks and Put back, among the last, read as theirs.
+smoke.FINAL.update({"updates.press", "updates.ride"})
 smoke.LIMIT.update({"updates.press": 3600, "updates.ride": 2700})
