@@ -1562,6 +1562,7 @@ A Rouh with no protected core beside it (a server, a test world) shows the card 
 **A release** is a checked boundary on the shared main branch of `rouh-it/rouh-core`, including changes published by collaborators.
 It is eligible after the master's checks pass and it runs a day on an authorised early-test Rouh without being put back (`rouh/code_release.py`).
 Initially there is one early tester; collaborators can be authorised through the release service's registry allow-list.
+The exact source commit must also have a successful **Tests on main** run at GitHub (including Intel and Arm); a later successful commit does not approve an earlier failed one. If that result cannot be read, publishing waits.
 The public release pointer remains `/mac/code/release.json`.
 A private change on an early tester cannot become a release: the publisher verifies that the commit is on shared main and contains the preceding release.
 
