@@ -893,6 +893,19 @@ def _ago(node: Mapping[str, Any], now: float) -> str:
     return f"{secs // 3600}h {(secs % 3600) // 60}m"
 
 
+#: How the orb draws the tree above, in a line, so a question about a part of
+#: it can be answered from the same reading (the 3D orb since 11 November 2026,
+#: `rouh/static/app/orb3d.js`; its colours are `rouh/static/orb-branching.json`).
+ORB_LEGEND = (
+    "On the orb: the white core is this machine; each worker is a turquoise glass branch out of it and each "
+    "sub-agent a thinner turquoise branch off its worker; each tool call is a short twig, longer the longer it "
+    "ran, coloured by kind (amber web search, orange page read, green code, violet shell, magenta file edit, "
+    "silver file read, blue connector or API, grey anything else); your own turn is a branch in the core's pale "
+    "colour. Waiting for a person is red, dashed and breathing with NEEDS YOU, and never fades. Finished work "
+    "fades with brief flashes, holds at half brightness, turns to a faint grey trace, then goes."
+)
+
+
 def describe_tree(tree: Mapping[str, Any], *, now: float | None = None) -> str:
     """The tree as text, for the assistant to read and then talk about.
 
@@ -945,7 +958,7 @@ def describe_tree(tree: Mapping[str, Any], *, now: float | None = None) -> str:
     if not lines:
         return (
             "Nothing is running. No workers, no sub-agents, no tool calls open. "
-            "The orb is drawing its idle shape."
+            "The orb is a quiet core with nothing growing out of it."
         )
 
     head = (
@@ -963,4 +976,6 @@ def describe_tree(tree: Mapping[str, Any], *, now: float | None = None) -> str:
         )
     out.append("")
     out.extend(lines)
+    out.append("")
+    out.append(ORB_LEGEND)
     return "\n".join(out)
