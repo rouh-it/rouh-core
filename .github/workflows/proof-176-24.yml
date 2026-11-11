@@ -2,15 +2,12 @@
 #   command   the rouh command, setup in a real terminal, the timer, the own domain (Pebble), Keep, Wipe and Bring back
 #   one-line  the real `curl -fsSL https://rouh.land/install.sh | sh`, a tampered release stopping it, a Connected setup
 #   vm        Debian 12 in a KVM virtual machine: the one command, then a reboot that comes back running
-# Results (transcripts, logs, screenshots) go to the branch proof/176-24-results-<part>.
+# Started by a push to proof/176-24-run-<part>; results (transcripts, logs, screenshots) go to
+# proof/176-24-run-<part>-results.
 name: proof-176-24
 on:
-  workflow_dispatch:
-    inputs:
-      part:
-        type: choice
-        options: [command, one-line, vm]
-        default: command
+  push:
+    branches: ["proof/176-24-run-*"]
 permissions:
   contents: write
   packages: write
@@ -18,7 +15,7 @@ env:
   OUT: ${{ github.workspace }}/out
 jobs:
   command:
-    if: inputs.part == 'command'
+    if: endsWith(github.ref_name, '-command')
     runs-on: ubuntu-24.04
     timeout-minutes: 170
     steps:
@@ -150,11 +147,11 @@ jobs:
           cd "$OUT"
           sed -i -E 's/(code=)[A-Za-z0-9_-]{8,}/\1<hidden>/g; s/(Bearer )[A-Za-z0-9_-]{8,}/\1<hidden>/g' *.txt *.typescript *.log 2>/dev/null || true
           git init -q -b results && git add -A
-          git -c user.name=proof -c user.email=proof@rouh.invalid commit -qm "proof 176-24 ${{ inputs.part }} ${{ github.run_id }}"
-          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" "results:refs/heads/proof/176-24-results-${{ inputs.part }}"
+          git -c user.name=proof -c user.email=proof@rouh.invalid commit -qm "proof 176-24 ${{ github.ref_name }} ${{ github.run_id }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" "results:refs/heads/${{ github.ref_name }}-results"
 
   one-line:
-    if: inputs.part == 'one-line'
+    if: endsWith(github.ref_name, '-one-line')
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -199,11 +196,11 @@ jobs:
           cd "$OUT"
           sed -i -E 's/(code=)[A-Za-z0-9_-]{8,}/\1<hidden>/g; s/(Bearer )[A-Za-z0-9_-]{8,}/\1<hidden>/g' *.txt *.typescript *.log 2>/dev/null || true
           git init -q -b results && git add -A
-          git -c user.name=proof -c user.email=proof@rouh.invalid commit -qm "proof 176-24 ${{ inputs.part }} ${{ github.run_id }}"
-          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" "results:refs/heads/proof/176-24-results-${{ inputs.part }}"
+          git -c user.name=proof -c user.email=proof@rouh.invalid commit -qm "proof 176-24 ${{ github.ref_name }} ${{ github.run_id }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" "results:refs/heads/${{ github.ref_name }}-results"
 
   vm:
-    if: inputs.part == 'vm'
+    if: endsWith(github.ref_name, '-vm')
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -247,5 +244,5 @@ jobs:
           cd "$OUT"
           sed -i -E 's/(code=)[A-Za-z0-9_-]{8,}/\1<hidden>/g; s/(Bearer )[A-Za-z0-9_-]{8,}/\1<hidden>/g' *.txt *.typescript *.log 2>/dev/null || true
           git init -q -b results && git add -A
-          git -c user.name=proof -c user.email=proof@rouh.invalid commit -qm "proof 176-24 ${{ inputs.part }} ${{ github.run_id }}"
-          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" "results:refs/heads/proof/176-24-results-${{ inputs.part }}"
+          git -c user.name=proof -c user.email=proof@rouh.invalid commit -qm "proof 176-24 ${{ github.ref_name }} ${{ github.run_id }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" "results:refs/heads/${{ github.ref_name }}-results"
