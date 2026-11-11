@@ -1,0 +1,6 @@
+healthz: 200
+setup through the edge: 404
+setup api through the edge: 404
+plain http: 308 https://rouh-proof.example.test/
+certificate: issuer=CN = Pebble Intermediate CA 287284 subject= X509v3 Subject Alternative Name: critical     DNS:rouh-proof.example.test 
+sign-in page: <title>Sign in to Rouh

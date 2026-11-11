@@ -1,0 +1,4 @@
+the turn that answered 'Gmail please' was sent 3 messages:
+  user | [A note from Rouh's own software, not the person: Mira has just finished setting up this Rouh and opened General for the first time. It is an Independent Rouh: 
+  assistant | Hey, Mira, I will be your Rouh, we will continuously co-evolve into better and more capable beings. The best place to start is to get some connections going on:
+  user | Gmail please. How do I start?

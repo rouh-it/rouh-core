@@ -1,0 +1,1 @@
+test release 20261106170447, guard ghcr.io/rouh-it/rouh-guard@sha256:cbad153fd6d7070e388ed193c61c72bbd2f73328be4b958e01e2e9c2dfdde2c8, key proof-176-24 oEC4z/iydff7xG3kIKB8ies7+5N9/3TLYAHSlPrnnoI=

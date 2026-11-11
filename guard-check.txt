@@ -1,0 +1,8 @@
+ok    bad-syslog-logging: the service 'worker' sends its log through 'syslog'
+55 of 55 as they must be
+ok    good-edge-as-released
+ok    bad-edge-no-domain: the service 'edge' publishes port 80 to every address with no domain set (ROUH_DOMAIN); it is opened only for the owner's own domain
+ok    bad-edge-another-port: the service 'edge' publishes port 8443; it may publish only 80 and 443, each to the same port
+ok    bad-edge-changed: the service 'edge' is not as released: it is part of the protected core
+ok    bad-edge-port-elsewhere: the service 'core' publishes a port on every address; only 127.0.0.1 is allowed
+5 of 5 as they must be

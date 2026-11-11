@@ -1,0 +1,3 @@
+code in the core's log: 0 times
+core: this Rouh has no owner yet. Set it up: rouh setup on a Linux server, Rouh for Mac on a Mac, or open the address python manage.py setup_link prints
+the code read before rouh setup: HTTP 401

@@ -1,0 +1,18 @@
+○ rouh-update.service - Rouh's nightly update: the newest signed release, after a backup, going back by itself if unhealthy
+     Loaded: loaded (/etc/systemd/system/rouh-update.service; static)
+     Active: inactive (dead) since Wed 2026-11-11 08:48:41 UTC; 7ms ago
+TriggeredBy: ● rouh-update.timer
+       Docs: https://rouh.land/start/?for=linux
+    Process: 19071 ExecStart=/usr/local/bin/rouh update --nightly (code=exited, status=0/SUCCESS)
+   Main PID: 19071 (code=exited, status=0/SUCCESS)
+        CPU: 442ms
+== 2026-11-11 08:48: updated by hand
+
+-- 2026-11-11 08:48 nightly update
+Up to date: base 1.0.11, release 20261106170447
+== 2026-11-11 08:48: up to date or updated, every part healthy
+NEXT                        LEFT LAST                        PASSED UNIT              ACTIVATES
+Thu 2026-11-12 04:21:06 UTC  19h Wed 2026-11-11 08:47:41 UTC      - rouh-update.timer rouh-update.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.

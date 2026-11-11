@@ -1,0 +1,15 @@
+Made the settings file /home/runner/rouh/.env.
+
+Starting Rouh (the first time downloads about 2 GB)
+Updating to base 1.0.11, release 20261106170446
+No code yet: nothing to check the new base with.
+The stack in use is the release's own.
+Started base 1.0.11 (release 20261106170446): every part is healthy
+[ok] Nightly update is on: every night between 03:00 and 05:00 (this server's time), after a backup. Next: Thu 2026-11-12 04:21:06 UTC
+[ok] Rouh is running (base 1.0.11, release 20261106170446, signature checked).
+
+Next, set your Rouh up in a terminal on this server:
+
+    rouh setup
+
+{"owner": false, "setup_done": false, "kind": null, "code": true, "expired": false, "hours": 24.0, "age_seconds": 15}

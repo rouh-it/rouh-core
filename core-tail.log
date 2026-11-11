@@ -1,0 +1,200 @@
+  Applying rouh.0091_heartbeat_settings_and_vault... OK
+  Applying rouh.0092_heartbeat_split... OK
+  Applying rouh.0093_model_uses... OK
+  Applying rouh.0094_quests... OK
+  Applying rouh.0095_decisions... OK
+  Applying rouh.0096_task_summary... OK
+  Applying rouh.0097_task_status_in_the_database... OK
+  Applying rouh.0098_trusted_tell_status... OK
+  Applying rouh.0099_case_told_and_reminders... OK
+  Applying rouh.0100_nightly_feature... OK
+  Applying rouh.0101_signup_grants... OK
+  Applying rouh.0102_page_link_kept... OK
+  Applying rouh.0103_decision_handles... OK
+  Applying rouh.0104_decision_items... OK
+  Applying rouh.0105_approvals_never_expire... OK
+  Applying rouh.0106_dismiss_expired...
+  expired approvals and decisions dismissed: 0 (none)
+ OK
+  Applying rouh.0107_approval_immediate_reply... OK
+  Applying rouh.0108_mail_case_fixes... OK
+  Applying rouh.0109_reminder_titles... OK
+  Applying rouh.0110_synapse_meetings... OK
+  Applying rouh.0111_delegations... OK
+  Applying rouh.0112_notices... OK
+  Applying rouh.0113_recall_timelines... OK
+  Applying rouh.0114_nav_taps... OK
+  Applying rouh.0115_event_log... OK
+  Applying rouh.0116_reminder_asked... OK
+  Applying rouh.0117_grants... OK
+  Applying rouh.0118_notice_deployed... OK
+  Applying rouh.0119_grant_titles... OK
+  Applying rouh.0120_mail_ledger... OK
+  Applying rouh.0121_cases_onto_the_ledger... OK
+  Applying rouh.0122_old_case_routing_gone... OK
+  Applying rouh.0123_old_sends_into_the_outbox... OK
+  Applying rouh.0124_mail_look_switch_gone... OK
+  Applying rouh.0125_clockwork_follows_grants... OK
+  Applying rouh.0126_the_gate_starts_the_work_finishes... OK
+  Applying rouh.0127_offline_actions... OK
+  Applying rouh.0128_thoughts... OK
+  Applying rouh.0129_cloudflare_zones... OK
+  Applying rouh.0130_message_notice... OK
+  Applying rouh.0131_nav_tap_visit... OK
+  Applying rouh.0132_shared_genes... OK
+  Applying rouh.0133_work_and_personal... OK
+  Applying rouh.0134_silos... OK
+  Applying rouh.0135_notice_links... OK
+  Applying rouh.0136_notice_page_label... OK
+  Applying rouh.0137_page_source_checks... OK
+  Applying rouh.0138_boxes... OK
+  Applying rouh.0139_box_numbers... OK
+  Applying rouh.0140_evolution... OK
+  Applying rouh.0141_gene_log... OK
+  Applying rouh.0142_chats_of_tasks_jobs_made... OK
+  Applying rouh.0143_task_107_its_first_chat... OK
+  Applying rouh.0144_payment_cards... OK
+  Applying rouh.0145_payment_card_silo... OK
+  Applying rouh.0146_billing_entities... OK
+  Applying rouh.0147_payment_card_limit... OK
+  Applying rouh.0148_payment_card_caps... OK
+  Applying rouh.0149_shipping_options... OK
+  Applying rouh.0150_mutations... OK
+  Applying rouh.0151_thought_enrich... OK
+  Applying rouh.0152_run_kind... OK
+  Applying rouh.0153_requester_shares... OK
+  Applying rouh.0154_uploaded_file_task_owner... OK
+  Applying rouh.0155_paid_services... OK
+  Applying rouh.0156_gene_mutation_run... OK
+  Applying rouh.0157_agent_instructions... OK
+  Applying rouh.0158_task_origin... OK
+  Applying rouh.0159_ask_serves... OK
+  Applying rouh.0160_nightly_refactor... OK
+  Applying rouh.0161_contact_grant_calendars... OK
+  Applying rouh.0162_task_access... OK
+  Applying rouh.0163_ask_blocker... OK
+  Applying rouh.0164_task_made_by... OK
+  Applying rouh.0165_draft_edits... OK
+  Applying rouh.0166_slack... OK
+  Applying rouh.0167_slack_promises... OK
+  Applying rouh.0168_slack_task_links... OK
+  Applying rouh.0169_hue... OK
+  Applying rouh.0170_dreame... OK
+  Applying rouh.0171_slack_promise_clockwork... OK
+  Applying rouh.0172_dreame_mi... OK
+  Applying rouh.0173_card_charge_placed... OK
+  Applying rouh.0174_card_charge_submitted... OK
+  Applying rouh.0175_card_charge_task_ref... OK
+  Applying rouh.0176_card_charge_addresses... OK
+  Applying rouh.0177_card_charge_pressed... OK
+  Applying rouh.0178_reminder_about_rouh... OK
+  Applying rouh.0179_model_tiers... OK
+  Applying rouh.0180_model_outcome_routes... OK
+  Applying rouh.0181_decision_gate... OK
+  Applying rouh.0182_decision_line... OK
+  Applying rouh.0183_model_sync_and_locks... OK
+  Applying rouh.0184_rouh_pool... OK
+  Applying rouh.0185_models_auto... OK
+  Applying rouh.0186_models_auto_per_box... OK
+  Applying rouh.0187_decision_numbers... OK
+  Applying rouh.0188_gene_trial_settings... OK
+  Applying rouh.0189_genes_on_by_default... OK
+  Applying rouh.0190_gene_try_it_removed... OK
+  Applying rouh.0191_gene_reviewed... OK
+  Applying rouh.0192_gene_use_signals... OK
+  Applying rouh.0193_gene_uses_are_events... OK
+  Applying rouh.0194_night_gene_target... OK
+  Applying rouh.0195_owner_words_not_a_name... OK
+  Applying rouh.0196_page_definitions... OK
+  Applying rouh.0197_one_permission_record...
+  one permission record: 0 active grant(s); 0 row(s) made, 0 raised or made the person's own, 0 already at that level
+ OK
+  Applying rouh.0198_no_delegations_table... OK
+  Applying rouh.0199_route_timelines... OK
+  Applying rouh.0200_builtin_rules... OK
+  Applying rouh.0201_task_ticks_are_records... OK
+  Applying rouh.0202_capability_grants... OK
+  Applying rouh.0203_task_meta... OK
+  Applying rouh.0204_task_icon... OK
+  Applying rouh.0205_synapse_identity_slack... OK
+  Applying rouh.0206_youtube_transcripts... OK
+  Applying rouh.0207_task_numbers_before... OK
+  Applying rouh.0208_synapse_person_change... OK
+  Applying rouh.0209_gene_pool_review... OK
+  Applying rouh.0210_model_modes... OK
+  Applying rouh.0211_rouh_birth... OK
+  Applying rouh.0212_turn_records... OK
+  Applying rouh.0213_model_providers_and_votes... OK
+  Applying rouh.0214_job_requests... OK
+  Applying rouh.0215_gene_pool_incoming... OK
+  Applying rouh.0216_page_reads... OK
+  Applying rouh.0217_rouh_human_names... OK
+  Applying rouh.0218_demo_mode... OK
+  Applying rouh.0219_page_states... OK
+  Applying rouh.0220_rule_groups_and_switches... OK
+  Applying rouh.0221_every_rule_in_master... OK
+  Applying rouh.0222_synapse_bg_again... OK
+  Applying rouh.0223_share_ends... OK
+  Applying rouh.0224_box_handovers... OK
+  Applying rouh.0225_his_word... OK
+rouh.land: 0 stored addresses moved from rouh.it
+  Applying rouh.0226_rouh_land...
+  rouh.land: 0 stored addresses moved from rouh.it OK
+  Applying rouh.0227_incubator... OK
+  Applying rouh.0229_quiet_undo_points... OK
+  Applying rouh.0230_incubator_score... OK
+  Applying rouh.0231_message_branches... OK
+  Applying rouh.0232_anatomy_rouh_land_links... OK
+  Applying rouh.0233_about_you_links... OK
+  Applying rouh.0234_sign_in... OK
+  Applying rouh.0235_birth_advanced_recovery... OK
+  Applying rouh.0236_birth_no_advanced_recovery... OK
+  Applying rouh.0228_chat_links_kept... OK
+  Applying rouh.0237_chat_links_kept_in_chain... OK
+  Applying rouh.0238_trials... OK
+  Applying rouh.0239_trial_jobs_testers... OK
+  Applying rouh.0240_trial_mode... OK
+  Applying rouh.0241_files... OK
+  Applying rouh.0242_trial_tester_paused... OK
+  Applying rouh.0243_incubator_gist... OK
+  Applying rouh.0244_decision_kind_action... OK
+  Applying rouh.0245_chat_model_choice... OK
+  Applying rouh.0246_greeting_in_the_conversation... OK
+  Applying rouh.0247_run_model... OK
+  Applying sessions.0001_initial... OK
+core: making the empty workspace, first start only
+192 objects imported automatically (use -v 2 for details).
+
+workspace: /data/workspace
+core: the workspace's main is made, for Rouh and its runs
+core: this Rouh has no owner yet. Open http://127.0.0.1:8420/setup?code=<hidden>
+INFO:     Started server process [96]
+INFO:     Waiting for application startup.
+2026-11-11 08:57:25,198 INFO rouh.memory moved 1 thread(s) and 0 turn(s) onto the object model
+2026-11-11 08:57:25,390 WARNING rouh.attachments no group called 'rouh-attachments' on this machine, so the one program's runs cannot open attachments; `python manage.py attachments_access` makes it
+2026-11-11 08:57:25,531 INFO rouh jarvis 1.0.0+62b66c4 starting, at 62b66c4, committed 11 Nov 2026
+2026-11-11 08:57:25,532 INFO rouh.workerkey made the key the worker shows Rouh, in /run/one/rouh-worker.json
+2026-11-11 08:57:25,537 INFO rouh.requester_share requester share: sharing every task made for somebody outside with them
+2026-11-11 08:57:25,565 INFO rouh accounts=0, dropped 0 expired sign-in(s)
+2026-11-11 08:57:25,565 WARNING rouh no accounts yet: nobody can sign in. Make one with: python manage.py account add <username> --generate
+2026-11-11 08:57:25,573 INFO rouh models: The mode is Balanced [balanced]: the router (OpenAI's Decisions API, or without an OpenAI key a plain easy-or-hard question to the cheapest model) reads each chat message and Cheaper answers only when it is at least 90% sure the message is easy; otherwise Smart. The modes are best, balanced and saver. This Rouh can ask no provider at all (a provider is asked only with a key; Google's and xAI's are typed into Anatomy, Behaviour, Models). Each tier is an ordered list of models across providers, and a use asks the first one on its list it has a key for. The service's standard is 2026-10-24.1. Models (tiers) is on Auto: it follows the Rouh model service, except what is locked, and cannot be changed until its Auto is off. Each use (uses) is on Auto: it follows the Rouh model service, except what is locked, and cannot be changed until its Auto is off. Anonymous daily totals are shared with rouh.land; blind comparisons are off. Cheaper [cheaper]: Luna (gpt-6-luna), then Haiku 4.5 (claude-haiku-4-5), then Gemini 3.5 Flash-Lite (gemini-3.5-flash-lite), then Grok 4.3 (grok-4.3); asked here: none, no key for any of them. Smart [smart]: Opus 5.5 (claude-opus-5-5), then GPT-6.1 Sol (gpt-6.1-sol), then Gemini 4 Argon (gemini-4-argon), then Grok 4.7 (grok-4.7); asked here: none, no key for any of them. Each use of a model: Rouh [general]: picked per message by the router: Cheaper when it is sure the message is easy, else Smart; Every other chat [chats]: picked per message by the router: Cheaper when it is sure the message is easy, else Smart; Choosing the model in Balanced [router_decisions]: Custom, but no model on its list can be asked here, so it does not run; Choosing the model without OpenAI [router_question]: Cheaper, but no model on its list can be asked here, so it does not run; Chat titles [chat_title]: Cheaper, but no model on its list can be asked here, so it does not run; Picture descriptions [picture_prompt]: Cheaper, but no model on its list can be asked here, so it does not run; Task icons [task_icon]: Cheaper, but no model on its list can be asked here, so it does not run; Filing new tasks [filing]: Cheaper, but no model on its list can be asked here, so it does not run; Clockwork titles [reminder_title]: Cheaper, but no model on its list can be asked here, so it does not run; Reading Clockwork's words [reminder_words]: Cheaper, but no model on its list can be asked here, so it does not run; Wake-up check [heartbeat_check]: off; Decision [heartbeat_decide]: Smart, but no model on its list can be asked here, so it does not run; Checking Anthropic still fails [provider_check_anthropic]: Cheaper, but no model on its list can be asked here, so it does not run; Checking OpenAI still fails [provider_check_openai]: Cheaper, but no model on its list can be asked here, so it does not run; Checking a new Anthropic key [key_check_anthropic]: Cheaper, but no model on its list can be asked here, so it does not run; Checking a new OpenAI key [key_check_openai]: Cheaper, but no model on its list can be asked here, so it does not run; Code runs [code_runs]: Smart, so Opus 5.5 at medium; Merging a clash [merge_pass]: Smart, so Opus 5.5 at medium; Codex runs [codex_runs]: Smart, so GPT-6.1 Sol at high; Nightly feature run [nightly_feature_run]: Smart, so Opus 5.5 at medium; Nightly refactoring run [nightly_refactor_run]: Smart, so Opus 5.5 at medium; Background workers [workers]: Smart, so Opus 5.5 at medium; Reading Gene therapy [triage]: Smart, but no model on its list can be asked here, so it does not run; Run summaries [run_summary]: Cheaper, but no model on its list can be asked here, so it does not run; What a job asks Rouh for [job_request]: Cheaper, but no model on its list can be asked here, so it does not run; Whether you already asked for this [his_word]: Smart, but no model on its list can be asked here, so it does not run; Helpers [subagent]: Smart, but no model on its list can be asked here, so it does not run; Ask AI [askai]: Smart, but no model on its list can be asked here, so it does not run; Answering page comments [comment_pass]: Smart, but no model on its list can be asked here, so it does not run; Defining a passage [page_define]: Cheaper, but no model on its list can be asked here, so it does not run; Narrating a page [page_listen]: Cheaper, but no model on its list can be asked here, so it does not run; Checking a page's sources [source_check]: Smart, but no model on its list can be asked here, so it does not run; Questions about a gene [gene_question]: Smart, but no model on its list can be asked here, so it does not run; Writing the gene log [gene_writer]: Cheaper, but no model on its list can be asked here, so it does not run; How useful a gene is [gene_eval]: Smart, but no model on its list can be asked here, so it does not run; Scoring the Incubator's ideas [incubator_score]: Smart, but no model on its list can be asked here, so it does not run; Summing up the Incubator's ideas [incubator_gist]: Smart, but no model on its list can be asked here, so it does not run; Trials tester [trial_tester]: Smart, but no model on its list can be asked here, so it does not run; Trials: the same problem again [trial_matcher]: Smart, but no model on its list can be asked here, so it does not run; Trials: writing a new tester [trial_writer]: Smart, but no model on its list can be asked here, so it does not run; Trials: talking a problem over [trial_discuss]: Smart, but no model on its list can be asked here, so it does not run; Genes for you from the Gene Pool [gene_match]: Smart, but no model on its list can be asked here, so it does not run; A Rouh's second name [second_name]: Smart, but no model on its list can be asked here, so it does not run; Fixing a false alarm [case_fix_run]: Smart, so Opus 5.5 at medium; Reading an email or message from somebody else [case_read]: Smart, but no model on its list can be asked here, so it does not run; Questions about a mail case [case_ask]: Smart, but no model on its list can be asked here, so it does not run; Promises in Slack [slack_promises]: Cheaper, but no model on its list can be asked here, so it does not run; Decisions in a linked channel [slack_decisions]: Smart, but no model on its list can be asked here, so it does not run; Splitting a goal into steps [goal_split]: Smart, but no model on its list can be asked here, so it does not run; Rewriting a goal's step [goal_revise]: Smart, but no model on its list can be asked here, so it does not run; Morning brief [morning_brief]: Smart, but no model on its list can be asked here, so it does not run; What to raise before a meeting [meeting_brief]: Smart, but no model on its list can be asked here, so it does not run; Reading which profile a meeting guest is [meeting_pick_words]: Cheaper, but no model on its list can be asked here, so it does not run; Work to start after a meeting [meeting_next]: Smart, but no model on its list can be asked here, so it does not run; Questions you already answered in a chat [answered_in_chat]: Cheaper, but no model on its list can be asked here, so it does not run; Whether a question needs you [decision_gate]: Smart, but no model on its list can be asked here, so it does not run; Whether it is something only you can do [action_reader]: Smart, but no model on its list can be asked here, so it does not run; Questions about something you have to do [action_ask]: Cheaper, but no model on its list can be asked here, so it does not run; Cluster names and headlines [control_room]: Smart, but no model on its list can be asked here, so it does not run; Synapse's helper [synapse_helper]: Cheaper, but no model on its list can be asked here, so it does not run; Synapse's answers [synapse_answer]: Cheaper, but no model on its list can be asked here, so it does not run; Synapse's decision backend [synapse_decision]: Custom, but no model on its list can be asked here, so it does not run; OpenAI's Decisions API [synapse_decisions_api]: Cheaper, but no model on its list can be asked here, so it does not run; Automatic recall's first reader [synapse_recall_first]: Custom, but no model on its list can be asked here, so it does not run; Automatic recall's second reader [synapse_recall_second]: Custom, but no model on its list can be asked here, so it does not run; Judging Synapse's answers [synapse_judge]: Smart, but no model on its list can be asked here, so it does not run; Dreaming [synapse_dream]: Cheaper, but no model on its list can be asked here, so it does not run; Judging double calls [double_judge]: Cheaper, but no model on its list can be asked here, so it does not run. Nothing that Reset to defaults would change.
+2026-11-11 08:57:25,574 INFO rouh luna=not offered: no OPENAI_API_KEY in this service's environment
+2026-11-11 08:57:25,574 INFO rouh run_command runs in the worker, in its box (one/shell.py)
+2026-11-11 08:57:25,625 INFO rouh tools=show_on_screen, what_was_on_screen, show_again, read_card, read_rouh_link, revise_on_screen, make_a_task, move_task, rename_task, move_step, pin, decisions, actions, delegate, rename_this_chat, model_defaults, gene_offer, gene_draft, ask_for_location, set_panels, remember, forget, list_memory, agent_instructions, capture_thought, thoughts, incubator_list, incubator_read, incubator_add, incubator_edit, incubator_status, incubator_merge, incubator_link, incubator_score, trials, new_box, open_box, print_page, send_telegram, what_is_running, answer_conflict, show_the_gaps, look_into, one_runs, one_start, one_say, one_stop, one_answer, one_take, one_give, run_command, assistant_job, check_tasks, improve_myself, worker_outbox, read_recent_mail, read_mail, read_mail_attachment, mail_alerts, handle_email_again, send_mail, forward_mail, forward_thread, draft_mail, modify_mail, show_inbox, search_drive, list_drive_folder, list_shared_drives, create_shared_drive, add_shared_drive_members, write_drive_file, upload_drive_file, create_drive_folder, manage_drive_file, share_drive_file, list_drive_permissions, read_doc, doc_changes, reply_to_doc_comment, comment_on_doc, comments_by, page_asks, page_comments, edit_sheet, copy_drive_file, block_my_time, to_answer, reply_times, no_company, same_contact, contact_card, between_us, unread_lists, promised_to_you, when_free, read_calendar_link, public_holidays, meeting_hours, edit_slides, find_slides, create_doc, edit_doc, list_calendars, list_calendar_events, read_calendar_event, create_calendar_event, update_calendar_event, delete_calendar_event, restore_calendar_event, add_shared_calendar, create_calendar, share_calendar, search_contacts, show_contact, update_contact_profile, save_contact, delete_contact, link_person, meeting_people, youtube_transcript, youtube_search, browser, schedule, upcoming, change_scheduled, set_goal, plan_goal, goal_step, goals, goal_control, heartbeat, quest, long_work, payments, shipping, stripe, server_health, cloudflare, slack_channels, slack_read, slack_search, slack_join, slack_send, slack_link, hue, vacuum, read_workspace, show_workspace_page, show_canvas, publish_task, check_task_sharing, share_with_person, web_search, web_fetch, meeting_search, meeting_read
+2026-11-11 08:57:25,625 WARNING rouh not configured: ANTHROPIC_API_KEY, ELEVENLABS_API_KEY, ROUH_VOICE_ID
+2026-11-11 08:57:25,637 INFO rouh.saving what Rouh makes in the workspace is saved to main, from /data/rouh/workspace-saves
+2026-11-11 08:57:25,637 INFO rouh.workspace_follow Rouh's workspace follows its main
+2026-11-11 08:57:25,659 INFO rouh.objecttree the content index is empty, so it is being built from /data/workspace
+2026-11-11 08:57:25,684 INFO rouh the one program: attached as the voice, at /run/one/one.sock
+2026-11-11 08:57:25,690 INFO rouh.uploads uploaded files: 0 searchable, 0 taken in now, 0 gone, in 0.1s
+2026-11-11 08:57:25,718 INFO rouh the contacts beat is running every 15 minute(s)
+2026-11-11 08:57:25,720 INFO rouh the mail alerts beat is running every 60 minute(s), and every new message is handed to Rouh ()
+2026-11-11 08:57:25,720 INFO rouh the Gene therapy beat is running every 5 minute(s), and each mutation asked for is taken up by itself, read by the default model in Settings
+2026-11-11 08:57:25,739 INFO rouh.objecttree the content index: 0 file(s) under 3 object(s)
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8021 (Press CTRL+C to quit)
+2026-11-11 08:57:25,806 INFO rouh.telegram_chat telegram: not set up (/data/secrets/rouh_telegram.json), so nothing is read
+INFO:     127.0.0.1:55146 - "GET /healthz HTTP/1.1" 200 OK
+INFO:     172.20.0.3:44556 - "GET /healthz HTTP/1.1" 200 OK
+2026-11-11 08:57:31,440 INFO httpx HTTP Request: GET https://rouh.land/rules/defaults.json?schema=1 "HTTP/1.1 200 OK"
+2026-11-11 08:57:31,773 INFO rouh.ruledefaults rule defaults 2026-11-11.88e0a6a4 fetched from https://rouh.land/rules/defaults.json: 59 rules

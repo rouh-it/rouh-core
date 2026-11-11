@@ -1,0 +1,207 @@
+[2mSetting up your Rouh. Ctrl-C stops; rouh setup carries on where you left off.[0m
+
+[1mWhat kind of Rouh do you want?[0m
+You can change this later.
+
+  [1mC  Connected Rouh[0m (recommended)
+     A free rouh.land account with the email you type next, and a service that helps your Rouh with:
+       · Models: which model to use for what, at the best price.
+       · Security: fixes as soon as they are out.
+       · Updates: new versions of Rouh as they come out.
+       · Gene ideas: from other Rouhs, in the Gene Pool.
+       · Your own address: reach your Rouh from your phone, from anywhere, with nothing to open on this server.
+
+  [1mI  Independent Rouh[0m
+     Runs on this server on its own, with no rouh.land account.
+       · What you fill in stays on this server and goes nowhere.
+       · It answers to Rouh, or to a nickname you give it.
+       · No Gene Pool, no address for your phone. You reach it through SSH, your own VPN or your own domain.
+
+[2mEither way your files, chats and every call to a model stay on your Rouh. A Connected Rouh sends rouh.land only its birth and your email, for your account.[0m
+
+Connected or Independent? [C/i] i
+[32m✓[0m Independent Rouh.
+
+[1mAbout you[0m
+Only for your own protection: what you type stays on this server and goes nowhere.
+
+First name: Mira
+Last name (only one name? put one letter): Kovac
+Email: mira@example.test
+Your time zone [Etc/UTC]: 
+
+A password, for signing in to your Rouh from any browser. It needs:
+  · A letter
+  · A number
+  · A symbol, such as ! ? # or a space
+  · At least 10 characters
+  · Not too like your name or email address
+  · Not a commonly used password
+  · The same twice
+Password (hidden): 
+  [32m✓[0m A letter
+  [31m✗[0m A number
+  [31m✗[0m A symbol, such as ! ? # or a space
+  [31m✗[0m At least 10 characters
+  [32m✓[0m Not too like your name or email address
+  [32m✓[0m Not a commonly used password
+[33m![0m Put at least one number in the password. Put at least one symbol in the password, such as ! ? #. This password is too short. It must contain at least 10 characters. Try another.
+Password (hidden): 
+  [32m✓[0m A letter
+  [32m✓[0m A number
+  [32m✓[0m A symbol, such as ! ? # or a space
+  [32m✓[0m At least 10 characters
+  [32m✓[0m Not too like your name or email address
+  [32m✓[0m Not a commonly used password
+The same password again (hidden): 
+  [32m✓[0m The same twice
+[32m✓[0m You are the owner of this Rouh.
+
+[1mYour Rouh is ready[0m
+  Name:      [38;2;255;154;77m[1mRouh[0m
+
+It always answers to Rouh. You can also give it a nickname, which it answers to as well.
+Nickname (optional, Enter for none): Ivy
+[32m✓[0m It answers to Rouh and to [38;2;255;154;77m[1mIvy[0m.
+
+[1mGive [38;2;255;154;77m[1mIvy[0m[1m a brain[0m
+Choose a company and paste its API key. Rouh's chats use it. One is enough, and it is required.
+
+Anthropic or OpenAI? [A/o] a
+
+  1. Open the Claude Console, at the address below, on any computer or phone, and sign in.
+  2. Add credit under Billing: Rouh pays per use.
+  3. Under API keys, press Create Key, then copy it.
+  4. Paste it here. It is not shown as you paste.
+
+     https://console.anthropic.com/settings/keys
+
+Your Anthropic key (hidden): 
+Checking it with Anthropic: a real question, and its answer…
+[33m![0m Anthropic doesn't know this key. It may have a typing mistake, or it was deleted (revoked) in the Claude Console. Copy it again, or make a new one.
+Your Anthropic key (hidden): 
+Checking it with Anthropic: a real question, and its answer…
+[32m✓[0m Anthropic answered: the key works. Rouh's chats use it.
+
+[1mRun Rouh's agents on a plan (strongly recommended)[0m
+Rouh's agents do the long jobs: in Claude Code on a Claude Pro or Max plan, or in Codex on a ChatGPT plan. On a plan they cost a fixed monthly price. Without one, every job is billed by use on your API key, and that costs much more.
+
+  [1m1  Claude plan[0m (Pro or Max): Claude Code runs the agents (recommended)
+  [1m2  ChatGPT plan[0m (Plus or Pro): Codex runs the agents
+  [2m3  Go on without a plan…[0m
+
+Connect a plan now? [1/2/3] 1
+
+  1. Open the address below on any computer or phone (or scan the code): it is Claude's own sign-in page.
+  2. Sign in and press Authorize.
+  3. Claude shows a code. Copy it, come back here and paste it.
+
+     https://claude.com/cai/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&scope=org%3Acreate_api_key+user%3Aprofile+user%3Ainference+user%3Asessions%3Aclaude_code+user%3Amcp_servers+user%3Afile_upload+user%3Aplugins&code_challenge=vdg08he4tY31CcHxgMSEC_zMKa9MOyU9XDgMSH5_7yc&code_challenge_method=S256&state=m9X1I4anAAdrL8NH1u2_u_hjqK0krKtjB4dQWsn8mz0
+
+  █████████████████████████████████████████████████████████████████████████████████
+  ██ ▄▄▄▄▄ █▀ █ █ █▄  ▀▀  ▄▀ ▀ ██▄▄ ▄▀▀▀ ▄▄▄    █▄▄▄▄█▄ ▀▀██▄▄ ▀▀█▀▀█▀▀█▀█ ▄▄▄▄▄ ██
+  ██ █   █ █▀█▄ ▄█▀█ ▄▀▀   ▀▀▀▄ ██▄▀▄██▄▀ █▄▄ █▄▄▄▄█▀▄▄▀█▄▀▄ ▄▀▄█ ▀  ▄██ █ █   █ ██
+  ██ █▄▄▄█ █▀ ▄▄▄ █▀▀▀▀█ █ █ ▄▄▄ ▀▄▀ █▀ ▄▄▀██▄▄ █▄ ▄▄▄ ▄▀███▄▄▄ █▀ ▀▀  ▄▄█ █▄▄▄█ ██
+  ██▄▄▄▄▄▄▄█▄▀▄▀▄▀▄▀ ▀▄█▄▀▄█ █▄█ █ █ █▄█ ▀▄▀ ▀▄█ █ █▄█ █ ▀▄▀ ▀▄█▄█▄█ ▀ █ █▄▄▄▄▄▄▄██
+  ██  ▄▄ █▄ ▄██ ▄  ▀▀▄▄▄█▄▀▄▄▄ ▄ ▄  ▀▀█▄█▄███▀█▀▀█▄  ▄ ▄▄▄ ▀█ ▀█▄█ ▄▄█ █ ▄█ ▀ ▀▄▀██
+  ██▄▄ ▄██▄▀▄    ██  ▄▄▀█▀██▄▀▀▄ ▄ ▀▀█▄ █▄  ▀▀ ▀▀▄▄█▀▄ █▀▄▄▀▀▀▄▀▄▀ █▀▄▀█▄▄▀ ▀██▄▀██
+  ██▄▀▀▀█▄▄▄ ▄▄▄ █▀▀ ▀▀▄█  █▄▄▀▄▄▀ ▀█▄█   █▀▀  ▄▀▀  ▀█▄ ██▄▀  ▀▀▀▄ ▄▄█▄▄▄  ▀ ▄ █▀██
+  ██▄▀▀▀▀▀▄█▄ ▀▄ ▀ ▄▄███ █ ▄▄  ▄█▀█▄█ ▄▄▄▀▄▀▀▀▀▀██▄█▀▀ ▄ ▄█  ▀▀▄▄▄ ▄▀▄█▄█ ▀▀▀▀█▀▀██
+  ██▀█▄█▄▄▄ █▀█▄█▄▄▄█▀▀█▀▀▀▀▀▄▀▄▄▀ ▄ ▀██▄██ ▀▄ ▀█   ▄█▀▄▄███  ▀▀▀█ ▄▄██▄▄▀▀▄▀ ▄▀ ██
+  ██  █▀ █▄█ ▄ █ ██▄▄▀▀██▀█▄█▀█▀▄▀▀  ▀▀█▄▀ ▀▀▄▀▀██▄▀▀█ ▄▀▄▀ ▄▄ ▀▄▄ ▄▀▄█▄█▄▀▀▀███▀██
+  ███▄   ▄▄ █ ▀ █▀▀ ▄▀█▄ ▄▄▄  ▀▄▄▀▀▀▀██ ▄▀▄██ ▀ █▀▀█▀█ ▄██▄█ ▀ ▀ █ ▄▄█▄▄▄▄▀▀▀ ▄▀ ██
+  ██ █▄ ██▄█▀▀▀▄██▄█▀████▄▀▄█▀█▄ ███▀▄▄▀▄█▄▄▄▀▄▄▀▀ █▀▄  ▀▄█▀▀▀▄▀▀▀▄▄  ▀▀▄▀▀▀▀▀█▀███
+  ██▀ ▄▄ ▄▄▄  ▄▄█  ▄ ▀▀▄▄▄▀▄ ▄▄▄    █▄▄  ▄█▄█ ▀▄█▄ ▄▄▄ █▀▄ ▀▄▀▀██▄▀▄▄▄█  ▄▄▄ █▄▀▀██
+  ██ █▄▀ █▄█ ▀█   ▀ ██▀ ▄▄█▀ █▄█ ▀▀▄▀ ▄▀▄ ▀ ▀▄▀▄ ▀ █▄█ ▀▀ █▀▀▀▄▀   ▀ ▄▀▀ █▄█ ▄▄████
+  ██▄ ▄█▄▄▄  ██ █  ▄███▄ ▄█▄ ▄▄  ▄  █ ▄█ ▀▄▀█ ▀█▀▀▄▄ ▄ ▄▄█ ▀█  █▀█   ▄▄  ▄ ▄▄█▄ ███
+  ██ ▄▄▄▀ ▄▄▄█▀▄▀    █ ▄█ █  ▄█▄█ ██  ▄  ▄▄▀ █▀▀▀▀▀▄██ ▄██▀▀ █▀ ▄ ███▀▀▀█▄█▀▄██▀▀██
+  ██ ▀ █ ▀▄▄ █  ▄█ ███▀▄▄▄ ▀▀█▄█▀▀█▄▀█▄▀ ▀▄█▀▄ ▄█▀▀▀   ▄▄█ ▀▀  █▄▄   ▄ ▄█▄▄▀▄▄  ▀██
+  ██▄▄█ █▀▄▀██▀▄▄  ▀████▄▀█▀ █▄ ▀█    ▀█▄▀▀▀   ▀▀▄█▄ ▄▀▄ █ ▀██▄█▄▄ ▄▀▄█▀▄▄█▀▄▀█▀███
+  ██▀ ▀▀ ▄▄▄██▀ ▀   █▀▀▄ ▄█▀▄ ▄██▄ █▀▄█  ▀██▀▄ ▄█▄█▄▄ █ ▄████ ▀████▄▄██▀█▀█  ▀█▀▀██
+  ████ ▀█▀▄ ▄▀▀▀ ▀  █▀▀█▄ ▄▀█▀▄▄██▀▀█▄  ██ ▀▄█▀▄█▀█▄█▀▀▄▀▄█ ▀ ▄ ▀▄▄▄ ▄▀▀▄▄▄▀▄▀██▀██
+  ███▀▄█▀▄▄█▀▄ ▄▄▀ ▀▀█▄▀▄ ▄▀▀▄█▄▀  ▀█▄    ▄▀▀ ▀▄ ▀▀█▀ ▀  █▀██▀ ██▄▀▄▀▄▄▀▀█▀▀ ▄▄▀ ██
+  ██▀ █▀▄▀▄ █▄▄█ ▀▀▄▄▀  ▄▀  ▄▀▄█▀ ▀▀█▄█ ▄ ▄ ▀█ ▄  ▄▄▀▀ ▄ ▄▀▄ ▀ ▀█▄▄█▀▄█ ▄▀▄▄▄▄██▀██
+  ██ ▄█ ▄▄▄█▀ ▀▀▀▄▄▀ ▀█▄▄▄▄▀▀▀█ ▀   █ █   ▄▀█  ▄██▀▄   ▄ █▀█▄ ▀▀█▄▀▄▀▄▄▀▄▄▄   ▄▄▀██
+  ██▀  ▄ ▄▄▄ ▄▀▄ ██▄█▄▄█▄█   ▄▄▄  █  █ ▄▄▀ ▀▄ ▀▄▀▄ ▄▄▄ ▀▄▄▀  █  ▄█ █▀▄▀▀ ▄▄▄ ▄█ ███
+  █████▄ █▄█  ▄ ▄▄▀▄█▀█▄ ▄   █▄█ ▀▀▄██▄▄ ▀ ▀    █▄ █▄█  ▄▄▀▀ ▀ █ █▄ █▄▄▄ █▄█ ▀▄████
+  ██  ▄▄ ▄▄▄▄▀▄  ▀▄▀▀█▀█  ▀ ▄▄ ▄▄ ▀▄ █▄▄█▀█▀ ▄█▀ ▄  ▄▄   ▄▀  ▀▄▀▄ ▄ ▀ ▀ ▄▄▄▄ ▄██▄██
+  ██ █▄▀▀█▄ █ █▀ ▀▀▀▀▀█▄ ▄▄██▄█▄▄█▀ █▀█  ▀█▀█▀  █ ▄▀█▄▄  █▀▀▄▀▀█▀▄ ▄ █ █ ▀▀▀ ▄ ▄▀██
+  ██▀▀█▀█▀▄ █▀█ ▀▄██  ▄█▀▀ ▀ ▄▀▄▄█▀█▀▀▄█▀ █▀ ▀█ ▀▄ ▄▄▄▀█ ▄▀▀█ ▄▀▀▄▄▄▀▄██ ▄██▀▀█▀███
+  ██▀▄█▄  ▄ ▄▀▄ ▄ █▄▀▄▄▄ ▄▀██▄ ██▄ ▀███▄█▀▄▀█▀█▄█▄█ ▄ ▄▄██ █ ▀▀▀ █▄ ▀█▄▀▄▀▀▄▀▀ ▀▀██
+  ██ ▀▀█▄█▄▀ █ █▄ █▀ █ █▄ █ ▀▄▄▄▄ ▄  █ ▄█ ▄▀ ▀  ▀▄  █▄ ▄▀█ ▀▀█ █▄▄ ▄ █▀▀▄▄█▀▀▀▄▀▀██
+  ██▀▀▄█▀▄▄▄█▀██ ▀▄▀██▀▄▄  █▄ ▄▄█  ▀▀█▄ ▄▄█▀▀▀▀ ██▀▀█▄▀▄ █▀█▀  ▀ █ ▄▀█▀▀▀█▀ ▀▀█▀▀██
+  ██▄██▀▄ ▄ ▄▄▄▀    █▄█▀▀█▀█▀▀▀▀▄▀▀██ ▄▄█▀▄▄▀█▀ ▄▀▀▀██▀█▀ ▀▀▄ ▄  ▄▀▄▀▄▀█ ▄▄█ ▀█████
+  ██ ▄   ▀▄▄  ▀▄▄█ █▄███▀▀▀█▀  ██  ▄ ▀█ ▄ █▄█▄ ▀█ ▀███▀▄██▄▀▀▀▀▀ █ ▄ █ ▀▀▄▀▄▀▄   ██
+  ███▄██ ▄▄ ▄█▀ ▄▄ █▄███▀▀█▀▀▄▀▄▀█▀  ▀█▀▄ ▄▀▀█▀█▀▄▄▀▄█ ▄▀▄█  ▀▄▀▄  ██ ▀█▀█ █▄▄█▀▀██
+  ███▄▄▄▄█▄▄▀▀  ██▄▄ ▀▄▄▀▄█▀ ▄▄▄ ▀▀████ ▄ ██▀▀  ▀▀ ▄▄▄  ███▀   ██▄   ▄▄▄ ▄▄▄  ▄█▀██
+  ██ ▄▄▄▄▄ █▄█▀ ▄▀ ███▄▀█ ▄▀ █▄█ █▀▄▀ ▄██▄█▄█▄▀▄ ▀ █▄█ ▀▀██▄ ▀  █  ▄▄  ▄ █▄█ ▄█▄███
+  ██ █   █ █   ▄ ▄▄█▀  ▄▄▄ ▀ ▄   ▄▀▄█▄▄▄ ▄█▄█▀ ▄▀▄▄▄▄ ▄█▀████ ▄█▀▄█▄▄▄█▀▄▄▄▄▄▄▄ ▄██
+  ██ █▄▄▄█ █ ▄   █▄█▄▀█▀▄▄▄   ▄█ ▀▀██ ▄█▄ ▀ ▀█▀▄▀▀▄ ▄█ ▀▀▄█▀▀▀▄ ▄█▄█▀ ▀▄▀█ ▄  ▄ ███
+  ██▄▄▄▄▄▄▄█▄█▄▄▄█▄▄████▄▄▄▄▄▄▄████▄██▄▄▄▄▄██▄▄▄██▄▄██▄▄▄▄██▄▄███▄█▄██▄▄██▄████████
+  █████████████████████████████████████████████████████████████████████████████████
+
+The code Claude shows (or Enter to go back): 
+
+  [1m1  Claude plan[0m (Pro or Max): Claude Code runs the agents (recommended)
+  [1m2  ChatGPT plan[0m (Plus or Pro): Codex runs the agents
+  [2m3  Go on without a plan…[0m
+
+Connect a plan now? [1/2/3] 2
+
+  1. First, in ChatGPT on the web: Settings, Security, turn on device code sign-in for Codex.
+  2. Open the address below on any computer or phone (or scan the code).
+  3. Sign in, type the code shown here, and approve. This waits for you.
+
+     https://auth.openai.com/codex/device
+
+  █████████████████████████████████
+  ██ ▄▄▄▄▄ █▀ ▄██▄▄▄ █▄█▀█ ▄▄▄▄▄ ██
+  ██ █   █ █   █▄█▀▄ ▀▀  █ █   █ ██
+  ██ █▄▄▄█ ██▄▀▄▀ ▀█  ▄▄ █ █▄▄▄█ ██
+  ██▄▄▄▄▄▄▄█ ▀▄█▄▀▄▀▄█▄▀▄█▄▄▄▄▄▄▄██
+  ██▄▀▀█▀▀▄▀▄▄█ ██  █▄▀▀█▄▄█▀▄  ███
+  ██▄▄ ▄▀▀▄█▄▄▄▀▀█▀▄▄▄▄▀▀█ █▄▀█████
+  ██ █  ██▄ ▀▀▀▀█  ▀ ▀▀▀▄█  ▀██▀ ██
+  ███ █ ▄▀▄ ▄▀▄██   █▄██ ▀▄▀ ▄ █▀██
+  ██▀█  ▀▄▄▄██▄▀ █▄  ▄▀ ▀▀▀ ▀▄ ▀▀██
+  ██ ▄ ▄█▀▄▄▄ ███▄ ▄▀▄▀▄█▄▄▀ ▄██▄██
+  ██▄██▄█▄▄█  ▀▀ ▀█ █▄▀█ ▄▄▄ ▀▄▄▄██
+  ██ ▄▄▄▄▄ ██ ▀██ ▄▄▀██  █▄█ ▄▄████
+  ██ █   █ ██▀▀▄█ █  ▀█▄  ▄ ▄ ▀█ ██
+  ██ █▄▄▄█ ██▄ ▄▄ █ ▄█ ▄▄      ▄▀██
+  ██▄▄▄▄▄▄▄█▄▄▄██▄▄██▄▄▄████▄█▄████
+  █████████████████████████████████
+
+  The code:  [1mBXRR-U8GX2[0m
+
+[2mWaiting for you to approve it (up to 15 minutes; Ctrl-C to choose again)…[0m
+^C
+
+  [1m1  Claude plan[0m (Pro or Max): Claude Code runs the agents (recommended)
+  [1m2  ChatGPT plan[0m (Plus or Pro): Codex runs the agents
+  [2m3  Go on without a plan…[0m
+
+Connect a plan now? [1/2/3] 3
+
+[33m![0m [1mRun the agents on your API key?[0m
+Every job the agents do is then billed by use on your API key, and costs much more than a plan. You can connect a plan later: run rouh setup again, or in Rouh, Settings, Models.
+Use my API key for agents? [y/N] y
+[33m![0m The agents run on your API key, billed by use. rouh status reminds you until a plan is connected.
+
+[1mRouh is ready[0m
+Your Rouh [38;2;255;154;77m[1mIvy[0m is set up. Its agents run on your API key until you connect a plan.
+
+Open Rouh from your own computer: first, in a terminal there, run
+
+    [1mssh -L 8420:127.0.0.1:8420 runner@4.246.71.52[0m
+
+[2m  (On the same network as this server, use 10.1.2.184 instead of 4.246.71.52.)[0m
+
+and keep it open. Then open this address there (it signs you in once):
+
+    [1mhttp://127.0.0.1:8420/setup?code=<hidden>[0m
+
+[2mOn your phone: give Rouh a domain of your own (rouh domain rouh.example.com). With Tailscale (tailscale.com) on this server and your laptop, the tunnel works from anywhere.[0m
+
+Rouh updates itself every night between 03:00 and 05:00, after a backup.
+Any time: [1mrouh status[0m, and [1mrouh open[0m for a new sign-in link.

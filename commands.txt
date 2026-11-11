@@ -1,0 +1,96 @@
+$ rouh status
+[ok] Rouh Ivy is running.
+  Kind:        Independent Rouh
+  Release:     base 1.0.11 (release 20261106170447), signature checked
+  Updates:     every night between 03:00 and 05:00, after a backup; next Thu 2026-11-12 04:21:06 UTC; last: none yet
+  Backups:     1 nightly copies, newest rouh-20261111-084802.dump, 0.8 MB
+  Open ports:  127.0.0.1:8420 (this machine only)
+  AI:          API key: Anthropic works
+  [!] No plan is connected: Rouh's agents run on your API key, billed by use, which costs much more. Connect a Claude or ChatGPT plan with: rouh setup
+
+$ rouh open
+
+Open Rouh from your own computer: first, in a terminal there, run
+
+    ssh -L 8420:127.0.0.1:8420 runner@4.246.71.52
+
+  (On the same network as this server, use 10.1.2.184 instead of 4.246.71.52.)
+
+and keep it open. Then open this address there (it signs you in once):
+
+    http://127.0.0.1:8420/setup?code=<hidden>
+
+On your phone: give Rouh a domain of your own (rouh domain rouh.example.com). With Tailscale (tailscale.com) on this server and your laptop, the tunnel works from anywhere.
+
+$ rouh update
+Up to date: base 1.0.11, release 20261106170447
+
+$ rouh update --off
+[ok] Nightly update is off. Rouh updates only when you run rouh update. Turn it back on: rouh update --on
+
+$ rouh update --on
+[ok] Nightly update is on: every night between 03:00 and 05:00 (this server's time), after a backup. Next: Thu 2026-11-12 04:21:06 UTC
+
+$ rouh back
+there is no release before this one to go back to
+(exit 1)
+
+$ rouh logs core -n 8
+INFO:     connection closed
+INFO:     connection closed
+2026-11-11 08:48:09,091 INFO rouh tab gone (1 open)
+INFO:     connection closed
+INFO:     connection closed
+2026-11-11 08:48:09,101 INFO rouh tab gone (0 open)
+INFO:     172.18.0.1:48600 - "GET /setup/api/state HTTP/1.1" 200 OK
+INFO:     172.18.0.1:48610 - "POST /setup/api/open HTTP/1.1" 200 OK
+
+$ rouh logs edge
+[no] Rouh has no part called edge. Its parts: backup, browser, checkdb, code-install, core, guard, guard-init, keyproxy, postgres, worker, worker-perms
+(exit 1)
+
+$ rouh backup
+[ok] rouh-backup: copied the database into rouh-20261111-084817.dump, 856432 bytes; the newest 7 are kept
+
+$ rouh backup --list
+rouh-20261111-084802.dump, 0.8 MB
+rouh-20261111-084817.dump, 0.8 MB
+
+$ rouh doctor
+
+Rouh's doctor: checking this server
+[ok] 4 processor cores
+[ok] 16 GB of memory
+[ok] 100 GB free disk
+[ok] Python 3.12.3 for the updater
+[ok] Docker answers: 5.7.0
+[ok] Release 20261106170447 (base 1.0.11): its signature checks out
+[ok] Every part of Rouh runs
+[ok] Nightly update on (next Thu 2026-11-12 04:21:06 UTC)
+[ok] Listening: 0.0.0.0:18080, 127.0.0.1:8420, 127.0.0.53%lo:53, 127.0.0.54:53
+[!] Something listens to the outside: 0.0.0.0:18080
+[!] The firewall (ufw) is off. Rouh needs no port open to the outside. If nothing else protects this server: sudo ufw allow OpenSSH && sudo ufw enable
+[ok] The setup code is in no log
+[ok] An AI key works
+[!] No plan is connected: Rouh's agents run on your API key, billed by use, which costs much more. Connect a Claude or ChatGPT plan with: rouh setup
+[ok] Reaches rouh.land
+[ok] Reaches ghcr.io
+[ok] Reaches github.com
+
+[ok] Nothing to fix.
+
+$ rouh relay
+The relay: rouh.land's (rouh.page)
+
+$ rouh relay https://relay.example.test/relay/ --domain rouh.example.test
+[ok] The relay is https://relay.example.test/relay/ (addresses on rouh.example.test). A Rouh already Connected claims its address there the next time it starts.
+
+$ rouh relay
+The relay: https://relay.example.test/relay/
+
+$ rouh relay --default
+[ok] The relay is rouh.land's: addresses on rouh.page.
+
+$ rouh --version
+rouh 1 (rouh-core 02b21b0)
+

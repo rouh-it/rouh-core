@@ -1,0 +1,7 @@
+Checking that rouh-proof.example.test points at this server…
+[ok] rouh-proof.example.test points at this server (4.246.71.52).
+Starting the edge part, which gets a certificate from Let's Encrypt…
+The stack in use is Rouh's own.
+The stack in use is Rouh's own.
+Applied: every part is healthy
+[!] https://rouh-proof.example.test does not answer yet. Let's Encrypt may still be checking; rouh logs edge says more.

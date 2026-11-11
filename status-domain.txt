@@ -1,0 +1,9 @@
+[ok] Rouh Ivy is running.
+  Kind:        Independent Rouh
+  Own domain:  https://rouh-proof.example.test
+  Release:     base 1.0.11 (release 20261106170447), signature checked
+  Updates:     every night between 03:00 and 05:00, after a backup; next Thu 2026-11-12 04:21:06 UTC; last: 2026-11-11 08:48: up to date or updated, every part healthy
+  Backups:     2 nightly copies, newest rouh-20261111-084817.dump, 0.8 MB
+  Open ports:  127.0.0.1:8420 (this machine only), 80 and 443 for rouh-proof.example.test
+  AI:          API key: Anthropic works
+  [!] No plan is connected: Rouh's agents run on your API key, billed by use, which costs much more. Connect a Claude or ChatGPT plan with: rouh setup

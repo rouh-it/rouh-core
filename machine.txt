@@ -1,0 +1,9 @@
+uid=1001(runner) gid=1001(runner) groups=1001(runner),4(adm),100(users),118,999(systemd-journal)
+Python 3.12.3
+4
+               total        used        free      shared  buff/cache   available
+Mem:              15           0          13           0           1          14
+Swap:              2           0           2
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   38G  107G  27% /
+29.9.3

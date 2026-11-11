@@ -1,0 +1,28 @@
+
+A kept Rouh is on this server
+Saved 20261111-085305, when Rouh was uninstalled with Keep my data: 243 tables of memory, your workspace, its code and keys.
+
+  B  Bring back your Rouh (recommended): the same Rouh, as itself.
+  F  Start fresh: a new Rouh. The kept copy stays in /home/runner/rouh-kept/20261111-085305.
+
+
+Bringing back your Rouh
+Getting base 1.0.11 (release 20261106170446) ready, without starting it
+The stack in use is the release's own.
+Checking the kept copy
+Putting back your workspace, Rouh's own code, the libraries Rouh added, the keys it seals your logins with, its identity and data folder, its undo points, its agents' sign-ins
+Putting back Rouh's database
+Your Rouh is back: 7 volumes and the database (243 tables), from /home/runner/rouh-kept/20261111-085305
+Brought back; not started (ROUH_STOP_AFTER_BRING_BACK). Start it: rouh update
+IDENTICAL
+Base 1.0.11 passed this Rouh's own checks
+The stack in use is Rouh's own.
+Started base 1.0.11 (release 20261106170446): every part is healthy
+[ok] Rouh Ivy is running.
+  Kind:        Independent Rouh
+  Release:     base 1.0.11 (release 20261106170446), signature checked
+  Updates:     nightly update is off (rouh update --on); last: 2026-11-11 08:54: updated by hand
+  Backups:     1 nightly copies, newest rouh-20261111-085549.dump, 0.9 MB
+  Open ports:  127.0.0.1:8420 (this machine only)
+  AI:          API key: Anthropic works
+  [!] No plan is connected: Rouh's agents run on your API key, billed by use, which costs much more. Connect a Claude or ChatGPT plan with: rouh setup

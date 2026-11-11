@@ -1,0 +1,12 @@
+rouh-core-1 127.0.0.1:8420->8021/tcp
+rouh-worker-1 
+rouh-edge-1 0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp, 443/udp, 2019/tcp
+pebble 14000/tcp, 0.0.0.0:15000->15000/tcp, [::]:15000->15000/tcp
+challtestsrv 5001-5003/tcp, 8053/tcp, 8055/tcp, 8443/tcp
+rouh-guard-1 
+rouh-browser-1 
+rouh-checkdb-1 5432/tcp
+rouh-backup-1 5432/tcp
+rouh-keyproxy-1 
+rouh-postgres-1 5432/tcp
+buildx_buildkit_proof0 

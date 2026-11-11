@@ -1,0 +1,1 @@
+[no] A domain is turned on only once Rouh has its owner, so nobody can reach an unclaimed Rouh. First: rouh setup

@@ -1,0 +1,4 @@
+link: http://127.0.0.1:8420/setup?code=<hidden>
+landed on http://127.0.0.1:8420/chat/conversation
+greeting: Hey, Mira, I will be your Rouh, we will continuously co-evolve into better and more capable beings. The best place to start is to get some connections going on: your Gmail and calendar, Telegram, and 
+the same link again lands on: http://127.0.0.1:8420/login | signed in: False

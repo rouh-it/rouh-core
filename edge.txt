@@ -1,0 +1,152 @@
++ DOM=rouh-proof.example.test
+++ docker network inspect rouh_edge -f '{{(index .IPAM.Config 0).Gateway}}'
++ GW=172.18.0.1
+++ curl -fsS https://1.1.1.1/cdn-cgi/trace
+++ sed -n 's/^ip=//p'
++ PUB=4.246.71.52
++ echo '4.246.71.52 rouh-proof.example.test'
++ sudo tee -a /etc/hosts
+4.246.71.52 rouh-proof.example.test
++ curl -fsSL -o pebble.minica.pem https://raw.githubusercontent.com/letsencrypt/pebble/main/test/certs/pebble.minica.pem
++ cat
++ docker run -d --name challtestsrv --network rouh_edge --network-alias challtestsrv ghcr.io/letsencrypt/pebble-challtestsrv:latest -defaultIPv6 '' -defaultIPv4 172.18.0.1
+Unable to find image 'ghcr.io/letsencrypt/pebble-challtestsrv:latest' locally
+latest: Pulling from letsencrypt/pebble-challtestsrv
+55027dd6663c: Pulling fs layer
+99da3d1506c6: Pulling fs layer
+44136fa355b3: Already exists
+99da3d1506c6: Download complete
+15e1cce59639: Download complete
+55027dd6663c: Download complete
+99da3d1506c6: Pull complete
+55027dd6663c: Pull complete
+Digest: sha256:0152c8cb506e2ecba2900ed47d23932e27e3e6575a7d2c8ef93c7719ee3dea4c
+Status: Downloaded newer image for ghcr.io/letsencrypt/pebble-challtestsrv:latest
+259dd170896e8a62973cbf81875fc5f423ab61d18ef576998d9042e1aed54051
++ docker run -d --name pebble --network rouh_edge --network-alias pebble -p 15000:15000 -e PEBBLE_VA_NOSLEEP=1 -v /home/runner/work/rouh-core/rouh-core/out/pebble.json:/test/config/pebble-config.json:ro ghcr.io/letsencrypt/pebble:latest -config /test/config/pebble-config.json -dnsserver challtestsrv:8053
+Unable to find image 'ghcr.io/letsencrypt/pebble:latest' locally
+latest: Pulling from letsencrypt/pebble
+ad936b76b879: Pulling fs layer
+8e0cb355098b: Pulling fs layer
+44136fa355b3: Already exists
+ad936b76b879: Download complete
+7cd2d64d13c6: Download complete
+8e0cb355098b: Download complete
+ad936b76b879: Pull complete
+8e0cb355098b: Pull complete
+Digest: sha256:0c81f05db371f436c97fb894bd6d2ab8fc9c8e2ce40f8bef8a8e15941bcd75ef
+Status: Downloaded newer image for ghcr.io/letsencrypt/pebble:latest
+a6ba45562a67fc5937f8a916d62be0f405c0c0603401ca6daab2fbc957795182
++ sleep 5
++ rouh domain rouh-proof.example.test --acme-ca https://pebble:14000/dir --acme-root pebble.minica.pem
++ tee domain.log
+Checking that rouh-proof.example.test points at this server…
+[ok] rouh-proof.example.test points at this server (4.246.71.52).
+Starting the edge part, which gets a certificate from Let's Encrypt…
+The stack in use is Rouh's own.
+The stack in use is Rouh's own.
+Applied: every part is healthy
+[!] https://rouh-proof.example.test does not answer yet. Let's Encrypt may still be checking; rouh logs edge says more.
++ true
++ docker ps --format '{{.Names}} {{.Ports}}'
++ tee ports.txt
+rouh-core-1 127.0.0.1:8420->8021/tcp
+rouh-worker-1 
+rouh-edge-1 0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp, 443/udp, 2019/tcp
+pebble 14000/tcp, 0.0.0.0:15000->15000/tcp, [::]:15000->15000/tcp
+challtestsrv 5001-5003/tcp, 8053/tcp, 8055/tcp, 8443/tcp
+rouh-guard-1 
+rouh-browser-1 
+rouh-checkdb-1 5432/tcp
+rouh-backup-1 5432/tcp
+rouh-keyproxy-1 
+rouh-postgres-1 5432/tcp
+buildx_buildkit_proof0 
++ curl -fsSk https://127.0.0.1:15000/roots/0 -o pebble-root.pem
+++ seq 1 30
++ for i in $(seq 1 30)
++ curl -sS --resolve rouh-proof.example.test:443:127.0.0.1 --cacert pebble-root.pem -o /dev/null -w '%{http_code}\n' https://rouh-proof.example.test/healthz
++ grep -q 200
++ break
++ tee edge-result.txt
+++ curl -sS --resolve rouh-proof.example.test:443:127.0.0.1 --cacert pebble-root.pem -o /dev/null -w '%{http_code}' https://rouh-proof.example.test/healthz
++ echo 'healthz: 200'
+healthz: 200
+++ curl -sS --resolve rouh-proof.example.test:443:127.0.0.1 --cacert pebble-root.pem -o /dev/null -w '%{http_code}' https://rouh-proof.example.test/setup
++ echo 'setup through the edge: 404'
+setup through the edge: 404
+++ curl -sS --resolve rouh-proof.example.test:443:127.0.0.1 --cacert pebble-root.pem -o /dev/null -w '%{http_code}' https://rouh-proof.example.test/setup/api/state
++ echo 'setup api through the edge: 404'
+setup api through the edge: 404
+++ curl -sS --resolve rouh-proof.example.test:80:127.0.0.1 -o /dev/null -w '%{http_code} %{redirect_url}' http://rouh-proof.example.test/
++ echo 'plain http: 308 https://rouh-proof.example.test/'
+plain http: 308 https://rouh-proof.example.test/
+++ echo
+++ openssl s_client -connect 127.0.0.1:443 -servername rouh-proof.example.test
+++ openssl x509 -noout -issuer -subject -ext subjectAltName
+++ tr '\n' ' '
++ echo 'certificate: issuer=CN = Pebble Intermediate CA 287284 subject= X509v3 Subject Alternative Name: critical     DNS:rouh-proof.example.test '
+certificate: issuer=CN = Pebble Intermediate CA 287284 subject= X509v3 Subject Alternative Name: critical     DNS:rouh-proof.example.test 
+++ curl -sS --resolve rouh-proof.example.test:443:127.0.0.1 --cacert pebble-root.pem https://rouh-proof.example.test/login
+++ grep -o '<title>[^<]*'
+++ head -1
++ echo 'sign-in page: <title>Sign in to Rouh'
+sign-in page: <title>Sign in to Rouh
++ rouh open
++ tee open-domain.txt
+
+Open Rouh, on any computer or phone (it signs you in once, for 10 minutes):
+
+    https://rouh-proof.example.test/phone/in?code=<hidden>
+
+  █████████████████████████████████████
+  ██ ▄▄▄▄▄ █▀▄ ▄▀▀▄▀▄█▄▄   ▄▀█ ▄▄▄▄▄ ██
+  ██ █   █ █▀  ▄▄▀ ▀▄▀▄ ▄▄▀ ▀█ █   █ ██
+  ██ █▄▄▄█ █▀▀█▄▄▄▀▀ █▄▄  ▀▄▄█ █▄▄▄█ ██
+  ██▄▄▄▄▄▄▄█▄▀ █ █▄▀ █▄▀▄▀ █▄█▄▄▄▄▄▄▄██
+  ██ ▄ ▄▄█▄▄ ▄ ▄▄▀▄█▀ ▄▀▀▀ ▀▄▄▀▄█▄▀ ▀██
+  ██▄▀ █ ▄▄▀█▀ ▀ ▄▀ ▀██▀ ▀▀█▄   ▄▄▀▄███
+  ██▀▀  ▀█▄▄ ▄█ █▀▄▄▄   ▄▀  ▄▄▀█▄▄█▀▀██
+  █████▄▀▀▄▄▄ ▀▀▄█ ▄███▀▀ ▄█    ██▀▄███
+  ██▄▀▀███▄▀▀▀▀▀▀ ▀ ▀▀█ ▀██▀█▄▀█▄▀█ ▀██
+  ██  ▄▄▄▄▄▀██ █ █▀ ▄█ █▄▀ ██▄▀█▀▄▀▄███
+  ██▀▄▄ ▄▄▄█▀▄▄ ▄█ █▀██ ▀▀  ▄█▀ ▄▀█ ▀██
+  ██ █ ██ ▄▀█ ▀▀ ▄█ ▄▄ ▀  ██▀▄  ▀ ▀▄███
+  ██▄████▄▄█ ▀▀▀█ ▄▄▀▀▀ ██▄█ ▄▄▄ ▄▀█ ██
+  ██ ▄▄▄▄▄ █▄█▀█▄▄█  ▄ █  █  █▄█ ▀▀▄▀██
+  ██ █   █ █ ▀▀▀▄█▄█▀█▀▀▀█▄█  ▄  ▀█▄▄██
+  ██ █▄▄▄█ █ ▀ ▀▄▄▄▄▀█▄▀▀▀ ▀█▀▄██ ▀▄███
+  ██▄▄▄▄▄▄▄█▄█████▄▄▄▄█▄██▄▄▄▄███▄█▄███
+  █████████████████████████████████████
+
+Your Rouh's address: https://rouh-proof.example.test. rouh open makes a new link.
++ rouh status
++ tee status-domain.txt
+[ok] Rouh Ivy is running.
+  Kind:        Independent Rouh
+  Own domain:  https://rouh-proof.example.test
+  Release:     base 1.0.11 (release 20261106170447), signature checked
+  Updates:     every night between 03:00 and 05:00, after a backup; next Thu 2026-11-12 04:21:06 UTC; last: 2026-11-11 08:48: up to date or updated, every part healthy
+  Backups:     2 nightly copies, newest rouh-20261111-084817.dump, 0.8 MB
+  Open ports:  127.0.0.1:8420 (this machine only), 80 and 443 for rouh-proof.example.test
+  AI:          API key: Anthropic works
+  [!] No plan is connected: Rouh's agents run on your API key, billed by use, which costs much more. Connect a Claude or ChatGPT plan with: rouh setup
++ rouh domain --off
++ tee domain-off.txt
+The stack in use is Rouh's own.
+The stack in use is Rouh's own.
+Applied: every part is healthy
+[ok] rouh-proof.example.test is off: ports 80 and 443 are closed again.
++ ss -Hltn
++ tee listening-after-off.txt
+LISTEN 0      4096       127.0.0.1:8420  0.0.0.0:*
+LISTEN 0      4096         0.0.0.0:15000 0.0.0.0:*
+LISTEN 0      4096   127.0.0.53%lo:53    0.0.0.0:*
+LISTEN 0      5            0.0.0.0:18080 0.0.0.0:*
+LISTEN 0      4096         0.0.0.0:22    0.0.0.0:*
+LISTEN 0      4096      127.0.0.54:53    0.0.0.0:*
+LISTEN 0      4096            [::]:15000    [::]:*
+LISTEN 0      4096            [::]:22       [::]:*
++ docker rm -f pebble challtestsrv
+pebble
+challtestsrv

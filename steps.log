@@ -1,0 +1,615 @@
+== __run
+uid=1001(runner) gid=1001(runner) groups=1001(runner),4(adm),100(users),118,999(systemd-journal)
+Python 3.12.3
+4
+               total        used        free      shared  buff/cache   available
+Mem:              15           0          13           0           1          14
+Swap:              2           0           2
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root       145G   38G  107G  27% /
+== __run_2
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+== __run_4
++ sh -c apt-get -qq update >/dev/null
++ sh -c DEBIAN_FRONTEND=noninteractive apt-get -y -qq install ca-certificates curl >/dev/null
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
++ sh -c install -m 0755 -d /etc/apt/keyrings
++ sh -c curl -fsSL "https://download.docker.com/linux/ubuntu/gpg" -o /etc/apt/keyrings/docker.asc
++ sh -c chmod a+r /etc/apt/keyrings/docker.asc
++ sh -c echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
++ sh -c apt-get -qq update >/dev/null
++ apt_flags=-y -qq
++ [ -n  ]
++ sh -c DEBIAN_FRONTEND=noninteractive apt-get -y -qq install docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-ce-rootless-extras docker-buildx-plugin docker-model-plugin >/dev/null
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Using systemd to manage Docker service
++ sh -c systemctl enable --now docker.service 2>/dev/null
+INFO: Docker daemon enabled and started
+
++ sh -c docker version
+29.9.3
+== __run_5
+02b21b02341b42773d5d0496e55605a1688b98f8 proof: out of the folder uninstall removes
+== __run_6
+
+WARNING! Your credentials are stored unencrypted in '/home/runner/.docker/config.json'.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/go/credential-store/
+
+Login Succeeded
+#13 exporting layers
+#13 exporting layers 0.3s done
+#13 ...
+
+#14 [auth] rouh-it/rouh-guard:pull,push token for ghcr.io
+#14 DONE 0.0s
+
+#13 exporting to image
+#13 exporting manifest sha256:c410c85d5ecbe5406a6702d353e343524fd83ba0f8d83797babaafcf4939ef7d done
+#13 exporting config sha256:b1ee1dfe311a9c29c48da0a58dbc0bddd40f437db76417fe5ef2b88ab0280e67 done
+#13 exporting attestation manifest sha256:5dab0889fbbd2528395899dc1dee94fc2d4027f365b09255a5dea3134051b0cc done
+#13 exporting manifest list sha256:cbad153fd6d7070e388ed193c61c72bbd2f73328be4b958e01e2e9c2dfdde2c8 done
+#13 pushing layers
+#13 pushing layers 1.9s done
+#13 pushing manifest for ghcr.io/rouh-it/rouh-guard
+#13 pushing manifest for ghcr.io/rouh-it/rouh-guard 1.3s done
+#13 DONE 3.5s
+
+#15 resolving provenance for metadata file
+#15 DONE 0.0s
+test release 20261106170447, guard ghcr.io/rouh-it/rouh-guard@sha256:cbad153fd6d7070e388ed193c61c72bbd2f73328be4b958e01e2e9c2dfdde2c8, key proof-176-24 oEC4z/iydff7xG3kIKB8ies7+5N9/3TLYAHSlPrnnoI=
+== own code
+Unable to find image 'ghcr.io/rouh-it/rouh-guard@sha256:cbad153fd6d7070e388ed193c61c72bbd2f73328be4b958e01e2e9c2dfdde2c8' locally
+ghcr.io/rouh-it/rouh-guard@sha256:cbad153fd6d7070e388ed193c61c72bbd2f73328be4b958e01e2e9c2dfdde2c8: Pulling from rouh-it/rouh-guard
+f2be67225471: Pulling fs layer
+be6443c06d3c: Pulling fs layer
+5c397e4307db: Pulling fs layer
+0f3d139a384d: Pulling fs layer
+ed22583b5176: Pulling fs layer
+b524bb3aba73: Pulling fs layer
+4330c4b2fbf4: Pulling fs layer
+44136fa355b3: Already exists
+be6443c06d3c: Download complete
+b524bb3aba73: Download complete
+5c397e4307db: Download complete
+ed22583b5176: Download complete
+0f3d139a384d: Download complete
+f2be67225471: Download complete
+4330c4b2fbf4: Download complete
+9f7236e30043: Download complete
+f2be67225471: Pull complete
+be6443c06d3c: Pull complete
+b524bb3aba73: Pull complete
+5c397e4307db: Pull complete
+ed22583b5176: Pull complete
+0f3d139a384d: Pull complete
+4330c4b2fbf4: Pull complete
+Digest: sha256:cbad153fd6d7070e388ed193c61c72bbd2f73328be4b958e01e2e9c2dfdde2c8
+Status: Downloaded newer image for ghcr.io/rouh-it/rouh-guard@sha256:cbad153fd6d7070e388ed193c61c72bbd2f73328be4b958e01e2e9c2dfdde2c8
+guard-init - the protected core 1.0.0 is in place
+Unable to find image 'ghcr.io/rouh-it/rouh-base@sha256:d483164d105f5827ec927a04ced1c85557e6e1dbcb7cbc261722467bf159aafd' locally
+ghcr.io/rouh-it/rouh-base@sha256:d483164d105f5827ec927a04ced1c85557e6e1dbcb7cbc261722467bf159aafd: Pulling from rouh-it/rouh-base
+68bced9e0afa: Pulling fs layer
+05e0eee5572e: Pulling fs layer
+37fb86c2a767: Pulling fs layer
+aecbcc94f97a: Pulling fs layer
+4f4fb700ef54: Pulling fs layer
+2f09ebd06590: Pulling fs layer
+2dc99d2d0a39: Pulling fs layer
+d86a289e5df7: Pulling fs layer
+50b989b950f7: Pulling fs layer
+e847afd3a038: Pulling fs layer
+f66e57f06fe8: Pulling fs layer
+a16eee7d0e1b: Pulling fs layer
+4384d450d0cf: Pulling fs layer
+83fbcf07bbfa: Pulling fs layer
+c7adb97119a3: Pulling fs layer
+44136fa355b3: Already exists
+aecbcc94f97a: Download complete
+4f4fb700ef54: Download complete
+83fbcf07bbfa: Download complete
+68bced9e0afa: Download complete
+05e0eee5572e: Download complete
+2f09ebd06590: Download complete
+2dc99d2d0a39: Download complete
+37fb86c2a767: Download complete
+37fb86c2a767: Pull complete
+68bced9e0afa: Pull complete
+05e0eee5572e: Pull complete
+2dc99d2d0a39: Pull complete
+50b989b950f7: Download complete
+a16eee7d0e1b: Download complete
+f66e57f06fe8: Download complete
+e847afd3a038: Download complete
+4384d450d0cf: Download complete
+b356217be952: Download complete
+c7adb97119a3: Download complete
+d86a289e5df7: Download complete
+d86a289e5df7: Pull complete
+50b989b950f7: Pull complete
+aecbcc94f97a: Pull complete
+e847afd3a038: Pull complete
+83fbcf07bbfa: Pull complete
+a16eee7d0e1b: Pull complete
+4384d450d0cf: Pull complete
+c7adb97119a3: Pull complete
+4f4fb700ef54: Pull complete
+2f09ebd06590: Pull complete
+f66e57f06fe8: Pull complete
+Digest: sha256:d483164d105f5827ec927a04ced1c85557e6e1dbcb7cbc261722467bf159aafd
+Status: Downloaded newer image for ghcr.io/rouh-it/rouh-base@sha256:d483164d105f5827ec927a04ced1c85557e6e1dbcb7cbc261722467bf159aafd
+code-install: the base keeps its own version of: boto3 1.43.125 (main has 1.43.108); botocore 1.43.125 (main has 1.43.108); charset-normalizer 3.5.2 (main has 3.5.1); cryptography 50.0.2 (main has 50.0.1); django 5.2.19 (main has 5.2.17); pillow-heif 1.8.1 (main has 1.8.0); platformdirs 4.13.7 (main has 4.13.0); psycopg 3.3.8 (main has 3.3.6); pyasn1 0.6.5 (main has 0.6.4); s3transfer 0.19.3 (main has 0.19.2); sigstore 4.5.1 (main has 4.5.0); sqlparse 0.6.1 (main has 0.6.0); ...
+code-install: installing what the base does not have into /extra: pyopenssl==26.4.0
+== __run_8
+Updating to base 1.0.11, release 20261106170447
+Base 1.0.11 passed this Rouh's own checks
+The stack in use is Rouh's own.
+Started base 1.0.11 (release 20261106170447): every part is healthy
+
+Starting Rouh (the first time downloads about 2 GB)
+Up to date: base 1.0.11, release 20261106170447
+[ok] Nightly update is on: every night between 03:00 and 05:00 (this server's time), after a backup. Next: Thu 2026-11-12 04:21:06 UTC
+[ok] Rouh is running (base 1.0.11, release 20261106170447, signature checked).
+
+Next, set your Rouh up in a terminal on this server:
+
+    rouh setup
+
+/usr/local/bin/rouh
+NEXT                        LEFT LAST PASSED UNIT              ACTIVATES
+Thu 2026-11-12 04:21:06 UTC  19h -         - rouh-update.timer rouh-update.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
+== __run_9
+code in the core's log: 0 times
+core: this Rouh has no owner yet. Set it up: rouh setup on a Linux server, Rouh for Mac on a Mac, or open the address python manage.py setup_link prints
+[no] A domain is turned on only once Rouh has its owner, so nobody can reach an unclaimed Rouh. First: rouh setup
+== __run_11
+the code read before rouh setup: HTTP 401
+== __run_12
+link: http://127.0.0.1:8420/setup?code=<hidden>
+landed on http://127.0.0.1:8420/chat/conversation
+greeting: Hey, Mira, I will be your Rouh, we will continuously co-evolve into better and more capable beings. The best place to start is to get some connections going on: your Gmail and calendar, Telegram, and 
+the same link again lands on: http://127.0.0.1:8420/login | signed in: False
+the turn that answered 'Gmail please' was sent 3 messages:
+  user | [A note from Rouh's own software, not the person: Mira has just finished setting up this Rouh and opened General for the first time. It is an Independent Rouh: 
+  assistant | Hey, Mira, I will be your Rouh, we will continuously co-evolve into better and more capable beings. The best place to start is to get some connections going on:
+  user | Gmail please. How do I start?
+== __run_13
+$ rouh status
+[ok] Rouh Ivy is running.
+  Kind:        Independent Rouh
+  Release:     base 1.0.11 (release 20261106170447), signature checked
+  Updates:     every night between 03:00 and 05:00, after a backup; next Thu 2026-11-12 04:21:06 UTC; last: none yet
+  Backups:     1 nightly copies, newest rouh-20261111-084802.dump, 0.8 MB
+  Open ports:  127.0.0.1:8420 (this machine only)
+  AI:          API key: Anthropic works
+  [!] No plan is connected: Rouh's agents run on your API key, billed by use, which costs much more. Connect a Claude or ChatGPT plan with: rouh setup
+
+$ rouh open
+
+Open Rouh from your own computer: first, in a terminal there, run
+
+    ssh -L 8420:127.0.0.1:8420 runner@4.246.71.52
+
+  (On the same network as this server, use 10.1.2.184 instead of 4.246.71.52.)
+
+and keep it open. Then open this address there (it signs you in once):
+
+    http://127.0.0.1:8420/setup?code=<hidden>
+
+On your phone: give Rouh a domain of your own (rouh domain rouh.example.com). With Tailscale (tailscale.com) on this server and your laptop, the tunnel works from anywhere.
+
+$ rouh update
+Up to date: base 1.0.11, release 20261106170447
+
+$ rouh update --off
+[ok] Nightly update is off. Rouh updates only when you run rouh update. Turn it back on: rouh update --on
+
+$ rouh update --on
+[ok] Nightly update is on: every night between 03:00 and 05:00 (this server's time), after a backup. Next: Thu 2026-11-12 04:21:06 UTC
+
+$ rouh back
+there is no release before this one to go back to
+(exit 1)
+
+$ rouh logs core -n 8
+INFO:     connection closed
+INFO:     connection closed
+2026-11-11 08:48:09,091 INFO rouh tab gone (1 open)
+INFO:     connection closed
+INFO:     connection closed
+2026-11-11 08:48:09,101 INFO rouh tab gone (0 open)
+INFO:     172.18.0.1:48600 - "GET /setup/api/state HTTP/1.1" 200 OK
+INFO:     172.18.0.1:48610 - "POST /setup/api/open HTTP/1.1" 200 OK
+
+$ rouh logs edge
+[no] Rouh has no part called edge. Its parts: backup, browser, checkdb, code-install, core, guard, guard-init, keyproxy, postgres, worker, worker-perms
+(exit 1)
+
+$ rouh backup
+[ok] rouh-backup: copied the database into rouh-20261111-084817.dump, 856432 bytes; the newest 7 are kept
+
+$ rouh backup --list
+rouh-20261111-084802.dump, 0.8 MB
+rouh-20261111-084817.dump, 0.8 MB
+
+$ rouh doctor
+
+Rouh's doctor: checking this server
+[ok] 4 processor cores
+[ok] 16 GB of memory
+[ok] 100 GB free disk
+[ok] Python 3.12.3 for the updater
+[ok] Docker answers: 5.7.0
+[ok] Release 20261106170447 (base 1.0.11): its signature checks out
+[ok] Every part of Rouh runs
+[ok] Nightly update on (next Thu 2026-11-12 04:21:06 UTC)
+[ok] Listening: 0.0.0.0:18080, 127.0.0.1:8420, 127.0.0.53%lo:53, 127.0.0.54:53
+[!] Something listens to the outside: 0.0.0.0:18080
+[!] The firewall (ufw) is off. Rouh needs no port open to the outside. If nothing else protects this server: sudo ufw allow OpenSSH && sudo ufw enable
+[ok] The setup code is in no log
+[ok] An AI key works
+[!] No plan is connected: Rouh's agents run on your API key, billed by use, which costs much more. Connect a Claude or ChatGPT plan with: rouh setup
+[ok] Reaches rouh.land
+[ok] Reaches ghcr.io
+[ok] Reaches github.com
+
+[ok] Nothing to fix.
+
+$ rouh relay
+The relay: rouh.land's (rouh.page)
+
+$ rouh relay https://relay.example.test/relay/ --domain rouh.example.test
+[ok] The relay is https://relay.example.test/relay/ (addresses on rouh.example.test). A Rouh already Connected claims its address there the next time it starts.
+
+$ rouh relay
+The relay: https://relay.example.test/relay/
+
+$ rouh relay --default
+[ok] The relay is rouh.land's: addresses on rouh.page.
+
+$ rouh --version
+rouh 1 (rouh-core 02b21b0)
+
+== __run_14
+○ rouh-update.service - Rouh's nightly update: the newest signed release, after a backup, going back by itself if unhealthy
+     Loaded: loaded (/etc/systemd/system/rouh-update.service; static)
+     Active: inactive (dead) since Wed 2026-11-11 08:48:41 UTC; 7ms ago
+TriggeredBy: ● rouh-update.timer
+       Docs: https://rouh.land/start/?for=linux
+    Process: 19071 ExecStart=/usr/local/bin/rouh update --nightly (code=exited, status=0/SUCCESS)
+   Main PID: 19071 (code=exited, status=0/SUCCESS)
+        CPU: 442ms
+== 2026-11-11 08:48: updated by hand
+
+-- 2026-11-11 08:48 nightly update
+Up to date: base 1.0.11, release 20261106170447
+== 2026-11-11 08:48: up to date or updated, every part healthy
+NEXT                        LEFT LAST                        PASSED UNIT              ACTIVATES
+Thu 2026-11-12 04:21:06 UTC  19h Wed 2026-11-11 08:47:41 UTC      - rouh-update.timer rouh-update.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
++ DOM=rouh-proof.example.test
+++ docker network inspect rouh_edge -f '{{(index .IPAM.Config 0).Gateway}}'
++ GW=172.18.0.1
+++ curl -fsS https://1.1.1.1/cdn-cgi/trace
+++ sed -n 's/^ip=//p'
++ PUB=4.246.71.52
++ echo '4.246.71.52 rouh-proof.example.test'
++ sudo tee -a /etc/hosts
+4.246.71.52 rouh-proof.example.test
++ curl -fsSL -o pebble.minica.pem https://raw.githubusercontent.com/letsencrypt/pebble/main/test/certs/pebble.minica.pem
++ cat
++ docker run -d --name challtestsrv --network rouh_edge --network-alias challtestsrv ghcr.io/letsencrypt/pebble-challtestsrv:latest -defaultIPv6 '' -defaultIPv4 172.18.0.1
+Unable to find image 'ghcr.io/letsencrypt/pebble-challtestsrv:latest' locally
+latest: Pulling from letsencrypt/pebble-challtestsrv
+55027dd6663c: Pulling fs layer
+99da3d1506c6: Pulling fs layer
+44136fa355b3: Already exists
+99da3d1506c6: Download complete
+15e1cce59639: Download complete
+55027dd6663c: Download complete
+99da3d1506c6: Pull complete
+55027dd6663c: Pull complete
+Digest: sha256:0152c8cb506e2ecba2900ed47d23932e27e3e6575a7d2c8ef93c7719ee3dea4c
+Status: Downloaded newer image for ghcr.io/letsencrypt/pebble-challtestsrv:latest
+259dd170896e8a62973cbf81875fc5f423ab61d18ef576998d9042e1aed54051
++ docker run -d --name pebble --network rouh_edge --network-alias pebble -p 15000:15000 -e PEBBLE_VA_NOSLEEP=1 -v /home/runner/work/rouh-core/rouh-core/out/pebble.json:/test/config/pebble-config.json:ro ghcr.io/letsencrypt/pebble:latest -config /test/config/pebble-config.json -dnsserver challtestsrv:8053
+Unable to find image 'ghcr.io/letsencrypt/pebble:latest' locally
+latest: Pulling from letsencrypt/pebble
+ad936b76b879: Pulling fs layer
+8e0cb355098b: Pulling fs layer
+44136fa355b3: Already exists
+ad936b76b879: Download complete
+7cd2d64d13c6: Download complete
+8e0cb355098b: Download complete
+ad936b76b879: Pull complete
+8e0cb355098b: Pull complete
+Digest: sha256:0c81f05db371f436c97fb894bd6d2ab8fc9c8e2ce40f8bef8a8e15941bcd75ef
+Status: Downloaded newer image for ghcr.io/letsencrypt/pebble:latest
+a6ba45562a67fc5937f8a916d62be0f405c0c0603401ca6daab2fbc957795182
++ sleep 5
++ rouh domain rouh-proof.example.test --acme-ca https://pebble:14000/dir --acme-root pebble.minica.pem
++ tee domain.log
+Checking that rouh-proof.example.test points at this server…
+[ok] rouh-proof.example.test points at this server (4.246.71.52).
+Starting the edge part, which gets a certificate from Let's Encrypt…
+The stack in use is Rouh's own.
+The stack in use is Rouh's own.
+Applied: every part is healthy
+[!] https://rouh-proof.example.test does not answer yet. Let's Encrypt may still be checking; rouh logs edge says more.
++ true
++ docker ps --format '{{.Names}} {{.Ports}}'
++ tee ports.txt
+rouh-core-1 127.0.0.1:8420->8021/tcp
+rouh-worker-1 
+rouh-edge-1 0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp, 443/udp, 2019/tcp
+pebble 14000/tcp, 0.0.0.0:15000->15000/tcp, [::]:15000->15000/tcp
+challtestsrv 5001-5003/tcp, 8053/tcp, 8055/tcp, 8443/tcp
+rouh-guard-1 
+rouh-browser-1 
+rouh-checkdb-1 5432/tcp
+rouh-backup-1 5432/tcp
+rouh-keyproxy-1 
+rouh-postgres-1 5432/tcp
+buildx_buildkit_proof0 
++ curl -fsSk https://127.0.0.1:15000/roots/0 -o pebble-root.pem
+++ seq 1 30
++ for i in $(seq 1 30)
++ curl -sS --resolve rouh-proof.example.test:443:127.0.0.1 --cacert pebble-root.pem -o /dev/null -w '%{http_code}\n' https://rouh-proof.example.test/healthz
++ grep -q 200
++ break
++ tee edge-result.txt
+++ curl -sS --resolve rouh-proof.example.test:443:127.0.0.1 --cacert pebble-root.pem -o /dev/null -w '%{http_code}' https://rouh-proof.example.test/healthz
++ echo 'healthz: 200'
+healthz: 200
+++ curl -sS --resolve rouh-proof.example.test:443:127.0.0.1 --cacert pebble-root.pem -o /dev/null -w '%{http_code}' https://rouh-proof.example.test/setup
++ echo 'setup through the edge: 404'
+setup through the edge: 404
+++ curl -sS --resolve rouh-proof.example.test:443:127.0.0.1 --cacert pebble-root.pem -o /dev/null -w '%{http_code}' https://rouh-proof.example.test/setup/api/state
++ echo 'setup api through the edge: 404'
+setup api through the edge: 404
+++ curl -sS --resolve rouh-proof.example.test:80:127.0.0.1 -o /dev/null -w '%{http_code} %{redirect_url}' http://rouh-proof.example.test/
++ echo 'plain http: 308 https://rouh-proof.example.test/'
+plain http: 308 https://rouh-proof.example.test/
+++ echo
+++ openssl s_client -connect 127.0.0.1:443 -servername rouh-proof.example.test
+++ openssl x509 -noout -issuer -subject -ext subjectAltName
+++ tr '\n' ' '
++ echo 'certificate: issuer=CN = Pebble Intermediate CA 287284 subject= X509v3 Subject Alternative Name: critical     DNS:rouh-proof.example.test '
+certificate: issuer=CN = Pebble Intermediate CA 287284 subject= X509v3 Subject Alternative Name: critical     DNS:rouh-proof.example.test 
+++ curl -sS --resolve rouh-proof.example.test:443:127.0.0.1 --cacert pebble-root.pem https://rouh-proof.example.test/login
+++ grep -o '<title>[^<]*'
+++ head -1
++ echo 'sign-in page: <title>Sign in to Rouh'
+sign-in page: <title>Sign in to Rouh
++ rouh open
++ tee open-domain.txt
+
+Open Rouh, on any computer or phone (it signs you in once, for 10 minutes):
+
+    https://rouh-proof.example.test/phone/in?code=<hidden>
+
+  █████████████████████████████████████
+  ██ ▄▄▄▄▄ █▀▄ ▄▀▀▄▀▄█▄▄   ▄▀█ ▄▄▄▄▄ ██
+  ██ █   █ █▀  ▄▄▀ ▀▄▀▄ ▄▄▀ ▀█ █   █ ██
+  ██ █▄▄▄█ █▀▀█▄▄▄▀▀ █▄▄  ▀▄▄█ █▄▄▄█ ██
+  ██▄▄▄▄▄▄▄█▄▀ █ █▄▀ █▄▀▄▀ █▄█▄▄▄▄▄▄▄██
+  ██ ▄ ▄▄█▄▄ ▄ ▄▄▀▄█▀ ▄▀▀▀ ▀▄▄▀▄█▄▀ ▀██
+  ██▄▀ █ ▄▄▀█▀ ▀ ▄▀ ▀██▀ ▀▀█▄   ▄▄▀▄███
+  ██▀▀  ▀█▄▄ ▄█ █▀▄▄▄   ▄▀  ▄▄▀█▄▄█▀▀██
+  █████▄▀▀▄▄▄ ▀▀▄█ ▄███▀▀ ▄█    ██▀▄███
+  ██▄▀▀███▄▀▀▀▀▀▀ ▀ ▀▀█ ▀██▀█▄▀█▄▀█ ▀██
+  ██  ▄▄▄▄▄▀██ █ █▀ ▄█ █▄▀ ██▄▀█▀▄▀▄███
+  ██▀▄▄ ▄▄▄█▀▄▄ ▄█ █▀██ ▀▀  ▄█▀ ▄▀█ ▀██
+  ██ █ ██ ▄▀█ ▀▀ ▄█ ▄▄ ▀  ██▀▄  ▀ ▀▄███
+  ██▄████▄▄█ ▀▀▀█ ▄▄▀▀▀ ██▄█ ▄▄▄ ▄▀█ ██
+  ██ ▄▄▄▄▄ █▄█▀█▄▄█  ▄ █  █  █▄█ ▀▀▄▀██
+  ██ █   █ █ ▀▀▀▄█▄█▀█▀▀▀█▄█  ▄  ▀█▄▄██
+  ██ █▄▄▄█ █ ▀ ▀▄▄▄▄▀█▄▀▀▀ ▀█▀▄██ ▀▄███
+  ██▄▄▄▄▄▄▄█▄█████▄▄▄▄█▄██▄▄▄▄███▄█▄███
+  █████████████████████████████████████
+
+Your Rouh's address: https://rouh-proof.example.test. rouh open makes a new link.
++ rouh status
++ tee status-domain.txt
+[ok] Rouh Ivy is running.
+  Kind:        Independent Rouh
+  Own domain:  https://rouh-proof.example.test
+  Release:     base 1.0.11 (release 20261106170447), signature checked
+  Updates:     every night between 03:00 and 05:00, after a backup; next Thu 2026-11-12 04:21:06 UTC; last: 2026-11-11 08:48: up to date or updated, every part healthy
+  Backups:     2 nightly copies, newest rouh-20261111-084817.dump, 0.8 MB
+  Open ports:  127.0.0.1:8420 (this machine only), 80 and 443 for rouh-proof.example.test
+  AI:          API key: Anthropic works
+  [!] No plan is connected: Rouh's agents run on your API key, billed by use, which costs much more. Connect a Claude or ChatGPT plan with: rouh setup
++ rouh domain --off
++ tee domain-off.txt
+The stack in use is Rouh's own.
+The stack in use is Rouh's own.
+Applied: every part is healthy
+[ok] rouh-proof.example.test is off: ports 80 and 443 are closed again.
++ ss -Hltn
++ tee listening-after-off.txt
+LISTEN 0      4096       127.0.0.1:8420  0.0.0.0:*
+LISTEN 0      4096         0.0.0.0:15000 0.0.0.0:*
+LISTEN 0      4096   127.0.0.53%lo:53    0.0.0.0:*
+LISTEN 0      5            0.0.0.0:18080 0.0.0.0:*
+LISTEN 0      4096         0.0.0.0:22    0.0.0.0:*
+LISTEN 0      4096      127.0.0.54:53    0.0.0.0:*
+LISTEN 0      4096            [::]:15000    [::]:*
+LISTEN 0      4096            [::]:22       [::]:*
++ docker rm -f pebble challtestsrv
+pebble
+challtestsrv
+== __run_16
+ok    bad-syslog-logging: the service 'worker' sends its log through 'syslog'
+55 of 55 as they must be
+ok    good-edge-as-released
+ok    bad-edge-no-domain: the service 'edge' publishes port 80 to every address with no domain set (ROUH_DOMAIN); it is opened only for the owner's own domain
+ok    bad-edge-another-port: the service 'edge' publishes port 8443; it may publish only 80 and 443, each to the same port
+ok    bad-edge-changed: the service 'edge' is not as released: it is part of the protected core
+ok    bad-edge-port-elsewhere: the service 'core' publishes a port on every address; only 127.0.0.1 is allowed
+5 of 5 as they must be
+== __run_17
+
+What should happen to Rouh's data?
+
+  K  Keep my data (recommended)
+     Saves a checked copy of everything that makes this Rouh itself: its memory database, your workspace,
+     its own code, its identity and keys, its undo points and its agents' sign-ins, into ~/rouh-kept.
+     Then removes Rouh. Install Rouh again and choose Bring back your Rouh: it comes back as itself.
+
+  W  Wipe my data
+     Removes Rouh and everything it knows: its memory, your workspace in it, its code and its keys.
+     This cannot be undone. A Connected Rouh's rouh.land account and registration are not deleted.
+
+Either way Docker itself, your other containers and everything else on this server stay.
+
+Stopping Rouh, and starting its database alone
+Saving the database, and checking it by restoring it once into a test database
+The database: 243 tables, checked
+Saving and checking your workspace, Rouh's own code, the libraries Rouh added, the keys it seals your logins with, its identity and data folder, its undo points, its agents' sign-ins
+Kept, and checked: /home/runner/rouh-kept/20261111-085305 (502.8 MB)
+
+Rouh is removed from this server
+  · Rouh's containers, networks and volumes
+  · its 3 images
+  · the nightly update
+  · /home/runner/rouh (settings, releases, backups)
+  · /usr/local/bin/rouh
+  · /home/runner/rouh-core (the updater)
+
+[ok] Kept, and checked: /home/runner/rouh-kept/20261111-085305
+To bring it back: curl -fsSL https://rouh.land/install.sh | sh, and choose Bring back your Rouh.
+total 1024
+drwx------ 3 runner runner   4096 Nov 11 08:53 .
+drwx------ 3 runner runner   4096 Nov 11 08:53 ..
+-rw------- 1 runner runner 984229 Nov 11 08:53 database.dump
+-rw------- 1 runner runner   1576 Nov 11 08:53 manifest.json
+-rw------- 1 runner runner  31085 Nov 11 08:47 release.json
+-rw------- 1 runner runner  10140 Nov 11 08:52 settings.env
+drwx------ 2 runner runner   4096 Nov 11 08:53 volumes
+{
+  "tables": 243,
+  "checked": [
+    "database restored into a test database: 243 tables",
+    "git fsck: code",
+    "git fsck: workspace"
+  ],
+  "volumes": [
+    "workspace",
+    "code",
+    "extra",
+    "keys",
+    "core-data",
+    "guard-state",
+    "worker-home"
+  ]
+}
+DRIVER    VOLUME NAME
+local     buildx_buildkit_proof0_state
+ls: cannot access '/home/runner/rouh': No such file or directory
+ls: cannot access '/home/runner/rouh-core': No such file or directory
+ls: cannot access '/usr/local/bin/rouh': No such file or directory
+
+A kept Rouh is on this server
+Saved 20261111-085305, when Rouh was uninstalled with Keep my data: 243 tables of memory, your workspace, its code and keys.
+
+  B  Bring back your Rouh (recommended): the same Rouh, as itself.
+  F  Start fresh: a new Rouh. The kept copy stays in /home/runner/rouh-kept/20261111-085305.
+
+
+Bringing back your Rouh
+Getting base 1.0.11 (release 20261106170446) ready, without starting it
+The stack in use is the release's own.
+Checking the kept copy
+Putting back your workspace, Rouh's own code, the libraries Rouh added, the keys it seals your logins with, its identity and data folder, its undo points, its agents' sign-ins
+Putting back Rouh's database
+Your Rouh is back: 7 volumes and the database (243 tables), from /home/runner/rouh-kept/20261111-085305
+Brought back; not started (ROUH_STOP_AFTER_BRING_BACK). Start it: rouh update
+ Container rouh-postgres-1 Starting 
+ Container rouh-postgres-1 Started 
+IDENTICAL
+Base 1.0.11 passed this Rouh's own checks
+The stack in use is Rouh's own.
+Started base 1.0.11 (release 20261106170446): every part is healthy
+[ok] Rouh Ivy is running.
+  Kind:        Independent Rouh
+  Release:     base 1.0.11 (release 20261106170446), signature checked
+  Updates:     nightly update is off (rouh update --on); last: 2026-11-11 08:54: updated by hand
+  Backups:     1 nightly copies, newest rouh-20261111-085549.dump, 0.9 MB
+  Open ports:  127.0.0.1:8420 (this machine only)
+  AI:          API key: Anthropic works
+  [!] No plan is connected: Rouh's agents run on your API key, billed by use, which costs much more. Connect a Claude or ChatGPT plan with: rouh setup
+== __run_18
+
+What should happen to Rouh's data?
+
+  K  Keep my data (recommended)
+     Saves a checked copy of everything that makes this Rouh itself: its memory database, your workspace,
+     its own code, its identity and keys, its undo points and its agents' sign-ins, into ~/rouh-kept.
+     Then removes Rouh. Install Rouh again and choose Bring back your Rouh: it comes back as itself.
+
+  W  Wipe my data
+     Removes Rouh and everything it knows: its memory, your workspace in it, its code and its keys.
+     This cannot be undone. A Connected Rouh's rouh.land account and registration are not deleted.
+
+Either way Docker itself, your other containers and everything else on this server stay.
+
+
+Rouh is removed from this server
+  · Rouh's containers, networks and volumes
+  · its 3 images
+  · /home/runner/rouh (settings, releases, backups)
+  · /usr/local/bin/rouh
+  · /home/runner/rouh-core (the updater)
+
+Rouh's data is wiped. A Connected Rouh's rouh.land account is still there; delete it on rouh.land if you want.
+buildx_buildkit_proof0_state
+Made the settings file /home/runner/rouh/.env.
+
+Starting Rouh (the first time downloads about 2 GB)
+Updating to base 1.0.11, release 20261106170446
+No code yet: nothing to check the new base with.
+The stack in use is the release's own.
+Started base 1.0.11 (release 20261106170446): every part is healthy
+[ok] Nightly update is on: every night between 03:00 and 05:00 (this server's time), after a backup. Next: Thu 2026-11-12 04:21:06 UTC
+[ok] Rouh is running (base 1.0.11, release 20261106170446, signature checked).
+
+Next, set your Rouh up in a terminal on this server:
+
+    rouh setup
+
+{"owner": false, "setup_done": false, "kind": null, "code": true, "expired": false, "hours": 24.0, "age_seconds": 15}
+== __run_19
+== __run_20

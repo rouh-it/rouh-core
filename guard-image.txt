@@ -1,0 +1,27 @@
+
+WARNING! Your credentials are stored unencrypted in '/home/runner/.docker/config.json'.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/go/credential-store/
+
+Login Succeeded
+#13 exporting layers
+#13 exporting layers 0.3s done
+#13 ...
+
+#14 [auth] rouh-it/rouh-guard:pull,push token for ghcr.io
+#14 DONE 0.0s
+
+#13 exporting to image
+#13 exporting manifest sha256:c410c85d5ecbe5406a6702d353e343524fd83ba0f8d83797babaafcf4939ef7d done
+#13 exporting config sha256:b1ee1dfe311a9c29c48da0a58dbc0bddd40f437db76417fe5ef2b88ab0280e67 done
+#13 exporting attestation manifest sha256:5dab0889fbbd2528395899dc1dee94fc2d4027f365b09255a5dea3134051b0cc done
+#13 exporting manifest list sha256:cbad153fd6d7070e388ed193c61c72bbd2f73328be4b958e01e2e9c2dfdde2c8 done
+#13 pushing layers
+#13 pushing layers 1.9s done
+#13 pushing manifest for ghcr.io/rouh-it/rouh-guard
+#13 pushing manifest for ghcr.io/rouh-it/rouh-guard 1.3s done
+#13 DONE 3.5s
+
+#15 resolving provenance for metadata file
+#15 DONE 0.0s
+test release 20261106170447, guard ghcr.io/rouh-it/rouh-guard@sha256:cbad153fd6d7070e388ed193c61c72bbd2f73328be4b958e01e2e9c2dfdde2c8, key proof-176-24 oEC4z/iydff7xG3kIKB8ies7+5N9/3TLYAHSlPrnnoI=

@@ -1,0 +1,60 @@
+
+What should happen to Rouh's data?
+
+  K  Keep my data (recommended)
+     Saves a checked copy of everything that makes this Rouh itself: its memory database, your workspace,
+     its own code, its identity and keys, its undo points and its agents' sign-ins, into ~/rouh-kept.
+     Then removes Rouh. Install Rouh again and choose Bring back your Rouh: it comes back as itself.
+
+  W  Wipe my data
+     Removes Rouh and everything it knows: its memory, your workspace in it, its code and its keys.
+     This cannot be undone. A Connected Rouh's rouh.land account and registration are not deleted.
+
+Either way Docker itself, your other containers and everything else on this server stay.
+
+Stopping Rouh, and starting its database alone
+Saving the database, and checking it by restoring it once into a test database
+The database: 243 tables, checked
+Saving and checking your workspace, Rouh's own code, the libraries Rouh added, the keys it seals your logins with, its identity and data folder, its undo points, its agents' sign-ins
+Kept, and checked: /home/runner/rouh-kept/20261111-085305 (502.8 MB)
+
+Rouh is removed from this server
+  · Rouh's containers, networks and volumes
+  · its 3 images
+  · the nightly update
+  · /home/runner/rouh (settings, releases, backups)
+  · /usr/local/bin/rouh
+  · /home/runner/rouh-core (the updater)
+
+[ok] Kept, and checked: /home/runner/rouh-kept/20261111-085305
+To bring it back: curl -fsSL https://rouh.land/install.sh | sh, and choose Bring back your Rouh.
+total 1024
+drwx------ 3 runner runner   4096 Nov 11 08:53 .
+drwx------ 3 runner runner   4096 Nov 11 08:53 ..
+-rw------- 1 runner runner 984229 Nov 11 08:53 database.dump
+-rw------- 1 runner runner   1576 Nov 11 08:53 manifest.json
+-rw------- 1 runner runner  31085 Nov 11 08:47 release.json
+-rw------- 1 runner runner  10140 Nov 11 08:52 settings.env
+drwx------ 2 runner runner   4096 Nov 11 08:53 volumes
+{
+  "tables": 243,
+  "checked": [
+    "database restored into a test database: 243 tables",
+    "git fsck: code",
+    "git fsck: workspace"
+  ],
+  "volumes": [
+    "workspace",
+    "code",
+    "extra",
+    "keys",
+    "core-data",
+    "guard-state",
+    "worker-home"
+  ]
+}
+DRIVER    VOLUME NAME
+local     buildx_buildkit_proof0_state
+ls: cannot access '/home/runner/rouh': No such file or directory
+ls: cannot access '/home/runner/rouh-core': No such file or directory
+ls: cannot access '/usr/local/bin/rouh': No such file or directory
