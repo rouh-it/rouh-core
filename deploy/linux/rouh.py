@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""rouh: the owner's command for Rouh on a Linux server (task 176, step 176-24).
+"""rouh: the owner's command for Rouh on a Linux server (task 176, step 176-25).
 
 Installed as /usr/local/bin/rouh by https://rouh.land/install.sh. A thin layer over
 deploy/container/linux_stack.py (the signed releases, the stack check, the go-back) and Docker
@@ -814,7 +814,7 @@ def _settings() -> None:
     elif not setting("ROUH_INSTALL_CODE"):
         set_settings(ROUH_INSTALL_CODE="free")
     if not setting("ROUH_SETUP_CODE_HOURS"):
-        # A setup code lasts a day while there is no owner; rouh setup writes a new one (step 176-24).
+        # A setup code lasts a day while there is no owner; rouh setup writes a new one (step 176-25).
         set_settings(ROUH_SETUP_CODE_HOURS="24")
 
 

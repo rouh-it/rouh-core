@@ -19,7 +19,7 @@
   "cap_add": ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETUID", "SETGID", "DAC_READ_SEARCH"],
   "security_opt": ["no-new-privileges:true", "no-new-privileges"],
   "published_host_ips": ["127.0.0.1"],
-  "public_ports_about": "The one part that may listen beyond this machine: the edge (Caddy, for the owner's own domain, task 176, step 176-24), on 80 and 443 only, each to the same port inside, and only with ROUH_DOMAIN set to a domain name in its environment. linux_stack.py adds it to the stack only with that setting and an owner (rouh domain).",
+  "public_ports_about": "The one part that may listen beyond this machine: the edge (Caddy, for the owner's own domain, task 176, step 176-25), on 80 and 443 only, each to the same port inside, and only with ROUH_DOMAIN set to a domain name in its environment. linux_stack.py adds it to the stack only with that setting and an owner (rouh domain).",
   "public_ports": {"edge": {"ports": [80, 443], "needs": "ROUH_DOMAIN"}},
   "refused_words": ["include", "extends", "label_file"],
   "protected_services": ["guard-init", "guard", "keyproxy", "code-install", "checkdb", "worker-perms", "edge"],

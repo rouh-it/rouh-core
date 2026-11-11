@@ -1,4 +1,4 @@
-"""``rouh setup``: Rouh's first run in a terminal, for a server with no screen (task 176, step 176-24).
+"""``rouh setup``: Rouh's first run in a terminal, for a server with no screen (task 176, step 176-25).
 
 The same first run as Rouh for Mac's native screens (0.4.0 and 0.5.0, task 140) and the web's
 (`rouh/web/firstrun.py`), in the same order and words, done through the same JSON API

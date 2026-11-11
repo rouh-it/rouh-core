@@ -156,7 +156,7 @@ class Machine:
 
     def profiles(self) -> list[str]:
         """``--profile edge`` when the owner turned a domain of their own on (``rouh domain``, task
-        176, step 176-24): only then is the stack's edge part, with ports 80 and 443, in the stack
+        176, step 176-25): only then is the stack's edge part, with ports 80 and 443, in the stack
         at all, and the stack check holds it to the release's own and to a domain being set."""
         try:
             text = self.settings.read_text()

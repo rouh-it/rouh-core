@@ -1,6 +1,6 @@
 """`python manage.py setup_code`: the setup code, for the `rouh` command on a Linux server.
 
-Task 176, step 176-24. The `rouh` command (deploy/linux/rouh.py) runs this inside the core with
+Task 176, step 176-25. The `rouh` command (deploy/linux/rouh.py) runs this inside the core with
 ``docker compose exec``, so the code goes from the core's file to the owner's terminal and to
 nothing else: not into ``docker logs``, which only the core's own start writes to.
 

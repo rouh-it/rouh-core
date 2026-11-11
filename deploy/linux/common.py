@@ -1,5 +1,5 @@
 """What every part of the `rouh` command shares: where things are, Docker, the settings file, the
-setup API, and how words are drawn in a terminal (task 176, step 176-24).
+setup API, and how words are drawn in a terminal (task 176, step 176-25).
 
 Standard library only, Python 3.12: a Linux server has nothing else of Rouh's outside its
 containers. Everything that touches Rouh goes through Docker Compose with the stack file

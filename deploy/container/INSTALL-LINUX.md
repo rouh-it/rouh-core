@@ -2,7 +2,7 @@
 
 How to run Rouh on a Linux machine of your own: a server you reach only over SSH (a "headless" server, with no screen), a desktop, or a virtual machine.
 Rouh for Mac does all of this by itself on a Mac.
-Since 11 November 2026 (task 176, step 176-24) a server needs nothing but SSH: setup happens in the terminal, and nothing of Rouh's is reachable from the network until its owner exists.
+Since 11 November 2026 (task 176, step 176-25) a server needs nothing but SSH: setup happens in the terminal, and nothing of Rouh's is reachable from the network until its owner exists.
 
 ## The one command
 

@@ -148,7 +148,7 @@ volumes:
 }
 
 
-#: The owner's own domain (task 176, step 176-24): resolved with --profile edge and ROUH_DOMAIN set, as
+#: The owner's own domain (task 176, step 176-25): resolved with --profile edge and ROUH_DOMAIN set, as
 #: linux_stack.py resolves a stack once `rouh domain` has turned a domain on, against a reference
 #: resolved the same way ("good-edge-as-released"). Written to expect-edge.json, which check.py holds
 #: the Python check to; Rouh for Mac never turns the edge on, so its tests read expect.json alone.

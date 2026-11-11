@@ -490,7 +490,7 @@ services:
       retries: 4
       start_period: 30s
 
-  # The owner's own domain, with HTTPS (task 176, step 176-24): Caddy, which gets and renews a Let's
+  # The owner's own domain, with HTTPS (task 176, step 176-25): Caddy, which gets and renews a Let's
   # Encrypt certificate for ROUH_DOMAIN and passes every request on to the core, marked as from the
   # internet (X-Rouh-Edge, rouh/web/gate.py: no setup page, and nothing at all before the owner
   # exists). In the stack only when the owner turns a domain on (`rouh domain NAME` on a Linux

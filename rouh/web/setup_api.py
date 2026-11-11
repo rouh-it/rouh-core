@@ -236,7 +236,7 @@ def _password_problem(password: str, said: dict) -> str:
 def _make_owner(said: dict, password: str = "") -> tuple[object | None, dict]:
     """The owner from the app's screen: names and email. With no password the app signs them in on
     this Mac with the setup code and a Connected Rouh sends sign-in letters through rouh.land; a
-    server's terminal wizard (``rouh setup``, task 176, step 176-24) gives the owner's own password,
+    server's terminal wizard (``rouh setup``, task 176, step 176-25) gives the owner's own password,
     held to the same rules as the web's form, as the way in from any browser."""
     from django.core.exceptions import ValidationError
     from django.core.management import call_command
@@ -513,7 +513,7 @@ async def address_email(request: HttpRequest) -> JsonResponse:
 @endpoint("POST")
 async def open_rouh(request: HttpRequest) -> JsonResponse:
     """Where Open Rouh goes, signed in: the owner's own domain when ``rouh domain`` turned one on
-    (task 176, step 176-24), else the rouh.page address with a one-time sign-in when the relay has
+    (task 176, step 176-25), else the rouh.page address with a one-time sign-in when the relay has
     it reachable, else this computer's own address with the setup code (``where: local``). The app
     tries the first and falls back to the second when the Mac cannot reach it. ``qr`` is the link as
     rows for a terminal to draw."""
@@ -545,7 +545,7 @@ async def open_rouh(request: HttpRequest) -> JsonResponse:
 
 # --- for the terminal: password rules, a QR code as rows, Codex's device code --------------------
 #
-# Task 176, step 176-24: ``rouh setup`` on a Linux server is the same first run as Rouh for Mac's,
+# Task 176, step 176-25: ``rouh setup`` on a Linux server is the same first run as Rouh for Mac's,
 # drawn in a terminal. These three are what a terminal needs that the Mac draws itself.
 
 

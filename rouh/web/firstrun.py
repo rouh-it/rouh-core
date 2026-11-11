@@ -179,7 +179,7 @@ def new_code() -> str:
     return code
 
 
-#: How long a setup code lasts while the Rouh has no owner (task 176, step 176-24): set by the Linux
+#: How long a setup code lasts while the Rouh has no owner (task 176, step 176-25): set by the Linux
 #: installer to 24 hours, after Portainer's time window on the first claim, so a code that leaked
 #: (an old terminal's scrollback, a log) is dead by the next day. ``rouh setup`` writes a new one.
 #: Unset or 0, a code lasts until it is used, as Rouh for Mac has always had it.

@@ -150,7 +150,7 @@ def _plain_through_relay(request: HttpRequest) -> str:
 
 
 #: The header the stack's ``edge`` part (Caddy, for the owner's own domain: ``rouh domain``, task
-#: 176, step 176-24) sets on everything it passes on. A visitor who sends it too only makes the
+#: 176, step 176-25) sets on everything it passes on. A visitor who sends it too only makes the
 #: request be treated as from outside, which is the stricter way.
 EDGE_HEADER = "x-rouh-edge"
 

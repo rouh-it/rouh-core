@@ -1,5 +1,5 @@
 """Keep my data, Wipe my data and Bring back your Rouh, for ``rouh uninstall`` on Linux (task 176, step
-176-24), the way Rouh for Mac 0.3.23 does them (KeptData.swift, step 176-17).
+176-25), the way Rouh for Mac 0.3.23 does them (KeptData.swift, step 176-17).
 
 Keep my data saves a copy and checks it before anything is removed:
 

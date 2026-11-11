@@ -14,7 +14,7 @@ with one plain sentence:
 * bind mounts, the Docker socket, image mounts, and volumes that are really binds (a driver or
   driver options, or an external volume);
 * a published port on anything but 127.0.0.1, but for the edge part on 80 and 443 with a domain set
-  (``public_ports``: the owner's own domain, ``rouh domain``, task 176, step 176-24);
+  (``public_ports``: the owner's own domain, ``rouh domain``, task 176, step 176-25);
 * any change to the protected core's services (guard-init, guard, keyproxy, code-install,
   checkdb, worker-perms) or to the walls' networks, and a protected volume mounted where it was not;
 * a build that is not a plain Dockerfile on top of the release's base, with no extra rights;
