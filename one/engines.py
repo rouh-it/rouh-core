@@ -133,7 +133,7 @@ def codex_args(*, model: str, run_id: str, hook_url: str, poster: str, python: s
                prompt: str | None, long_timeout: int = 600, access: str = "full",
                effort: str | None = None, billing: str = "subscription",
                api_base_url: str = "", resume_session: str | None = None,
-               browser_port: int = 0) -> list[str]:
+               browser_port: int = 0, mcp_config: str | None = None) -> list[str]:
     """The command a run of Codex is started with.
 
     ``--dangerously-bypass-hook-trust`` is not optional and is not bravado.
@@ -190,12 +190,29 @@ def codex_args(*, model: str, run_id: str, hook_url: str, poster: str, python: s
                                  long_timeout=long_timeout)
     if billing == _billing.API:
         args += _billing.provider_overrides(api_base_url or DEFAULT_API_BASE_URL)
-    if browser_port:
-        # Codex hands an MCP server only the variables it is told to, and the
-        # machine's servers are in its shared config, so this run's browser is
-        # given the path to its own configuration here, on its own line
-        # (asuser.py, ``_browser_config``). Claude Code passes its environment on.
-        args += ["-c", 'mcp_servers.playwright.env_vars=["PLAYWRIGHT_MCP_CONFIG"]']
+    # Codex has no --mcp-config. Its machine-wide config may have been seeded
+    # before the worker image pinned a local Playwright MCP, so override the
+    # browser entry for this run from the same merged file Claude receives.
+    # This avoids an old npx command that tries to fetch its package at startup.
+    if mcp_config:
+        try:
+            with open(mcp_config, encoding="utf-8") as fh:
+                servers = json.load(fh).get("mcpServers") or {}
+            playwright = servers.get("playwright") or {}
+        except (OSError, ValueError, AttributeError, TypeError):
+            playwright = {}
+        if isinstance(playwright, dict) and playwright.get("command"):
+            args += ["-c", f"mcp_servers.playwright.command={_toml_string(str(playwright['command']))}"]
+            args += ["-c", "mcp_servers.playwright.args=" + json.dumps(
+                [str(value) for value in (playwright.get("args") or [])])]
+            server_env = playwright.get("env") or {}
+            for name, value in server_env.items():
+                if isinstance(name, str) and isinstance(value, (str, int, float, bool)):
+                    encoded = json.dumps(value) if not isinstance(value, str) else _toml_string(value)
+                    args += ["-c", f"mcp_servers.playwright.env.{name}={encoded}"]
+            if browser_port:
+                # Codex inherits only variables explicitly passed to an MCP server.
+                args += ["-c", 'mcp_servers.playwright.env_vars=["PLAYWRIGHT_MCP_CONFIG"]']
     if resume_session:
         args.append(resume_session)
     if prompt:

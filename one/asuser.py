@@ -108,6 +108,10 @@ def _pinned_browser(servers: dict) -> dict:
     return _agent_mcp._pinned_browser(servers)
 
 
+def _check_playwright(servers: dict, env: dict, *, cwd: str) -> None:
+    _agent_mcp.check_playwright(servers, env, cwd=cwd)
+
+
 CODEX_PASSES_ON = _agent_mcp.CODEX_PASSES_ON
 
 

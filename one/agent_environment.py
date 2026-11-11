@@ -41,6 +41,11 @@ def _clean_env(extra: dict | None, command) -> dict:
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
     }
+    # The worker image keeps PostgreSQL's server tools and libpq in /opt/pg.
+    # Expose their private library directory to every run so direct calls to
+    # initdb and pg_ctl work without a manual environment prefix.
+    if command.os.path.isdir("/opt/pg/lib"):
+        env["LD_LIBRARY_PATH"] = "/opt/pg/lib"
     git = command.shutil.which("git")
     if git and command.os.path.dirname(git) not in env["PATH"].split(":"):
         env["PATH"] = command.os.path.dirname(git) + ":" + env["PATH"]
@@ -107,6 +112,16 @@ def agent(args, command) -> int:
         extra[command.BROWSER_CONFIG_VAR] = command._browser_config(args.cwd, args.browser_port)
     env = command._clean_env(extra)
     command.os.chdir(args.cwd)
+    # Check the actual merged server entry and open a local page through it
+    # before either agent starts. A missing browser becomes an immediate,
+    # actionable launch error instead of a surprise after work has begun.
+    try:
+        mcp_path = command._write_merged_mcp(args.cwd)
+        servers = command._mcp_servers(mcp_path) if mcp_path else {}
+        command._check_playwright(servers, env, cwd=args.cwd)
+    except Exception as exc:  # noqa: BLE001 - surface startup failures on the run screen
+        command.sys.stderr.write(f"one: browser startup check failed: {exc}\r\n")
+        return 78
     rest = list(args.rest)
     if rest and rest[0] == "--":
         rest = rest[1:]

@@ -830,7 +830,7 @@ class Runs(_RunInteraction):
                 long_timeout=self.s.hook_timeout, access=self.s.access,
                 effort=run.get("effort") or self.s.agent_effort(engine), billing=pays,
                 api_base_url=self.s.codex_api_base_url, resume_session=codex_session,
-                browser_port=int(run.get("browser_port") or 0))
+                browser_port=int(run.get("browser_port") or 0), mcp_config=mcp_config)
         else:
             args = agents.claude_args(
                 model=run.get("model") or self.s.model, settings_path=settings_path,

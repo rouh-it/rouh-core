@@ -7,7 +7,11 @@ from __future__ import annotations
 
 import json
 import os
+import select
+import shutil
+import subprocess
 import tempfile
+import time
 
 
 #: The MCP servers every agent on this machine gets, wherever it runs. One
@@ -73,18 +77,134 @@ def _pinned_browser(servers: dict) -> dict:
     it is to drive), so a run starts the browser the base keeps patched, with
     nothing downloaded. Neither is set on the server, where nothing changes.
     """
-    spec = os.environ.get("ONE_PLAYWRIGHT_MCP", "").strip()
-    chromium = os.environ.get("ONE_PLAYWRIGHT_CHROMIUM", "").strip()
+    # sudo intentionally clears the service environment before running
+    # asuser.py, so the image's own recorded pins are the reliable source for
+    # both its main process and the privileged launcher.
+    base = {}
+    try:
+        with open("/opt/rouh-base/base.env", encoding="utf-8") as fh:
+            for line in fh:
+                key, sep, value = line.rstrip("\n").partition("=")
+                if sep:
+                    base[key] = value
+    except OSError:
+        pass
+    spec = (os.environ.get("ONE_PLAYWRIGHT_MCP") or
+            (f"@playwright/mcp@{base['playwright_mcp']}" if base.get("playwright_mcp") else "")).strip()
+    chromium = (os.environ.get("ONE_PLAYWRIGHT_CHROMIUM") or
+                ("/usr/bin/chromium" if base.get("playwright_mcp") else "")).strip()
     playwright = servers.get("playwright")
     if not isinstance(playwright, dict) or not (spec or chromium):
         return servers
     playwright = dict(playwright)
     if spec:
-        playwright["args"] = [spec if str(a).startswith("@playwright/mcp@") else a
-                              for a in playwright.get("args") or []]
+        # The base installs this exact package globally. Running it through
+        # npx still makes npm resolve a package spec and can try the network
+        # from an isolated worker, even though the package is already present.
+        # Use npm's global shim directly and keep only the server options.
+        binary = os.environ.get("ONE_PLAYWRIGHT_MCP_COMMAND", "/usr/local/bin/playwright-mcp")
+        playwright["command"] = binary
+        playwright["args"] = [a for a in (playwright.get("args") or [])
+                              if not str(a).startswith("@playwright/mcp@")]
+        if chromium and not any(str(a).startswith("--executable-path")
+                                for a in playwright["args"]):
+            playwright["args"] += ["--executable-path", chromium]
     if chromium:
         playwright["env"] = {**(playwright.get("env") or {}), "PLAYWRIGHT_MCP_EXECUTABLE_PATH": chromium}
     return {**servers, "playwright": playwright}
+
+
+def _mcp_response(proc: subprocess.Popen, wanted: int, deadline: float) -> dict:
+    """Read stdio MCP messages until the response with ``wanted`` arrives."""
+    while time.monotonic() < deadline:
+        remaining = max(0.0, deadline - time.monotonic())
+        ready, _, _ = select.select([proc.stdout], [], [], remaining)
+        if not ready:
+            break
+        line = proc.stdout.readline()
+        if not line:
+            break
+        try:
+            message = json.loads(line)
+        except (TypeError, ValueError):
+            continue
+        if message.get("id") == wanted:
+            if "error" in message:
+                raise RuntimeError(str(message["error"]))
+            return message.get("result") or {}
+    if proc.poll() is not None:
+        raise RuntimeError(f"server exited with status {proc.returncode}")
+    raise TimeoutError(f"no MCP response to request {wanted} within 20 seconds")
+
+
+def _mcp_call(proc: subprocess.Popen, request_id: int, method: str, params: dict,
+              deadline: float) -> dict:
+    proc.stdin.write((json.dumps({"jsonrpc": "2.0", "id": request_id,
+                                  "method": method, "params": params}) + "\n").encode())
+    proc.stdin.flush()
+    return _mcp_response(proc, request_id, deadline)
+
+
+def check_playwright(servers: dict, env: dict, *, cwd: str) -> None:
+    """Fail before an agent starts unless its configured browser can load a page.
+
+    This exercises the same server entry from the merged MCP config used by
+    Claude, and the same machine server that Codex is configured to launch.
+    It checks the tool list and drives Chromium through browser_navigate and
+    browser_snapshot, rather than treating an installed package as proof.
+    """
+    spec = servers.get("playwright")
+    if not isinstance(spec, dict):
+        raise RuntimeError("the merged MCP configuration has no playwright server")
+    command = spec.get("command")
+    if not isinstance(command, str) or not command:
+        raise RuntimeError("the playwright MCP server has no command")
+    binary = command if os.path.isabs(command) else shutil.which(command, path=env.get("PATH", ""))
+    if not binary or not os.path.isfile(binary) or not os.access(binary, os.X_OK):
+        raise RuntimeError(f"the playwright MCP command is not executable: {command}")
+    server_env = dict(env)
+    server_env.update({str(k): str(v) for k, v in (spec.get("env") or {}).items()})
+    args = [str(a) for a in (spec.get("args") or [])]
+    proc = None
+    try:
+        proc = subprocess.Popen([binary, *args], cwd=cwd, env=server_env,
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=False, bufsize=0)
+        deadline = time.monotonic() + 20
+        initialized = _mcp_call(proc, 1, "initialize", {
+            "protocolVersion": "2025-03-26", "capabilities": {},
+            "clientInfo": {"name": "one-browser-startup-check", "version": "1"}}, deadline)
+        if not initialized.get("serverInfo"):
+            raise RuntimeError("the playwright MCP server did not complete initialization")
+        proc.stdin.write((json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"})
+                          + "\n").encode())
+        proc.stdin.flush()
+        tools = _mcp_call(proc, 2, "tools/list", {}, deadline).get("tools") or []
+        names = {tool.get("name") for tool in tools if isinstance(tool, dict)}
+        if not {"browser_navigate", "browser_snapshot"} <= names:
+            raise RuntimeError("the playwright MCP server did not offer browser_navigate and browser_snapshot")
+        page_text = "Playwright MCP startup check passed"
+        url = "data:text/html,<title>Worker browser ready</title><p>" + page_text.replace(" ", "%20") + "</p>"
+        navigated = _mcp_call(proc, 3, "tools/call", {
+            "name": "browser_navigate", "arguments": {"url": url}}, deadline)
+        if navigated.get("isError"):
+            raise RuntimeError(f"browser_navigate failed: {navigated.get('content', [])}")
+        snapshot = _mcp_call(proc, 4, "tools/call", {
+            "name": "browser_snapshot", "arguments": {}}, deadline)
+        if snapshot.get("isError"):
+            raise RuntimeError(f"browser_snapshot failed: {snapshot.get('content', [])}")
+        text = " ".join(str(item.get("text", "")) for item in snapshot.get("content", [])
+                        if isinstance(item, dict))
+        if page_text not in text:
+            raise RuntimeError("Chromium opened a page, but its snapshot did not contain the expected text")
+    finally:
+        if proc is not None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=3)
 
 
 #: What Codex has to be told to pass on to a machine server, by name. Claude

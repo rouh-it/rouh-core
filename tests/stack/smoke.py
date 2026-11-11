@@ -582,7 +582,7 @@ def the_run(s: Stack) -> dict:
         else:
             raise Failed(f"the run did not finish in five minutes (one_start said: {got[:300]}); "
                          f"the worker's log: {s.logs('worker', 60)[-1500:]}")
-        for name in ("internet", "notify", "tools", "env", "tree", "task"):
+        for name in ("internet", "notify", "tools", "env", "tree", "task", "postgres"):
             _RUN[name] = s.run("worker", f"cat /tmp/stack-run-{name} 2>/dev/null").stdout
     except Failed as e:
         _RUN["error"] = str(e)
@@ -590,9 +590,16 @@ def the_run(s: Stack) -> dict:
     return _RUN
 
 
-@check("one.run")
+@check("one.run", "runs.playwright-startup")
 def one_run(s: Stack) -> None:
     the_run(s)
+
+
+@check("runs.throwaway-postgres")
+def runs_throwaway_postgres(s: Stack) -> None:
+    got = the_run(s)["postgres"]
+    expect("initdb and pg_ctl started and stopped PostgreSQL 18" in got,
+           f"a run's throwaway PostgreSQL did not start and stop: {got[-1200:]}")
 
 
 @check("runs.internet")
