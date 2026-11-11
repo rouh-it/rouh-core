@@ -310,12 +310,25 @@ def cmd_cut(repo: Path, line: str, commit: str, state: Path) -> None:
     print(f"cut line {line} at {commit[:12]}: level {info['level']}, {len(before)} Python libraries")
 
 
+#: What every base is built for: a tag is taken only once Docker Hub has its image for each.
+ARCHES = {"amd64", "arm64"}
+
+
 def _hub_tags(repo: str, prefix: str, suffix: str) -> list[str]:
+    """The tags that start with `prefix` and end with `suffix`, and whose images for linux/amd64
+    and linux/arm64 are both published. A new release's tag appears before all its images do: on
+    11 November 2026 node:24.22.3-trixie-slim had only ppc64le and s390x, base 1.0.13 took it, and
+    its build stopped on "no match for platform in manifest". Such a tag is taken a night later."""
     url = f"{HUB}/{repo if '/' in repo else 'library/' + repo}/tags?name={urllib.parse.quote(prefix)}&page_size=100"
     names = []
-    while url and len(names) < 1000:
+    seen = 0
+    while url and seen < 1000:
         page = _get(url)
-        names += [t["name"] for t in page.get("results", [])]
+        for t in page.get("results", []):
+            seen += 1
+            arches = {i.get("architecture") for i in t.get("images") or [] if i.get("os") == "linux"}
+            if ARCHES <= arches:
+                names.append(t["name"])
         url = page.get("next")
     return [n for n in names if n.startswith(prefix) and n.endswith(suffix)]
 
