@@ -74,13 +74,26 @@ jobs:
       - name: A browser for the smoke test
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
+          setup_log=$(mktemp)
+          setup_step() {
+            if "$@" >"$setup_log" 2>&1; then
+              cat "$setup_log"
+            else
+              result=$?
+              cat "$setup_log"
+              while IFS= read -r line; do
+                line=${line//'%'/'%25'}
+                line=${line//$'\r'/'%0D'}
+                echo "::error title=Runner browser setup::$line"
+              done < <(tail -n 20 "$setup_log")
+              exit "$result"
+            fi
+          }
+          setup_step sudo apt-get update -qq
           # age opens the encrypted off-site copy the backup check makes (tests/stack/checks_backup.py).
-          sudo apt-get install -y -qq age >/dev/null
-          python3 -m pip install --quiet --break-system-packages -r tests/stack/requirements.txt
-          python3 -m playwright install --with-deps chromium >/dev/null
-          # The real age, which opens the weekly copy off the machine (backup.offsite).
-          sudo apt-get install -y -qq age >/dev/null
+          setup_step sudo apt-get install -y -qq age
+          setup_step python3 -m pip install --quiet --break-system-packages -r tests/stack/requirements.txt
+          setup_step python3 -m playwright install --with-deps chromium
 
       - name: Build, start and check the stack
         env:

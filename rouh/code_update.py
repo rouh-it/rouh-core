@@ -220,7 +220,8 @@ def base(code: Path | None = None) -> dict:
 
 
 def _own_commits(code: Path, local: str) -> int:
-    r = _git("rev-list", "--count", "--no-merges", f"{local}..HEAD", cwd=code)
+    r = _git("rev-list", "--count", "--no-merges", "--invert-grep", "--grep=^Rouh-master-change:",
+             "--grep=^Rouh-release:", f"{local}..HEAD", cwd=code)
     try:
         return int(r.stdout.strip() or 0)
     except ValueError:
@@ -641,6 +642,9 @@ def _backup(code: Path, database_changes: bool) -> dict:
 
 def reconcile() -> None:
     """What the protected core did with an update this Rouh handed it before it started again."""
+    from . import code_evolution
+
+    code_evolution.reconcile_ledger()
     s = state()
     p = s.get("pending")
     if not p:

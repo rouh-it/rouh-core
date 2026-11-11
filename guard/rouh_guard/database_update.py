@@ -33,9 +33,10 @@ def inventory() -> list[dict]:
     import psycopg
 
     with psycopg.connect(**_kw(live())) as conn:
-        rows = conn.execute("SELECT table_name,column_name,data_type FROM information_schema.columns "
-                            "WHERE table_schema='public' ORDER BY table_name,ordinal_position").fetchall()
-    return [{"table": t, "column": c, "type": ty} for t, c, ty in rows]
+        rows = conn.execute("SELECT table_schema,table_name,column_name,data_type FROM information_schema.columns "
+                            "WHERE table_schema NOT IN ('pg_catalog','information_schema') AND table_schema NOT LIKE 'pg_%' "
+                            "ORDER BY table_schema,table_name,ordinal_position").fetchall()
+    return [{"table": t if s == "public" else s + "." + t, "column": c, "type": ty} for s, t, c, ty in rows]
 
 
 def pg(tool: str, db: dict, *args: str) -> None:
@@ -182,21 +183,29 @@ def migrate(planfile: Path, phase: str) -> None:
     plan = json.loads(planfile.read_text())
     q = connection.ops.quote_name
 
+    def parts(table):
+        return table.split(".", 1) if "." in table else ("public", table)
+
+    def relation(table):
+        return ".".join(q(p) for p in parts(table))
+
     def tables():
         with connection.cursor() as c:
-            c.execute("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")
-            return [r[0] for r in c.fetchall()]
+            c.execute("SELECT schemaname,tablename FROM pg_tables "
+                      "WHERE schemaname NOT IN ('pg_catalog','information_schema') AND schemaname NOT LIKE 'pg_%' "
+                      "ORDER BY schemaname,tablename")
+            return [t if s == "public" else s + "." + t for s, t in c.fetchall()]
 
     def columns(table):
         with connection.cursor() as c:
-            c.execute("SELECT column_name FROM information_schema.columns WHERE table_schema='public' "
-                      "AND table_name=%s ORDER BY ordinal_position", [table])
+            c.execute("SELECT column_name FROM information_schema.columns WHERE table_schema=%s "
+                      "AND table_name=%s ORDER BY ordinal_position", list(parts(table)))
             return [r[0] for r in c.fetchall()]
 
     def rows(table, cols):
         hashes = Counter()
         with connection.cursor() as c:
-            c.execute("SELECT ROW(" + ",".join(q(x) for x in cols) + ")::text FROM " + q(table))
+            c.execute("SELECT ROW(" + ",".join(q(x) for x in cols) + ")::text FROM " + relation(table))
             while batch := c.fetchmany(1000):
                 hashes.update(hashlib.sha256(r[0].encode()).hexdigest() for r in batch)
         return hashes
@@ -209,7 +218,7 @@ def migrate(planfile: Path, phase: str) -> None:
             # SHARE blocks INSERT/UPDATE/DELETE while permitting readers and the backup.
             names = tables()
             if names:
-                c.execute("LOCK TABLE " + ",".join(q(t) for t in names) + " IN SHARE MODE")
+                c.execute("LOCK TABLE " + ",".join(relation(t) for t in names) + " IN SHARE MODE")
             if phase == "real":
                 c.execute("SELECT pg_export_snapshot()")
                 planfile.with_name("snapshot").write_text(c.fetchone()[0])
@@ -234,6 +243,9 @@ def migrate(planfile: Path, phase: str) -> None:
             new = plan.get("tables", {}).get(old, old)
             mapping = plan.get("columns", {}).get(old, {})
             newcols = [mapping.get(c, c) for c in cols]
+            if not old_rows and (new not in after_tables or not set(newcols) <= set(columns(new))):
+                result["tables"][old] = {"destination": new, "before": 0, "after": 0, "preserved": True}
+                continue
             if new not in after_tables or not set(newcols) <= set(columns(new)):
                 raise ValueError(f"{old}: existing data has no destination in the migration plan")
             new_rows = rows(new, newcols)
@@ -244,6 +256,8 @@ def migrate(planfile: Path, phase: str) -> None:
         call_command("check", verbosity=0)
     # Read the result back after COMMIT as well, before reporting it applied.
     for old, (cols, old_rows) in before.items():
+        if not old_rows:
+            continue
         new = plan.get("tables", {}).get(old, old)
         newcols = [plan.get("columns", {}).get(old, {}).get(c, c) for c in cols]
         if old_rows - rows(new, newcols):

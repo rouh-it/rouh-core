@@ -36,6 +36,31 @@ def save(doc: dict) -> None:
     u._write(u.folder() / "ledger.json", doc)
 
 
+def reconcile_ledger() -> None:
+    """An undo point put back by its person or doctor is no longer a taken master change."""
+    doc = ledger()
+    if not doc:
+        return
+    head = u._git("rev-parse", "HEAD", cwd=u.code_dir()).stdout.strip()
+    if not head or head == doc.get("last_running"):
+        return
+    changed = False
+    for row in doc["changes"]:
+        if row.get("status") in TAKEN and row.get("local") and \
+                u._git("merge-base", "--is-ancestor", row["local"], head, cwd=u.code_dir()).returncode:
+            row.update(status="waiting", reason="Put back with an earlier undo point; this change is not running.")
+            changed = True
+    if changed:
+        through = doc["installed"]
+        for row in doc["changes"]:
+            if row.get("status") not in TAKEN:
+                break
+            through = row["master"]
+        doc["through"] = through
+    doc["last_running"] = head
+    save(doc)
+
+
 def shown() -> dict:
     doc = ledger()
     rows = doc.get("changes", [])
@@ -80,20 +105,22 @@ def scan(release: dict, b: dict) -> dict:
             continue
         parent = _git("rev-parse", sha + "^1")
         message = _git("show", "-s", "--format=%B", sha)
-        files = _git("diff", "--name-only", "--no-renames", parent, sha).splitlines()
+        all_files = _git("diff", "--name-only", "--no-renames", parent, sha).splitlines()
+        files = list(all_files)
         # A first install omits release infrastructure; it remains outside this Rouh's own code.
         files = [f for f in files if not any((f == p or f.startswith(p + "/")) and
                   u._git("cat-file", "-e", f"{b['local']}:{p}", cwd=u.code_dir()).returncode
                   for p in u.LEFT_OUT)]
         diff = _git("diff", "--no-ext-diff", parent, sha)
-        database = any("/migrations/" in f or "/models/" in f or f.endswith("schema.sql") for f in files)
+        database = any("/migrations/" in f or "/models/" in f or f.endswith("schema.sql") for f in all_files)
         database = database or bool(re.search(r"\b(?:ALTER|CREATE|DROP)\s+(?:TABLE|INDEX|SCHEMA)\b", diff))
-        code_changed = any(Path(f).suffix in (".py", ".js", ".html", ".sh", ".toml", ".yml") for f in files)
+        code_changed = any(Path(f).suffix in (".py", ".js", ".html", ".sh", ".toml", ".yml") for f in all_files)
         security = bool((code_changed and SENSITIVE.search(message + "\n" + diff)) or
-                        any(f.startswith(SECURITY_PATHS) for f in files))
+                        any(f.startswith(SECURITY_PATHS) for f in all_files))
         purpose = message.splitlines()[0]
         doc["changes"].append({"master": sha, "parent": parent, "purpose": purpose, "files": files,
                                "database": database, "security": security, "urgent": security,
+                               "outside_own_code": [f for f in all_files if f not in files],
                                "depends_on": re.findall(r"^Depends-on:\s*([0-9a-f]{7,40})", message, re.M),
                                "status": "waiting", "reason": "Waiting for its turn."})
     doc["seen"] = end
@@ -148,7 +175,7 @@ def _rule() -> str:
     if who is None:
         raise u.Refused("The adapting job has no owner whose agent rule it can read.")
     for row in agent_instructions.agent_rules(str(who.org_id)):
-        if row.get("title") == "Adapting a released master change":
+        if (row.get("upstream") or {}).get("key") == "adapt-master-change" or row.get("title") == "Adapting a released master change":
             return str(row["text"])
     # Import the shared default through the same Rules machinery, never a private code prompt.
     from . import ruledefaults
@@ -157,7 +184,7 @@ def _rule() -> str:
         defaults = ruledefaults.fallback()
         ruledefaults.take(ds, {**defaults, "rules": [r for r in defaults["rules"] if r["key"] == "adapt-master-change"]})
         for row in agent_instructions.agent_rules(str(who.org_id)):
-            if row.get("title") == "Adapting a released master change":
+            if (row.get("upstream") or {}).get("key") == "adapt-master-change" or row.get("title") == "Adapting a released master change":
                 return str(row["text"])
     raise u.Refused("The adapting job's agent rule is missing or switched off.")
 
@@ -177,6 +204,7 @@ def brief(row: dict, work: Path) -> dict:
     from .genes import owners
 
     relevant_genes = {g for f in row["files"] for g in owners.owners_of(f)}
+    core = guardface.ask("status")
     return {"change": row, "commit_message": _git("show", "-s", "--format=%B", row["master"]),
             "master_diff": _git("diff", "--no-ext-diff", row["parent"], row["master"]),
             "master_tests": {f: u._git("show", row["master"] + ":" + f, cwd=master).stdout for f in tests},
@@ -187,6 +215,7 @@ def brief(row: dict, work: Path) -> dict:
             "local_changes": _git("log", "-40", "--format=%B", cwd=work),
             "genes": {p.name: p.read_text() for p in (work / "rouh/genes/manifests").glob("*.json") if p.stem in relevant_genes},
             "all_gene_names": [p.stem for p in (work / "rouh/genes/manifests").glob("*.json")],
+            "protected_core": {k: core.get(k) for k in ("version", "features")},
             "local_schema": guardface.ask("database_inventory").get("schema", []) if row["database"] else [],
             "local_migrations": {p.name: p.read_text() for p in (work / "rouh/migrations").glob("*.py")
                                  if row["database"] and u._git("cat-file", "-e", row["parent"] + ":rouh/migrations/" + p.name,
@@ -319,6 +348,7 @@ def finish(pending: dict, point: dict) -> None:
 
 def advance(rel: dict, by: str, work: Path) -> None:
     """Walk in order, one protected undo point a change. Resume remaining work after each restart."""
+    reconcile_ledger()
     b = u.base()
     doc = scan(rel, b)
     from . import guardface
@@ -353,7 +383,7 @@ def advance(rel: dict, by: str, work: Path) -> None:
             try:
                 if copied and not sensitive:
                     _copy(row, work)
-                    plan = {}
+                    plan = {} if row["files"] else {"reason": "Release tooling only; those files are not installed in this Rouh's own code."}
                 else:
                     model_pick()
                     plan = adapt(row, work, feedback)
