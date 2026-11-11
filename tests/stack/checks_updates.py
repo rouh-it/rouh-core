@@ -364,7 +364,8 @@ def updates_sensitive(s: Stack) -> None:
     r3 = _release(s, 3, "printf \"GREETING='master greeting'\\ndef allowed(name): return name == 'owner'\\n\" > rouh/stack_access.py")
     migration = ("from django.db import migrations\nclass Migration(migrations.Migration):\n"
                  " dependencies=[('rouh','0248_user_land_id')]\n"
-                 " operations=[migrations.RunSQL('ALTER TABLE update_memory ADD COLUMN source text',"
+                 " operations=[migrations.RunSQL('CREATE TABLE IF NOT EXISTS update_memory "
+                 "(id integer PRIMARY KEY, body text); ALTER TABLE update_memory ADD COLUMN source text',"
                  "'ALTER TABLE update_memory DROP COLUMN source')]\n")
     r4 = _release(s, 4, "printf %s " + shlex.quote(migration) + " > rouh/migrations/9001_master_update.py")
     r5 = _release(s, 5, "printf 'Master improved naming again.\\n' >> README.md")

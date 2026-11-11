@@ -849,10 +849,14 @@ def shared_guests(s: Stack) -> None:
         expect(sam and "opened" in sam[0], f"the person shared with is not listed: {json.dumps(people)[:300]}")
         code, body, _ = s.get("/shared")
         expect(code == 200, f"/shared answered {code}")
-        code, _, heads = s.get("/shared/" + sam[0]["token"], cookie=False, follow=False)
+        shared_link = "/shared/" + sam[0]["token"]
+        code, _, _ = s.get(shared_link, cookie=False, follow=False)
+        expect(code == 401, f"a signed-out script was not refused: {code}")
+        navigation = {"Accept": "text/html", "Sec-Fetch-Mode": "navigate"}
+        code, _, heads = s.get(shared_link, cookie=False, follow=False, headers=navigation)
         expect(code == 303 and heads.get("Location", "").startswith("/shared/in?"),
                f"opened signed out, it did not go to rouh.land's sign-in: {code} {heads.get('Location')}")
-        code, _, heads = s.get(heads["Location"], cookie=False, follow=False)
+        code, _, heads = s.get(heads["Location"], cookie=False, follow=False, headers=navigation)
         expect(code == 303 and heads.get("Location", "").startswith(f"https://{STACK_RELAY}/shared/in?"),
                f"it did not go on to the relay address: {code} {heads.get('Location')}")
         post(s, "/api/share/uninvite", {"rel": doc, "token": sam[0].get("token")})

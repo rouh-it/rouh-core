@@ -152,7 +152,7 @@ def run(tree: Path, proof: Path, plan: dict, state: Path, commit: str, *, before
         record.update(rehearsal=True, counts=counts)
         _write(keep / "outcome.json", record)
         # The same protected helper holds all the table locks and migrates in one transaction.
-        # Its preservation checks precede COMMIT. An exception leaves the live database untouched.
+        # Its preservation checks precede COMMIT. Failure inside that transaction rolls it back.
         record.update(application_started=True, applied=None)
         _write(keep / "outcome.json", record)
         r = _real(helper, tree, data, db, planfile, keep / "immediately-before.dump")

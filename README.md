@@ -1598,6 +1598,7 @@ The protected core's gate (`guard/rouh_guard/database_update.py`) makes a fresh 
 The job's change proof and this Rouh's own self-checks run on that copy before anything is applied for real.
 For the real migration, the core holds writer locks while taking another full backup of that exact snapshot, runs migrations and preservation checks in one transaction, then reads back the result after commit.
 A failed rehearsal never changes the real database; a failed transaction rolls back.
+If final verification is interrupted after application may have started, the protected record marks the outcome as needing checking, never as a known rollback.
 Backups, table counts, preservation results, the job's reverse or restore procedure and the outcome are kept in the protected core's `database-updates/` folder, outside the Rouh's own code.
 An operation that is not atomic must be replanned as expand and contract, preserving the old representation until it can safely be retired.
 The stack gives only the protected core a migration connection to the live database; ordinary checks and the worker never receive it.
