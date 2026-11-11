@@ -80,7 +80,15 @@ def endpoint(*methods: str):
                 return _answer({"problem": "This Rouh has no setup code, so it has no setup API."}, 404)
             if relay.enabled() and await asyncio.to_thread(relay.through, request):
                 return _answer({"problem": "Not here."}, 404)
+            from . import gate
+
+            if gate.through_edge(request):
+                return _answer({"problem": "Not here."}, 404)
             if not await asyncio.to_thread(firstrun._right, _bearer(request)):
+                if await asyncio.to_thread(firstrun.code_expired):
+                    return _answer({"problem": "The setup code has expired: it lasts "
+                                               f"{firstrun.code_hours():g} hours while Rouh has no owner. "
+                                               "Run rouh setup for a new one.", "expired": True}, 401)
                 log.warning("setup api: a call without the right setup code from %s", client_ip(request))
                 return _answer({"problem": "The setup code is not right. Read it again from the core."}, 401)
             return await view(request, *args, **kwargs)
@@ -174,12 +182,28 @@ async def _plan_card() -> dict:
             "how": claude_signin.how_signed_in(card) if card.get("signed_in") else ""}
 
 
+async def _codex_card() -> dict:
+    """Codex's sign-in, as the plan step needs it: a ChatGPT plan counts as the subscription, an
+    OpenAI key that Codex runs on does not (that is the "Go on without a plan" path). Never raises."""
+    from . import codex_signin
+
+    s = await codex_signin.status()
+    card = codex_signin.public(s)
+    card["on_plan"] = card["state"] == "signed_in" and card.get("method") != "api_key"
+    if card.get("address"):
+        card["qr"] = qr_rows(card["address"])
+    return card
+
+
 async def _full_state(request: HttpRequest | None = None, *, plan: bool = True) -> dict:
     doc = await asyncio.to_thread(state)
     if plan and doc.get("owner") and doc["step"] in ("plan", "ready", "done"):
         card = await _plan_card()
+        if card.get("address"):
+            card["qr"] = qr_rows(card["address"])
         doc["plan"] = card
-        if doc["step"] == "plan" and card["on_plan"]:
+        doc["codex"] = await _codex_card()
+        if doc["step"] == "plan" and (card["on_plan"] or doc["codex"]["on_plan"]):
             doc["step"] = "ready"
     if doc.get("step") == "ready" and doc.get("done"):
         doc["step"] = "done"
@@ -194,9 +218,26 @@ async def get_state(request: HttpRequest) -> JsonResponse:
 # --- you: the owner, and Connected or Independent -------------------------------------------------
 
 
-def _make_owner(said: dict) -> tuple[object | None, dict]:
-    """The owner from the app's screen: names and email, no password (the app signs them in on this
-    Mac with the setup code; a Connected Rouh sends sign-in letters through rouh.land)."""
+def _password_problem(password: str, said: dict) -> str:
+    """Django's own rules for a password, the same ones the web's form holds (`password_rules`)."""
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+
+    from rouh.models import User
+
+    try:
+        validate_password(password, User(username=said.get("email", ""), email=said.get("email", ""),
+                                          first_name=said.get("first_name", ""), last_name=said.get("last_name", "")))
+    except ValidationError as exc:
+        return " ".join(exc.messages)
+    return ""
+
+
+def _make_owner(said: dict, password: str = "") -> tuple[object | None, dict]:
+    """The owner from the app's screen: names and email. With no password the app signs them in on
+    this Mac with the setup code and a Connected Rouh sends sign-in letters through rouh.land; a
+    server's terminal wizard (``rouh setup``, task 176, step 176-24) gives the owner's own password,
+    held to the same rules as the web's form, as the way in from any browser."""
     from django.core.exceptions import ValidationError
     from django.core.management import call_command
     from django.core.management.base import CommandError
@@ -216,6 +257,10 @@ def _make_owner(said: dict) -> tuple[object | None, dict]:
             validate_email(said["email"])
         except ValidationError:
             problems["email"] = "That doesn't look like an email address. Check it for a typing mistake."
+    if password and not problems:
+        bad = _password_problem(password, said)
+        if bad:
+            problems["password"] = bad
     if problems:
         return None, problems
     email = said["email"].lower()
@@ -227,8 +272,11 @@ def _make_owner(said: dict) -> tuple[object | None, dict]:
     except CommandError as exc:
         return None, {"email": str(exc)}
     user = accounts.get_user(email)
+    if password:
+        user.set_password(password)
+        user.save(update_fields=["password"])
     signin.set_primary(user, email, source="setup")
-    firstrun._save(user, made_at=time.time(), zone=zone.key if zone else "", made_by="mac")
+    firstrun._save(user, made_at=time.time(), zone=zone.key if zone else "", made_by=said.get("by") or "mac")
     return user, {}
 
 
@@ -241,7 +289,10 @@ async def you(request: HttpRequest) -> JsonResponse:
     if await asyncio.to_thread(firstrun.has_owner):
         return _problem("This Rouh already has its owner.", 409, state=await _full_state(request))
     said = {k: " ".join(str(body.get(k) or "").split()) for k in ("first_name", "last_name", "email", "zone")}
-    user, problems = await asyncio.to_thread(_make_owner, said)
+    said["by"] = "terminal" if body.get("by") == "terminal" else "mac"
+    password = body.get("password")
+    password = password if isinstance(password, str) else ""
+    user, problems = await asyncio.to_thread(_make_owner, said, password)
     if user is None:
         return _problem(next(iter(problems.values())), 400, problems=problems)
     from rouh import runtime
@@ -249,7 +300,8 @@ async def you(request: HttpRequest) -> JsonResponse:
     runtime.own_work_now()
     # Connected: rouh.land emails the code now. Independent: nothing leaves this computer.
     await asyncio.to_thread(firstrun._choose, user, KINDS[kind])
-    log.info("setup api: the owner %s was made from Rouh for Mac (%s)", user.username, kind)
+    log.info("setup api: the owner %s was made from %s (%s)", user.username,
+             "the terminal" if said["by"] == "terminal" else "Rouh for Mac", kind)
     return _answer(await _full_state(request))
 
 
@@ -460,21 +512,110 @@ async def address_email(request: HttpRequest) -> JsonResponse:
 
 @endpoint("POST")
 async def open_rouh(request: HttpRequest) -> JsonResponse:
-    """Where Open Rouh goes, signed in: the rouh.page address with a one-time sign-in when the relay
-    has it reachable, else this computer's own address with the setup code (``where: local``). The
-    app tries the first and falls back to the second when the Mac cannot reach it."""
+    """Where Open Rouh goes, signed in: the owner's own domain when ``rouh domain`` turned one on
+    (task 176, step 176-24), else the rouh.page address with a one-time sign-in when the relay has
+    it reachable, else this computer's own address with the setup code (``where: local``). The app
+    tries the first and falls back to the second when the Mac cannot reach it. ``qr`` is the link as
+    rows for a terminal to draw."""
     from rouh import relay
+
+    from . import gate
 
     user = await asyncio.to_thread(firstrun.the_owner)
     out: dict = {"where": "local"}
-    if user is not None and relay.enabled():
+    own = gate.edge_domain()
+    if user is not None and own:
+        link = await asyncio.to_thread(relay.signin_link, user, "open", f"https://{own}")
+        out = {"where": "domain", "url": link["link"], "address": f"https://{own}", "seconds": link["seconds"]}
+    elif user is not None and relay.enabled():
         part = await asyncio.to_thread(_relay_part)
         if part.get("reachable") and await asyncio.to_thread(lambda: bool(firstrun.record(user).get("connected"))):
             try:
                 link = await asyncio.to_thread(relay.signin_link, user, "open")
-                out = {"where": "relay", "url": link["link"], "address": part.get("address", "")}
+                out = {"where": "relay", "url": link["link"], "address": part.get("address", ""),
+                       "seconds": link["seconds"]}
             except relay.Refused:
                 pass
     code = await asyncio.to_thread(firstrun._code)
     out["local"] = f"/setup?code={code}" if code else "/"
+    if out.get("url"):
+        out["qr"] = qr_rows(out["url"])
     return _answer(out)
+
+
+# --- for the terminal: password rules, a QR code as rows, Codex's device code --------------------
+#
+# Task 176, step 176-24: ``rouh setup`` on a Linux server is the same first run as Rouh for Mac's,
+# drawn in a terminal. These three are what a terminal needs that the Mac draws itself.
+
+
+def qr_rows(text: str) -> list[str]:
+    """A QR code of ``text`` as rows of "1" (dark) and "0" (light), quiet zone included, for a
+    terminal to draw with half blocks. Made here with segno, which the core has and a server may not."""
+    if not text:
+        return []
+    import segno
+
+    q = segno.make(text, error="l")
+    return ["".join("1" if cell else "0" for cell in row) for row in q.matrix_iter(scale=1, border=2)]
+
+
+@endpoint("GET", "POST")
+async def password(request: HttpRequest) -> JsonResponse:
+    """GET: the rules a password is held to, to show before anything is typed. POST ``{password,
+    first_name, last_name, email}``: each rule met or not, and the server's own verdict."""
+    from rouh import password_rules
+
+    rules = [{"kind": r["kind"], "text": r["text"]} for r in password_rules.rules(username_is_email=True)
+             if r["kind"] != "same"]
+    if request.method == "GET":
+        return _answer({"rules": rules, "min": password_rules.min_length()})
+    body = _body(request)
+    pw = body.get("password") if isinstance(body.get("password"), str) else ""
+    said = {k: " ".join(str(body.get(k) or "").split()) for k in ("first_name", "last_name", "email")}
+
+    def judge() -> dict:
+        from django.contrib.auth.password_validation import get_default_password_validators
+        from django.core.exceptions import ValidationError
+
+        from rouh.models import User
+
+        person = User(username=said["email"], email=said["email"], first_name=said["first_name"],
+                      last_name=said["last_name"])
+        met = []
+        for v, r in zip(get_default_password_validators(), rules):
+            try:
+                v.validate(pw, person)
+                met.append({**r, "met": True})
+            except ValidationError:
+                met.append({**r, "met": False})
+        return {"rules": met, "problem": _password_problem(pw, said)}
+
+    return _answer(await asyncio.to_thread(judge))
+
+
+@endpoint("GET", "POST")
+async def codex(request: HttpRequest) -> JsonResponse:
+    """Codex on a ChatGPT plan, by its device code (``codex login --device-auth`` in the worker,
+    `one/codex_signin.py`): ``start`` gives the address and the one-time code, which the owner
+    approves on any device; GET follows it; ``cancel`` stops waiting. The code must first be allowed
+    in ChatGPT's own security settings, which the address's page says."""
+    from rouh.one_client import OneRefused, OneUnavailable
+
+    from . import codex_signin
+
+    if await asyncio.to_thread(firstrun.the_owner) is None:
+        return _problem("Make the owner first.", 409)
+    if request.method == "POST":
+        do = _body(request).get("do")
+        if do not in ("start", "cancel", "test"):
+            return _problem("Choose start, cancel or test.")
+        try:
+            await codex_signin._ask(do, timeout=60)
+        except OneUnavailable:
+            return _problem("Rouh's worker is not answering yet. Wait a minute, then try again.", 503)
+        except OneRefused as exc:
+            why = str(exc).rstrip(".")
+            return _problem(why[:1].upper() + why[1:] + ".", 400)
+        log.info("setup api: Codex sign-in %s", do)
+    return _answer(await _codex_card())

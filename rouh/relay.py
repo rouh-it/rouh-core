@@ -1168,14 +1168,15 @@ def status() -> dict:
 _CODES: dict[str, tuple[str, float, str]] = {}
 
 
-def signin_link(user, purpose: str = "phone") -> dict:
+def signin_link(user, purpose: str = "phone", base: str = "") -> dict:
     """A one-time sign-in link to the phone address, for the owner signed in on the computer:
     shown as a QR code, good once, for ten minutes; a new one ends the one before of the same
     purpose ("phone" for the QR code, "open" for Rouh for Mac's Open Rouh, step 140-13). It goes to
-    the chosen address once its certificate covers it, else the born one."""
+    the chosen address once its certificate covers it, else the born one; or to ``base``, the
+    owner's own domain on a Linux server (``rouh domain``, task 176, step 176-24)."""
     from . import birth
 
-    url = preferred_address()
+    url = base.rstrip("/") or preferred_address()
     if not url:
         raise Refused("This Rouh has no address yet.")
     code = secrets.token_urlsafe(24)

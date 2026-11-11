@@ -15,6 +15,7 @@ it answers everybody else, are unchanged.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from urllib.parse import quote
@@ -148,10 +149,31 @@ def _plain_through_relay(request: HttpRequest) -> str:
     return base + request.get_full_path() if base else ""
 
 
+#: The header the stack's ``edge`` part (Caddy, for the owner's own domain: ``rouh domain``, task
+#: 176, step 176-24) sets on everything it passes on. A visitor who sends it too only makes the
+#: request be treated as from outside, which is the stricter way.
+EDGE_HEADER = "x-rouh-edge"
+
+
+def edge_domain() -> str:
+    """The owner's own domain, when ``rouh domain`` turned one on for this server; else ""."""
+    import os
+
+    return os.environ.get("ROUH_DOMAIN", "").strip().lower().rstrip(".")
+
+
+def through_edge(request: HttpRequest) -> bool:
+    """Whether this request came from the internet through the edge part: its mark, or the domain."""
+    if EDGE_HEADER in request.headers:
+        return True
+    own = edge_domain()
+    return bool(own) and (request.headers.get("host") or "").split(":")[0].strip().lower() == own
+
+
 def _local_only_from_outside(request: HttpRequest) -> bool:
     from rouh import relay
 
-    return relay.local_only(request.path) and relay.through(request)
+    return relay.local_only(request.path) and (relay.through(request) or through_edge(request))
 
 
 def a_guest_may(path: str) -> bool:
@@ -269,6 +291,15 @@ class SignInRequired:
         if _local_only_from_outside(request):
             log.warning("%s %s through the relay, refused: it is for this computer only", request.method, request.path)
             return HttpResponse("Not found", status=404, content_type="text/plain")
+        if through_edge(request) and not request.path.startswith("/.well-known/acme-challenge/") \
+                and request.path != "/healthz":
+            from . import firstrun
+
+            # Nothing of a Rouh is reachable from the internet before it has its owner: the owner is
+            # made on the server itself, in the terminal (rouh setup), never through this door.
+            if not await asyncio.to_thread(firstrun.has_owner):
+                return HttpResponse("This Rouh is not set up yet. Its owner sets it up on the server, with: rouh setup",
+                                    status=503, content_type="text/plain")
         if open_to_everyone(request.path):
             return await self.get_response(request)
         if request.path in TOKEN_PATHS and (request.headers.get("authorization") or "") \

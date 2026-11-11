@@ -166,6 +166,8 @@ urlpatterns = [
     path("setup/api/name", setup_api.name),
     path("setup/api/address/email", setup_api.address_email),
     path("setup/api/open", setup_api.open_rouh),
+    path("setup/api/password", setup_api.password),
+    path("setup/api/codex", setup_api.codex),
     # Then Claude Code's sign-in, in the containers only (`rouh/web/claude_signin.py`).
     # The phone address: its HTTP-01 check and the QR code's sign-in (`rouh/web/relay.py`).
     path(".well-known/acme-challenge/<str:token>", relay_web.challenge),

@@ -91,7 +91,7 @@ from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.core.validators import validate_email
-from django.http import Http404, HttpRequest, HttpResponse, HttpResponseRedirect, JsonResponse
+from django.http import Http404, HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
 
 from . import claude_signin
@@ -179,9 +179,47 @@ def new_code() -> str:
     return code
 
 
+#: How long a setup code lasts while the Rouh has no owner (task 176, step 176-24): set by the Linux
+#: installer to 24 hours, after Portainer's time window on the first claim, so a code that leaked
+#: (an old terminal's scrollback, a log) is dead by the next day. ``rouh setup`` writes a new one.
+#: Unset or 0, a code lasts until it is used, as Rouh for Mac has always had it.
+CODE_HOURS_SETTING = "ROUH_SETUP_CODE_HOURS"
+
+
+def code_hours() -> float:
+    try:
+        return max(0.0, float(os.environ.get(CODE_HOURS_SETTING, "").strip() or 0))
+    except ValueError:
+        return 0.0
+
+
+def code_age() -> float | None:
+    """Seconds since the code was written, None when there is none."""
+    path = code_file()
+    try:
+        return max(0.0, time.time() - os.stat(path).st_mtime) if path else None
+    except OSError:
+        return None
+
+
+def code_expired() -> bool:
+    """A code older than its hours, while no owner exists yet. Once there is an owner the code is
+    how the owner signs in again from this machine, and a fresh one is written at every use."""
+    hours = code_hours()
+    age = code_age()
+    if not hours or age is None or age <= hours * 3600:
+        return False
+    return not has_owner()
+
+
 def _right(code: str) -> bool:
     expected = _code()
-    return bool(expected and code) and hmac.compare_digest(code.encode(), expected.encode())
+    if not (expected and code) or not hmac.compare_digest(code.encode(), expected.encode()):
+        return False
+    if code_expired():
+        log.warning("first run: a setup code older than %s hours was refused", code_hours())
+        return False
+    return True
 
 
 def _kept(request: HttpRequest) -> str:
