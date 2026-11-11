@@ -818,11 +818,18 @@ ON_ITS_OWN = ("from rouh.models import RouhBirth\nfrom rouh import relay\n"
 def connected(s: Stack, fn) -> None:
     """Run `fn` with this Rouh registered on rouh.land and given a relay address, and take both
     away after, so no other check sees a Rouh it is not."""
-    expect("connected" in core_py(s, CONNECT), "the stand-in registration could not be made")
+    def fixture(code):
+        # relay's private state is 0600. Docker exec defaults to root; a root-written
+        # fixture cannot be read by the real app, which runs as rouh (10001).
+        r = s.py("core", "from rouh.project import setup\nsetup()\n" + code, user="10001:10001")
+        expect(r.returncode == 0, "the sharing fixture could not be set: " + (r.stderr or r.stdout)[-600:])
+        return r.stdout
+
+    expect("connected" in fixture(CONNECT), "the stand-in registration could not be made")
     try:
         fn()
     finally:
-        core_py(s, ON_ITS_OWN)
+        fixture(ON_ITS_OWN)
 
 
 @check("page.shared-guests")

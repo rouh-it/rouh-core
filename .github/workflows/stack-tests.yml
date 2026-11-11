@@ -102,6 +102,8 @@ jobs:
           setup_step python3 -m pip install --quiet --break-system-packages -r tests/stack/requirements.txt
           setup_step python3 -m playwright install chromium
           setup_step python3 -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); b=p.chromium.launch(headless=True); b.close(); p.stop()'
+          setup_step npm install --prefix "$RUNNER_TEMP/update-browser" @playwright/mcp@0.0.83
+          echo "STACK_PLAYWRIGHT_MCP=$RUNNER_TEMP/update-browser/node_modules/.bin/playwright-mcp" >> "$GITHUB_ENV"
 
       - name: Build, start and check the stack
         env:

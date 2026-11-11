@@ -1,4 +1,4 @@
-"""CONTAINERS.md: Rouh's updates (rouh/code_update.py, task 140, step 140-18).
+"""CONTAINERS.md: Rouh's updates (task 140, steps 140-18 and 140-19).
 
 The stack's Rouh is made an older one: its code says it came from a release (.git/rouh-installed.json,
 as a first start writes it), it gets two genes of its own - one the release does not touch, one that
@@ -7,14 +7,16 @@ the stand-ins, `ROUH_CODE_RELEASE_URL` and `ROUH_CODE_TARBALL` in settings.env) 
 built from that same code, as GitHub's tarball of a commit is (`git archive`, which names its commit).
 
     updates.press   Update to the newest Rouh, pressed on Meta, Changes: the release's files come in,
-                    the gene is kept, the clashing gene's file stays as it was and is named, the
+                    the gene is kept, the clashing purpose is adapted to its local title, the
                     protected core makes it an undo point, Rouh starts again, and General says so
     updates.ride    Ride along, for a Connected Rouh: a second release is taken by itself at a quiet
                     moment, with no press
 """
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 import shlex
 import time
 
@@ -24,6 +26,71 @@ from smoke import Failed, Stack, check, expect
 CODE = "git -c safe.directory='*' -C /code"
 SERVE = "/tmp/release"
 _DONE: dict = {}
+
+
+def _browser(s: Stack, phase: str, expected: list[str] | None = None) -> None:
+    """The update button and its visible result, in Chromium driven over Playwright MCP.
+
+    Sign in through the real form, never by a cookie or a function inside the page. The
+    transcript and screenshot are kept with the container proof on both platforms.
+    """
+    from pathlib import Path
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        executable = p.chromium.executable_path
+
+    transcript = []
+    async def drive():
+        params = StdioServerParameters(command=os.environ.get("STACK_PLAYWRIGHT_MCP", "playwright-mcp"),
+                                       args=["--headless", "--isolated", "--browser=chromium", "--executable-path=" + executable])
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+
+                async def call(name, **args):
+                    result = await session.call_tool(name, args)
+                    text = "\n".join(c.text for c in result.content if getattr(c, "type", "") == "text")
+                    transcript.append(name + "\n" + text)
+                    expect(not result.is_error and "### Error" not in text, "Playwright MCP: " + text[-1200:])
+                    return text
+
+                await call("browser_navigate", url=s.url + "/login")
+                await call("browser_type", target="#email", text="alex@example.com")
+                await call("browser_click", target="#continueBtn")
+                page = await call("browser_snapshot")
+                email_link = "Check your email" in page
+                if email_link:
+                    await call("browser_click", target="text=Can't get the email?")
+                await call("browser_type", target="#password", text=smoke.STACK_PASSWORD)
+                await call("browser_click", target="button:text-is('Sign in with password')" if email_link
+                           else "button:text-is('Sign in')")
+                await call("browser_navigate", url=s.url + "/anatomy/meta/changes")
+                await call("browser_wait_for", text="How new releases come")
+                if phase == "press":
+                    await call("browser_click", target="button:text-is('Update to the newest Rouh')")
+                else:
+                    await call("browser_click", target="summary:text-is('Every change since this Rouh was installed')")
+                    record = await call("browser_snapshot", target="#changesBody")
+                    for words in expected or []:
+                        expect(words in record, "the visible update record did not show " + words)
+                    await call("browser_take_screenshot", filename=str(s.out.resolve() / ("updates-" + phase + ".png")), scale="css")
+                    await call("browser_navigate", url=s.url + "/?chat=conversation")
+                    await call("browser_wait_for", time=3)
+                    general = await call("browser_snapshot")
+                    result_words = "needs a frontier model" if phase == "frontier-wait" else "Adapted for this Rouh:"
+                    expect("Rouh's update:" in general and result_words in general,
+                           "General did not visibly explain the update's result")
+    try:
+        asyncio.run(drive())
+    except BaseException as exc:
+        def reason(e):
+            return "; ".join(reason(c) for c in e.exceptions) if isinstance(e, BaseExceptionGroup) else str(e)
+        raise Failed("Playwright MCP: " + reason(exc)[-1200:]) from None
+    finally:
+        Path(s.out / ("updates-" + phase + "-mcp.txt")).write_text("\n\n".join(transcript))
 
 
 def _release(s: Stack, n: int, script: str) -> str:
@@ -187,8 +254,7 @@ def _press(s: Stack) -> None:
     expect(not seen.get("up_to_date") and "Stack release 1" in (seen.get("whats_new") or []),
            f"it does not say what is new: {seen.get('whats_new')}")
     expect(not seen.get("why_not"), f"it says it cannot update: {seen.get('why_not')}")
-    started = _post_again(s, "/api/settings/updates/now", {})
-    expect(started.get("ok"), f"Update to the newest Rouh: {started}")
+    _browser(s, "press")
     after = _until_updated(s, r1, 1800, "the pressed update")
     time.sleep(20)
     _healthy(s)
@@ -202,6 +268,7 @@ def _press(s: Stack) -> None:
     expect((ledger.get("counts") or {}).get("adapted") == 1, f"the adapted change is not in the ledger: {ledger}")
     said = _general_says(s, "Rouh's update:")
     expect("1 adapted" in said and "0 waiting" in said, f"General does not report the adaptation: {said}")
+    _browser(s, "copied-and-adapted", ["Copied exactly", "Adapted for this Rouh", "Stack release 1"])
     points = s.manage("from rouh import guardface\nprint(guardface.ask('status')['code']['point'])")
     expect("Rouh's update" in points, f"the update is not the undo point that runs: {points[-400:]}")
 
@@ -222,6 +289,10 @@ def updates_press(s: Stack) -> None:
 
 @check("updates.ride")
 def updates_ride(s: Stack) -> None:
+    if "ride" in _DONE:
+        if _DONE["ride"]:
+            raise Failed(_DONE["ride"])
+        return
     updates_press(s)
     # Ride along is for a Connected Rouh: the stack's first run chose On its own, which asks nobody.
     s.manage("""
@@ -238,6 +309,10 @@ firstrun._save(relay.owner(), connected=True)
         files = s.run("core", "cat /code/docs/stack-release-2.md; head -1 /code/README.md").stdout
         expect("New in release 2" in files and "this Rouh own words" in files, f"after the ride along: {files}")
         _general_says(s, "copied exactly")
+        _DONE["ride"] = ""
+    except Exception as exc:
+        _DONE["ride"] = str(exc)[:900]
+        raise
     finally:
         s.manage("""
 from rouh import relay
@@ -303,6 +378,7 @@ def updates_sensitive(s: Stack) -> None:
     waiting = [r for r in result["ledger"]["changes"] if r["master"] in (r3, r4, r5)]
     expect(len(waiting) == 3 and all(r["status"] == "waiting" and "frontier model" in r["reason"] for r in waiting),
            f"weaker model was not refused for the sensitive jobs: {waiting}")
+    _browser(s, "frontier-wait", ["Not taken yet", "needs a frontier model", "Urgent security update"])
     s.manage("from rouh import modeldefaults,relay\no=relay.owner().org_id\n"
              "modeldefaults.put(o,'code_adapt',tier='smart',by='stack')")
     _post_again(s, "/api/settings/updates/now", {})
@@ -317,6 +393,7 @@ def updates_sensitive(s: Stack) -> None:
                   "print(json.dumps([r for r in rows if r.get('applied')]))").stdout
     expect('"rehearsal": true' in records and '"preserved": true' in records and '"before": 2' in records,
            f"no protected backup, rehearsal or counts: {records[-1000:]}")
+    _browser(s, "security-and-database", ["Adapted for this Rouh", "Stack release 3", "Stack release 4"])
 
 
 smoke.FINAL.update({"updates.press", "updates.ride", "updates.security-database-frontier"})
