@@ -153,9 +153,12 @@ def run(tree: Path, proof: Path, plan: dict, state: Path, commit: str, *, before
         _write(keep / "outcome.json", record)
         # The same protected helper holds all the table locks and migrates in one transaction.
         # Its preservation checks precede COMMIT. An exception leaves the live database untouched.
+        record.update(application_started=True, applied=None)
+        _write(keep / "outcome.json", record)
         r = _real(helper, tree, data, db, planfile, keep / "immediately-before.dump")
         if r.returncode:
-            raise ValueError("the real migration rolled back: " + (r.stdout + r.stderr)[-1400:])
+            raise ValueError("the real migration did not finish its verification; its application outcome needs checking "
+                             "against the protected backup and restore path: " + (r.stdout + r.stderr)[-1400:])
         record.update(applied=True, after=json.loads((data / "counts.json").read_text()))
         _write(keep / "outcome.json", record)
     except Exception as exc:
@@ -229,8 +232,6 @@ def migrate(planfile: Path, phase: str) -> None:
                     time.sleep(.2)
         before = {}
         for table in names:
-            if table == "django_migrations":
-                continue  # Its new rows are expected and never memory.
             cols = columns(table)
             before[table] = (cols, rows(table, cols))
         executor = MigrationExecutor(connection)
@@ -253,6 +254,15 @@ def migrate(planfile: Path, phase: str) -> None:
                 raise ValueError(f"{old}: the migration lost or changed existing memory")
             result["tables"][old] = {"destination": new, "before": sum(old_rows.values()),
                                     "after": sum(new_rows.values()), "preserved": True}
+        destinations = {r["destination"] for r in result["tables"].values()}
+        for new in after_tables:
+            if new in destinations:
+                continue
+            with connection.cursor() as c:
+                c.execute("SELECT count(*) FROM " + relation(new))
+                count = c.fetchone()[0]
+            result["tables"][new] = {"destination": new, "before": 0, "after": count,
+                                     "preserved": True, "new": True}
         call_command("check", verbosity=0)
     # Read the result back after COMMIT as well, before reporting it applied.
     for old, (cols, old_rows) in before.items():
