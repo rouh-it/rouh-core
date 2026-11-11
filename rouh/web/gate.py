@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from asgiref.sync import iscoroutinefunction, markcoroutinefunction, sync_to_async
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
@@ -107,7 +107,7 @@ log = logging.getLogger("rouh.gate")
 #: summary (`rouh/web/taskapi.py`). A request there with no live key is refused by the view.
 TOKEN_PATHS = frozenset({"/api/task"})
 
-OPEN_PATHS = frozenset({"/login", "/setup", "/setup/connect", "/setup/you", "/phone/in", "/login/forgot",
+OPEN_PATHS = frozenset({"/shared/in", "/shared/in/back", "/login", "/setup", "/setup/connect", "/setup/you", "/phone/in", "/login/forgot",
                         "/login/help", "/login/passkey/options", "/login/passkey/verify", "/logout", "/healthz",
                         "/favicon.ico", "/auth/google/callback", "/login/common-passwords",
                         "/api/hooks/meeting-library",
@@ -243,6 +243,19 @@ def sign_in_first(request: HttpRequest) -> HttpResponse:
         "/login" + (f"?next={quote(back, safe='/')}" if back != "/" else ""), status=303)
 
 
+async def shared_sign_in_first(request: HttpRequest) -> HttpResponse:
+    """What an unsigned-in caller gets back, where somebody a page or a task was shared with goes:
+    on a Connected Rouh rouh.land says who they are (`rouh/landshare.py`); on a Rouh On its own,
+    this Rouh's own sign-in, as before (`sign_in_first`)."""
+    from rouh import landshare
+
+    if (request.path == "/shared" or request.path.startswith("/shared/")) and not wants_json(request) \
+            and await asyncio.to_thread(landshare.ready):
+        return HttpResponseRedirect(
+            landshare.IN_PATH + "?" + urlencode({"next": request.get_full_path()}), status=303)
+    return sign_in_first(request)
+
+
 def guest_refused(request: HttpRequest) -> HttpResponse:
     """What a guest gets anywhere but the pages shared with them.
 
@@ -317,8 +330,17 @@ class SignInRequired:
         await sync_to_async(dbwork.release)()
         if not user.is_authenticated:
             log.info("%s %s without a sign-in", request.method, request.path)
-            return sign_in_first(request)
+            return await shared_sign_in_first(request)
         request.user = user
+        from rouh import landshare
+
+        if not landshare.may_stay(user, request.session):
+            # A guest who is rouh.land's comes in only through rouh.land (`rouh/landshare.py`): a
+            # sign-in from before, or by any road of this Rouh's own, is ended here.
+            from django.contrib.auth import alogout
+
+            await alogout(request)
+            return await shared_sign_in_first(request)
         self._renew(request)
         if getattr(user, "is_guest", False) and not a_guest_may(request.path):
             return guest_refused(request)

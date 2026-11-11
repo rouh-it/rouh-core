@@ -7178,8 +7178,9 @@ $('drawnClose').addEventListener('click', function () { drawnClose(); });
  *
  * What works, and what is drawn and dead. "Anyone with the link" works, and
  * since 24 September 2026 so does inviting a person by email: they get a
- * letter, make an account from it if they have none, and see the page with
- * Ask AI on it (`rouh/web/guests.py`). What each may do - read it, or change
+ * letter with the link, sign in with rouh.land as that address (since
+ * 11 November 2026, `rouh/landshare.py`; no account is made here), and see
+ * the page with Ask AI on it (`rouh/web/guests.py`). What each may do - read it, or change
  * it with Ask AI - is chosen per person, and for the link behind the
  * chevron. Sharing with a team and choosing a theme are still on the panel
  * and disabled: there are no teams, and Rouh is dark.
@@ -7880,9 +7881,10 @@ function sharePerson(p) {
   row.appendChild(el('span', 'share-ico share-avatar', String(p.email || '?').slice(0, 2)));
   var main = el('span', 'share-row-main');
   main.appendChild(el('span', 'share-row-title', p.email));
-  var how = p.joined ? 'Has an account' : 'Invited';
+  // Joined: they have signed in to open it (through rouh.land, or an account from before).
+  var how = p.joined ? 'Has signed in' : 'Invited';
   if (p.mail_error) how += ', and the email did not go';
-  else if (!p.mailed) how = (p.joined ? 'Has an account' : 'No account yet') + ', not emailed';
+  else if (!p.mailed) how = (p.joined ? 'Has signed in' : 'Not signed in yet') + ', not emailed';
   // Kept by a ticked project on their page in Trusted contacts (rouh/task_access.py).
   if (tick) how = 'from ' + (p.from || 'a ticked project') + ', in Trusted contacts';
   var sub = el('span', 'share-row-sub' + (p.mail_error ? ' bad' : ''), how);

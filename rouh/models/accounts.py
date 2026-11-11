@@ -98,6 +98,11 @@ class User(AbstractUser):
         default=False,
         help_text="Made from an invitation to a shared page: sees what was shared "
                   "with them and nothing else.")
+    #: The rouh.land account a guest is, by rouh.land's id for it (`rouh/landshare.py`, task 176,
+    #: step 176-26): set the first time rouh.land vouches for them, and from then on only
+    #: rouh.land signs them in here. Empty for everybody else, and for a guest from before
+    #: who has not come in through rouh.land yet.
+    land_id = models.CharField(max_length=64, blank=True, default="", db_default="")
 
     objects = RouhUserManager()
 

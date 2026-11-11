@@ -3328,7 +3328,8 @@ class ToolRegistry:
                 "check_task_sharing",
                 "Whether a task's pages are public right now, and the link of each one "
                 "that is, and who the task or its pages are shared with by email, each "
-                "with what they can do: view or edit. It reads; it changes nothing. Use "
+                "with what they can do: view or edit. People shared with by email sign in "
+                "with rouh.land as that address to open it. It reads; it changes nothing. Use "
                 "it for \"is that public\", \"who can see this page\", \"can my brother "
                 "edit it\", and before publish_task, because it also "
                 "says what publishing would put out and whether the task's notes or "
@@ -3365,8 +3366,12 @@ class ToolRegistry:
                 "This is how a task is shared to be edited: never make a copy of it "
                 "anywhere else, such as a Google Doc, unless the person asks for one. "
                 "The email always goes, from Rouh's own address and in the person's name, "
-                "and says what they can do: an invitation to make an account if they "
-                "have none, or a note with the link if they do. Sharing it again with "
+                "and says what they can do, with the link. They sign in with rouh.land as "
+                "that address (an email link, no password; signing up there in the same "
+                "step if they are new): no account is made on this Rouh, and only what was "
+                "shared with that address opens to them. Only a Connected Rouh can do this: "
+                "a Rouh On its own answers that it cannot share privately, and then the way "
+                "is a public link (publish_task). Sharing it again with "
                 "the same address changes what they may do and sends the email again. "
                 "It writes the one permission record every check reads (DELEGATION.md): "
                 "a share of a task reaches its subtasks and pages, a share of a quest its "
@@ -13914,8 +13919,8 @@ class ToolRegistry:
                     "somebody tells them.")
         return (f"Shared {what} with {email}, and an email with the link went to {email}"
                 + ("" if told.has_account else
-                   ", inviting them to make their account and open it, since they have "
-                   "none on Rouh yet")
+                   ": they open it by signing in with rouh.land as that address, and sign up "
+                   "there in the same step if they are new; no account is made on this Rouh")
                 + ". Say in your reply that the email went, and to whom. It may land in "
                 "their spam. Never read the link out.")
 
@@ -13952,7 +13957,7 @@ class ToolRegistry:
                 continue
             lines.append(f"{said}: shared with {row['email']}, "
                          f"{_access_said(rel, row['role'])}"
-                         + ("" if row["joined"] else ", who has no account yet"))
+                         + ("" if row["joined"] else ", who has not opened it yet"))
         if not lines:
             return "\nIt is not shared with anybody by email."
         return "\nShared by email:\n" + "\n".join(lines)

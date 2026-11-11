@@ -801,18 +801,56 @@ def shared_public(s: Stack) -> None:
     expect(code != 200, f"the page still opens with no sign-in after it was taken down ({code})")
 
 
+#: A stand-in registration on rouh.land and relay address, for the checks that share with a person
+#: (step 176-26): only a Connected Rouh shares privately, since the person signs in with rouh.land
+#: (`rouh/landshare.py`). Only the relay's name is set, never "on", so no frpc starts.
+STACK_RELAY = "stack-heron.rouh.page"
+CONNECT = ("import time\nfrom rouh.models import RouhBirth\nfrom rouh import relay\nnow = time.time()\n"
+           "RouhBirth.objects.get_or_create(org_id='org-default', state='born', defaults=dict(name='Stack Heron', "
+           "tag='test', born_at=now, birth_key='stack', daily_public='stack', daily_private='', daily_since=now, "
+           "recovery_public='stack', updated_at=now, registry_id='stack-test', registry_url='https://rouh.land/registry/birth/'))\n"
+           f"relay._change(hostname={STACK_RELAY!r})\nprint('connected')\n")
+ON_ITS_OWN = ("from rouh.models import RouhBirth\nfrom rouh import relay\n"
+              "RouhBirth.objects.filter(registry_id='stack-test').delete()\nrelay._change(hostname=None)\n"
+              "print('on its own')\n")
+
+
+def connected(s: Stack, fn) -> None:
+    """Run `fn` with this Rouh registered on rouh.land and given a relay address, and take both
+    away after, so no other check sees a Rouh it is not."""
+    expect("connected" in core_py(s, CONNECT), "the stand-in registration could not be made")
+    try:
+        fn()
+    finally:
+        core_py(s, ON_ITS_OWN)
+
+
 @check("page.shared-guests")
 def shared_guests(s: Stack) -> None:
-    """A page shared with a person by email: they are listed with when they last opened it, and
-    Remind them is offered the day after."""
+    """A page shared with a person by email, on a Connected Rouh: they are listed with when they
+    last opened it, and opening it signed out sends them to sign in with rouh.land, on the relay
+    address. On its own, the Rouh refuses to share privately and makes no account."""
     doc = the_page(s)
-    post(s, "/api/share/invite", {"rel": doc, "email": "sam@example.test", "notify": False, "role": "view"})
-    people = api(s, f"/api/share?rel={q(doc)}", "people")["people"]
-    sam = [p for p in people if p.get("email") == "sam@example.test"]
-    expect(sam and "opened" in sam[0], f"the person shared with is not listed: {json.dumps(people)[:300]}")
-    code, body, _ = s.get("/shared")
-    expect(code == 200, f"/shared answered {code}")
-    post(s, "/api/share/uninvite", {"rel": doc, "token": sam[0].get("token")})
+    code, got = _send(s, "/api/share/invite", {"rel": doc, "email": "sam@example.test", "notify": False,
+                                                "role": "view"})
+    expect(code == 400 and "On its own" in json.dumps(got), f"an On its own Rouh shared privately: {code} {got}")
+
+    def shared() -> None:
+        post(s, "/api/share/invite", {"rel": doc, "email": "sam@example.test", "notify": False, "role": "view"})
+        people = api(s, f"/api/share?rel={q(doc)}", "people")["people"]
+        sam = [p for p in people if p.get("email") == "sam@example.test"]
+        expect(sam and "opened" in sam[0], f"the person shared with is not listed: {json.dumps(people)[:300]}")
+        code, body, _ = s.get("/shared")
+        expect(code == 200, f"/shared answered {code}")
+        code, _, heads = s.get("/shared/" + sam[0]["token"], cookie=False, follow=False)
+        expect(code == 303 and heads.get("Location", "").startswith("/shared/in?"),
+               f"opened signed out, it did not go to rouh.land's sign-in: {code} {heads.get('Location')}")
+        code, _, heads = s.get(heads["Location"], cookie=False, follow=False)
+        expect(code == 303 and heads.get("Location", "").startswith(f"https://{STACK_RELAY}/shared/in?"),
+               f"it did not go on to the relay address: {code} {heads.get('Location')}")
+        post(s, "/api/share/uninvite", {"rel": doc, "token": sam[0].get("token")})
+
+    connected(s, shared)
 
 
 @check("gene.page-comments")
@@ -1356,7 +1394,8 @@ def not_opened(s: Stack) -> None:
     """A page shared by hand that is not opened days after the invitation: the brief's line, and
     Remind them beside the person in the Share panel."""
     doc = the_page(s)
-    post(s, "/api/share/invite", {"rel": doc, "email": "ana@example.test", "notify": False, "role": "view"})
+    connected(s, lambda: post(s, "/api/share/invite", {"rel": doc, "email": "ana@example.test", "notify": False,
+                                                       "role": "view"}))
     out = core_py(s, WHO + "import json, time\nfrom rouh.models import PageGuest\nfrom rouh import not_opened\n"
                   f"PageGuest.objects.filter(user_id=who.user_id, email='ana@example.test', rel={doc!r})"
                   ".update(created_at=time.time() - 3 * 86400, mailed_at=time.time() - 3 * 86400)\n"
@@ -1832,7 +1871,8 @@ def sheet_write(s: Stack) -> None:
 def share_ends(s: Stack) -> None:
     """A share given an end in the Share panel, and taken away by itself once the end has passed."""
     doc = the_page(s)
-    post(s, "/api/share/invite", {"rel": doc, "email": "una@example.test", "notify": False, "role": "view"})
+    connected(s, lambda: post(s, "/api/share/invite", {"rel": doc, "email": "una@example.test", "notify": False,
+                                                       "role": "view"}))
     people = api(s, f"/api/share?rel={q(doc)}", "people")["people"]
     una = [p for p in people if p.get("email") == "una@example.test"]
     expect(una and "ends" in una[0], f"the Share panel has no Until: {json.dumps(una)[:300]}")
@@ -1948,7 +1988,9 @@ def share_meeting(s: Stack) -> None:
     mine = [m for m in got if m.get("title") == "Stack pages review call"]
     expect(mine and "owen@northwind.test" in mine[0]["guests"],
            f"no meeting offered for {title_words}: {json.dumps(got)[:400]}")
-    done = post(s, "/api/share/meetings", {"rel": doc, "key": mine[0]["key"], "notify": False, "role": "view"})
+    done: dict = {}
+    connected(s, lambda: done.update(post(s, "/api/share/meetings", {"rel": doc, "key": mine[0]["key"],
+                                                                     "notify": False, "role": "view"})))
     expect("owen@northwind.test" in (done.get("shared") or []), f"not shared with the guests: {json.dumps(done)[:400]}")
 
 

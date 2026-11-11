@@ -597,9 +597,9 @@ sign-in: a username and a password, on an account of your own.
   A visitor reads it and nothing more, unless the page was made changeable for
   them - then they get Ask AI on it, which answers and changes it.
   **Add people by email** shares it with one person instead: they get a letter
-  from Rouh, make an account from it with their first name, last name and a
-  password, and see the page - and everything else shared with that address -
-  at `/shared`, with Ask AI on it. "Public pages", below, is the whole of it.
+  from Rouh with the link, sign in with rouh.land as that address (no account is
+  made here), and see the page - and everything else shared with that address -
+  at `/shared`, with Ask AI on it. Only a Connected Rouh does this. "Public pages", below, is the whole of it.
   Rouh does the same when asked out loud: "make task 56 public" publishes every
   page of that task, after saying what is about to go out and hearing a yes,
   and a separate yes for any money, health detail or contact details in it.
@@ -2073,7 +2073,14 @@ Signing in with Google, and making an account through Google, were taken out the
 > "I invite a specific person with a specific email. If that person doesn't have an account, he receives an email saying he needs to register. They can register, and when they go to the website, they would see the thing I have shared with them. That would be like the guest account: just a list of the things that have been shared with them, and then they can use the Ask AI active feature... If they have an account, they're just notified that there is a new thing that's been shared with them."
 
 **Add people by email** on the panel takes an address and **Can edit** or **Can view**, and **Invite** shares the page with that address (`page_guests`, one row per page per address) and sends a letter from Rouh's own address.
-Somebody with no account yet gets an invitation: `/join/<token>`, where the address is the invitation's and cannot be changed, and they give their first name and last name, both of them, kept apart on the account, and, only when this Rouh cannot send mail, a password. Opening the invitation proves the address; from then on they sign in by email (above), to this Rouh, never through rouh.land and never with Google.
+**Since 11 November 2026 (task 176, step 176-26) rouh.land says who they are** (`rouh/landshare.py`), on Petar's word: "make the sharing now work through rouh.land, not through people making accounts in your own rouh installation."
+The letter links to the share on this Rouh's relay address (the phone's), and somebody not signed in goes to `/shared/in`, then to rouh.land's `vouch/` page, where they sign in or sign up with the one-email sign-in and press Continue.
+rouh.land sends them back to `/shared/in/back` with a note of their email signed by its own key (kind `rouh-identity`), which this Rouh holds to its signature, to itself, to its relay name, to the one-time state in that browser's session and to its five minutes; the share then lets in only the address it names, view or edit as before.
+rouh.land never sees what was shared: it only vouches for an email.
+What is kept here is a bare guest record by that email with rouh.land's id for it (`User.land_id`): no name, no password, and no sign-in of its own (`landshare.may_stay` ends any other).
+A guest from before keeps their account and its sign-in until they first come in through rouh.land; an account of this Rouh's own people is never signed in on rouh.land's word.
+A Rouh On its own cannot share with a person and says so (`landshare.refusal`); public links are unchanged.
+**Before then, and still on a Rouh On its own for an invitation already sent:** somebody with no account yet gets an invitation: `/join/<token>`, where the address is the invitation's and cannot be changed, and they give their first name and last name, both of them, kept apart on the account, and, only when this Rouh cannot send mail, a password. Opening the invitation proves the address; from then on they sign in by email (above), to this Rouh. On a Connected Rouh `/join/<token>` now goes straight to the share.
 Every invitation to the address is put on the account (`Guests.claim`), and somebody whose address already has an account is signed in to it instead.
 The invitation sends somebody who already has an account to the sign-in page with their address filled in (`/login?next=/shared/<token>&email=`), so the link works the second time as well.
 An empty name is refused by the server as well as the form, and the form says under the box which one is missing.

@@ -247,7 +247,7 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `gene.copy-exact` | Copy kept word for word | untested | works | copy given with the question that is not on the page after the change is said to the reader |
 | `gene.page-facts` | Facts told on a page | untested | works | Ask AI's `keep_fact` on the page keeps the fact in the task's notes |
 | `page.shared-public` | A page made public | untested | works | its `/p/` link opens with no sign-in, and taken down it does not |
-| `page.shared-guests` | A page shared with people by email, and who opened it | untested | works | a person invited is listed with when they opened it; `/shared` answers |
+| `page.shared-guests` | A page shared with people by email, who sign in with rouh.land, and who opened it | untested | works | On its own, sharing with a person is refused; Connected, a person invited is listed with when they opened it, `/shared` answers, and their link opened signed out goes to `/shared/in` and on to the relay address |
 | `gene.page-comments` | Comments pinned on a page | untested | works | a comment left is listed |
 | `gene.page-highlights` | Highlights on a page | untested | works | a highlight kept is listed |
 | `gene.page-definitions` | Define, beside Ask | untested | works | a passage defined by the model is kept and listed |

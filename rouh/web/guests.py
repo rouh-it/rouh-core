@@ -170,13 +170,19 @@ def _letter(owner: str, share: dict, has_account: bool, message: str = "") -> ma
                 f"  {link}\n\nEverything shared with you is at " + base + "/shared\n")
         button, lead = f"Open the {what[2:]}", f"You can {can}."
     else:
-        link = f"{base}/join/{share['token']}"
-        text = (head + f"You can {can}. To open it, make your account - it takes your "
-                f"name:\n\n  {link}\n\n"
+        # Through rouh.land (step 176-26): the link is the share on this Rouh's relay address, and
+        # opening it asks rouh.land who they are. No account is made here and no form is filled in.
+        from rouh import landshare
+
+        link = landshare.link(share["path"])
+        text = (head + f"You can {can}. Open it here:\n\n  {link}\n\n"
+                f"You sign in with rouh.land as {share['email']}: an email link, no password. "
+                "If you have no rouh.land account yet, the same step makes one.\n\n"
                 f"This invitation is for {share['email']} alone. If you were not expecting "
                 "it, you can ignore this letter.\n")
-        button = "Make your account and open it"
-        lead = f"You can {can}. To open it, make your account: it takes your name."
+        button = f"Open the {what[2:]}"
+        lead = (f"You can {can}. You sign in with rouh.land as {share['email']}: an email link, "
+                "no password. If you have no rouh.land account yet, the same step makes one.")
     e = html.escape
     said = ("" if not message else
             f'<p style="margin:16px 0 4px;color:#5d6674;font-size:13px">{e(owner)} wrote:</p>'
@@ -247,7 +253,18 @@ async def share_and_tell(me, owner: str, rel: str, title: str, email: str, role:
     sends nothing to somebody whose letter already went, which is what a
     retried mail case wants. Raises `ValueError` when it cannot be shared.
     """
+    from rouh import landshare
+
+    why = await asyncio.to_thread(landshare.refusal, me.org_id)
+    if why:
+        # Petar, 11 November 2026 (step 176-26): the person shared with signs in with rouh.land, so a
+        # Rouh On its own cannot share privately, and never makes an account here instead.
+        raise ValueError(why)
     account = await asyncio.to_thread(_existing_account, email)
+    if account is not None and getattr(account, "is_guest", False):
+        # A guest is somebody rouh.land says who they are now: the letter is the same for everybody
+        # who is not one of this Rouh's own people.
+        account = None
     share, new = await asyncio.to_thread(
         _store().invite, me, rel, title, email, role,
         str(account.pk) if account is not None else "")
@@ -442,16 +459,15 @@ def said_of(told: Told, email: str) -> str:
         if told.has_account:
             return (f"Shared with {email}. No email was sent, so they will not know until "
                     "you tell them; it is under Shared when they sign in.")
-        return (f"Shared with {email}. No email was sent, and they have no account yet, so "
-                "they cannot open it until they are sent the invitation: share it with them "
-                "again with Notify by email ticked.")
+        return (f"Shared with {email}. No email was sent, so they will not know until you tell "
+                "them; they open it by signing in with rouh.land as that address.")
     if told.trouble:
         return f"Shared with {email}, but the email did not go: {told.trouble}"
     if told.has_account:
         return (f"Shared with {email}, and an email with the link went to them. "
                 "It may land in their spam.")
-    return (f"Shared with {email}, and an email went to them with the link to make their "
-            "account and open it. It may land in their spam.")
+    return (f"Shared with {email}, and an email with the link went to them: they sign in with "
+            "rouh.land as that address, and sign up there if they are new. It may land in their spam.")
 
 
 @only("POST")
@@ -561,6 +577,13 @@ async def join(request: HttpRequest, token: str):
     if share is None:
         return await asyncio.to_thread(_join_page, request, None, status=404)
     there = "/shared/" + share["token"]
+    from rouh import landshare
+
+    if await asyncio.to_thread(landshare.ready):
+        # Since step 176-26 nobody makes an account from an invitation: the share itself, where
+        # rouh.land says who they are. An older letter's link lands there too, query and all.
+        query = request.META.get("QUERY_STRING", "")
+        return HttpResponseRedirect(there + ("?" + query if query else ""), status=303)
     # A comment thread to open once they are in: the letter that tagged
     # somebody with no account yet links here (`rouh/comments.py`). The form
     # posts back to this same address, so it is still here after the post.
@@ -616,6 +639,71 @@ async def join(request: HttpRequest, token: str):
     await alogin(request, made, backend="rouh.accounts.CaseInsensitiveBackend")
     log.info("a guest account was made from an invitation")
     return HttpResponseRedirect(there, status=303)
+
+
+# --- through rouh.land: who is opening it (`rouh/landshare.py`) ---------------------------------
+
+
+def _landshare_page(request, said: str, *, again: str = "", status: int = 400):
+    response = render(request, "rouh/shared_in.html", {"said": said, "again": again}, status=status)
+    for name, value in READER_HEADERS.items():
+        response[name] = value
+    return response
+
+
+@only("GET")
+async def shared_in(request: HttpRequest):
+    """GET /shared/in?next=: somebody opening what was shared with them, not signed in here. On the
+    relay address, sent to rouh.land to say who they are; anywhere else, first to the relay address,
+    where the sign-in will be kept."""
+    from rouh import landshare
+
+    then = landshare._then(request.GET.get("next"))
+    why = await asyncio.to_thread(landshare.refusal)
+    if why:
+        # A Rouh On its own: its own sign-in, as before.
+        return HttpResponseRedirect("/login?" + urlencode({"next": then}), status=303)
+    if not landshare.on_address(request):
+        return HttpResponseRedirect(landshare.link(landshare.IN_PATH + "?" + urlencode({"next": then})),
+                                    status=303)
+    email = ""
+    token = then.split("/")[2] if then.startswith("/shared/") else ""
+    if token:
+        share = await asyncio.to_thread(_store().find, token.split("?")[0])
+        email = share["email"] if share else ""
+    go = await sync_to_async(landshare.start)(request, then, email)
+    return HttpResponseRedirect(go, status=303)
+
+
+@only("GET")
+async def shared_back(request: HttpRequest):
+    """GET /shared/in/back?vouch=&state=: rouh.land's answer. Held to everything, then the person is
+    the email it vouches for, signed in as the guest record by that email, and on to what they opened.
+    The share itself still decides whether that email may open it (`_for_guest`)."""
+    from rouh import landshare
+
+    try:
+        said = await sync_to_async(landshare.check)(request, request.GET.get("vouch", ""),
+                                                    request.GET.get("state", ""))
+    except landshare.Refused as exc:
+        then = getattr(exc, "then", "")
+        if then:
+            # Opened on another device than the one that asked: ask again here, which rouh.land,
+            # signed in now on this device, answers with one press.
+            return HttpResponseRedirect(landshare.IN_PATH + "?" + urlencode({"next": then}), status=303)
+        log.info("landshare: an answer from rouh.land was not let in: %s", exc)
+        return await asyncio.to_thread(_landshare_page, request, str(exc))
+    try:
+        guest = await asyncio.to_thread(landshare.guest_for, said["email"], said["land_id"])
+    except landshare.NotAGuest as exc:
+        return HttpResponseRedirect("/login?" + urlencode({"next": said["then"], "email": said["email"]}),
+                                    status=303)
+    except landshare.Refused as exc:
+        return await asyncio.to_thread(_landshare_page, request, str(exc))
+    await alogin(request, guest, backend="rouh.accounts.CaseInsensitiveBackend")
+    await sync_to_async(landshare.vouched)(request)
+    log.info("landshare: guest %s signed in by rouh.land", guest.pk)
+    return HttpResponseRedirect(said["then"], status=303)
 
 
 # --- a guest's own list --------------------------------------------------------------------
@@ -1085,4 +1173,4 @@ def routes(kind: str):
 SHARED = routes("shared")
 LINK = routes("p")
 
-__all__ = ["invite", "uninvite", "join", "shared_list", "not_shared_page", "SHARED", "LINK"]
+__all__ = ["invite", "uninvite", "join", "shared_in", "shared_back", "shared_list", "not_shared_page", "SHARED", "LINK"]

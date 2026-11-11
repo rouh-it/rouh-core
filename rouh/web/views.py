@@ -1671,6 +1671,11 @@ async def public_page(request: HttpRequest, token: str):
         if not user.is_authenticated:
             from urllib.parse import urlencode
 
+            from rouh import landshare
+
+            if await asyncio.to_thread(landshare.ready):
+                # Somebody it is shared with says who they are with rouh.land (step 176-26).
+                return HttpResponseRedirect(landshare.IN_PATH + "?" + urlencode({"next": request.path}))
             return HttpResponseRedirect("/login?" + urlencode({"next": request.path}))
         from . import guests
 

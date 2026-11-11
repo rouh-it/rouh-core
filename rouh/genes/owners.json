@@ -856,7 +856,9 @@
    "what": "Lets a page from the workspace be made public at a token address anybody can open without signing in.",
    "files": [
     "rouh/sharing.py",
-    "rouh/templates/rouh/shared.html"
+    "rouh/templates/rouh/shared.html",
+    "rouh/landshare.py",
+    "rouh/templates/rouh/shared_in.html"
    ]
   },
   "ask-ai-page-editing": {

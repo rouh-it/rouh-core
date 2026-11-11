@@ -1534,8 +1534,8 @@ with {% asset %}, which gives it its hashed address.
           <p class="share-sub" id="shareSubLine">The page as it is now, and nothing else in the workspace.</p>
 
           {% comment %} A person, by their email address, and what they may do. They
-               get a letter: an invitation to make an account, or a note that
-               there is something new when they have one already. {% endcomment %}
+               get a letter with the link, and open it by signing in with rouh.land
+               as that address (`rouh/landshare.py`); no account is made here. {% endcomment %}
           <div class="share-invite">
             <label class="sr-only" for="shareEmail">Add people by email</label>
             <input id="shareEmail" type="email" placeholder="Add people by email"
@@ -1564,6 +1564,8 @@ with {% asset %}, which gives it its hashed address.
             <textarea id="shareMessage" class="share-message" rows="3" maxlength="2000"
                       placeholder="Message"></textarea>
             <p class="share-help" id="shareNoMail" hidden>Rouh has no mail service set up, so no email can go from here.</p>
+            {% comment %} Who they are is rouh.land's word, not an account here (`rouh/landshare.py`). {% endcomment %}
+            <p class="share-help" id="shareLandNote">They open it by signing in with rouh.land as that address: an email link, no password.</p>
           </div>
           {% comment %} What became of an invitation, in words that may take two lines:
                who it went to, and whether the letter went. {% endcomment %}

@@ -116,15 +116,22 @@ def user_for(email: str):
         found = list(M.User.objects.filter(email__iexact=email, is_active=True)[:2])
         if len(found) != 1 or M.SignInEmail.objects.filter(user_id=found[0].pk).exists():
             return None
+        if _land_guest(found[0]):
+            return None
         try:
             M.SignInEmail.objects.create(email=email, user_id=found[0].pk, primary=True, added_at=_now(),
                                          source="account")
         except Exception:  # noqa: BLE001 - made at the same moment by another request
             pass
         return found[0]
-    if not row.user.is_active:
+    if not row.user.is_active or _land_guest(row.user):
         return None
     return row.user
+
+
+def _land_guest(user) -> bool:
+    """A guest rouh.land vouches for signs in only through rouh.land (`rouh/landshare.py`), never here."""
+    return bool(getattr(user, "is_guest", False) and getattr(user, "land_id", ""))
 
 
 def primary(user) -> str:

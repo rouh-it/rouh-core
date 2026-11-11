@@ -412,6 +412,9 @@ urlpatterns = [
     path(sharing.ROUTE.lstrip("/") + "<str:token>/option", guests.LINK["option"]),
     path("join/<str:token>", guests.join),
     path("shared", guests.shared_list),
+    # Who is opening it, said by rouh.land (`rouh/landshare.py`): before `shared/<token>`.
+    path("shared/in", guests.shared_in),
+    path("shared/in/back", guests.shared_back),
     path("shared/<str:token>", guests.SHARED["view"]),
     path("shared/<str:token>/page", guests.SHARED["page"]),
     path("shared/<str:token>/ask", guests.SHARED["ask"]),
