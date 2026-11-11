@@ -688,6 +688,13 @@ def note(last: dict) -> str:
                 + ". Settings, Changes shows what came in and what is waiting. It will be tried again.")
     if "waiting" in last:
         text = "Rouh's update: " + last["said"]
+        for status, label in (("copied", "Copied exactly"), ("adapted", "Adapted for this Rouh")):
+            purposes = [r["purpose"] for r in last.get("came_in", []) if r["status"] == status]
+            if purposes:
+                text += " " + label + ": " + "; ".join(purposes[:5])
+                if len(purposes) > 5:
+                    text += f"; and {len(purposes) - 5} more"
+                text += "."
         for row in last["waiting"]:
             text += (" Urgent security update" if row.get("urgent") else " Waiting") + ": " + row["purpose"] + ": " + row["reason"] + "."
         return text + " Settings, Changes has the full record. Waiting changes are tried again."

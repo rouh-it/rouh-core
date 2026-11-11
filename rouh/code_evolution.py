@@ -340,7 +340,6 @@ def _propose(doc: dict, row: dict, rel: dict, by: str, work: Path, plan: dict, c
 
     if (guardface.ask("status").get("features") or {}).get("master_changes") != 1:
         raise u.Refused("needs the protected core's per-change update and database rehearsal gate")
-
     u._git("add", "-A", cwd=work, check=True)
     u._git("commit", "-q", "--allow-empty", "-m", row["purpose"], "-m", "Rouh-master-change: " + row["master"],
            cwd=work, check=True)
@@ -402,6 +401,12 @@ def advance(rel: dict, by: str, work: Path) -> None:
             if row.get("status") not in TAKEN:
                 _waiting(doc, row, "needs the protected core's per-change update and database rehearsal gate")
         raise u.Refused("needs the protected core's per-change update and database rehearsal gate")
+    # A batch survives all of its per-change restarts; a later retry starts a fresh account
+    # of what came in, rather than reporting this Rouh's lifetime totals as today's update.
+    if not u.state().get("continue_update") or (doc.get("session") or {}).get("release") != rel["commit"]:
+        doc["session"] = {"release": rel["commit"],
+                          "before": [r["master"] for r in doc["changes"] if r.get("status") in TAKEN]}
+        save(doc)
     # Mark the session before the first proposal: if it restarts us, we keep walking the list.
     u._change(continue_update={"release": rel, "by": by})
     if not u._git("status", "--porcelain", cwd=u.code_dir()).stdout.strip() == "":
@@ -450,7 +455,9 @@ def advance(rel: dict, by: str, work: Path) -> None:
         u._git("reset", "--hard", start, cwd=work, check=True)
         u._git("clean", "-fdq", cwd=work, check=True)
     out = shown()
-    counts = out["counts"]
+    earlier = set((doc.get("session") or {}).get("before", []))
+    came_in = [r for r in doc["changes"] if r["master"] not in earlier and r.get("status") in TAKEN]
+    counts = {k: sum(r["status"] == k for r in came_in) for k in TAKEN}
     summary = f"{counts['copied']} copied exactly, {counts['adapted']} adapted, {out['waiting']} waiting."
     waiting = [r for r in doc["changes"] if r["status"] not in TAKEN]
     fingerprint = hashlib.sha256(json.dumps([(r["master"], r["status"], r.get("reason"))
@@ -459,6 +466,7 @@ def advance(rel: dict, by: str, work: Path) -> None:
     last = {"ok": not waiting, "partial": bool(waiting), "at": time.time(), "release": rel["commit"],
             "label": u.label(rel["commit"], rel), "said": summary, "by": by, "id": fingerprint,
             "told": previous.get("id") == fingerprint and previous.get("told", False),
+            "came_in": [{"purpose": r["purpose"], "status": r["status"]} for r in came_in],
             "waiting": [{"purpose": r["purpose"], "reason": r["reason"], "urgent": r["urgent"]} for r in waiting]}
     urgent = any(r["urgent"] for r in waiting)
     u._change(busy=None, pending=None, continue_update=None, last=last,
