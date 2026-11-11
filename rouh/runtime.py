@@ -563,6 +563,32 @@ async def _job_watch_loop() -> None:
         await asyncio.sleep(JOB_WATCH_EVERY)
 
 
+#: How often the core looks again whether the scrub of private reasoning still has work, after it
+#: stopped on an error (`rouh/reasoning_scrub.py`).
+REASONING_SCRUB_EVERY = 60 * 60
+
+
+async def _reasoning_scrub_loop() -> None:
+    """The private reasoning already kept in the model request log scrubbed by the core itself,
+    on a thread of its own, `reasoning_scrub.START_AFTER` seconds after the core is up, so
+    start-up and the health page are never held (an earlier try in a migration held Rouh down for
+    14 minutes). It carries on from where it last got to, and once done is never started again."""
+    from . import reasoning_scrub
+
+    await asyncio.sleep(reasoning_scrub.START_AFTER)
+    while True:
+        try:
+            if await asyncio.to_thread(reasoning_scrub.done):
+                log.info("the reasoning scrub is done; nothing more to do")
+                return
+            got = await asyncio.to_thread(reasoning_scrub.start)
+            if got == "started":
+                log.info("the reasoning scrub started (or carried on) in the core")
+        except Exception:  # noqa: BLE001 - tried again on the next beat
+            log.exception("the reasoning scrub could not be started")
+        await asyncio.sleep(REASONING_SCRUB_EVERY)
+
+
 #: How often the core looks whether the weekly off-site copy is due (`rouh/offsite.py`).
 OFFSITE_EVERY = 60 * 60
 
@@ -7796,6 +7822,9 @@ async def startup() -> None:
     asyncio.ensure_future(_offsite_loop())
     # Whether each scheduled job really ran and worked, said once a morning when not (`rouh/job_watch.py`).
     asyncio.ensure_future(_job_watch_loop())
+    # The private reasoning already in the model request log scrubbed, minutes after start-up
+    # and never in it (`rouh/reasoning_scrub.py`).
+    asyncio.ensure_future(_reasoning_scrub_loop())
     _ANSWERS_WATCH.append(asyncio.create_task(_answer_held()))
     # Every guest of the week's meetings looked up on LinkedIn ahead of time (`rouh/meeting_people.py`).
     meeting_research.start()
@@ -8219,6 +8248,11 @@ async def shutdown() -> None:
         await relay.stop()
     # Every open browser's logins written down before it goes.
     await browser_desk.stop()
+    # The reasoning scrub stops after the batch it is on; its place is kept (`rouh/reasoning_scrub.py`).
+    with contextlib.suppress(Exception):
+        from rouh import reasoning_scrub
+
+        reasoning_scrub.stop()
     # And every event still waiting in memory (`rouh/events.py`).
     with contextlib.suppress(Exception):
         await asyncio.to_thread(events.WRITER.flush, 5.0)

@@ -843,6 +843,16 @@ def _log_safe(value, provider: str, parent_type: str = ""):
     return clean
 
 
+def _as_json(value):
+    """A jsonb value as Python: decoded when the cursor handed it back as text."""
+    if isinstance(value, (str, bytes, bytearray)):
+        try:
+            return json.loads(value)
+        except ValueError:
+            return value
+    return value
+
+
 def scrub_historical_reasoning(batch_size: int = 2000, pause: float = 0.1,
                                after_request_id: int = 0, after_piece_hash: str = "",
                                progress=None) -> dict[str, int]:
@@ -874,6 +884,9 @@ def scrub_historical_reasoning(batch_size: int = 2000, pause: float = 0.1,
                     WHERE id > %s ORDER BY id LIMIT %s""", (last_id, batch_size))
                 rows = cursor.fetchall()
                 for row_id, provider, settings, response in rows:
+                    # Django's PostgreSQL backend hands jsonb back as text to a raw cursor, so
+                    # it is read here; left as text, nothing in it was ever scrubbed.
+                    settings, response = _as_json(settings), _as_json(response)
                     safe_settings = _log_safe(settings or {}, provider)
                     safe_response = _log_safe(response, provider) if response is not None else None
                     before = len(_dump([settings, response]).encode())

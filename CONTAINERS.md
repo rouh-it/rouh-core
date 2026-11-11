@@ -44,6 +44,22 @@ A new feature adds its row and its check in the commit that adds it.
 | `updates.ride` | Ride along: a Connected Rouh takes a new release by itself at a quiet moment, at most once a day, with no press | untested | works | `checks_updates.py`: a second release is served, the choice is Ride along, and the code becomes it with no press, saying it rode along |
 | `updates.security-database-frontier` | Database and security changes are adapted by frontier models; a fresh full backup, rehearsal on the real database copy, counts and memory preservation precede real migration; security assertions fail before and pass after; weaker models wait | untested | works | `checks_updates.py`: a locally renamed memory table and local greeting, three weaker-model refusals, then frontier adaptation, protected rehearsal and preservation records |
 
+### What a run asks the core to do with the database
+
+A run never reaches the database (`walls.worker-no-database`) and holds no password for it, so a `manage.py` command that needs it was a command only a person could type, in a shell of the core.
+Petar, 11 November 2026: "I am not supposed to run manually commands."
+So a run asks the core instead, with the job gateway's `core_command` tool (`rouh/core_commands.py`, ruled on in `rouh/job_policy.py`): it names one command from a short allowlist and nothing else.
+There is no shell, no argument of the run's reaches the command, and no credential leaves the core.
+
+- `table_sizes` (only reads): the database's size and its largest tables, with rows, TOAST, indexes and dead rows (`manage.py table_sizes`).
+- `scrub_status` (only reads): how far the core's scrub of private reasoning has got (`manage.py scrub_encrypted_reasoning --status`).
+- `scrub_encrypted_reasoning` (maintenance the owner agreed to on 11 November 2026): starts the core's scrub now. The core also starts it by itself five minutes after it comes up, never in `migrate` and never holding start-up or the health page; it works in batches of 100 rows with a pause between them, keeps its place in the data directory (`maintenance/reasoning_scrub.json`) so a restart carries on, runs ordinary `VACUUM` (never `VACUUM FULL`) on `llm_requests` and `llm_pieces` at the end, and never starts again once done (`rouh/reasoning_scrub.py`).
+
+Read commands answer within a minute; maintenance answers at once and runs in the core's background.
+Every call is a row of `job_requests` (kind `command`), which the run reads back with `request_status` and the owner sees on Metabolism, under What jobs asked Rouh for, and a line in Rouh's log.
+A run doing a trusted contact's work never has it.
+A new command is added to `COMMANDS` in `rouh/core_commands.py` and to `CORE_READS` or `CORE_MAINTENANCE` in `rouh/job_policy.py`, in one commit; a command that changes data goes on the maintenance list only once the owner has agreed to it.
+
 ### What a run has, and how image changes move
 
 A run in the worker has PostgreSQL 18's `initdb`, `pg_ctl` and `postgres` under `/opt/pg/bin`; `/opt/pg/lib` is added to the clean environment every run receives, so those commands can start a private, disposable database. It has the pinned Playwright MCP package and Debian Chromium from the base image. The image's `/opt/rouh-base/base.env` supplies those pins to the launcher even though `sudo` clears the service environment. Before Claude Code or Codex starts, the one program launches that MCP server, checks `browser_navigate` and `browser_snapshot`, opens a local page in Chromium and reads its text.
@@ -143,6 +159,7 @@ A run has no Docker socket and cannot build or replace the containers. The Creat
 | `runs.github` | GitHub for runs, with the owner's token, for some hours (`rouh-github-grant`, `deploy/grants/`) | untested | works | with no grant a run's request reaches GitHub's stand-in with nothing added and its own credential taken off; with `rouh-grant github set` the token is added (bearer for the API, password for git, also for a request named by its Host as gh sends it); after its end nothing is added and the prune deletes it; the token is in no log and not in the worker |
 | `callbacks.notify-owner` | A run tells the owner (`notify_owner`) | broken | works | the run calls `notify_owner` over Rouh's MCP server for runs, and Rouh queues the note (`rouh/workerkey.py`) |
 | `callbacks.job-tools` | A run uses Rouh's tools (mail, calendar, Drive, memory) | broken | works | the run lists Rouh's job tools over the same server, which Rouh hands it |
+| `callbacks.core-command` | A run has the core run a management command from a short allowlist (`core_command`), since it cannot reach the database itself | untested | works | the run calls `core_command table_sizes` over Rouh's MCP server for runs and reads the sizes back; `flush`, not on the list, is refused; the call is a row of `job_requests` |
 | `callbacks.agent-instructions` | Runs start with the agent instructions | broken | works | the worker asks Rouh for a run's agent instructions with its key |
 | `walls.internal-needs-key` | Rouh's internal addresses refuse a caller with no key, from another container or the published port | untested | works | the worker, and the published port, asking with no key are refused |
 | `callbacks.tasks` | A run sets a task's status and tree (`rouh-task`, `rouh objecttree`) | broken | works | a run makes a task with `rouh objecttree` (the tree carried to Rouh and the changes made back in the checkout) and sets its status with `rouh-task`; the task reaches Rouh's workspace when the run lands |

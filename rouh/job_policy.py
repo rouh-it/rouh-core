@@ -66,7 +66,17 @@ RUN, PENDING, REFUSE = "run", "pending", "refuse"
 #: registry: files out of mail, a request for what there is no tool for, and its answer.
 MAIL_FIND, MAIL_FILE = "mail_find", "mail_file"
 REQUEST, REQUEST_STATUS = "request_from_rouh", "request_status"
-NATIVE = (MAIL_FIND, MAIL_FILE, REQUEST, REQUEST_STATUS)
+#: A management command run by Rouh's core, from a short allowlist (`rouh/core_commands.py`).
+CORE_COMMAND = "core_command"
+NATIVE = (MAIL_FIND, MAIL_FILE, REQUEST, REQUEST_STATUS, CORE_COMMAND)
+
+#: The core's commands a job may name that only read: run at once, for the owner's and Rouh's
+#: own jobs.
+CORE_READS = frozenset({"table_sizes", "scrub_status"})
+#: The core's maintenance commands the owner has already agreed to (the scrub of private
+#: reasoning, 11 November 2026): started in the core's background, for the owner's and Rouh's
+#: own jobs. Each is idempotent and carries on from where it got to.
+CORE_MAINTENANCE = frozenset({"scrub_encrypted_reasoning"})
 
 #: Tools that only read, whatever their arguments.
 READS = frozenset({
@@ -257,6 +267,9 @@ def classify(name: str, args=None) -> str:
         return READ
     if name == "goals":
         return RISKY if _action(name, args) else READ
+    if name == CORE_COMMAND:
+        command = str(args.get("command") or "").strip()
+        return READ if command in CORE_READS else OWN if command in CORE_MAINTENANCE else NEVER
     if name in READ_ACTIONS:
         if _action(name, args) in READ_ACTIONS[name]:
             return READ
@@ -277,7 +290,8 @@ def known(name: str) -> bool:
     never run on the owner's word either: it always waits for their yes (`his_word.unknown`)."""
     name = str(name or "").strip()
     return (name in READS or name in READ_ACTIONS or name in READ_UNLESS or name in OWNS
-            or name in OWN_UNLESS or name in RISKS or name in NEVERS or name == "goals")
+            or name in OWN_UNLESS or name in RISKS or name in NEVERS or name == "goals"
+            or name == CORE_COMMAND)
 
 
 def listed(name: str) -> bool:
@@ -292,6 +306,10 @@ def decide(scope: str, name: str, args=None) -> Ruling:
     if scope not in SCOPES:
         return Ruling(REFUSE, klass, "Rouh cannot tell whom this job works for, so it does "
                                      "nothing for it.")
+    if name == CORE_COMMAND and klass == NEVER:
+        return Ruling(REFUSE, klass, (
+            f"{str(args.get('command') or '')!r} is not on the core's list. The commands: "
+            + ", ".join(sorted(CORE_READS | CORE_MAINTENANCE)) + "."))
     if klass == NEVER:
         return Ruling(REFUSE, klass, f"{name} is not something a background job may use: it "
                                      "belongs to the owner's own chat with Rouh.")
@@ -315,6 +333,6 @@ def decide(scope: str, name: str, args=None) -> Ruling:
     return Ruling(PENDING, klass)
 
 
-__all__ = ["CONTACT", "CONTACT_MAY", "NATIVE", "NEVER", "NEVERS", "OWN", "OWNER", "OWNS",
+__all__ = ["CONTACT", "CONTACT_MAY", "CORE_COMMAND", "CORE_MAINTENANCE", "CORE_READS", "NATIVE", "NEVER", "NEVERS", "OWN", "OWNER", "OWNS",
            "PENDING", "PROCESS", "READ", "READS", "READ_UNLESS", "REFUSE", "RISKS", "RISKY", "RUN",
            "Ruling", "SCOPES", "WHY_ARG", "classify", "decide", "known", "listed"]

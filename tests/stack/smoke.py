@@ -582,7 +582,8 @@ def the_run(s: Stack) -> dict:
         else:
             raise Failed(f"the run did not finish in five minutes (one_start said: {got[:300]}); "
                          f"the worker's log: {s.logs('worker', 60)[-1500:]}")
-        for name in ("internet", "notify", "tools", "env", "tree", "task", "postgres"):
+        for name in ("internet", "notify", "tools", "env", "tree", "task", "postgres", "core",
+                     "core-refused"):
             _RUN[name] = s.run("worker", f"cat /tmp/stack-run-{name} 2>/dev/null").stdout
     except Failed as e:
         _RUN["error"] = str(e)
@@ -639,6 +640,23 @@ def job_tools(s: Stack) -> None:
     names = [t.get("name") for t in (m.get("result") or {}).get("tools", [])]
     expect("notify_owner" in names, f"the run's tools: {names}")
     expect(len(names) > 3, f"Rouh's job tools were not offered to the run (only {names}); Rouh was not reached")
+
+
+@check("callbacks.core-command")
+def core_command(s: Stack) -> None:
+    """A run in the worker, which never reaches the database, has the core run a management
+    command from its allowlist (`core_command table_sizes`, rouh/core_commands.py) and reads its
+    output; a command not on the list is refused; and the call is logged for the run."""
+    m = _mcp_answer(the_run(s)["core"], 4)
+    text = json.dumps(m.get("result") or m.get("error"))
+    expect(not (m.get("result") or {}).get("isError") and "llm_requests" in text and "Database" in text,
+           f"core_command table_sizes from a run: {text[:400]}")
+    m = _mcp_answer(the_run(s)["core-refused"], 5)
+    text = json.dumps(m.get("result") or m.get("error"))
+    expect("not on the core's list" in text, f"core_command flush was not refused: {text[:400]}")
+    got = s.manage("from rouh.models import JobRequest\n"
+                   "print(JobRequest.objects.filter(kind='command', tool='table_sizes', outcome='ran').count())")
+    expect(got.strip().splitlines()[-1].strip() not in ("", "0"), f"the core command was not logged: {got[-300:]}")
 
 
 @check("callbacks.agent-instructions")

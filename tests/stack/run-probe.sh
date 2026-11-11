@@ -2,8 +2,9 @@
 #
 # What the stack test's one run does (tests/stack/smoke.py, RUN_BRIEF), as a run of the one
 # program in the worker, with the environment a run is given: it fetches a page through the key
-# proxy, and asks Rouh's MCP server for runs (rouh/worker_mcp.py) for a note to the owner and for
-# the list of its tools. Each answer is left in /tmp for the checks to read.
+# proxy, and asks Rouh's MCP server for runs (rouh/worker_mcp.py) for a note to the owner, for
+# the list of its tools and for a command the core runs from its allowlist. Each answer is left
+# in /tmp for the checks to read.
 out=/tmp/stack-run
 env | grep -iE '^(https?_proxy|no_proxy|one_run|rouh_worker_key_file)=' | sed 's/=.*//' | sort > "$out-env"
 pgdir="$(mktemp -d "${TMPDIR:-/tmp}/one-postgres.XXXXXX")"
@@ -31,6 +32,10 @@ mcp() {                             # mcp ID METHOD PARAMS-JSON
 }
 mcp 2 tools/call '{"name":"notify_owner","arguments":{"subject":"Stack test","body":"A note from a run in the worker"}}' > "$out-notify" 2>&1
 mcp 3 tools/list '{}' > "$out-tools" 2>&1
+# A management command from the core's allowlist, run by the core for the run (rouh/core_commands.py),
+# and one that is not on it, refused.
+mcp 4 tools/call '{"name":"core_command","arguments":{"command":"table_sizes"}}' > "$out-core" 2>&1
+mcp 5 tools/call '{"name":"core_command","arguments":{"command":"flush"}}' > "$out-core-refused" 2>&1
 # The workspace's own commands, as a run uses them (bin/rouh, bin/rouh-task): a task made in this
 # checkout, its status set, both through Rouh with the worker's key.
 owner="$(python3 -c 'import json; m=json.load(open("_migration-map.json")); print(next(o["id"] for o in m["objects"] if o.get("type") == "project"))' 2>/dev/null)"

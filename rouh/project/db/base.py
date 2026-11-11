@@ -66,8 +66,8 @@ INTERACTIVE_RESERVE = 12
 
 #: Threads whose work is background work, by the start of their name: Synapse's
 #: workers, imports, backfills, syncs and dreaming, Slack's backfill, the silos'
-#: refill and the start-up content index.
-BACKGROUND = ("synapse-", "slack-backfill", "silos-refill", "content-index")
+#: refill, the start-up content index and the core's own maintenance (`rouh/reasoning_scrub.py`).
+BACKGROUND = ("synapse-", "slack-backfill", "silos-refill", "content-index", "maintenance-")
 
 #: Seconds a borrower waits for a connection before it is told the database is
 #: busy; on the event loop's own thread, shorter, because the whole process

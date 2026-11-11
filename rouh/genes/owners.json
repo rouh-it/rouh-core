@@ -253,7 +253,9 @@
    "files": [
     "rouh/llmlog.py",
     "rouh/models/llmlog.py",
-    "rouh/management/commands/llm_log.py"
+    "rouh/management/commands/llm_log.py",
+    "rouh/reasoning_scrub.py",
+    "rouh/management/commands/scrub_encrypted_reasoning.py"
    ],
    "needed_by": [
     "gene-registry",
@@ -700,7 +702,9 @@
     "rouh/job_policy.py",
     "rouh/job_mail.py",
     "rouh/his_word.py",
-    "rouh/migrations/0225_his_word.py"
+    "rouh/migrations/0225_his_word.py",
+    "rouh/core_commands.py",
+    "rouh/management/commands/table_sizes.py"
    ]
   },
   "runs": {

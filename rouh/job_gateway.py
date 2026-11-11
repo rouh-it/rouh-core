@@ -264,6 +264,14 @@ NATIVE_TOOLS = [
                                                  "such as 351."}},
          "additionalProperties": False}},
 ]
+
+def _core_command_tool() -> dict:
+    from . import core_commands
+
+    return core_commands.tool_definition()
+
+
+NATIVE_TOOLS.append(_core_command_tool())
 NATIVE_BY_NAME = {t["name"]: t for t in NATIVE_TOOLS}
 
 #: What a tool that may need the owner's yes is told, after its own description.
@@ -632,7 +640,7 @@ def _args_said(args: dict) -> str:
         return str(args)[:1500]
 
 
-async def _native(scope: Scope, name: str, args: dict) -> dict:
+async def _native(scope: Scope, name: str, args: dict, why: str = "") -> dict:
     from . import job_mail
     from .tenancy import speaking
 
@@ -640,6 +648,10 @@ async def _native(scope: Scope, name: str, args: dict) -> dict:
         return await request(scope, args)
     if name == policy.REQUEST_STATUS:
         return await asyncio.to_thread(status, scope, args)
+    if name == policy.CORE_COMMAND:
+        from . import core_commands
+
+        return await core_commands.call(scope, args, why)
     with speaking(scope.who):
         if name == policy.MAIL_FIND:
             return await job_mail.find(scope, args)
@@ -655,7 +667,7 @@ async def call(scope: Scope, name: str, args) -> dict:
     if ruling.verdict == policy.REFUSE:
         return {"ok": False, "text": ruling.why}
     if name in NATIVE_BY_NAME:
-        return await _native(scope, name, args)
+        return await _native(scope, name, args, why)
     if hooks.registry is None or name not in hooks.registry._handlers:
         return {"ok": False, "text": f"Rouh has no tool called {name}."}
     if ruling.verdict == policy.PENDING:
