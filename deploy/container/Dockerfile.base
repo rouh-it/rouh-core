@@ -32,7 +32,7 @@ ARG PGCLIENT_IMAGE=pgvector/pgvector:0.8.7-pg18-trixie@sha256:5895949dfcdf308eb0
 FROM ${PGCLIENT_IMAGE} AS pgclient
 RUN mkdir -p /opt/pg/bin /opt/pg/lib \
  && cp /usr/lib/postgresql/18/bin/pg_dump /usr/lib/postgresql/18/bin/pg_restore /opt/pg/bin/ \
- && ldd /opt/pg/bin/pg_dump /opt/pg/bin/pg_restore | awk '/=> \/|^\s*\// {for(i=1;i<=NF;i++) if ($i ~ /^\//) print $i}' | sort -u | xargs -r cp -t /opt/pg/lib/
+ && ldd /opt/pg/bin/pg_dump | awk '$1 == "libpq.so.5" && $2 == "=>" {print $3}' | xargs cp -t /opt/pg/lib/
 
 FROM ${NODE_IMAGE} AS node
 
@@ -68,6 +68,9 @@ RUN apt-get update \
         curl bash procps less ripgrep openssh-client jq unzip xz-utils \
         chromium fonts-liberation \
  && rm -rf /var/lib/apt/lists/*
+
+RUN LD_LIBRARY_PATH=/opt/pg/lib /opt/pg/bin/pg_dump --version \
+ && LD_LIBRARY_PATH=/opt/pg/lib /opt/pg/bin/pg_restore --version
 
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
