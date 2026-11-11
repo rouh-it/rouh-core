@@ -74,6 +74,7 @@ jobs:
       - name: A browser for the smoke test
         run: |
           set -euo pipefail
+          sudo apt-get update -qq
           # age opens the encrypted off-site copy the backup check makes (tests/stack/checks_backup.py).
           sudo apt-get install -y -qq age >/dev/null
           python3 -m pip install --quiet --break-system-packages -r tests/stack/requirements.txt
