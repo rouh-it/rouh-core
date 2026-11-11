@@ -109,11 +109,19 @@ jobs:
           STACK_TEST_OUT: ${{ github.workspace }}/.stack-test
         run: |
           set -o pipefail
-          tests/stack/run.sh | tee stack-test.log
+          set +e
+          tests/stack/run.sh 2>&1 | tee stack-test.log
           status=$?
           grep '^STACK-TEST ' stack-test.log | tail -1 | cut -d' ' -f2- > ".stack-test/summary-$ARCH.json" || true
           { echo "### The stack on $ARCH, at ${GITHUB_SHA:0:12}"; echo; echo '```';
             grep -E '^(ok |FAIL|now passes|broken|untested|manual|[0-9]+ passed|stack-test:)' stack-test.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" != 0 ]; then
+            while IFS= read -r line; do
+              line=${line//'%'/'%25'}
+              line=${line//$'\r'/'%0D'}
+              echo "::error title=Container proof::$line"
+            done < <(tail -n 25 stack-test.log)
+          fi
           exit $status
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
