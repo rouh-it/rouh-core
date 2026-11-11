@@ -67,7 +67,7 @@ def _again(fn, limit: float = 300):
     while True:
         try:
             return fn()
-        except (OSError, ValueError) as e:
+        except (OSError, ValueError, Failed) as e:
             if time.time() > end:
                 raise Failed(f"Rouh did not answer for {int(limit)} s: {e}") from None
             time.sleep(5)
@@ -138,6 +138,10 @@ print(said[0][:2000] if said else "")
 
 def _older(s: Stack) -> str:
     """This Rouh made an older one with two genes of its own; the release it came from."""
+    # The check before (guard.undo) may have just put other code in place, and Rouh be starting
+    # again on it: let it settle first.
+    time.sleep(20)
+    _healthy(s)
     root = s.run("core", f"{CODE} rev-list --max-parents=0 HEAD").stdout.split()[0]
     came_from = "c0ffee" + root[6:]
     r = s.run("core", f"""set -e
@@ -152,10 +156,10 @@ git -c user.name=Rouh -c user.email=rouh@localhost commit -q -m "Its own words a
 """, user="10001:10001", env={"HOME": "/tmp"})
     expect(r.returncode == 0, f"the genes could not be made: {(r.stderr or r.stdout)[-400:]}")
     genes = r.stdout.strip().splitlines()[-1]
-    got = s.manage(f"""
+    got = _again(lambda: s.manage(f"""
 from rouh import guardface
 print(guardface.ask("propose", commit={genes!r}, why="the stack test's two genes", by="the stack test", timeout=1800.0))
-""", timeout=1900)
+""", timeout=1900), 180)
     expect("'ok': True" in got, f"the genes did not go live: {got[-600:]}")
     # Rouh starts again on them once the answers in progress are over: let it, then wait for it.
     time.sleep(30)
