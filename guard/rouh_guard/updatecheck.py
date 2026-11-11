@@ -35,8 +35,8 @@ def env(data: Path, db: dict | None = None) -> dict:
     return out
 
 
-def run_program(program: Path, cwd: Path, environment: dict, *args: str) -> subprocess.CompletedProcess:
-    pre = ["setpriv", f"--reuid={CHECK_USER}", f"--regid={CHECK_USER}", "--clear-groups", "--"] if os.getuid() == 0 else []
+def run_program(program: Path, cwd: Path, environment: dict, *args: str, user: int = CHECK_USER) -> subprocess.CompletedProcess:
+    pre = ["setpriv", f"--reuid={user}", f"--regid={user}", "--clear-groups", "--"] if os.getuid() == 0 else []
     return subprocess.run([*pre, "python", str(program), *args], cwd=cwd, env={**environment, "PYTHONPATH": str(cwd)},
                           text=True, capture_output=True, timeout=1200)
 

@@ -392,8 +392,11 @@ def updates_sensitive(s: Stack) -> None:
     records = s.py("guard", "from pathlib import Path\nimport json\n"
                   "rows=[json.loads(p.read_text()) for p in Path('/guard/database-updates').glob('*/outcome.json')]\n"
                   "print(json.dumps([r for r in rows if r.get('applied')]))").stdout
-    expect('"rehearsal": true' in records and '"preserved": true' in records and '"before": 2' in records,
+    expect('"rehearsal": true' in records and '"private_copy_removed": true' in records
+           and '"preserved": true' in records and '"before": 2' in records,
            f"no protected backup, rehearsal or counts: {records[-1000:]}")
+    copies = s.py("guard", "from pathlib import Path\nprint(list(Path('/guard').glob('rehearsal-*')))").stdout
+    expect(copies.strip() == "[]", f"the private real-data copy was not removed: {copies}")
     _browser(s, "security-and-database", ["Adapted for this Rouh", "Stack release 3", "Stack release 4"])
 
 

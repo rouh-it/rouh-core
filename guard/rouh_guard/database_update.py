@@ -62,9 +62,10 @@ def _write(path: Path, doc: dict) -> None:
 
 def _real(helper: Path, tree: Path, data: Path, db: dict, planfile: Path, backup: Path) -> subprocess.CompletedProcess:
     """Keep the writer locks while pg_dump reads the exact pre-migration snapshot."""
-    from .updatecheck import CHECK_USER, env
+    from .updatecheck import env
+    from .rehearsal import APPLY_USER, stop_children
 
-    pre = ["setpriv", f"--reuid={CHECK_USER}", f"--regid={CHECK_USER}", "--clear-groups", "--"] if os.getuid() == 0 else []
+    pre = ["setpriv", f"--reuid={APPLY_USER}", f"--regid={APPLY_USER}", "--clear-groups", "--"] if os.getuid() == 0 else []
     snapshot, go = data / "snapshot", data / "go"
     snapshot.unlink(missing_ok=True)
     go.unlink(missing_ok=True)
@@ -85,16 +86,19 @@ def _real(helper: Path, tree: Path, data: Path, db: dict, planfile: Path, backup
             return subprocess.CompletedProcess(proc.args, proc.returncode, log.read(), "")
         finally:
             if proc.poll() is None:
-                proc.kill()
-                proc.wait()
+                if os.getuid() == 0:
+                    stop_children(APPLY_USER)
+                else:
+                    proc.kill()
+                proc.wait(timeout=30)
+            stop_children(APPLY_USER)
 
 
 def run(tree: Path, proof: Path, plan: dict, state: Path, commit: str, *, before: Path | None = None,
         security: bool = False, not_applicable: bool = False) -> None:
     import psycopg
-    from psycopg import sql
-
-    from .updatecheck import CHECK_USER, env, run_program, security_result
+    from . import rehearsal
+    from .updatecheck import env, run_program, security_result
 
     if not plan.get("restore") or not isinstance(plan.get("tables", {}), dict):
         raise ValueError("the database plan needs its table mapping and written restore path")
@@ -108,66 +112,72 @@ def run(tree: Path, proof: Path, plan: dict, state: Path, commit: str, *, before
                          "check it, and switch the database names before starting the earlier undo point.",
               "rehearsal": False, "applied": False}
     _write(keep / "outcome.json", record)
+    with psycopg.connect(**_kw(db)) as conn:
+        size = conn.execute("SELECT pg_database_size(current_database())").fetchone()[0]
+    if shutil.disk_usage(state).free < max(3 * size, 1024**3) + 1024**3:
+        raise ValueError("more free disk space is needed for two full backups and the real-data rehearsal")
     # Full pg_dump, not last night's copy. No backup is pruned while its undo point may need it.
     pg("pg_dump", db, "-Fc", "--file=" + str(backup))
     os.chmod(backup, 0o600)
-    copy = {"HOST": os.environ.get("ROUH_GUARD_CHECK_DB", "checkdb"),
-            "PORT": os.environ.get("ROUH_GUARD_CHECK_DB_PORT", "5432"),
-            "NAME": "rehearse_" + uuid.uuid4().hex[:20], "USER": "rouh", "PASSWORD": "check"}
-    admin = {**copy, "NAME": "postgres"}
     data = tree.parent / ("migration-" + tag)
-    data.mkdir()
+    # Distinct users keep an ordinary check from reading either proof credentials or the
+    # real migration's environment. Only these private data folders are writable by each.
+    if os.getuid() == 0:
+        os.chmod(tree.parent, 0o711)
+    rehearsal.private(data, rehearsal.PROOF_USER)
     planfile = data / "plan.json"
     planfile.write_text(json.dumps(plan))
+
+    def test(program, cwd, environment, *args):
+        return run_program(program, cwd, environment, *args, user=rehearsal.PROOF_USER)
+
     helper = Path(__file__).resolve().parents[1] / "bin/rouh-update-database"
     try:
-        with psycopg.connect(**_kw(admin), autocommit=True) as conn:
-            conn.execute(sql.SQL("CREATE DATABASE {} OWNER rouh").format(sql.Identifier(copy["NAME"])))
-        pg("pg_restore", copy, "--no-owner", "--no-privileges", "--exit-on-error", str(backup))
-        if os.getuid() == 0:
-            subprocess.run(["chown", "-R", f"{CHECK_USER}:{CHECK_USER}", str(data)], check=True)
-        if security:
-            was = run_program(proof, before, env(data, copy))
-            b = security_result(was)
-            if was.returncode != (0 if not_applicable else 1) or b.get("vulnerable") is not (not not_applicable) or not b.get("checks"):
-                raise ValueError("the security test did not prove the hole before the database change")
-        r = run_program(helper, tree, env(data, copy), str(planfile), "rehearsal")
-        if r.returncode:
-            raise ValueError("rehearsal on the real database copy failed: " + (r.stdout + r.stderr)[-1400:])
-        counts = json.loads((data / "counts.json").read_text())
-        r = run_program(proof, tree, env(data, copy))
-        if r.returncode:
-            raise ValueError("master's migration test on the real copy failed: " + (r.stdout + r.stderr)[-1200:])
-        if security:
-            a = security_result(r)
-            if a.get("vulnerable") is not False or a.get("checks") != b.get("checks"):
-                raise ValueError("the same security assertions did not show the hole closed on the migrated copy")
-        # This is explicitly a disposable real-data copy; the normal CLI refuses live accounts.
-        check = data / "selfcheck.py"
-        check.write_text("import django; django.setup()\nfrom rouh import selfcheck\n"
-                         "r=selfcheck.run('own', db_ready=True)\nprint(r.line())\nraise SystemExit(0 if r.ok else 1)\n")
-        r = run_program(check, tree, env(data, copy))
-        if r.returncode:
-            raise ValueError("this Rouh's self-checks on the migrated copy failed: " + (r.stdout + r.stderr)[-1200:])
-        record.update(rehearsal=True, counts=counts)
+        with rehearsal.database(state) as copy:
+            pg("pg_restore", copy, "--no-owner", "--no-privileges", "--exit-on-error", str(backup))
+            if security:
+                was = test(proof, before, env(data, copy))
+                b = security_result(was)
+                if was.returncode != (0 if not_applicable else 1) or b.get("vulnerable") is not (not not_applicable) or not b.get("checks"):
+                    raise ValueError("the security test did not prove the hole before the database change")
+            r = test(helper, tree, env(data, copy), str(planfile), "rehearsal")
+            if r.returncode:
+                raise ValueError("rehearsal on the real database copy failed: " + (r.stdout + r.stderr)[-1400:])
+            counts = json.loads((data / "counts.json").read_text())
+            r = test(proof, tree, env(data, copy))
+            if r.returncode:
+                raise ValueError("master's migration test on the real copy failed: " + (r.stdout + r.stderr)[-1200:])
+            if security:
+                a = security_result(r)
+                if a.get("vulnerable") is not False or a.get("checks") != b.get("checks"):
+                    raise ValueError("the same security assertions did not show the hole closed on the migrated copy")
+            # This is explicitly a disposable real-data copy; the normal CLI refuses live accounts.
+            check = data / "selfcheck.py"
+            check.write_text("import django; django.setup()\nfrom rouh import selfcheck\n"
+                             "r=selfcheck.run('own', db_ready=True)\nprint(r.line())\nraise SystemExit(0 if r.ok else 1)\n")
+            r = test(check, tree, env(data, copy))
+            if r.returncode:
+                raise ValueError("this Rouh's self-checks on the migrated copy failed: " + (r.stdout + r.stderr)[-1200:])
+        record.update(rehearsal=True, private_copy_removed=True, counts=counts)
         _write(keep / "outcome.json", record)
         # The same protected helper holds all the table locks and migrates in one transaction.
         # Its preservation checks precede COMMIT. Failure inside that transaction rolls it back.
         record.update(application_started=True, applied=None)
         _write(keep / "outcome.json", record)
-        r = _real(helper, tree, data, db, planfile, keep / "immediately-before.dump")
+        real_data = tree.parent / ("apply-" + tag)
+        rehearsal.private(real_data, rehearsal.APPLY_USER)
+        real_plan = real_data / "plan.json"
+        real_plan.write_text(json.dumps(plan))
+        r = _real(helper, tree, real_data, db, real_plan, keep / "immediately-before.dump")
         if r.returncode:
             raise ValueError("the real migration did not finish its verification; its application outcome needs checking "
                              "against the protected backup and restore path: " + (r.stdout + r.stderr)[-1400:])
-        record.update(applied=True, after=json.loads((data / "counts.json").read_text()))
+        record.update(applied=True, after=json.loads((real_data / "counts.json").read_text()))
         _write(keep / "outcome.json", record)
     except Exception as exc:
         record["error"] = str(exc)
         _write(keep / "outcome.json", record)
         raise
-    finally:
-        with psycopg.connect(**_kw(admin), autocommit=True) as conn:
-            conn.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(copy["NAME"])))
 
 
 def migrate(planfile: Path, phase: str) -> None:
