@@ -399,11 +399,13 @@ def open_rouh(api: Api, *, wait: bool = False) -> None:
         return
     p, user = port(), user_name()
     pub, mine = public_ip(), local_ip()
-    there = pub if pub and pub == mine else (mine or pub or "this-server")
+    # A cloud server is reached at its public address, which its own network card may not have
+    # (the provider's router has it); a server at home or in an office, on the network it is on.
+    there = pub or mine or "this-server"
     say("", "Open Rouh from your own computer: first, in a terminal there, run", "",
         f"    {BOLD}ssh -L {p}:127.0.0.1:{p} {user}@{there}{RESET}", "")
     if pub and mine and pub != mine:
-        say(f"{DIM}  (From the internet the address may be {pub}; on the same network, {mine}.){RESET}", "")
+        say(f"{DIM}  (On the same network as this server, use {mine} instead of {pub}.){RESET}", "")
     say("and keep it open. Then open this address there (it signs you in once):", "",
         f"    {BOLD}{'http://127.0.0.1:' + p + doc.get('local', '/')}{RESET}", "",
         f"{DIM}On your phone: give Rouh a domain of your own (rouh domain rouh.example.com). With Tailscale "
