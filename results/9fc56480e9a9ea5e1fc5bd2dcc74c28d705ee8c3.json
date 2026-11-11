@@ -1,0 +1,8 @@
+{
+  "commit": "9fc56480e9a9ea5e1fc5bd2dcc74c28d705ee8c3",
+  "ref": "proof/stack-adapt-ce3b25fb",
+  "ok": false,
+  "result": "failure",
+  "at": "2026-11-11T16:30:39Z",
+  "run": "https://github.com/rouh-it/rouh-core/actions/runs/43058882317"
+}
