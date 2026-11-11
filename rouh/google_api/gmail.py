@@ -272,6 +272,31 @@ class Gmail:
                 break
         return named
 
+    async def drafts_like(self, query: str = "", most: int = 10) -> list[dict]:
+        """The drafts Gmail's search finds, each read whole: its draft id, the message's id, who it goes
+        to, its subject and its words. For Not drafted twice (`rouh/draft_twice.py`), GET only."""
+        params: dict = {"maxResults": max(1, min(int(most or 10), 50))}
+        if query:
+            params["q"] = query
+        listing = await self._clients.call(self._who, "GET", self._url("/drafts"), params=params)
+        ids = [str(d.get("id")) for d in (listing.get("drafts") or []) if d.get("id")][:params["maxResults"]]
+
+        async def one(draft_id: str) -> dict:
+            body = await self._clients.call(
+                self._who, "GET", self._url(f"/drafts/{urllib.parse.quote(draft_id)}"),
+                params={"format": "full"})
+            message = body.get("message") or {}
+            payload = message.get("payload") or {}
+            named = _named_headers(payload)
+            plain, html = _message_bodies(payload)
+            return {"draft_id": draft_id, "id": message.get("id") or "",
+                    "to": named.get("to", ""), "cc": named.get("cc", ""), "bcc": named.get("bcc", ""),
+                    "subject": named.get("subject", ""), "at": _arrived(message, named),
+                    "body": plain or (_text_of_html(html) if html else "")}
+
+        found = await asyncio.gather(*(one(d) for d in ids), return_exceptions=True)
+        return [f for f in found if isinstance(f, dict)]
+
     async def _part_file(self, message_id: str, found: dict) -> dict:
         """One part of a message that is a file, as its name, its type and its bytes."""
         held = found.get("body") or {}

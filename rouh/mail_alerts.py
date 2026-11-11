@@ -1890,6 +1890,18 @@ class MailAlerts:
                 number = ""
             if number:
                 log.info("mail alert %s: %s", message_id, number)
+            # A new address for a contact (night 40, `rouh/new_address.py`): a contact writing from an
+            # address on none of their cards is told, and the email goes on as before.
+            from . import new_address
+
+            try:
+                alert = await self._db(self.store.alert, user_id, org_id)
+                moved = await new_address.seen(who, message, mailbox=str(alert.get("mailbox") or ""))
+            except Exception:  # noqa: BLE001 - the email is handled all the same
+                log.exception("mail alert %s: the sender's address could not be checked", message_id)
+                moved = ""
+            if moved:
+                log.info("mail alert %s: %s", message_id, moved)
         listed = None if pretender else await self._db(
             self.cases.trust.listed_for, user_id, org_id, address)
         if not existing and listed is None and not pretender and not row.get("replays"):

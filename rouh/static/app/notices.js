@@ -720,8 +720,9 @@ function follow(n, href) {
     // So is a bounce's Open (`/mail/not-arrived/<key>`, rouh/not_arrived.py), which says it was
     // used and sends the page on to the chat the email went from. So are an away reply's Open
     // (`/mail/away-after/<key>`, rouh/away_after.py) and Add it to their contact on a new number
-    // in a signature (`/mail/new-number/<key>`, rouh/new_number.py), which adds it and comes back.
-    if (/^\/mail\/(case\/[^/?#]+\/.|not-arrived\/|away-after\/|new-number\/)/.test(link) || n.reload) location.assign(link);
+    // in a signature (`/mail/new-number/<key>`, rouh/new_number.py), which adds it and comes back,
+    // and the same on a contact's new address (`/mail/new-address/<key>`, rouh/new_address.py).
+    if (/^\/mail\/(case\/[^/?#]+\/.|not-arrived\/|away-after\/|new-number\/|new-address\/)/.test(link) || n.reload) location.assign(link);
     else {
       // On a phone the bell is inside the navigation's drawer, which goes with the press like
       // after any other link followed from it, or it stays over the place just opened.

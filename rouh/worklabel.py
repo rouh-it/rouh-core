@@ -1214,6 +1214,11 @@ def _same_contact(a):
     return "Reading which contacts are there twice", ""
 
 
+@_step("contact_card")
+def _contact_card(a):
+    return "Making their card to pass on", _arg(a, "name") or ""
+
+
 @_step("reply_times")
 def _reply_times(a):
     return "Counting reply times", _arg(a, "who") or ""

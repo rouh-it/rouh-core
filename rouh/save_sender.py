@@ -131,6 +131,12 @@ def shown(who, found: dict, own: list[str] = ()) -> dict | None:
     card = card_for(found, cards, own)
     if card is None:
         return None
+    from . import new_address
+
+    if new_address.on(who) and new_address.match(cards, *email.utils.parseaddr(found.get("from", ""))):
+        # A new address for a contact (night 40): somebody already in the contacts under their name, at a
+        # new address, is not offered a second card; the notice adds the address to the one they have.
+        return None
     from . import evolution
 
     evolution.used(SWITCH, "shown", who=who, detail="with a company" if card["company"] else "no company")

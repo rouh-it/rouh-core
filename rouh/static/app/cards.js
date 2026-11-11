@@ -2417,6 +2417,10 @@ function inboxBlock(b) {
   // saving them would add, and one press that saves them to iCloud.
   var saveRow = el('div', 'ib-remind ib-save-sender');
   saveRow.hidden = true;
+  // A contact card in an email (night 40, rouh/card_in_mail.py): whose card the email carries, what it
+  // holds, and one press that saves it to iCloud, onto the contact already there when there is one.
+  var cardRow = el('div', 'ib-remind ib-card-in-mail');
+  cardRow.hidden = true;
   var mailSaid = el('p', 'ib-said');
   mailSaid.hidden = true;
   mailSaid.setAttribute('role', 'status');
@@ -2435,6 +2439,7 @@ function inboxBlock(b) {
   mail.appendChild(watchRow);
   mail.appendChild(answerRow);
   mail.appendChild(saveRow);
+  mail.appendChild(cardRow);
   mail.appendChild(mailSaid);
   mail.appendChild(body);
   mail.appendChild(files);
@@ -2615,6 +2620,7 @@ function inboxBlock(b) {
     drawWatch(msg);
     drawAnswerWatch(msg);
     drawSaveSender(msg);
+    drawCardInMail(msg);
   }
 
   /** @param {any} msg */
@@ -2739,6 +2745,32 @@ function inboxBlock(b) {
         var see = el('a', 'ib-remind-link', 'See it on Clockwork');
         see.href = '/clockwork';
         answerRow.appendChild(see);
+      });
+    });
+  }
+
+  /** @param {any} msg */
+  function drawCardInMail(msg) {
+    cardRow.textContent = '';
+    var c = msg && msg.card_in_mail;
+    cardRow.hidden = !(c && c.said);
+    if (!c || !c.said) return;
+    cardRow.appendChild(el('span', 'ib-remind-note', c.said));
+    if (!c.button) return;
+    var b = inboxButton('ib-card-in-mail-at', c.button,
+      c.kind === 'new' ? 'Saves ' + (c.name || 'them') + ' to your iCloud contacts'
+        : 'Adds what the card has to ' + (c.name || 'their') + '\'s contact in iCloud');
+    cardRow.appendChild(b);
+    b.addEventListener('click', function () {
+      busy(b, 'Saving\u2026');
+      inboxAsk(token, 'card_in_mail', { id: msg.id }, function (m) {
+        done(b);
+        if (!m.ok) {
+          sayBad(mailSaid, m.why || 'The card could not be saved.');
+          return;
+        }
+        cardRow.textContent = '';
+        cardRow.appendChild(el('span', 'ib-remind-note', m.said || 'Saved to your contacts.'));
       });
     });
   }

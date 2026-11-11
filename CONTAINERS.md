@@ -371,6 +371,10 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `gene.new-number` | A new number in their signature | untested | works | a signature's mobile that a contact lacks is found, and a number the contact has is not |
 | `gene.same-contact` | Contacts kept twice | untested | works | `same_contact` reads every contact and says who is there more than once (or that nobody is) |
 | `gene.save-sender` | Save them as a contact | untested | works | a sender on no contact gets the card that would be saved: name, address, company from the domain and the signature's number |
+| `gene.draft-twice` | Not drafted twice | untested | works | the same draft asked for twice is made once, and the second answer gives the draft already there |
+| `gene.new-address` | A new address for a contact | untested | works | a contact's name at an address on none of their cards is matched to that one card; a known address, a one-word name and a name on two cards are not |
+| `gene.contact-card` | Their card to pass on | untested | works | a contact's card file keeps the name, numbers and addresses and leaves the notes and birthday out |
+| `gene.card-in-mail` | A contact card in an email | untested | works | a card file is read, and somebody new is offered as a new contact, somebody known as what their contact lacks |
 | `core.commands-open-credentials` | A command run in the core beside Rouh (`docker compose exec core python manage.py ...`) opens what Rouh sealed | broken | works | with Google connected, Python in the core opens the sealed refresh token with the key from the keys volume (`ROUH_ENCRYPTION_KEY_FILE`), and Google is still connected after. It was broken: only the core's start put the key in Rouh's environment, so a command beside it made a key of its own in `/data`, could open no credential, and marked the owner's Google to be connected again |
 
 ## Checks a person makes

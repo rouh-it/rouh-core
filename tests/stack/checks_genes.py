@@ -2882,3 +2882,64 @@ print(json.dumps(save_sender.card_for(found, cards, [])))
     expect("Kai Stack" in out and "Northwind" in out and "+386 41 555 222" in out,
            f"the card to save was not made: {out[-500:]}")
 
+
+
+# --- Night 40 (11 November): not drafted twice; a new address for a contact; their card to pass on;
+# a contact card in an email
+
+@check("gene.draft-twice")
+def draft_twice(s: Stack) -> None:
+    """The same draft asked for twice is made once: the second time gives the draft already there."""
+    google(s)
+    args = {"to": "Pat Stack <pat@draft-stack.test>", "subject": "Stack rollout dates",
+            "body": "Hi Pat,\n\nThe rollout starts on 1 December.\n\nAlex"}
+    first = g_tool(s, "draft_mail", args, "Drafted to")
+    expect("Not drafted again" not in first, f"the first draft was held: {first[:400]}")
+    g_tool(s, "draft_mail", args, "Not drafted again")
+
+
+@check("gene.new-address")
+def new_address(s: Stack) -> None:
+    """A contact's name at an address on none of their cards is matched to that one card; a known address,
+    a one-word name and a name on two cards are not."""
+    out = core_py(s, _owner_py("""
+from rouh import new_address
+cards = [{"id": "c1", "name": "Dana Stack", "emails": [{"address": "dana@old-stack.test"}]},
+         {"id": "c2", "name": "Chris Twin", "emails": []}, {"id": "c3", "name": "Twin Chris", "emails": []}]
+print(json.dumps({"new": (new_address.match(cards, "Stack, Dana", "dana@new-stack.test") or {}).get("id"),
+                  "known": new_address.match(cards, "Dana Stack", "dana@old-stack.test"),
+                  "one_word": new_address.match(cards, "Dana", "dana@new-stack.test"),
+                  "two": new_address.match(cards, "Chris Twin", "chris@twin-stack.test")}))
+"""))
+    expect('"new": "c1"' in out and '"known": null' in out and '"one_word": null' in out and '"two": null' in out,
+           f"the contact at a new address was not matched alone: {out[-500:]}")
+
+
+@check("gene.contact-card")
+def contact_card(s: Stack) -> None:
+    """A contact's card file keeps the name, numbers and addresses, and leaves the notes and birthday out."""
+    out = core_py(s, _owner_py("""
+from rouh import contact_card
+v = "\\r\\n".join(["BEGIN:VCARD", "VERSION:3.0", "FN:Dana Stack", "TEL;type=CELL:+44 7700 900 123",
+                   "EMAIL:dana@card-stack.test", "NOTE:private 8001011234", "BDAY:1980-01-01", "END:VCARD", ""])
+text, left = contact_card.card_text({"id": "c1", "name": "Dana Stack", "vcard": v})
+print(json.dumps({"text": text, "left": left}))
+"""))
+    expect("+44 7700 900 123" in out and "dana@card-stack.test" in out and "8001011234" not in out
+           and "BDAY" not in out and "the notes" in out, f"the card file was not made as it should be: {out[-500:]}")
+
+
+@check("gene.card-in-mail")
+def card_in_mail(s: Stack) -> None:
+    """A card file on an email is read, and somebody new is offered as a new contact, somebody known as the
+    numbers their contact lacks."""
+    out = core_py(s, _owner_py("""
+from rouh import card_in_mail
+v = "\\r\\n".join(["BEGIN:VCARD", "VERSION:3.0", "FN:Sam Stack", "ORG:Lumen;", "TEL;type=CELL:+386 41 555 333",
+                   "EMAIL:sam@card-stack.test", "END:VCARD", ""]).encode()
+person = card_in_mail.person_of(v)
+known = [{"id": "c1", "name": "Sam Stack", "phones": [], "emails": [{"address": "sam@card-stack.test"}]}]
+print(json.dumps({"new": card_in_mail.line([], person), "known": card_in_mail.line(known, person)}))
+"""))
+    expect("Save Sam Stack to contacts" in out and "Add to Sam Stack's contact" in out and "+386 41 555 333" in out,
+           f"the card on the email was not read: {out[-500:]}")

@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 
 from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, calendar_away, clock, demo,
                composing, conversations, filing, imaging, inbox, inbox_grants, inboxes,
-               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, no_company, sent_twice, same_contact, meeting_hours, meet_link, no_place,
+               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, no_company, sent_twice, same_contact, draft_twice, contact_card, meeting_hours, meet_link, no_place,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer, reply_times,
                their_clock, their_hours, unread_lists, their_language, promised_to_you,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer,
@@ -6379,6 +6379,8 @@ class ToolRegistry:
                         "description": "The id of the message this answers, to draft a reply in thread."},
                     "attachments": _ATTACHMENTS_ARG,
                     "inbox": inboxes.INBOX_WRITE_ARG,
+                    # Not drafted twice (night 40, `rouh/draft_twice.py`).
+                    "even_if_drafted": draft_twice.FIELD,
                 },
                 "required": ["body"],
             },
@@ -6985,6 +6987,8 @@ class ToolRegistry:
         # Contacts kept twice (night 39, `rouh/same_contact.py`): the people on more than one card.
         self._own("same_contact", same_contact.DESCRIPTION, {"type": "object", "properties": {}},
                   self._same_contact)
+        # Their card to pass on (night 40, `rouh/contact_card.py`): a contact as a .vcf to attach.
+        self._own("contact_card", contact_card.DESCRIPTION, contact_card.SCHEMA, self._contact_card)
         # Between you and them (night 37, `rouh/between_us.py`): what is open with one person by mail.
         self._own(between_us.TOOL_NAME, between_us.DESCRIPTION, between_us.SCHEMA, self._between_us)
         # Newsletters you never open (night 35, `rouh/unread_lists.py`): lists left unread, stopped in a word.
@@ -8354,6 +8358,11 @@ class ToolRegistry:
             stop = await self._sent_twice(to, cc, bcc, subject, body)
             if stop:
                 return untrusted.ours(stop)
+        if not sending and not args.get("even_if_drafted"):
+            # Not drafted twice (night 40, `rouh/draft_twice.py`): the same draft is already in Drafts.
+            stop = await self._draft_twice(to, cc, bcc, subject, body)
+            if stop:
+                return untrusted.ours(stop)
         if sending and not named and not attach_promised.checked(args) and \
                 not (args.get("draft_id") or "").strip() and (turn is None or turn.from_owner):
             # A file promised, not attached (night 34, with night 35's said attached, nothing
@@ -8444,6 +8453,25 @@ class ToolRegistry:
 
             await asyncio.to_thread(evolution.used, sent_twice.SWITCH, "held", who=who,
                                     detail=f"{subject[:80]!r} already sent")
+        return stop
+
+    async def _draft_twice(self, to: str, cc: str, bcc: str, subject: str, body: str) -> str:
+        """Not drafted twice (night 40, `rouh/draft_twice.py`): why not, when the same draft is already in
+        Rouh's Drafts; "" when it is off, new or cannot tell."""
+        who = self.google.person()
+        if not await asyncio.to_thread(draft_twice.on, who):
+            return ""
+        try:
+            stop, there = await draft_twice.check(self.google.services().gmail, to=to, cc=cc, bcc=bcc,
+                                                  subject=subject, body=body, zone=clock.zone_of(who))
+        except Exception:  # noqa: BLE001 - drafted as asked when the Drafts cannot be read
+            log.exception("the Drafts could not be read for the same draft")
+            return ""
+        if stop:
+            from . import evolution
+
+            await asyncio.to_thread(evolution.used, draft_twice.SWITCH, "held", who=who,
+                                    detail=f"{subject[:80]!r} already in Drafts")
         return stop
 
     async def _attach_promised(self, args, subject: str, body: str) -> str:
@@ -9981,6 +10009,16 @@ class ToolRegistry:
         await asyncio.to_thread(evolution.used, to_answer.SWITCH, "asked", who=who,
                                 detail=f"{count} waiting")
         return untrusted.wrap(said, untrusted.SOURCES["read_recent_mail"])
+
+    async def _contact_card(self, args, emit):
+        """Their card to pass on (night 40, `rouh/contact_card.py`)."""
+        who = self.contacts.person()
+        if who is None:
+            return untrusted.ours("Nobody is signed in, so there are no contacts to read.")
+        if _in_case():
+            return untrusted.ours("The person's contacts are read only for the person, not in a contact's case.")
+        said = await asyncio.to_thread(contact_card.answer, who, args)
+        return untrusted.wrap(said, untrusted.SOURCES["search_contacts"])
 
     async def _same_contact(self, args, emit):
         """Contacts kept twice (night 39, `rouh/same_contact.py`)."""

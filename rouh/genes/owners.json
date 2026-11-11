@@ -392,6 +392,7 @@
     "rouh/models/accounts.py",
     "rouh/web/auth.py",
     "rouh/web/firstrun.py",
+    "rouh/web/setup_api.py",
     "rouh/templates/rouh/firstrun.html",
     "rouh/management/commands/setup_link.py",
     "rouh/management/commands/first_run_state.py",
@@ -2794,6 +2795,65 @@
    "files": [
     "rouh/save_sender.py",
     "rouh/sig_phones.py"
+   ]
+  },
+  "n40-draft-twice": {
+   "name": "Not drafted twice",
+   "what": "Before Rouh writes a draft, it reads its own Drafts: when the same draft (same people, subject and words) is already there, no second one is made and Rouh gives the one that is there.",
+   "switch": "draft_twice",
+   "signals": {
+    "events": {
+     "held": "You asked Rouh to draft an email that was already in its Drafts, and it gave you that draft instead of making a second one"
+    }
+   },
+   "files": [
+    "rouh/draft_twice.py"
+   ]
+  },
+  "n40-new-address": {
+   "name": "A new address for a contact",
+   "what": "When somebody in your contacts writes from an address that is on none of their cards, you are told at once, with Add it to their contact, which puts the address on the contact in iCloud.",
+   "switch": "new_address",
+   "signals": {
+    "events": {
+     "added": "You pressed Add it to their contact on a notice that a contact wrote from a new address"
+    },
+    "runs": {
+     "told": "A contact wrote from an address not on their card, and you were told in a notice"
+    }
+   },
+   "files": [
+    "rouh/new_address.py",
+    "rouh/web/new_address.py"
+   ]
+  },
+  "n40-contact-card": {
+   "name": "Their card to pass on",
+   "what": "Asked to pass somebody's contact on, Rouh makes their card file (.vcf) with the name, company, numbers and addresses only, leaving out your notes, the birthday and the photo, ready to attach to an email.",
+   "switch": "contact_card",
+   "signals": {
+    "events": {
+     "made": "You asked Rouh to pass a contact on, and it made their card file to attach"
+    }
+   },
+   "files": [
+    "rouh/contact_card.py"
+   ]
+  },
+  "n40-card-in-mail": {
+   "name": "A contact card in an email",
+   "what": "An email opened on the inbox card that carries a contact card says whose it is and what it holds, with Save to contacts, or Add to their contact when the person is in your contacts already.",
+   "switch": "card_in_mail",
+   "signals": {
+    "events": {
+     "saved": "You pressed Save to contacts or Add to their contact on an email carrying a contact card, on the inbox card"
+    },
+    "runs": {
+     "shown": "Rouh said on an email you opened whose contact card it carries"
+    }
+   },
+   "files": [
+    "rouh/card_in_mail.py"
    ]
   }
  }
