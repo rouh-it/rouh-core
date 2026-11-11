@@ -643,6 +643,10 @@ urlpatterns = [
     # Meta, Changes: this Rouh's code, its undo points and its protected core (`rouh/web/changes.py`).
     path("api/settings/changes", changes_web.page),
     path("api/settings/changes/undo", changes_web.undo),
+    # Rouh's updates: ride along, update when pressed, or its own path (`rouh/code_update.py`).
+    path("api/settings/updates", changes_web.updates),
+    path("api/settings/updates/mode", changes_web.updates_mode),
+    path("api/settings/updates/now", changes_web.updates_now),
     # Connections, Phone: the address on the relay, on or off, and the phone's sign-in (`rouh/web/relay.py`).
     path("api/settings/phone", relay_web.page),
     path("api/settings/phone/on", relay_web.turn_on),

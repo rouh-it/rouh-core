@@ -117,6 +117,8 @@ OWN_WORDS = frozenset({
     # A run as administrator of this server.
     "delegate_task",
     "model_defaults",
+    # Rouh's own code brought to the newest release (`rouh/code_update.py`).
+    "update_rouh",
     # Both answer what a run or a job asked permission or a decision for.
     "one_answer", "answer_conflict",
 })

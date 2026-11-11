@@ -38,6 +38,8 @@ A new feature adds its row and its check in the commit that adds it.
 | `walls.core-cannot-change-guard` | Rouh cannot change its protected core | untested | works | a write into `/opt/rouh-guard` from the core or the worker fails |
 | `guard.change-step` | A change a run proposes is checked, kept as an undo point and put live | works | works | the same: a run's change of Rouh's code is checked, kept as an undo point and put live, and Rouh comes back on it |
 | `guard.undo` | An earlier undo point can be put back | works | works | Meta, Changes, Put back on the point before a run's change: the code that runs is that point's again, and Rouh comes back on it |
+| `updates.press` | Update to the newest Rouh (Meta, Changes; `update_rouh`): an older Rouh takes the newest release of Rouh's code, its own genes kept on top, a clashing gene's file kept as it was and named, checked by the protected core and live as an undo point, and General says how it went after the restart (`rouh/code_update.py`, task 140, step 140-18) | untested | works | `checks_updates.py`: the Rouh is made one that came from an older release with two genes of its own, a stand-in rouh.land serves a newer release built from that code, the button is pressed, and the code, the undo point and General's note are read |
+| `updates.ride` | Ride along: a Connected Rouh takes a new release by itself at a quiet moment, at most once a day, with no press | untested | works | `checks_updates.py`: a second release is served, the choice is Ride along, and the code becomes it with no press, saying it rode along |
 
 ## The person's first minutes
 

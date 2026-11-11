@@ -7,11 +7,18 @@
    for a newer core, and what the doctor last did. Nothing here changes the person's data.
 
    Drawn into `#changesBody` from `/api/settings/changes`; Settings tells it when it shows and
-   when it is left (`settingsPages` in app/runs.js). */
+   when it is left (`settingsPages` in app/runs.js).
+
+   Its first card is Rouh's updates (task 140, step 140-18, `rouh/code_update.py`, from
+   `/api/settings/updates`): how this Rouh takes new releases of Rouh (Ride along, Update when I
+   press, My own path), the version it has and the newest, what is new, the button that updates it
+   now, and how the last update went. */
 (function () {
   'use strict';
 
   var C = { open: false, data: null, busy: false, error: '', said: '', confirm: 0, timer: 0 };
+  /* Rouh's updates: their own answer, apart from the protected core's, so either can be slow. */
+  var U = { data: null, busy: false, error: '', said: '', loaded: false };
 
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) {
@@ -55,7 +62,34 @@
       })
       .catch(function () { C.busy = false; C.error = 'Rouh could not be reached.'; draw(); });
   }
-  function load() { return call('GET', '/api/settings/changes'); }
+  function load() { loadUpdates(false); return call('GET', '/api/settings/changes'); }
+
+  function updatesCall(method, url, body) {
+    if (method === 'POST') { U.busy = true; draw(); }
+    return fetch(url, { method: method, credentials: 'same-origin', cache: 'no-store',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+                        body: method === 'POST' ? JSON.stringify(body || {}) : undefined })
+      .then(function (r) {
+        if (r.status === 401) { location.href = '/login'; return null; }
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          U.busy = false;
+          U.loaded = true;
+          if (j && j.mode) U.data = j;
+          if (!r.ok) U.error = (j && j.error) || 'That did not work. Try again.';
+          else if (method === 'POST') { U.error = ''; U.said = (j && j.said) || ''; }
+          draw();
+          return j;
+        });
+      })
+      .catch(function () { U.busy = false; U.loaded = true; U.error = 'Rouh could not be reached.'; draw(); });
+  }
+  function loadUpdates(look) {
+    if (look) { U.said = ''; U.error = ''; }
+    return updatesCall('GET', '/api/settings/updates' + (look ? '?look=1' : '')).then(function (j) {
+      if (look && j && j.mode && !U.error) { U.said = j.check_error ? '' : 'Asked rouh.land just now.'; draw(); }
+      return j;
+    });
+  }
 
   function card(title, sub) {
     var s = el('section', 'setting-card hb-card');
@@ -103,6 +137,129 @@
     });
     s.appendChild(ul);
     page.appendChild(s);
+  }
+
+  var MODE_LINES = {
+    ride: 'Takes each new release by itself, at a quiet moment, at most once a day.',
+    press: 'Nothing comes in until you press Update to the newest Rouh.',
+    own: 'Never looks for releases by itself. You can still press the button.'
+  };
+
+  function updatesHeadline(d) {
+    if (d.makes_releases) return 'This Rouh makes Rouh’s releases.';
+    if (d.busy) return 'Updating Rouh…';
+    if (d.pending) return 'Checking the update before it goes live…';
+    if (!d.newest) return d.on_its_own ? 'This Rouh is on its own, so it does not look for releases by itself.'
+      : 'The newest release of Rouh is not known yet.';
+    if (d.up_to_date) return 'This Rouh is up to date.';
+    return 'A newer Rouh is ready.';
+  }
+
+  function drawUpdates(page) {
+    var d = U.data;
+    var s = card('Rouh’s updates');
+    s.classList.add('cu-card');
+    s.setAttribute('aria-busy', U.busy ? 'true' : 'false');
+    if (!d) {
+      s.appendChild(el('p', 'hb-empty', U.error || (U.loaded ? 'Not known yet.' : 'Looking…')));
+      page.appendChild(s);
+      return;
+    }
+    var lead = el('p', 'cu-lead' + (d.newest && !d.up_to_date && !d.makes_releases ? ' new' : ''), updatesHeadline(d));
+    lead.setAttribute('role', 'status');
+    s.appendChild(lead);
+
+    var dl = el('dl', 'hb-ask-dl ch-dl cu-dl');
+    var rows = [];
+    if (d.current && d.current.label) {
+      rows.push(['You have', d.current.label + (d.current.own_commits
+        ? ', with ' + d.current.own_commits + ' change' + (d.current.own_commits === 1 ? '' : 's') + ' of its own' : '')]);
+    }
+    if (d.newest) rows.push(['Newest', d.newest.label]);
+    if (d.makes_releases && d.publishing) rows.push(['Releases', d.publishing.said || 'None published from here yet.']);
+    rows.forEach(function (row) { dl.appendChild(el('dt', '', row[0])); dl.appendChild(el('dd', '', row[1])); });
+    if (rows.length) s.appendChild(dl);
+
+    if (d.whats_new && d.whats_new.length && !d.up_to_date) {
+      s.appendChild(el('p', 'cu-sub-h', 'What is new'));
+      var ul = el('ul', 'cu-new');
+      d.whats_new.forEach(function (line) { ul.appendChild(el('li', '', line)); });
+      s.appendChild(ul);
+    }
+
+    var say = U.busy ? 'Working…' : (U.error || U.said);
+    if (d.busy && d.busy.step) say = 'Updating: ' + d.busy.step + '…';
+    if (say) s.appendChild(el('p', 'hb-say' + (U.error ? ' bad' : ''), say));
+
+    var acts = el('div', 'hb-actions cu-actions');
+    if (d.admin && !d.makes_releases) {
+      var can = !d.why_not && !U.busy;
+      var go = button('Update to the newest Rouh', 'primary', function () {
+        updatesCall('POST', '/api/settings/updates/now', {}).then(function () {
+          window.setTimeout(function () { loadUpdates(false); }, 5000);
+        });
+      });
+      go.disabled = !can;
+      if (!can && d.why_not && !(d.up_to_date)) go.setAttribute('aria-describedby', 'cuWhyNot');
+      if (d.newest && !d.up_to_date) acts.appendChild(go);
+    }
+    var look = button(d.on_its_own ? 'Look for a newer Rouh' : 'Look again', '', function () {
+      U.busy = true; draw();
+      loadUpdates(true);
+    });
+    acts.appendChild(look);
+    s.appendChild(acts);
+    if (d.newest && d.why_not && !d.up_to_date && !d.makes_releases && !d.busy && !d.pending) {
+      var why = el('p', 'cu-why', d.why_not);
+      why.id = 'cuWhyNot';
+      s.appendChild(why);
+    }
+    if (d.check_error && !d.newest) s.appendChild(el('p', 'cu-why', d.check_error));
+
+    var box = el('fieldset', 'cu-modes');
+    box.appendChild(el('legend', 'cu-sub-h', 'How new releases come'));
+    Object.keys(d.modes || {}).forEach(function (k) {
+      var lab = el('label', 'cu-mode' + (d.mode === k ? ' on' : ''));
+      var r = el('input');
+      r.type = 'radio'; r.name = 'cuMode'; r.value = k; r.checked = d.mode === k;
+      r.disabled = !d.admin || U.busy;
+      r.addEventListener('change', function () {
+        if (r.checked) updatesCall('POST', '/api/settings/updates/mode', { mode: k });
+      });
+      var text = el('span', 'cu-mode-text');
+      text.appendChild(el('span', 'cu-mode-name', d.modes[k] + (k === 'ride' ? ' (the default)' : '')));
+      text.appendChild(el('span', 'cu-mode-line', MODE_LINES[k] || ''));
+      lab.appendChild(r);
+      lab.appendChild(text);
+      box.appendChild(lab);
+    });
+    if (d.on_its_own && d.mode === 'ride') {
+      box.appendChild(el('p', 'cu-why', 'This Rouh is on its own, so it never rides along: it asks rouh.land only when you press a button here.'));
+    }
+    if (!d.admin) box.appendChild(el('p', 'cu-why', 'Only an administrator of this Rouh changes how its code is updated.'));
+    s.appendChild(box);
+
+    var last = d.last;
+    if (last) {
+      var lp = el('p', 'cu-last' + (last.ok ? '' : ' bad'));
+      lp.appendChild(el('span', 'cu-last-h', 'Last update, ' + when(last.at) + ': '));
+      lp.appendChild(document.createTextNode(lastLine(last)));
+      s.appendChild(lp);
+    }
+    s.appendChild(el('p', 'settings-help', 'Only Rouh’s code changes. Your rules, memory, mail, people and ' +
+      'settings stay as they are, and your own changes are kept on top. Each update is checked first and ' +
+      'becomes an undo point below.'));
+    page.appendChild(s);
+  }
+
+  function lastLine(last) {
+    if (!last.ok) return 'did not update to ' + (last.label || 'the newest release') + ': ' + (last.said || '');
+    var t = 'updated to ' + (last.label || 'the newest release') + '.';
+    (last.kept || []).forEach(function (k) {
+      var who = (k.genes || ['a change of its own']).join(' and ');
+      t += ' ' + who.charAt(0).toUpperCase() + who.slice(1) + ' stayed as it was in ' + k.file + '.';
+    });
+    return t;
   }
 
   function drawPoints(page, d) {
@@ -170,12 +327,14 @@
     if (!d) {
       if (!C.error) page.appendChild(el('p', 'hb-empty', 'Asking the protected core…'));
     } else if (!d.guard || d.answering === false) {
+      drawUpdates(page);
       var s = card('Changes');
       s.appendChild(el('p', 'settings-help', d.said || ''));
       page.appendChild(s);
     } else {
       drawDoctor(page, d);
       drawState(page, d);
+      drawUpdates(page);
       drawWaiting(page, d);
       drawPoints(page, d);
       drawCore(page, d);

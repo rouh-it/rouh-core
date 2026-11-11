@@ -1644,6 +1644,28 @@ class ToolRegistry:
             self._model_defaults,
         )
         self._own(
+            "update_rouh",
+            "Rouh's updates: bring this Rouh's own code to the newest release of Rouh, the same way "
+            "Anatomy, Meta, Changes does with its button 'Update to the newest Rouh'. Its own changes "
+            "(genes, its own commits) are kept on top; a change of its own that clashes with the "
+            "release stays as it was and is named afterwards; rules, memory, mail, people and settings "
+            "are never touched. 'action' 'check' (the default) says the version here, the newest, what "
+            "is new and how the last update went; 'update' starts the update now (only on the "
+            "person's own words, such as 'update yourself to the newest Rouh'), which restarts "
+            "Rouh: say that it has started and that a note in General will say how it went; "
+            "'mode' with 'mode' sets how updates come: 'ride' (Ride along: by itself, at a quiet "
+            "moment, at most once a day), 'press' (Update when I press) or 'own' (My own path: "
+            "nothing comes in unless they press the button themselves).",
+            {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["check", "update", "mode"]},
+                    "mode": {"type": "string", "enum": ["ride", "press", "own"]},
+                },
+            },
+            self._update_rouh,
+        )
+        self._own(
             "gene_offer",
             "Note an offer of a kept gene from Mutations, made at its moment, and what the "
             "person did with it. Only for a gene named under 'Genes on offer' in your "
@@ -12595,6 +12617,27 @@ class ToolRegistry:
             await announce_model_defaults()
         return ("Changed, in Settings too. They are now: "
                 + await asyncio.to_thread(modeldefaults.said, org))
+
+    async def _update_rouh(self, args, emit):
+        """Rouh's updates, from a chat (`rouh/code_update.py`): the same path as the button on
+        Anatomy, Meta, Changes, and an administrator's word only for a change."""
+        from . import code_update
+        from .tenancy import Tenancy, speaker
+
+        who = speaker() or await asyncio.to_thread(Tenancy().only_person)
+        action = str(args.get("action") or "check").strip().lower()
+        try:
+            if action == "mode":
+                await asyncio.to_thread(code_update.set_mode, who, str(args.get("mode") or ""))
+            elif action == "update":
+                started = await code_update.update(who, by="asked in a chat")
+                return started["said"]
+            got = await asyncio.to_thread(code_update.public, who, look=action == "check")
+        except code_update.Refused as exc:
+            if action == "update":
+                return f"Rouh did not start an update: {exc}"
+            return f"Nothing was changed: {exc}"
+        return code_update.said(got)
 
     async def _ask_for_location(self, args, emit):
         """The card that asks for the browser's location, or the location already known.

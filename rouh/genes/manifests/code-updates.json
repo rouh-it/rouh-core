@@ -1,0 +1,42 @@
+{
+  "id": "code-updates",
+  "name": "Rouh's updates",
+  "title": "Rouh's updates: this Rouh's own code brought to the newest release of Rouh, by itself (Ride along), on a press, or never, with its own changes kept",
+  "aliases": [
+    "update rouh",
+    "update yourself",
+    "newest rouh",
+    "ride along",
+    "update when i press",
+    "my own path",
+    "releases",
+    "new version",
+    "code update"
+  ],
+  "group": "machine",
+  "route": null,
+  "icon": "<path d=\"M12 3v11\"/><path d=\"M7.5 9.5 12 14l4.5-4.5\"/><path d=\"M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "press",
+    "press": "changesBody"
+  },
+  "touches": {
+    "permissions": [
+      "reads rouh.land's public release of Rouh's code (/mac/code/release.json): every half hour while it rides along, or on a press; a Rouh on its own asks only on a press",
+      "downloads that release's code from the public rouh-it/rouh-core on GitHub, merges this Rouh's own changes on top in a copy of its code, and hands the result to the protected core, which checks it before it runs",
+      "adds the libraries a release needs to /extra, with the protected core's own installer, held to the base's pins",
+      "keeps a copy of the code and of the newest nightly database copy in the data folder before an update",
+      "on the Creator Rouh only: writes down which commit runs, and once a day publishes the newest commit that ran a day with nothing put back as rouh.land's release, signed with this Rouh's daily key",
+      "answers update_rouh in a chat (\"update yourself to the newest Rouh\"), the same path as the button on Anatomy, Meta, Changes, where its card is drawn"
+    ],
+    "accounts": [],
+    "tables": [],
+    "jobs": [
+      "the ride along and the Creator Rouh's releases, every half hour (code_update.Watch), and the note in General after an update's restart"
+    ],
+    "remove": "Delete rouh/code_update.py, rouh/code_release.py, the updates part of rouh/web/changes.py and its three routes in rouh/project/urls.py, drawUpdates and its helpers in changespage.js and the cu- rules in changespage.css, code_updates in rouh/runtime.py, the update_rouh tool in rouh/tools.py and its names in toolsearch.py, protected.py and job_policy.py, the code-updates entry in rouh/genes/owners.json, and this manifest. The code a Rouh already took stays as it is."
+  }
+}

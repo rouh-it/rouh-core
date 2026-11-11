@@ -67,6 +67,7 @@ from .google_oauth import GoogleAuth
 from .google_store import GoogleStore
 from .mailboxes import MailboxAuth, MailboxStore
 from . import dbwork
+from . import code_update
 from . import modelstandard, turntrace
 from . import settings as settings_mod
 from . import telegram_guests as telegram_guests_mod
@@ -937,6 +938,10 @@ gene_watch = genelab.Watch()
 #: Changes a run proposes for this Rouh's own code, and the doctor's word, picked up where a
 #: protected core is beside it (`rouh/codechanges.py`, guard/README.md). Asks nothing elsewhere.
 code_changes = codechanges.Watch()
+#: Rouh's updates: the ride along to the newest release, the note in General after an update's
+#: restart, and on the Creator Rouh the releases themselves (`rouh/code_update.py`,
+#: `rouh/code_release.py`). `_say_in_chat` is defined further up and is how the note is said.
+code_updates = code_update.Watch()
 decision_sources.hooks.deliver_task = _decision_to_task
 decision_sources.hooks.heartbeat = pulse
 decision_sources.hooks.one_answer = lambda qid, answer: tools._one_ask(
@@ -7728,6 +7733,8 @@ async def startup() -> None:
         # A change of its own code still goes through its protected core (`rouh/codechanges.py`);
         # nothing below it is started.
         code_changes.start()
+        code_update.wire(_say_in_chat)
+        code_updates.start()
         return
     timekeeper.start()
     # The heartbeat, for the install's owner, with its default duties the first time.
@@ -7742,6 +7749,8 @@ async def startup() -> None:
     # installer told (`rouh/genelab.py`).
     gene_watch.start()
     code_changes.start()
+    code_update.wire(_say_in_chat)
+    code_updates.start()
     # Rouh's own scheduled work, once there is an owner to schedule it for: at the start, and
     # again every ten minutes, each quiet when its row is there already. A new install's owner is
     # made after Rouh starts, on its first-run pages, and until 29 October 2026 a Rouh in the
@@ -8225,6 +8234,7 @@ async def shutdown() -> None:
     await notice_sweeper.stop()
     await gene_watch.stop()
     await code_changes.stop()
+    await code_updates.stop()
     await mornings.stop()
     await meeting_notes.stop()
     await meeting_raises.stop()

@@ -1781,6 +1781,14 @@
     "rouh/static/changespage.*"
    ]
   },
+  "code-updates": {
+   "files": [
+    "rouh/code_update.py",
+    "rouh/code_release.py",
+    "rouh/web/changes.py",
+    "rouh/static/changespage.*"
+   ]
+  },
   "n23-doc-last-changed": {
    "name": "Who last changed it",
    "what": "A Google Doc, Sheet or Slides deck Rouh reads through read_doc, in a chat, a job or Ask AI, comes with when it was last changed, on your clock, and who changed it.",
