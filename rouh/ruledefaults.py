@@ -10,7 +10,8 @@ the ones a new Rouh needs come from here, built as the model standard is (`rouh/
   is better for and that is not about this Rouh's own person, people, accounts or machines. `export` makes the
   document of every one of them that is on, the owner's name in it written as the mark `‹owner›`
   (`rouh/owner.py`), so it reads right in anybody's Rouh. It is published at `config.rule_defaults_url` on
-  rouh.land, as the model standard is (`manage.py rule_defaults export`, copied to the site and deployed).
+  rouh.land by `tools/rule_defaults/publish.sh` (export, `publishable`, the site, its deploy, read back),
+  served since 11 November 2026; until then it answered 404.
 - **Every Rouh fetches it once a day** (`fetch`, from `runtime._model_standard_loop`), and keeps a good one
   (`app_state`, `STATE`). A fetch that fails keeps the last good document and is written down quietly.
 - **Each Master takes it in** (`ensure`, as a turn or the Rules page reads the rules): a rule it never had is
@@ -412,5 +413,98 @@ def export(ds: dict, *, revision: str = "") -> dict:
     return check({"schema": SCHEMA, "revision": stamp, "rules": out})
 
 
+# --- publishing them on rouh.land -----------------------------------------------------------------
+#
+# 11 November 2026 (task 140, step 140-17): the document was never published, so every Rouh born since 30
+# October 2026 had only its fallback. `tools/rule_defaults/publish.sh` now does it in one command: the export,
+# `publishable` below, the fallback brought into step with it (`as_fallback`), the site's copy, its deploy, and
+# the live answer read back with `check`. Nothing here reads a database.
+
+#: Addresses a rule may name: the ones kept for examples (RFC 2606), and nobody's own.
+_EXAMPLE_MAIL = re.compile(r"@(?:[\w-]+\.)*(?:example\.(?:com|org|net)|example|test|invalid|localhost)\b", re.I)
+_MAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_IP = re.compile(r"(?<![\d.])(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?![\d.])")
+_HOME = re.compile(r"(?:/home|/Users)/(?!rouh\b)[A-Za-z][\w.-]*")
+_PHONE = re.compile(r"\+\d[\d ]{7,}\d")
+
+
+def private_marks(doc: dict, words=()) -> list[str]:
+    """What in the document looks like somebody's own: a mail address that is not an example one, an internet
+    address that is not this machine's, a home folder, a phone number, or one of `words` (the owner's people,
+    accounts, machines and places, kept outside the code). Each as "<key>: <what>"; [] when none."""
+    found: list[str] = []
+    words = [w.strip() for w in words if w and len(w.strip()) >= 3]
+    for r in doc.get("rules") or []:
+        text = f"{r.get('title') or ''}\n{r.get('text') or ''}"
+        for m in _MAIL.finditer(text):
+            if not _EXAMPLE_MAIL.search(m.group(0)):
+                found.append(f"{r['key']}: the mail address {m.group(0)}")
+        for m in _IP.finditer(text):
+            if m.group(0) not in ("127.0.0.1", "0.0.0.0") and all(int(g) < 256 for g in m.groups()):
+                found.append(f"{r['key']}: the internet address {m.group(0)}")
+        for m in _HOME.finditer(text):
+            found.append(f"{r['key']}: the home folder {m.group(0)}")
+        for m in _PHONE.finditer(text):
+            found.append(f"{r['key']}: the number {m.group(0)}")
+        for w in words:
+            if re.search(r"(?<!\w)" + re.escape(w) + r"(?!\w)", text, re.I):
+                found.append(f"{r['key']}: the word {w!r}")
+    return found
+
+
+def _same(a: dict, b: dict) -> bool:
+    keys = ("text", "title", "when", "place", "mode", "fills", "group")
+    return all((a.get(k) or None) == (b.get(k) or None) for k in keys)
+
+
+def publishable(doc: dict, published: dict | None = None, *, words=()) -> dict:
+    """The exported document as it is to be published, or Bad: checked whole, nothing private in it
+    (`private_marks`), and each rule's version carried on from what rouh.land serves now, so a version never
+    goes back and a rule that changed in any way (its words, conditions, place or group) is one version on,
+    which is what makes every Master take the change (`take`). The revision is a new one only when a rule
+    changed."""
+    doc = check(doc)
+    marks = private_marks(doc, words)
+    if marks:
+        raise Bad("it holds what looks like somebody's own: " + "; ".join(marks[:12]))
+    before = {r["key"]: r for r in (check(published)["rules"] if published else [])}
+    out, changed = [], not before
+    for r in doc["rules"]:
+        p = before.get(r["key"])
+        if p is None:
+            changed = True
+        elif _same(r, p):
+            r = {**r, "version": p["version"]}
+        else:
+            r = {**r, "version": max(r["version"], p["version"] + 1)}
+            changed = True
+        out.append(r)
+    if set(before) - {r["key"] for r in out}:
+        changed = True
+    revision = doc["revision"] if changed or not published else check(published)["revision"]
+    return check({"schema": SCHEMA, "revision": revision, "rules": [_plain(r) for r in out]})
+
+
+def _plain(r: dict) -> dict:
+    """A rule as the document writes it: only what it has, in the order the fallback keeps."""
+    item = {"key": r["key"], "title": r["title"], "version": r["version"], "when": r["when"]}
+    for k in ("place", "group", "mode", "fills"):
+        if r.get(k):
+            item[k] = r[k]
+    item["text"] = r["text"]
+    return item
+
+
+def as_fallback(doc: dict) -> dict:
+    """The published document as the fallback every Rouh's code carries: the same rules, word for word, under a
+    revision of its own (a Master that took the fallback takes the published one too, `ensure`)."""
+    doc = check(doc)
+    return {"schema": SCHEMA, "revision": f"fallback-{doc['revision']}", "rules": [_plain(r) for r in doc["rules"]]}
+
+
+def dumps(doc: dict) -> str:
+    return json.dumps(doc, indent=1, ensure_ascii=False) + "\n"
+
+
 __all__ = ["FALLBACK_FILE", "SCHEMA", "check", "current", "digest", "due", "ensure", "export", "fallback", "fetch",
-           "fetched_said", "take", "took_newer"]
+           "fetched_said", "take", "took_newer", "private_marks", "publishable", "as_fallback", "dumps"]

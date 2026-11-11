@@ -575,7 +575,7 @@ class Config:
         "ROUH_MODEL_STANDARD_URL", _site("/models/standard.json")))
     #: Where the defaults every Rouh starts with are fetched from, once a day: the rules tagged "defaults" in
     #: the Rouh that publishes them (`rouh/ruledefaults.py`). Empty fetches nothing, and a Rouh keeps the rules
-    #: it has, with the two it starts with when it never fetched any (`rule_defaults_fallback.json`).
+    #: it has, with the ones it starts with when it never fetched any (`rule_defaults_fallback.json`, the same set).
     rule_defaults_url: str = field(default_factory=lambda: _env(
         "ROUH_RULE_DEFAULTS_URL", _site("/rules/defaults.json")))
     #: Where the day's counts of how each model did are sent, when they are

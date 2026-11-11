@@ -1038,6 +1038,7 @@
     "rouh/prompting.py",
     "rouh/ruledefaults.py",
     "rouh/rule_defaults_fallback.json",
+    "tools/rule_defaults/**",
     "rouh/models/prompt_parts.py"
    ]
   },

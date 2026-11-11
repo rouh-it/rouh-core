@@ -15,6 +15,9 @@ morning, at what each job left behind, not at whether it is on Clockwork:
   refactoring night (`nightly_refactor.latest`), the feature run's night (its Clockwork line).
 - **The backups**: a nightly copy of the database from the last day, and an off-site copy sent in
   the last eight days, where one is set up (`rouh/offsite.py`).
+- **Rouh's shared rules** (task 140, step 140-17): the daily fetch of https://rouh.land/rules/defaults.json
+  (`rouh/ruledefaults.py`) must have worked in the last two days. From 30 October to 11 November 2026 it
+  answered 404 and nothing said so, and every Rouh born then started without the rules that send work to a job.
 
 `check(who)` says it all, one entry a job, and `human` is it in a sentence or two. The core runs
 it every half hour (`runtime._job_watch_loop`), keeps the newest answer in the data directory for
@@ -174,6 +177,37 @@ def _backups(now: float) -> list[dict]:
     return out
 
 
+#: How long the shared rules may go unfetched before it is said as a failure: two daily fetches missed.
+RULES_DAYS = 2
+
+
+def _rule_defaults(now: float) -> dict:
+    """Whether this Rouh fetched the shared rules from rouh.land lately (`ruledefaults.fetch`), as a job of
+    its own. Not fetched since it started is said, not alarmed about: the first fetch comes soon after."""
+    from . import ruledefaults
+    from .config import config
+
+    title = "Rouh's shared rules from rouh.land"
+    url = getattr(config, "rule_defaults_url", "") or ""
+    if not url:
+        return _entry("rules.defaults", title, None, "no address is set (ROUH_RULE_DEFAULTS_URL is empty)")
+    said = ruledefaults.fetched_said()
+    if not said:
+        return _entry("rules.defaults", title, None, "not fetched yet since Rouh started")
+    ok_at = float(said.get("ok_at") or 0)
+    if said.get("ok"):
+        return _entry("rules.defaults", title, True, last_at=ok_at,
+                      said=f"revision {said.get('revision')}, {said.get('rules')} rules")
+    if ok_at and now - ok_at < RULES_DAYS * 86400:
+        return _entry("rules.defaults", title, True, last_at=ok_at,
+                      said=f"the last try failed ({said.get('error')}); the one before worked")
+    since = f"since {_stamp(ok_at)}" if ok_at else "ever"
+    return _entry("rules.defaults", title, False,
+                  f"{url} has not given them {since}: {said.get('error') or 'no answer'}. A Rouh keeps the rules "
+                  "it has; new ones and changes reach nobody until it answers again",
+                  last_at=ok_at or None, said=str(said.get("error") or ""))
+
+
 def _where(path: str, env: str) -> str:
     """Where a secret comes from: its file, the settings file's environment, or nowhere."""
     if path and os.path.exists(path):
@@ -239,6 +273,11 @@ def check(who, now: float | None = None) -> dict:
         jobs += _backups(now)
     except Exception as exc:  # noqa: BLE001
         jobs.append(_entry("backup", "Backups", False, f"they could not be checked: {type(exc).__name__}: {exc}"))
+    try:
+        jobs.append(_rule_defaults(now))
+    except Exception as exc:  # noqa: BLE001
+        jobs.append(_entry("rules.defaults", "Rouh's shared rules from rouh.land", False,
+                           f"it could not be checked: {type(exc).__name__}: {exc}"))
     try:
         jobs += secrets()
     except Exception as exc:  # noqa: BLE001
