@@ -57,6 +57,8 @@ from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
+from . import outside_links
+
 log = logging.getLogger("rouh.reset")
 
 #: Where the link in the email opens. `<uid>/<token>`, then the form.
@@ -236,7 +238,8 @@ async def send_link(user) -> str:
         log.warning("a reset for %s was not sent: %d already this hour", user.username,
                     PER_ACCOUNT)
         return ""
-    link = await sync_to_async(link_for)(user, config.public_url)
+    # An address that opens anywhere, before the bare public one (task 140, step 140-14).
+    link = await sync_to_async(link_for)(user, outside_links.outside_base() or config.public_url)
     try:
         gmail = Gmail(GoogleClients(runtime.google_auth, config), who)
         sent = await gmail.send(held.google_email, SUBJECT, letter(user.username, link),
@@ -269,7 +272,8 @@ async def _send_to_guest(user) -> str:
     if _sent_lately.too_many(str(user.pk)):
         log.warning("a reset for a guest was not sent: %d already this hour", PER_ACCOUNT)
         return ""
-    link = await sync_to_async(link_for)(user, config.public_url)
+    # An address that opens anywhere, before the bare public one (task 140, step 140-14).
+    link = await sync_to_async(link_for)(user, outside_links.outside_base() or config.public_url)
     text = (f"Somebody asked to set a new password for your Rouh account, {user.email}.\n"
             f"\nTo set one, open this link within the hour:\n{link}\n"
             "\nIt works once. If it was not you, you can ignore this email: your password "

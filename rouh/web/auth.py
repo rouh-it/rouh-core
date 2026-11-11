@@ -35,7 +35,7 @@ from django.shortcuts import render
 from rouh import accounts, signin
 
 from . import firstrun
-from .common import client_ip, public_base
+from .common import client_ip
 from .gate import next_page
 from .reset import SIGN_IN_AS
 
@@ -121,16 +121,12 @@ def _browser(request) -> str:
 
 
 def _link_base(request) -> str:
-    """Where a letter's link points: the name this browser is on when it is one of Rouh's own,
-    else the installation's public address, else, on this machine only, the address asked on."""
-    base = public_base(request)
-    if base:
-        return base
-    host = request.get_host()
-    name = host.rsplit(":", 1)[0].strip("[]").lower()
-    if name in ("localhost", "127.0.0.1", "::1"):
-        return f"{request.scheme}://{host}"
-    return ""
+    """Where a letter's link points: an address that opens on any device, or "" for a letter with
+    only its code (`outside_links.link_base`). Never this computer's own address: on a Mac that was
+    http://127.0.0.1:8420, which Maria's phone could not open (task 140, step 140-14)."""
+    from rouh import outside_links
+
+    return outside_links.link_base(request)
 
 
 def _continue_sync(request, email: str, back: str):

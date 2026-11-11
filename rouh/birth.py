@@ -899,6 +899,10 @@ def sign_in_letter(org: str, to: str, link: str, code: str) -> None:
     row = current(org)
     if row is None or not row.registry_id:
         raise Refused("This Rouh is not connected to rouh.land.")
+    from . import outside_links
+
+    if link and outside_links.is_local(link):
+        link = ""  # Only the code, never this computer's own address (task 140, step 140-14).
     _call(row.registry_url, row.registry_key, "POST", "api/sign-in-letter",
           {"to": to, "link": link, "code": code}, seed=_seed_of(row), public=row.daily_public,
           rouh_id=row.registry_id)

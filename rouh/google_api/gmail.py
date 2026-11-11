@@ -349,7 +349,17 @@ class Gmail:
 
         `signed=False` is for Rouh's own letters - a password reset, a sign-in
         handed over - which are not the person writing, so carry no signature.
+
+        No message leaves with a link that opens only on this computer (task 140, step 140-14):
+        Rouh's own letters lose every loopback, private-network and `.local` link, moved onto this
+        Rouh's outside address when it has one; mail the person writes loses only links to this
+        Rouh on this computer (127.0.0.1:8420 and the like), which never open for whoever gets it
+        (`outside_links.clean`).
         """
+        from rouh import outside_links
+
+        body = outside_links.clean(body, strict=not signed)
+        html = outside_links.clean(html, strict=not signed, html=True) if html else html
         raw, wrote = await self._compose(to, subject, body, cc, bcc, reply_to_message_id,
                                          html=html, attachments=attachments, signed=signed)
         payload = {"raw": raw}

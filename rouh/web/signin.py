@@ -266,6 +266,8 @@ async def guest_link(request: HttpRequest):
     if guest is None:
         return refuse("That address does not sign a guest in to this Rouh.", 404)
     made = await sync_to_async(signin.issue)(email, minutes=60)
-    base = _link_base(request)
+    # Shown to the owner to hand over by hand, not emailed: an address that opens anywhere when
+    # there is one, else the one the owner is on.
+    base = _link_base(request) or f"{request.scheme}://{request.get_host()}"
     return answer({"ok": True, "link": (base + made["path"]) if base else made["path"], "code": made["code"],
                    "said": f"A one-time sign-in link for {email}. Give it to them yourself; it works once, for an hour."})

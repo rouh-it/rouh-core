@@ -301,6 +301,19 @@ def rouh_name(org: str = "") -> str:
 def letter(name: str, link: str, code: str) -> tuple[str, str]:
     """The subject and the words. Plain text: a link in it goes straight to this Rouh."""
     whom = name if name == "your Rouh" else f"{name}, your Rouh"
+    from . import outside_links
+
+    if link and outside_links.is_local(link):
+        # Never a link that opens only on this Rouh's own computer (task 140, step 140-14): a phone
+        # that opens it finds nothing there.
+        link = ""
+    if not link:
+        return (f"Sign in to {name}",
+                f"Your code to sign in to {whom}: {code}\n\n"
+                "Type it on the sign-in page where you asked for it.\n\n"
+                f"The code works once, for the next {LINK_MINUTES} minutes. If you did not ask to sign in, "
+                "ignore this email: nothing happens unless the code is typed.\n\n"
+                f"{name}\n")
     return (f"Sign in to {name}",
             f"Press the link below to sign in to {whom}.\n\n{link}\n\n"
             f"Reading this on another device? Type this code on the sign-in page instead: {code}\n\n"
