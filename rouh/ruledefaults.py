@@ -23,7 +23,11 @@ the ones a new Rouh needs come from here, built as the model standard is (`rouh/
   are read by (`rouh/turnmarks.py`), and, since 4 November 2026, the two rules about the names it answers
   to (`born-name`, version 2, and `nickname`): Petar asked that every Rouh always answers to "Rouh", and
   that a nickname is given on top of it, never in place of it. A Master whose `born-name` nobody reworded
-  takes the newer words, as from any document. The rest come with the first good fetch. The file is read by this module
+  takes the newer words, as from any document. Since 11 November 2026 (task 140) the fallback is the whole of
+  Rouh's own rules as the move of 30 October 2026 made them (migration 0221: its keys, places, groups and
+  conditions), with the five above kept as they are, because rouh.land had never served the document: every
+  Rouh born since 30 October had only those few, nothing told it where work goes, and it answered research in
+  the chat instead of handing it to assistant_job. The rest come with the first good fetch. The file is read by this module
   and by nothing that puts a prompt together.
 
 What a document may say is narrow on purpose (`check`): rules with words, a key, a version, conditions this

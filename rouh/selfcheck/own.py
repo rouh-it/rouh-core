@@ -90,6 +90,38 @@ def host_layout() -> None:
     expect(not bad, "; ".join(bad[:4]))
 
 
+@check("own", "a new Rouh hands research and real work to a job",
+       "the rules a Rouh starts with when rouh.land has none to give (rouh/rule_defaults_fallback.json) "
+       "tell a chat with assistant_job to hand research and longer work to it, and one without it to say "
+       "plainly that such work cannot be started here")
+def new_rouh_routes_work() -> None:
+    """11 November 2026 (task 140): a freshly installed Rouh answered "research the best robot vacuums"
+    in the chat, and still did when asked for a new task.
+
+    Since 30 October 2026 the rules that say where work goes are the person's own, and a new Rouh gets
+    them from rouh.land (`rouh/ruledefaults.py`). rouh.land has never served that document, so a new Rouh
+    had only the few rules of its fallback, none of them about jobs, and its model saw assistant_job only
+    as one line of the tool catalogue. This holds the fallback to the rules that route the work.
+    """
+    from rouh import prompting, rules, ruledefaults
+
+    doc = ruledefaults.fallback()
+    by = {r["key"]: r for r in doc["rules"]}
+    for key in ("where-work-goes", "research", "no-workspace", "untrusted", "turn-marks",
+                "house:written-replies", "house:spoken-replies"):
+        expect(key in by, f"the fallback has no rule {key}")
+    with_jobs = prompting.Situation(tools=frozenset({"assistant_job", "make_a_task", "web_search"}))
+    without = prompting.Situation(tools=frozenset({"web_search"}))
+    told = {k for k, r in by.items() if "chats" in rules.reach(r) and prompting.applies(rules.when_of(r), with_jobs)}
+    expect({"where-work-goes", "research"} <= told, f"a chat with assistant_job is not told where work goes: {told}")
+    expect("no-workspace" not in told, "a chat with assistant_job is told it has no workspace")
+    expect("assistant_job" in by["research"]["text"] and "make_a_task" in by["research"]["text"],
+           "the research rule no longer names assistant_job and make_a_task")
+    told = {k for k, r in by.items() if "chats" in rules.reach(r) and prompting.applies(rules.when_of(r), without)}
+    expect("no-workspace" in told and "where-work-goes" not in told,
+           "a chat with no assistant_job is not told plainly that work cannot be started here")
+
+
 @check("own", "a fork does not take up a turn stopped in the chat it came off",
        "what a fork carries of its parent has no stopped exchange in it - not the request, not what was said "
        "of it, not the stop note - and the parent's own messages keep all three")
