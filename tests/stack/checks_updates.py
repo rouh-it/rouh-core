@@ -102,9 +102,11 @@ def _general_says(s: Stack, words: str, limit: float = 180) -> str:
     end = time.time() + limit
     while time.time() < end:
         out = s.manage(f"""
+from rouh.models.memory import TranscriptMessage
 from rouh.models.objects import ChatMessage
-rows = ChatMessage.objects.filter(chat_id="conversation", body__contains={words!r}).order_by("-seq")[:1]
-print(rows[0].body[:2000] if rows else "")
+said = [m.content for m in TranscriptMessage.objects.filter(session_id="conversation", content__contains={words!r}).order_by("-id")[:1]]
+said += [m.body for m in ChatMessage.objects.filter(chat_id="conversation", body__contains={words!r}).order_by("-seq")[:1]]
+print(said[0][:2000] if said else "")
 """).strip()
         if out:
             return out
