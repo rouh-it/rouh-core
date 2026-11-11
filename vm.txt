@@ -1,0 +1,7 @@
+PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"
+NAME="Debian GNU/Linux"
+Python 3.11.2
+4
+               total        used        free      shared  buff/cache   available
+Mem:               9           0           9           0           0           9
+Swap:              0           0           0

@@ -1,0 +1,86 @@
+== __run
+KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Image resized.
+PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"
+NAME="Debian GNU/Linux"
+Python 3.11.2
+4
+               total        used        free      shared  buff/cache   available
+Mem:               9           0           9           0           0           9
+Swap:              0           0           0
+== __run_2
+Rouh on Linux: one command. It checks this server, installs what is missing, and starts Rouh.
+
+Checking this server
+  ✓ Debian GNU/Linux 12 (bookworm), x86_64
+  ✓ 4 processor cores
+  ✓ 10 GB of memory
+  ! 55 GB of free disk: Rouh runs, and 64 GB are recommended
+  ! Python 3.11.2: Rouh's updater needs 3.12, so it gets a checked copy of its own
+  ✓ Port 8420 is free (Rouh's page, on this machine only)
+  ✓ Reaches rouh.land, ghcr.io and github.com
+
+What happens now
+  · Install: git (with sudo)
+  · Install Docker, from Docker's own packages (get.docker.com), with sudo
+  · Get Python 3.12.16 for Rouh's updater, into ~/.local/share/rouh/python
+  · Get Rouh's updater (rouh-core) into /home/rouh/rouh-core, at the commit rouh.land signed
+  · Install the rouh command, and turn on the nightly update (03:00 to 05:00, after a backup)
+  · Download and start Rouh: about 2 GB, about 5 minutes
+  Nothing of Rouh's listens beyond this machine. Uninstall any time: rouh uninstall
+
+Installing what is missing
+  ✓ Installed: git
+
+Checking what rouh.land hands out, before anything is installed
+  ✓ rouh.land's release: signed with Rouh's key
+  ✓ rouh.land's newest tested code: signed with Rouh's key (5e37300e32)
+  ✓ Python 3.12.16 for Rouh's updater, checked
+  Installing Docker (a few minutes)…
+  ✓ Docker version 29.9.3, Compose 5.7.0
+
+Getting Rouh's updater
+  ✓ Rouh's updater at the signed, tested commit 5e37300e32
+Made the settings file /home/rouh/rouh/.env.
+
+Starting Rouh (the first time downloads about 2 GB)
+Updating to base 1.0.11, release 20261106170446
+No code yet: nothing to check the new base with.
+The stack in use is the release's own.
+Started base 1.0.11 (release 20261106170446): every part is healthy
+[ok] Nightly update is on: every night between 03:00 and 05:00 (this server's time), after a backup. Next: Thu 2026-11-12 04:15:19 UTC
+[ok] Rouh is running (base 1.0.11, release 20261106170446, signature checked).
+
+Next, set your Rouh up in a terminal on this server:
+
+    rouh setup
+
+ To use docker yourself without sudo, sign out and back in once.
+[!] Rouh is running, and its setup is not finished: rouh setup
+  Release:     base 1.0.11 (release 20261106170446), signature checked
+  Updates:     every night between 03:00 and 05:00, after a backup; next Thu 2026-11-12 04:15:19 UTC; last: none yet
+  Backups:     0 nightly copies
+  Open ports:  127.0.0.1:8420 (this machine only)
+NEXT                        LEFT     LAST PASSED UNIT              ACTIVATES
+Thu 2026-11-12 04:15:19 UTC 19h left -    -      rouh-update.timer rouh-update.service
+
+1 timers listed.
+Pass --all to see loaded but inactive timers, too.
+== __run_3
+ 08:25:20 up 0 min,  0 user,  load average: 0.69, 0.16, 0.05
+[!] Rouh is running, and its setup is not finished: rouh setup
+  Release:     base 1.0.11 (release 20261106170446), signature checked
+  Updates:     every night between 03:00 and 05:00, after a backup; next Thu 2026-11-12 04:15:19 UTC; last: none yet
+  Backups:     0 nightly copies
+  Open ports:  127.0.0.1:8420 (this machine only)
+== __run_4

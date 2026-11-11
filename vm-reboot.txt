@@ -1,0 +1,6 @@
+ 08:25:20 up 0 min,  0 user,  load average: 0.69, 0.16, 0.05
+[!] Rouh is running, and its setup is not finished: rouh setup
+  Release:     base 1.0.11 (release 20261106170446), signature checked
+  Updates:     every night between 03:00 and 05:00, after a backup; next Thu 2026-11-12 04:15:19 UTC; last: none yet
+  Backups:     0 nightly copies
+  Open ports:  127.0.0.1:8420 (this machine only)
