@@ -10,6 +10,7 @@ import { cfg, load } from 'app/settings.js';
 import { S } from 'app/socket.js';
 import { A, debug, MIC, openThreshold } from 'app/voice.js';
 import { PB, pbLevel, SPK } from 'app/playback.js';
+import { O3, orb3dPoints } from 'app/orb3d.js';
 import { applyTree, haveTree, KEY_ORB, memColour, orb, ORB_BASE, ORB_CFG, ORB_HIT, ORB_ROWS,
   ORB_SOUND, orbFrameNo, orbMoved, orbPanelOpen, orbPointAt, orbRaf, orbStats, orbUnsent, orbW,
   ORDER, SCENE, SELF, setState } from 'app/orb.js';
@@ -1482,6 +1483,13 @@ window.__rouh = {
   // waiting three seconds for a poll to land to find out.
   loadColour: memColour,
   orbPoints: function () {
+    if (O3.on) {
+      // The 3D orb answers for itself: the same shape of answer, from the
+      // lines it drew (app/orb3d.js).
+      var p3 = orb3dPoints();
+      return { segs: p3.nodes.length, tips: p3.nodes.length, nodes: p3.nodes, core: p3.core,
+               card: $('nodeCard') ? !$('nodeCard').hidden : false, mode: '3d' };
+    }
     var out = { segs: orbStats.segs, tips: orbStats.marks, nodes: [], core: null,
                 card: $('nodeCard') ? !$('nodeCard').hidden : false };
     var r = orb.getBoundingClientRect();
@@ -1638,7 +1646,10 @@ window.__rouh = {
   columns: function () { return { tasks: SB.open, chat: cols.chat }; },
   orb: function () {
     return {
-      mode: '2d',
+      mode: O3.on ? '3d' : '2d',
+      failed3d: O3.failed || '',
+      renders3d: O3.renders,
+      waiting3d: O3.waiting || 0,
       running: orbRaf !== 0,
       frames: orbStats.frames,
       segs: orbStats.segs,

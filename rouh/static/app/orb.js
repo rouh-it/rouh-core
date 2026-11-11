@@ -17,6 +17,7 @@ import { sbSet } from 'app/controls.js';
 import { ORB_SOUND, orbSoundArrived, orbSoundSync, wireOrbSound } from 'app/orb_sound.js';
 import { orbUsageOpen, orbUsageShow, wireOrbUsage } from 'app/orb_costs.js';
 import { orbPanelOpen, orbPanelPaint, orbPanelShow, wireOrbPanel } from 'app/orb_panel.js';
+import { O3, orb3dFrame, orb3dKeeps, orb3dPick, orb3dPoints, orb3dRecenter, orb3dStart } from 'app/orb3d.js';
 
 /* ------------------------------------------------------------------ 7 */
 
@@ -45,6 +46,11 @@ function setState(v) {
    The server sends a tree of what is happening right now: the jobs it has
    running, the helpers those started, and the tool calls underneath each
    of them. This draws that tree as an object turning slowly on one axis.
+
+   What follows is the flat orb, `orb2d`: drawn by hand on a 2D canvas, and
+   since 11 November 2026 drawn only where the 3D orb (app/orb3d.js, below
+   under "the orb in 3D") cannot be - a browser without WebGL, a lost graphics
+   context, or `?orb=2d`. Its look is the one described here.
 
      the machine   the core: three thin crossing rings, with a ring round
                    them breathing slowly - the only thing that moves when
@@ -305,53 +311,99 @@ window.addEventListener('storage', function (e) {
 var slowMo = false;
 try { slowMo = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}
 
-/* The design's palette. The design is dark, as the page is, so there is one
-   set of these and nothing chooses between them. */
+/* The palette, 178-02's (rouh/static/orb-branching.json says the same for the
+   3D orb, which is drawn in it): jobs and their helpers turquoise, each kind
+   of tool call its own colour, red only for something waiting for a person.
+   The flat orb, the marks on the cards and the reply's timeline wear it too,
+   so a colour means one thing wherever it is seen. `ink` and `dim` are the
+   core's pale colour and the structural grey. */
 var ORB_PAL = {
   ink: '#cfd9ee', dim: '#6f7590',
-  job: '#2ab6de', agent: '#86d8ef', wait: '#ff2b4a',
-  search: '#e8b456', page: '#e07b2a', code: '#57c98a',
-  shell: '#7a6bd0', read: '#6e7793', edit: '#ff3ec8'
+  job: '#36dce5', agent: '#36dce5', wait: '#ff3655',
+  search: '#ffd064', page: '#ff994d', code: '#69dfa1',
+  shell: '#aa8aff', read: '#bac5d8', edit: '#f875d5',
+  api: '#729dff', other: '#8993a7'
 };
 
-/* Six kinds of tool call. Each is said twice, by its colour and by the mark
-   at its tip, so the kind survives greyscale, colour blindness and the
-   96 px circle. `mark` is the same mark written as text, for the labels. */
+/* Eight kinds of tool call. Each is said twice, by its colour and by a mark,
+   so the kind survives greyscale and colour blindness: the flat orb draws the
+   mark at a twig's tip, and the cards write it beside each step. */
 var ORB_KIND = {
-  search: { glyph: 'chev', mark: '›' },
-  page:   { glyph: 'square', mark: '▭' },
-  code:   { glyph: 'tri', mark: '▲' },
-  shell:  { glyph: 'bars', mark: '‖' },
-  read:   { glyph: 'dot', mark: '·' },
-  edit:   { glyph: 'cross', mark: '×' }
+  search: { glyph: 'chev', mark: '›', words: 'Web search' },
+  page:   { glyph: 'square', mark: '▭', words: 'Page read' },
+  code:   { glyph: 'tri', mark: '▲', words: 'Running code' },
+  shell:  { glyph: 'bars', mark: '‖', words: 'Shell command' },
+  read:   { glyph: 'dot', mark: '·', words: 'File read' },
+  edit:   { glyph: 'cross', mark: '×', words: 'File edit' },
+  api:    { glyph: 'diamond', mark: '◇', words: 'Connector or API' },
+  other:  { glyph: 'ring', mark: '○', words: 'Other' }
 };
 
-/* Which kind a tool call is. Covers both vocabularies that reach the orb:
-   Claude Code's tools inside a job, and Rouh's own. Anything else is
-   drawn as reading, the quietest colour and the safest guess. */
+/* A tool's name, the way the kinds below are written: whatever the agent
+   called it. Claude Code, Codex and Rouh name the same things differently,
+   and a tool reached through MCP arrives as `mcp__<server>__<tool>` - or as
+   `mcp__rouh__<tool>` when a job calls one of Rouh's own through its gateway.
+   178-02's audit found Codex's and MCP's names all falling through to grey;
+   so the name is reduced to the tool's own first, and the kind decided on
+   that. */
+function toolName(label) {
+  var name = String(label || '');
+  var mcp = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(name);
+  if (mcp) return { name: mcp[2], server: mcp[1] };
+  name = name.replace(/^functions\./, '').replace(/^(?:container|shell)\.exec$/, 'exec_command');
+  return { name: name, server: '' };
+}
+
+var KIND_OF_NAME = (function () {
+  var out = Object.create(null);
+  function put(kind, names) { names.split(' ').forEach(function (n) { out[n.toLowerCase()] = kind; }); }
+  put('search', 'WebSearch web_search web_search_call web_search_preview search_web google_search ' +
+    'brave_web_search tavily_search youtube_search linkedin_search');
+  put('page', 'WebFetch web_fetch fetch fetch_url open_url read_url read_rouh_link browser ' +
+    'browser_navigate browser_navigate_back browser_snapshot browser_take_screenshot browser_click ' +
+    'browser_type browser_hover browser_press_key browser_wait_for browser_tabs browser_find ' +
+    'browser_fill_form browser_select_option youtube_transcript linkedin_profile');
+  put('code', 'code_execution bash_code_execution text_editor_code_execution python js_repl run_code ' +
+    'execute_code browser_evaluate browser_run_code_unsafe');
+  put('shell', 'Bash BashOutput KillShell run_command exec_command shell local_shell local_shell_call ' +
+    'write_stdin unified_exec container_exec');
+  put('edit', 'Edit MultiEdit Write NotebookEdit apply_patch write_file edit_file create_file ' +
+    'str_replace_editor str_replace_based_edit_tool');
+  put('read', 'Read Grep Glob LS read_file list_dir list_directory view_image grep_files search_files ' +
+    'find_files file_search read_workspace read_card list_memory what_was_on_screen ' +
+    'synapse_find synapse_query recall_pick meeting_read meeting_search');
+  put('other', 'TodoWrite update_plan ToolSearch tool_search tool_search_tool_regex tool_search_tool_bm25 ' +
+    'find_tools remember forget show_on_screen show_workspace_page show_again revise_on_screen ' +
+    'set_panels what_is_running check_tasks');
+  return out;
+})();
+
+// Rouh's own tools that reach a service outside this machine on the
+// person's behalf - mail, calendar, Drive, Slack, payments - drawn as API.
+var API_NAME = /^(?:mail_|read_mail|read_recent_mail|draft_mail|send_|forward_|modify_mail|slack_|stripe|cloudflare|payments|shipping|calendar|list_calendar|read_calendar|create_calendar|update_calendar|delete_calendar|restore_calendar|share_calendar|add_shared_calendar|when_free|block_my_time|upcoming|drive|search_drive|list_drive|copy_drive|upload_drive|write_drive|manage_drive|share_drive|create_drive|create_shared_drive|list_shared_drives|add_shared_drive|doc|read_doc|create_doc|edit_doc|comment_on_doc|edit_sheet|edit_slides|find_slides|contact|search_contacts|save_contact|update_contact|meeting_|hue|public_holidays|notify_owner|notify_petar|request_from_rouh|one_|assistant_job|delegate_task)/i;
+
+/* Which kind a tool call is. Covers every vocabulary that reaches the orb:
+   Claude Code's tools inside a job, Codex's, MCP servers', and Rouh's own.
+   A name it does not know is "other", grey: never guessed from the words a
+   call is described in, except for code that says it searches or reads. */
 function kindOf(label, what) {
-  switch (String(label || '')) {
-    case 'WebSearch': case 'web_search':
-      return 'search';
-    case 'WebFetch': case 'web_fetch':
-      return 'page';
-    case 'code_execution': case 'bash_code_execution': case 'text_editor_code_execution':
-      // A search is its own call now, so it arrives here as web_search above.
-      // This stays for code that searches or reads anyway: web_search and
-      // web_fetch run code on Anthropic's side themselves to sift a page, and
-      // a background job can run code too. The code's words, from worklabel,
-      // say when it searches or reads, and it is drawn as what it does;
-      // otherwise research never showed as research.
-      if (/^Running code that searches the web/.test(what || '')) return 'search';
-      if (/^Running code that reads /.test(what || '')) return 'page';
-      return 'code';
-    case 'Bash': case 'BashOutput': case 'KillShell': case 'run_command':
-      return 'shell';
-    case 'Edit': case 'MultiEdit': case 'Write': case 'NotebookEdit':
-      return 'edit';
-    default:
-      return 'read';
+  var t = toolName(label), name = t.name, key = name.toLowerCase();
+  if (key === 'code_execution' || key === 'bash_code_execution' || key === 'text_editor_code_execution') {
+    // A search is its own call now, so it arrives as web_search. This stays
+    // for code that searches or reads anyway: web_search and web_fetch run
+    // code on Anthropic's side themselves to sift a page, and a background
+    // job can run code too. The code's words, from worklabel, say when it
+    // searches or reads, and it is drawn as what it does.
+    if (/^Running code that searches the web/.test(what || '')) return 'search';
+    if (/^Running code that reads /.test(what || '')) return 'page';
+    return 'code';
   }
+  if (KIND_OF_NAME[key]) return KIND_OF_NAME[key];
+  if (/^browser_/.test(key)) return 'page';
+  if (API_NAME.test(name)) return 'api';
+  // Any other tool of any other MCP server is a connector: an API.
+  if (t.server && t.server !== 'rouh') return 'api';
+  return 'other';
 }
 
 // A colour part of the way to another: how a finished call loses its colour
@@ -561,6 +613,10 @@ function spread(list, dt, k, still) {
 // finished, down to a ghost, held there, then out.
 function orbAlpha(n, tnow) {
   if (!n.fade) return 1;
+  // The 3D orb's finished work fades, holds and leaves a grey trace for
+  // minutes (app/orb3d.js): it is kept here all that time, so it can still be
+  // pointed at, and only then let go.
+  if (O3.on) return orb3dKeeps(n, tnow) ? 1 : 0;
   var e = (tnow - n.fade) / 1000, into = n.kind === 'tool' ? GHOST_IN_STEP : GHOST_IN_NODE;
   var lvl = ORB_CFG.ghostLevel, hold = ORB_CFG.ghostHold;
   if (e < into) return 1 - (1 - lvl) * (e / into);
@@ -622,6 +678,13 @@ function orbScene(tnow, dt, still) {
     if (!n.parent) continue;
     p = SCENE[n.parent];
     if (!p) { n.alpha = 0; continue; }
+    // A finished job finishes everything inside it, whatever the last tree
+    // said of a call or a helper of it: their ends are the job's.
+    if (p.fade && !n.fade && p.parent) {
+      n.fade = p.fade;
+      if (!n.closed) n.closed = p.closed || p.fade;
+      n.alpha = orbAlpha(n, tnow);
+    }
     motionOf(n);
     if (!p.parent) (n.kind === 'tool' ? ORB_OWN : ORB_JOBS).push(n);
     else (n.kind === 'tool' ? p.calls : p.subs).push(n);
@@ -668,6 +731,41 @@ function prune() {
 
 var orb = $('orb');
 var octx = orb.getContext('2d');
+
+/* ---------- the orb in 3D ----------
+
+   Since 11 November 2026 the orb is drawn in three.js (app/orb3d.js), on a
+   canvas of its own beside this one, in the look of workspace task 178, step
+   178-02. Everything else here stays as it was: the tree, where the orb sits,
+   the rings, the numbers, the tips and the cards. Where this browser cannot
+   draw in WebGL, or its context is lost, the flat orb on the canvas above is
+   drawn instead, exactly as before - the `orb2d` path, which is everything
+   in this file that draws on `octx`. `?orb=2d` in the page's address asks
+   for the flat one on purpose. */
+var orb3d = $('orb3d');
+
+function orbShow2d() {
+  O3.on = false;
+  if (orb3d) orb3d.style.display = 'none';
+  orb.style.display = '';
+  var labels = document.querySelector('.orb3d-labels');
+  if (labels) labels.remove();
+  orbW = 0;
+  shared.orbSizedAt = -1e9;
+}
+
+if (orb3d) {
+  orb3dStart(orb3d, { kindOf: kindOf, slowMo: slowMo, host: $('orbBox'), onLost: orbShow2d })
+    .then(function (ok) {
+      if (!ok) { orbShow2d(); return; }
+      orb.style.display = 'none';
+      orb3d.style.display = '';
+      orbW = 0;
+      shared.orbSizedAt = -1e9;
+      ORBX.dirty = true;
+      startOrb();
+    });
+}
 
 /* ---------- what a piece of the shape is, when you point at it ----------
  *
@@ -791,12 +889,15 @@ function orbTipShow(node, clientX, clientY) {
     escapeHtml(name) + '</div>';
   if (node.state === 'waiting' && !node.fade) {
     var rec = job && typeof taskRecs !== 'undefined' ? taskRecs[job.id] || {} : {};
-    lines += '<div class="nw">NEEDS YOU' + (rec.asking ? ' - ' + escapeHtml(clipWords(rec.asking, 140)) : '') + '</div>';
+    // `asking` is the question's words where the job list has them, and only
+    // `true` where it knows no more than that one is waiting.
+    var asking = typeof rec.asking === 'string' ? rec.asking : '';
+    lines += '<div class="nw">NEEDS YOU' + (asking ? ' - ' + escapeHtml(clipWords(asking, 140)) : '') + '</div>';
   } else {
     lines += '<div class="n">' + doing + '</div>';
   }
   lines += '<div class="d">' + escapeHtml(durationWords(Math.max(0, open))) +
-    (node.kind === 'tool' && node.closed ? ' · ' + over : '') + '</div>';
+    (node.closed ? ' · ' + (node.kind === 'tool' ? over + ' ' : 'finished ') + agoWords(node) : '') + '</div>';
   tip.innerHTML = lines;
   tip.hidden = false;
   placeTip(tip, clientX, clientY);
@@ -912,6 +1013,10 @@ function segDist(px, py, ax, ay, bx, by) {
 }
 
 function nodeAt(clientX, clientY) {
+  if (O3.on) {
+    var hit = orb3dPick(clientX, clientY);
+    return hit === 'core' ? coreNode() : hit;
+  }
   if (!orbW) return null;
   var r = orb.getBoundingClientRect();
   if (!r.width || !r.height) return null;
@@ -955,13 +1060,34 @@ function nodeAt(clientX, clientY) {
   surface.addEventListener('pointerleave', function () {
     orbTipHide(); surface.style.cursor = '';
   });
+  // The open 3D orb is turned by dragging it: a press that moved is a turn,
+  // not a click on what it let go over.
+  var down = null;
+  surface.addEventListener('pointerdown', function (e) { down = { x: e.clientX, y: e.clientY }; }, true);
   // A click - or a tap, which has no hover - opens the full card.
   surface.addEventListener('click', function (e) {
     if (!overOpenCanvas(e.target)) return;
+    if (O3.on && down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
     var node = nodeAt(e.clientX, e.clientY);
     if (!node) return;
     orbTipHide();
     openNodeCard(node);
+  });
+  // Turned or zoomed somewhere odd, the open 3D orb comes back to the whole
+  // of itself with a double click on empty space, or R (178-02's Recenter,
+  // which is also in its settings).
+  surface.addEventListener('dblclick', function (e) {
+    if (!O3.on || !overOpenCanvas(e.target) || nodeAt(e.clientX, e.clientY)) return;
+    orb3dRecenter();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (!O3.on || ORBX.state !== 'open' || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key !== 'r' && e.key !== 'R') return;
+    var t = /** @type {HTMLElement} */ (e.target);
+    if (t && t.closest && t.closest('input, textarea, select, [contenteditable]')) return;
+    if (!$('nodeCard').hidden) return;
+    e.preventDefault();
+    orb3dRecenter();
   });
 })();
 
@@ -1015,6 +1141,14 @@ function durationOf(n) {
   if (raw.ms != null && n.closed) return durationWords(raw.ms / 1000);
   var end = n.closed ? n.closed : now();
   return durationWords(Math.max(0, (end - n.opened) / 1000));
+}
+
+// How long ago a finished piece finished, for its card and its tip.
+function agoWords(n) {
+  if (!n.closed) return '';
+  var secs = Math.max(0, (now() - n.closed) / 1000);
+  if (secs < 5) return 'just now';
+  return durationWords(secs).replace(/ 0s$/, '') + ' ago';
 }
 
 function stateWords(n) {
@@ -1107,11 +1241,13 @@ function openNodeCard(node) {
     if (loadDisk && loadDisk.total_bytes) {
       facts += fact('Storage', escapeHtml(diskWords(loadDisk).replace('Storage of this machine: ', '')));
     }
-    more = '<p class="node-card-note">This is the core. Every line coming out of it is a piece ' +
-      'of work happening right now: a spike is a background job, a branch is a helper inside ' +
-      'one, a short twig is one thing being done, and a line in the core’s own colour is ' +
-      'Rouh itself working on an answer. ' +
-      (m.idle ? 'Nothing is running, so there are no lines.' : 'Point at a line to see which.') +
+    more = '<p class="node-card-note">This is the core, this machine. Every branch growing out ' +
+      'of it is a piece of work: a turquoise branch is a background job, a thinner turquoise ' +
+      'branch off it is a helper inside that job, a short coloured twig is one tool call - its ' +
+      'colour says what kind, and the longer it ran the longer it is - and a branch in the ' +
+      'core’s own pale colour is Rouh itself working on an answer. Red and dashed is waiting ' +
+      'for you. Finished work fades, holds, turns to a grey trace and goes. ' +
+      (m.idle ? 'Nothing is running, so nothing is growing out of it.' : 'Point at a branch to see which.') +
       '</p>';
   } else if (kind === 'worker') {
     var rec = (typeof taskRecs !== 'undefined' && taskRecs[node.id]) || {};
@@ -1123,6 +1259,7 @@ function openNodeCard(node) {
     if (raw.doing && !node.closed) facts += fact('Doing now', escapeHtml(raw.doing));
     facts += fact('Status', stateWords(node));
     facts += fact(node.closed ? 'Took' : 'Running for', escapeHtml(durationOf(node)));
+    if (node.closed) facts += fact('Finished', escapeHtml(agoWords(node)));
     if (node.opened) facts += fact('Started', escapeHtml(clockOfMs(node.opened)));
     if (rec.mode || raw.mode) facts += fact('Mode', escapeHtml(rec.mode || raw.mode));
     if (raw.effort) facts += fact('Effort', escapeHtml(raw.effort));
@@ -1131,7 +1268,7 @@ function openNodeCard(node) {
       // A job whose work will not go onto main carries its own question,
       // because there is no screen to read it off: land.sh wrote it down as
       // a record and the question travels with the thing that is waiting.
-      var asked = raw.conflict ? (raw.detail || '') : (rec.asking || '');
+      var asked = raw.conflict ? (raw.detail || '') : (typeof rec.asking === 'string' ? rec.asking : '');
       more += '<div class="node-card-wait">NEEDS YOU' +
         (asked ? '<br>' + escapeHtml(asked) : '') +
         (raw.conflict
@@ -1147,6 +1284,7 @@ function openNodeCard(node) {
     if (raw.doing && !node.closed) facts += fact('Doing now', escapeHtml(raw.doing));
     facts += fact('Status', stateWords(node));
     facts += fact(node.closed ? 'Took' : 'Running for', escapeHtml(durationOf(node)));
+    if (node.closed) facts += fact('Finished', escapeHtml(agoWords(node)));
     if (job) facts += fact('Inside the job', escapeHtml(jrec.title || job.label || job.id));
     if (raw.what && node.label) facts += fact('Kind of helper', escapeHtml(node.label));
     if (raw.effort) facts += fact('Effort', escapeHtml(raw.effort));
@@ -1155,7 +1293,8 @@ function openNodeCard(node) {
     facts += fact('Doing now', escapeHtml(selfDoing()));
     facts += fact('Status', node.fade ? 'Finished' : 'Running');
     facts += fact(node.fade ? 'Took' : 'Running for', escapeHtml(durationOf(node)));
-    more = '<p class="node-card-note">This line is Rouh itself at work on an answer: working ' +
+    if (node.closed) facts += fact('Finished', escapeHtml(agoWords(node)));
+    more = '<p class="node-card-note">This branch is Rouh itself at work on an answer: working ' +
       'it out, using its own tools and saying it. Each twig along it is one of its own tool calls.</p>';
     var mine = ORB_OWN.slice(-6).reverse();
     if (mine.length) {
@@ -1182,8 +1321,12 @@ function openNodeCard(node) {
     title = raw.what || DOES[node.label] || ('Using ' + (node.label || 'a tool'));
     if (raw.detail) facts += fact('What exactly', escapeHtml(raw.detail));
     facts += fact('Tool', '<code>' + escapeHtml(node.label || '?') + '</code>');
+    var tk = kindOf(node.label, raw.what);
+    facts += fact('Kind', kindMark(node.label, node.state === 'waiting' && !node.fade, raw.what) + ' ' +
+      escapeHtml(ORB_KIND[tk].words));
     facts += fact('Status', stateWords(node));
     facts += fact(node.closed ? 'Took' : 'Running for', escapeHtml(durationOf(node)));
+    if (node.closed) facts += fact('Finished', escapeHtml(agoWords(node)));
     facts += fact('Done by', escapeHtml(belongs));
   }
 
@@ -1291,7 +1434,7 @@ function sizeOrb(ts) {
   // be drawn in the middle of what can be seen rather than half under the
   // column. It is also the box the pointer is measured against in `nodeAt`,
   // so both now read the same rectangle.
-  var host = orb.getBoundingClientRect();
+  var host = (O3.on && orb3d ? orb3d : orb).getBoundingClientRect();
   var w = Math.max(1, Math.round(host.width || 300));
   var h = Math.max(1, Math.round(host.height || 300));
   // Sharp on a high-density screen, up to twice its pixels, and never more
@@ -1300,6 +1443,7 @@ function sizeOrb(ts) {
   var ratio = Math.max(0.5, Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(4e6 / (w * h))));
   if (w === orbW && h === orbH && ratio === orbR) return;
   orbW = w; orbH = h; orbR = ratio;
+  if (O3.on) return;            // the 3D orb sizes its own canvas
   orb.width = Math.round(w * ratio);
   orb.height = Math.round(h * ratio);
 }
@@ -1516,6 +1660,14 @@ function paintGlyph(g, it) {
       g.moveTo(x + s, y - s); g.lineTo(x - s, y + s);
       g.stroke();
       break;
+    case 'diamond':
+      g.moveTo(x, y - s); g.lineTo(x + s, y); g.lineTo(x, y + s); g.lineTo(x - s, y); g.closePath();
+      g.stroke();
+      break;
+    case 'ring':
+      g.arc(x, y, s * 0.8, 0, 6.2831853);
+      g.stroke();
+      break;
     default:
       g.arc(x, y, s * 0.72, 0, 6.2831853);
       if (it.on) g.fill(); else g.stroke();
@@ -1609,6 +1761,7 @@ function drawCore(g, pal, t, cmp, live, waiting) {
 }
 
 function renderOrb(t, dt) {
+  if (O3.on) { renderOrb3d(t, dt); return; }
   var pal = ORB_PAL;
   var w = orbW, h = orbH, g = octx, i, j;
   // The small circle draws the same thing with less: thinner lines, shorter
@@ -1652,6 +1805,30 @@ function renderOrb(t, dt) {
   orbRowSay(live, waiting);
 }
 
+/* The 3D orb's frame (app/orb3d.js): the same tree, worked out here exactly
+   as for the flat one, handed over with where the orb is and how big. */
+function renderOrb3d(t, dt) {
+  var tnow = now();
+  orbFrameNo++;
+  orbScene(tnow, dt, slowMo);
+  var live = 0, waiting = 0, i, j;
+  for (i = 0; i < ORB_JOBS.length; i++) {
+    j = ORB_JOBS[i];
+    if (!j.fade && j.state === 'running') live++;
+    if (!j.fade && j.state === 'waiting') waiting++;
+  }
+  for (i = 0; i < ORDER.length; i++) {
+    var n = SCENE[ORDER[i]];
+    if (n && n.parent && n.parent !== 'root' && n.kind !== 'worker' && !n.fade && n.state === 'waiting') waiting++;
+  }
+  for (i = 0; i < ORB_OWN.length; i++) if (!ORB_OWN[i].fade && ORB_OWN[i].state === 'waiting') waiting++;
+  var state = ORBX.anim ? (ORBX.anim.menu ? 'menu' : ORBX.state) : ORBX.state;
+  orb3dFrame({ tnow: tnow, t: t, dt: dt, jobs: ORB_JOBS, own: ORB_OWN, self: SELF,
+               mode: state === 'open' ? 'open' : state === 'menu' ? 'menu' : 'corner', w: orbW, h: orbH });
+  pickCount = 0;
+  orbRowSay(live, waiting);
+}
+
 /* What the row at the foot of a phone's navigation is called to a screen
    reader, out of the same count the core is drawn from: the jobs running, or
    that somebody is waiting for the person, which outranks any number. Only
@@ -1660,6 +1837,10 @@ function renderOrb(t, dt) {
    the dot says it alone. Written only when it changes, which is not thirty
    times a second. */
 function orbRowSay(live, waiting) {
+  // The circle's edge says it too, at a glance and without a click: red while
+  // anything waits for the person (`.orb-box[data-work]` in app.css).
+  var work = waiting ? 'waiting' : live ? 'running' : 'idle', box = $('orbBox');
+  if (box && box.getAttribute('data-work') !== work) box.setAttribute('data-work', work);
   var say = waiting ? 'needs you' : live ? live + ' running' : 'nothing running';
   if (say === ORBX.now) return;
   ORBX.now = say;
@@ -1720,7 +1901,10 @@ function drawOrb(ts) {
     // What it sits over has moved or changed size: follow it on this frame,
     // not at the next one drawn.
     if (ORBX.dirty) { ORBX.dirty = false; orbApply(); }
-    if (ts - orbLast < ORB_FRAME_MS - 1) { orbRaf = requestAnimationFrame(drawOrb); return; }
+    // The open 3D orb is turned by hand and flashes for 80 ms at a time, so
+    // it is drawn at the screen's own rate; everything else at thirty.
+    var cap = O3.on && ORBX.state === 'open' ? 0 : ORB_FRAME_MS - 1;
+    if (ts - orbLast < cap) { orbRaf = requestAnimationFrame(drawOrb); return; }
   }
   // A longer step is taken as this long, so a tab coming back from the
   // background does not throw every line round the sphere at once.

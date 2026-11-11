@@ -11,6 +11,7 @@ import { ORB_BASE, ORB_CFG, ORB_GROUPS, ORB_ROWS, orbMoved, orbSane, orbSaveNow,
   orbTipHide, ORBX, slowMo } from 'app/orb.js';
 import { orbSoundPreview } from 'app/orb_sound.js';
 import { orbUsageShow } from 'app/orb_costs.js';
+import { O3, orb3dDump, orb3dPanelPaint, orb3dPutBackAll } from 'app/orb3d.js';
 
 /* ---------- the cog wheel, and the panel behind it ----------------------
  *
@@ -90,7 +91,7 @@ function orbPanelMark(key) {
 // What the foot says: whether anything at all is off the design.
 function orbPanelFoot() {
   var all = $('orbResetAll'), k, n = 0;
-  if (!all) return;
+  if (!all || O3.on) return;
   for (k in ORB_BASE) if (orbMoved(k)) n++;
   all.hidden = !n;
   all.lastChild.textContent = n === 1 ? '1 changed' : n + ' changed';
@@ -99,6 +100,17 @@ function orbPanelFoot() {
 function orbPanelPaint() {
   var host = $('orbPanelGroups');
   if (!host) return;
+  // The 3D orb has 178-02's own controls, which it builds itself.
+  if (O3.on) {
+    orb3dPanelPaint(host);
+    var note3 = $('orbPanelNote');
+    if (note3) {
+      note3.textContent = 'This machine asks for less movement, so finished work fades steadily ' +
+        'without flashing, waiting work does not breathe, and the orb does not turn by itself.';
+      note3.hidden = !slowMo;
+    }
+    return;
+  }
   host.innerHTML = '';
   for (var g = 0; g < ORB_GROUPS.length; g++) {
     var title = /** @type {string} */ (ORB_GROUPS[g][0]);
@@ -196,6 +208,7 @@ function wireOrbPanel() {
   var all = $('orbResetAll');
   if (all) {
     all.addEventListener('click', function () {
+      if (O3.on) { orb3dPutBackAll($('orbPanelGroups')); return; }
       orbPutBack(Object.keys(ORB_BASE));
     });
   }
@@ -207,7 +220,7 @@ function wireOrbPanel() {
     dump.addEventListener('click', function () {
       var box = $('orbDumpBox'), out = {}, k;
       for (k in ORB_BASE) out[k] = ORB_CFG[k];
-      box.textContent = JSON.stringify(out, null, 1);
+      box.textContent = O3.on ? orb3dDump() : JSON.stringify(out, null, 1);
       box.hidden = !box.hidden;
       dump.classList.toggle('on', !box.hidden);
       // Opened from the foot of a column that is taller than the screen, the

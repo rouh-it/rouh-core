@@ -1,0 +1,122 @@
+{
+  "about": "The 3D orb's branching rules and look, read by the browser (rouh/static/app/orb3d.js) and by the Blender build (workspace task 178, step 178-02, source-code/build_orb.py --rules). One file, so the live orb and the Blender model cannot drift apart. Lengths are in model units, where the core is 0.028 across and a job reaches about 0.65.",
+  "version": 1,
+  "palette": {
+    "agent": "#36dce5",
+    "search": "#ffd064",
+    "page": "#ff994d",
+    "code": "#69dfa1",
+    "shell": "#aa8aff",
+    "edit": "#f875d5",
+    "read": "#bac5d8",
+    "api": "#729dff",
+    "other": "#8993a7",
+    "wait": "#ff3655",
+    "ghost": "#596170",
+    "self": "#cfd9ee",
+    "core": "#ffffff"
+  },
+  "kinds": ["shell", "search", "page", "code", "edit", "read", "api", "other", "wait"],
+  "path": {
+    "samples": 8,
+    "bendSide": 0.19,
+    "bendUp": 0.12,
+    "wander": 0.075,
+    "wanderFreqSide": 5,
+    "wanderFreqUp": 7,
+    "taperPower": 0.72,
+    "taperScale": 0.88,
+    "taperFloor": 0.12,
+    "wobble": 0.13,
+    "wobbleFreq": 8,
+    "swell": 0.14,
+    "swellWidth": 0.09,
+    "minRadius": 0.0006
+  },
+  "agent": {
+    "length": [0.58, 0.73],
+    "radius": 0.013,
+    "radiusFalloff": 0.64,
+    "zSquash": 0.6,
+    "childLength": [0.54, 0.7],
+    "childFork": [0.52, 0.88],
+    "childLean": 0.65,
+    "childSpread": [0.55, 0.95],
+    "childRadiusOfParent": 0.85
+  },
+  "process": {
+    "radius": 0.0105,
+    "radiusFalloff": 0.74,
+    "minRadius": 0.0035,
+    "length": [0.26, 0.44],
+    "lengthFalloff": 0.84,
+    "spread": 0.65,
+    "spreadJitter": 0.18,
+    "minAngle": 0.55,
+    "fork": [0.3, 0.95],
+    "shortest": 0.4,
+    "longest": 1.65,
+    "fullAfterSeconds": 30
+  },
+  "core": {
+    "radius": 0.028,
+    "letterHeight": 0.03
+  },
+  "glass": {
+    "alpha": 0.32,
+    "emission": 1.2,
+    "roughness": 0.14,
+    "clearcoatRoughness": 0.07,
+    "rim": {
+      "centerAlpha": 0.055,
+      "rimAlpha": 0.95,
+      "power": 0.9,
+      "narrowPower": 1.25,
+      "highlight": 14.0
+    },
+    "nerve": {
+      "alpha": 0.7,
+      "emission": 3,
+      "radius": 0.3
+    },
+    "ghostAlpha": 0.025,
+    "ghostEmission": 0.15
+  },
+  "growth": {
+    "tipSeconds": 1,
+    "thickenSeconds": 0.3,
+    "seedRadius": 0.12
+  },
+  "defaults": {
+    "nerve": true,
+    "glow": 0.23,
+    "coreGlow": 80,
+    "thickness": 1,
+    "edge": 1,
+    "reflections": 4.5,
+    "light": 12,
+    "speed": 1,
+    "endLevel": 50,
+    "fadeSeconds": 30,
+    "blinkRate": 2,
+    "blinkLength": 80,
+    "blinkDirection": "up",
+    "holdMinutes": 3,
+    "ghostSeconds": 180
+  },
+  "limits": {
+    "glow": [0, 1.2, 0.01],
+    "coreGlow": [0, 240, 1],
+    "thickness": [0.5, 1.8, 0.05],
+    "edge": [0, 12, 0.1],
+    "reflections": [0, 16, 0.1],
+    "light": [0, 40, 0.1],
+    "speed": [0.5, 4, 0.1],
+    "endLevel": [0, 100, 1],
+    "fadeSeconds": [1, 120, 1],
+    "blinkRate": [0.5, 8, 0.5],
+    "blinkLength": [60, 100, 10],
+    "holdMinutes": [0, 10, 0.1],
+    "ghostSeconds": [0, 600, 5]
+  }
+}

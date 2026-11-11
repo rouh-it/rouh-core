@@ -82,7 +82,7 @@ ALWAYS_MASKED = (
 #: over the sidebar is where a falling star crosses it: in a fresh browser
 #: not for an hour at least, but one that came due is shown a few seconds
 #: after the page is up, so it is hidden rather than trusted to be empty.
-HIDDEN = "#orb, #orbRing, .sb-sky { visibility: hidden !important; }"
+HIDDEN = "#orb, #orb3d, .orb3d-labels, #orbRing, .sb-sky { visibility: hidden !important; }"
 
 #: The moment the suite pretends it is, for the browser's own clock. Server
 #: times are masked; this keeps a page's "today" and its relative times still.

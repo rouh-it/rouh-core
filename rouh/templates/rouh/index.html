@@ -4360,11 +4360,14 @@ with {% asset %}, which gives it its hashed address.
        canvas is the canvas's own to say it is empty. The node card sits above
        it.
 
-       One canvas, drawn by hand in 2D, with no library. {% endcomment %}
+       Drawn in 3D with three.js on #orb3d (app/orb3d.js, the look of workspace
+       task 178, step 178-02); where a browser cannot draw in WebGL, drawn flat
+       by hand on #orb instead, as it was before 11 November 2026. {% endcomment %}
   <div id="orbSpot" class="orb-spot" aria-hidden="true"></div>
   <div id="orbLayer" class="orb-layer" data-orb="corner">
     <div id="orbBox" class="orb-box">
       <canvas id="orb" class="orb" aria-hidden="true"></canvas>
+      <canvas id="orb3d" class="orb orb3d" aria-hidden="true" style="display: none"></canvas>
       {% comment %} How busy the machine is, round the rim of the 96 px circle in the
            corner: two nested arcs, each starting at twelve o'clock and
            filling clockwise. Half a circle is half its own reading, the way
