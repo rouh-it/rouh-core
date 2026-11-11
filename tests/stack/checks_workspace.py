@@ -93,7 +93,8 @@ def _improve(s: Stack) -> None:
         time.sleep(10)
     else:
         raise Failed(f"the change never became the code that runs (still {now[:60]}); "
-                     f"the guard said: {s.logs('guard', 60)[-1200:]}")
+                     f"the guard said: {s.logs('guard', 60)[-700:]}; "
+                     f"the worker said: {s.logs('worker', 60)[-700:]}")
     # Rouh starts again on it; wait for it to answer.
     for _ in range(60):
         try:
@@ -110,7 +111,13 @@ def _improve(s: Stack) -> None:
 
 
 smoke.LAST.update({"self.improve", "guard.change-step", "self.deploy"})
-smoke.LIMIT.update({"workspace.one": 900, "workspace.github": 420, "self.improve": 1500})
+# The three rows share one change of Rouh's own code, made once by whichever of them comes first
+# (in CONTAINERS.md's order that is guard.change-step), so each has the change's own limit: under
+# the default 300 s the first row was stopped while the change was still on its way, and its
+# "took longer than its limit" was remembered as the answer of all three and of everything that
+# builds on them (self.gene-log, guard.undo, the Creator's pushes), on 11 November 2026 (dc300500).
+smoke.LIMIT.update({"workspace.one": 900, "workspace.github": 420,
+                    "self.improve": 1500, "guard.change-step": 1500, "self.deploy": 1500})
 
 
 @check("self.gene-log")
