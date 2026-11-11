@@ -55,7 +55,7 @@ The open pull requests (`head:base-patch/`) say what is being tried; https://git
 | `base_patch.py` | The base line: `cut`, `look` (patch levels only), `report`, `changes` (the pull request's table of versions). |
 | `build.sh` | Builds the base and the protected core for linux/amd64 and linux/arm64 and, with `--out`, saves each as an archive. Pushes nothing. |
 | `check-image.sh` | Refuses a base or a protected core with any Rouh code or anything shaped like a secret. |
-| `INSTALL-LINUX-VM.md` | Step by step: the pulled stack on a Linux machine, or in an arm64 Linux VM on a Mac. |
+| `INSTALL-LINUX.md` | Step by step: the pulled stack on a Linux machine, or in an arm64 Linux VM on a Mac. |
 | `linux_stack.py` | A Linux machine's updater, what Rouh for Mac does by itself: the signed release (checked with `mac_release.py`), its images, the database saved, the new base checked with the Rouh's own code, the Rouh's own stack file held to the release's allow-list by the check in the release's guard image, then started, and the release before put back if it is not healthy. `update`, `apply`, `back`, `status`. |
 | `mac_release.py` | Rouh for Mac's signed releases on rouh.land: releases of format 2 (`release-sign`, `release-publish`, `release-status`, `release-list`, `release-rollback`), the record of the newest tested commit (`code-pass`, `code-publish`, `code-newest`), and the older base and stack releases' status and rollback. |
 
@@ -72,7 +72,7 @@ The bridge's images, `rouh-core`, `rouh-workers` and `rouh-keyproxy`, were built
 
 ## Starting it
 
-`INSTALL-LINUX-VM.md` beside this file is the whole of it on Linux: a settings file, then `linux_stack.py update`, which takes the signed release from rouh.land and holds every change of the Rouh's own stack file to the stack check before anything is started. Rouh for Mac does the same by itself.
+`INSTALL-LINUX.md` beside this file is the whole of it on Linux: a settings file, then `linux_stack.py update`, which takes the signed release from rouh.land and holds every change of the Rouh's own stack file to the stack check before anything is started. Rouh for Mac does the same by itself.
 
 For trying a build of this checkout: `build.sh --platform linux/amd64`, then a `release.env` naming `rouh-base:<tag>`, `rouh-guard:<tag>` and a PostgreSQL image, and the same commands.
 

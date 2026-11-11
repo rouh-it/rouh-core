@@ -1,23 +1,136 @@
-# Rouh on a Linux machine, or in a Linux VM on a Mac
+# Rouh on a Linux server
 
-How to run Rouh's containers on a Linux machine of your own, or in an arm64 Linux virtual machine on an Apple Silicon Mac, from a signed release on rouh.land.
-Rouh for Mac does all of this by itself; this is the same by hand.
+How to run Rouh on a Linux machine of your own: a server you reach only over SSH (a "headless" server, with no screen), a desktop, or a virtual machine.
+Rouh for Mac does all of this by itself on a Mac.
+Since 11 November 2026 (task 176, step 176-24) a server needs nothing but SSH: setup happens in the terminal, and nothing of Rouh's is reachable from the network until its owner exists.
 
-**On a Linux machine, one command does steps 2 to 6 for you** (since 8 November 2026, task 176):
+## The one command
 
 ```bash
 curl -fsSL https://rouh.land/install.sh | sh
 ```
 
-It checks the machine, installs Docker with Compose and the few tools it needs if they are missing, clones rouh-core into `~/rouh-core`, makes `~/rouh/.env` with a database password, starts Rouh with `linux_stack.py update` and prints the setup address (and the `ssh -L` line for a machine with no screen).
-Run it again to update. Its source is served at that address; read it first if you like.
-The rest of this guide is the same by hand, and updates, backups and moving a Rouh you already have.
+Run it as a normal user with sudo, not as root (it refuses `/root`).
+It goes in this order, and can be run again at any time:
 
-Since 24 October 2026 (task 98, step 98-23) a release names three images, each by its digest: `ghcr.io/rouh-it/rouh-base` (what every part runs on, no Rouh code), `ghcr.io/rouh-it/rouh-guard` (the protected core, which a Rouh uses and cannot edit) and PostgreSQL.
-There is no code image: on its first start a Rouh fetches the newest version of Rouh that passed its tests, free, with no account (rouh.land names the commit, signed, and it comes from the public rouh-it/rouh-core on GitHub), and from then on its code is its own, in the code volume, and no update writes to it.
-The stack file is the Rouh's own too (`/code/deploy/stack/compose.yml`); before applying it, check it (step 6).
+1. **It checks the server and says what it found**: which Linux, the processor and its cores (2 at least, 4 to run well), memory (4 GB at least, 8 to run well), free disk (15 GB at least, 64 to run well), Python, whether port 8420 is free, and whether the server reaches rouh.land, ghcr.io (GitHub's container registry) and github.com.
+   Ubuntu 22.04 and 24.04 and Debian 12 and 13 are tested; others may work.
+2. **It says what it will do, and asks once**: what it installs, about 2 GB to download, about 5 minutes. `--yes` does not ask, for a script or cloud-init (`curl -fsSL https://rouh.land/install.sh | sh -s -- --yes`).
+3. **It installs what is missing**: curl, git, openssl, Docker with Compose (Docker's own get.docker.com), and, when the server's Python is older than 3.12 (Debian 12 has 3.11), a standalone Python 3.12 for Rouh's updater, pinned by its SHA-256, into `~/.local/share/rouh/python`.
+4. **It trusts nothing it has not checked.** rouh.land's release and its newest tested code are each signed with Rouh's release key (Ed25519, the key is written in the script); a release that does not check out stops the install with nothing used.
+   The updater, rouh-core, is checked out into `~/rouh-core` at exactly the signed commit, never at whatever `main` is.
+5. **It hands over to the `rouh` command** it installs as `/usr/local/bin/rouh`: the settings file `~/rouh/.env` (with a database password of its own, mode 600), Bring back your Rouh when a kept one is on the server, the nightly update, the first start (`linux_stack.py update`), and then `rouh setup`, in the same terminal.
+   `--no-setup` stops after the start; run `rouh setup` later.
 
-## 1. Make the VM
+## Setup, in the terminal
+
+`rouh setup` is Rouh's first run, the same as Rouh for Mac's and the web's, in the same order and words, through the same setup API on 127.0.0.1 (`rouh/web/setup_api.py`, with the setup code as its key):
+
+1. **What kind of Rouh**: a **Connected Rouh** (recommended: a free rouh.land account and its own address on rouh.page, which works behind any router with no port opened) or an **Independent Rouh** (nothing leaves the server).
+2. **About you**: first and last name, email, your time zone, and a password, typed twice and hidden, its rules shown before you type.
+3. **Connected only: check your email.** rouh.land sends a 6-digit code; type it. `r` resends it, `c` changes the email, `i` makes it Independent instead.
+4. **Born**: its Name (in orange), its Birthday and its URL. It always answers to Rouh; a nickname is optional.
+5. **A brain**: an Anthropic or OpenAI API key, required, checked live with a real answer from the company.
+6. **A plan for its agents**, strongly recommended: a Claude plan (open Claude's sign-in address on any device, or scan the QR code, and paste back the code Claude shows) or a ChatGPT plan (Codex's device code: allow device code sign-in in ChatGPT's security settings first, then approve the code shown). Going on without one needs **Go on without a plan…** and a yes to the cost warning: every job then costs much more, on the API key.
+7. **Ready**: a one-time sign-in link, with a QR code for a phone. Connected: `https://<its name>.rouh.page/...`. Independent: the `ssh -L` line to type on your own computer, and a link for it.
+
+Stopped half way? `rouh setup` carries on where you left off.
+The setup code is never printed: `rouh setup` asks the core for it and writes a new one each time, a start never puts it in `docker logs`, and on a server it lasts 24 hours while there is no owner (`ROUH_SETUP_CODE_HOURS`).
+
+## The rouh command
+
+| Command | What it does |
+|---|---|
+| `rouh status` | Running or not, its name and kind, its address, the release (signature checked), the nightly update and the last one, backups, the open ports, and its AI (it reminds you while no plan is connected) |
+| `rouh setup` | The first run, in the terminal; again, to connect a plan later |
+| `rouh open` | A one-time sign-in link: your own domain, else its rouh.page address, else the `ssh -L` line and a local link |
+| `rouh update` | Update now; `--off` and `--on` turn the nightly update off and on |
+| `rouh back` | Back to the release before, on the images kept for it |
+| `rouh logs [PART] [-f]` | The last lines of a part (`core` by default) |
+| `rouh backup` | A copy of the database now; `--list`; `--restore NAME` |
+| `rouh domain NAME` | Your own domain with HTTPS; `--off` |
+| `rouh relay URL --domain D` | A relay of your own for a Connected Rouh's phone address; `--default`, `--off` |
+| `rouh doctor` | Checks the server, Docker, the release, the ports, the firewall, the setup code, its AI and the address, and says what to fix |
+| `rouh uninstall` | Keep my data (recommended) or Wipe my data |
+
+`--debug` on any of them shows the commands and their output.
+
+## Updates, and going back
+
+`rouh-update.timer` runs `rouh update --nightly` every night at a time between 03:00 and 05:00 (server time) chosen once per server, and catches up after a night the server was off.
+It first brings the updater to rouh.land's newest tested, signed commit (forward only), then runs `linux_stack.py update`: the newest signed release, its images pulled beside the running ones, the database saved first, the new base checked with this Rouh's own code, then started, and if it is not healthy the release before runs again by itself.
+Its log is `~/rouh/logs/update.log`; `rouh status` shows the last line.
+`rouh update --off` turns it off; `rouh update` updates now.
+
+## Reaching it from a phone
+
+- **A Connected Rouh** has its own address, `https://<its name>.rouh.page`, from its birth: it dials out to the relay and needs no open port, no domain and no router setting. `rouh open` gives a sign-in link and QR code for it.
+- **An Independent Rouh** has three ways:
+  1. **An SSH tunnel**: `rouh open` prints the line to type on your own computer, `ssh -L 8420:127.0.0.1:8420 you@server`; then the link it gives opens Rouh there.
+  2. **Tailscale or WireGuard** (a private network between your own devices): put the server and your laptop on it, and the tunnel works from anywhere, with no SSH port open to the internet. Rouh's page itself stays on the server's 127.0.0.1.
+  3. **Your own domain**, below.
+
+### Your own domain
+
+```bash
+rouh domain rouh.example.com
+```
+
+For an Independent or a Connected Rouh alike, once Rouh has its owner.
+First point the name at the server: an A record (and AAAA for IPv6) at your DNS provider; a Cloudflare record must be grey (DNS only).
+`rouh domain` checks that the name points at this server and that nothing else listens on 80 or 443, then turns on the stack's `edge` part: Caddy, pinned by its digest in the signed stack file, which gets and renews a Let's Encrypt certificate and passes every request on to Rouh, marked as from the internet.
+Only then does anything of Rouh's listen beyond the server: ports 80 and 443, nothing else.
+The stack check holds the edge part to the release's own, and refuses 80 and 443 for any part, and for the edge without a domain set (`guard/policy/stack-policy.json`, `public_ports`).
+Through the edge, the setup pages are never reachable, and before an owner exists nothing is: Rouh answers 503.
+`rouh open` then gives a sign-in link on your domain. `rouh domain --off` closes 80 and 443 again.
+Docker's published ports go round ufw; that is intended for 80 and 443 here, and `rouh doctor` says so.
+
+### A relay of your own
+
+A Connected Rouh's phone address goes through rouh.land's relay (rouh.page) unless its settings say another:
+
+```bash
+rouh relay https://relay.example.com/relay/ --domain rouh.example.com
+rouh relay --default     # rouh.land's again
+rouh relay --off         # no phone address at all
+```
+
+Rouh claims its address at `<URL>claim` and dials out to the relay that answers (`rouh/relay.py`, `PROTOCOL.md`, "The relay").
+**Not yet possible:** the relay's own server (rouh-it/rouh-relay: frps and its judge, relayd) and the claim endpoint, which today is part of rouh.land's birth service, are not public, so there is no relay to run yourself yet. Until they are, an Independent Rouh with your own domain gives the same: your own address, with nothing between you and your Rouh.
+
+## Firewall
+
+The installer does not turn ufw on (Ubuntu's simple firewall): on a server whose SSH is on another port that can lock you out, and Rouh needs no port open to the outside.
+`rouh doctor` lists what listens, and when nothing protects the server suggests `sudo ufw allow OpenSSH && sudo ufw enable`.
+
+## Uninstall, and Bring back
+
+```bash
+rouh uninstall
+```
+
+It asks what should happen to Rouh's data, as Rouh for Mac does (step 176-17):
+
+- **Keep my data (recommended)**: Rouh stops, its database alone starts and is saved with `pg_dump`, then restored once into a throwaway database (`rouh_keep_check`) and its tables counted; the volumes that make it itself (the workspace, its own code, the libraries it added, its keys, its identity and data, its undo points and its agents' sign-ins) are saved as tars, read back, with `git fsck --full` on the code and the workspace; all of it goes into `~/rouh-kept/<date>/` (folders 0700, files 0600: it holds Rouh's keys) with each file's SHA-256 checked after the copy, with the settings file and the release.
+  Nothing is removed unless the whole copy checks out; otherwise Rouh is started again.
+- **Wipe my data**: only after `WIPE` is typed.
+
+Then it removes Rouh's containers, images, volumes and networks, the nightly update, the `rouh` command, `~/rouh` and `~/rouh-core`.
+It never removes Docker, your other containers, or a Connected Rouh's rouh.land account.
+
+Install Rouh again with the same command, and it finds the kept copy and offers **Bring back your Rouh** (the default) or **Start fresh**.
+Bring back checks every SHA-256 again, makes each volume with Compose's own labels, unpacks it (`git fsck` again), and restores the database into the new PostgreSQL, counting its tables, all before Rouh first starts; the Rouh that starts is the same one, with the same owner and keys.
+
+## Signing in again
+
+`rouh open`, any time, from the server's terminal: a one-time link (ten minutes) on your domain or rouh.page, or the tunnel line and a local link that works once.
+Or sign in with your email and the password you chose in setup, at any address Rouh answers on.
+
+# By hand, and the rest
+
+The sections below are what the command does, by hand, and what goes beyond it.
+
+## 1. A Linux virtual machine on a Mac (UTM)
 
 Any tool that runs an arm64 Linux VM works.
 These steps use UTM (free, from mac.getutm.app) with Ubuntu Server 24.04 for ARM.
@@ -88,14 +201,13 @@ An account on rouh.land is for the optional connected services, chosen later ins
 
 ```bash
 python3 ~/rouh-core/deploy/container/linux_stack.py update
-docker compose -p rouh -f ~/rouh/stack/stack.json logs -f code-install core | grep -m1 setup
+docker compose -p rouh -f ~/rouh/stack/stack.json logs -f code-install core | grep -m1 "no owner yet"
 ```
 
 The first time there is no code yet, so the release's own stack file runs.
-`code-install` fetches Rouh's code once; `core` then prints `Open http://127.0.0.1:8420/setup?code=...`.
-Open that whole address and make the owner there; the code in it is what keeps anybody else who reaches the page from making the owner first, and nobody types it: the page takes it out of the address at once.
+`code-install` fetches Rouh's code once. Then run `rouh setup` (the wizard above), or `docker compose -p rouh -f ~/rouh/stack/stack.json exec core python manage.py setup_link` and open the whole address it prints, and make the owner there (since 11 November 2026 the core no longer prints it into its log); the code in it is what keeps anybody else who reaches the page from making the owner first, and nobody types it: the page takes it out of the address at once.
 The page then takes you through the rest of the first run: your name and email, Connected or on its own, its birth on rouh.land if you chose Connected (or a free Rouh with the nickname you give it), and a checked Anthropic or OpenAI key (`rouh/web/firstrun.py`).
-The owner has no password: to sign in again later, run `docker compose -p rouh -f ~/rouh/stack/stack.json exec core python manage.py setup_link` and open the address it prints, which works once.
+To sign in again later: `rouh open`, or `docker compose -p rouh -f ~/rouh/stack/stack.json exec core python manage.py setup_link` and open the address it prints, which works once.
 
 From then on Rouh's stack file is its own, in its code. After it changes it, apply it with:
 
@@ -110,7 +222,7 @@ Nothing inside the machine can apply a stack file: no container has the Docker s
 
 ## 7. A new release
 
-Each night that finds patch-level fixes publishes a new level. Run `linux_stack.py update` again, by hand or from a timer:
+Each night that finds patch-level fixes publishes a new level. `rouh-update.timer` runs `linux_stack.py update` every night (above); by hand it does:
 
 1. the newest release of this Rouh's line, its signature checked; one no newer, or one that failed here before, changes nothing;
 2. its images pulled, beside the ones that run;

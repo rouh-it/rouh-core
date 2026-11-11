@@ -3,7 +3,7 @@
 The bundle (`rouh/bundle.py`): Rouh's database (pg_dump), the key every saved login is sealed
 with, the key sign-ins are signed with, its data directory and its workspace. Put into a fresh
 stack, before its first start, with ``linux_stack.py import BUNDLE`` (deploy/container/
-INSTALL-LINUX-VM.md, "Bringing in a Rouh you already have").
+INSTALL-LINUX.md, "Bringing in a Rouh you already have").
 
     python manage.py export_rouh --out /var/tmp/rouh.bundle
     python manage.py export_rouh --out - | ssh new-machine 'umask 077; cat > rouh.bundle'

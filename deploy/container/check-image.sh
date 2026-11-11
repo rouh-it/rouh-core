@@ -21,7 +21,7 @@
 #
 #  - The code image's code folder holds only what .dockerignore lets in, by name, with
 #    no workspace/ at all, and of bin/ only Rouh's commands for a workspace.
-#  - No .git, no .env (only the blank .env.example, for INSTALL-LINUX-VM.md),
+#  - No .git, no .env (only the blank .env.example, for INSTALL-LINUX.md),
 #    no key or certificate file, no ssh folder, no test stand-ins or
 #    fixtures, no screenshots, anywhere Rouh's own files are.
 #  - The home folder holds only what the Dockerfile made there.

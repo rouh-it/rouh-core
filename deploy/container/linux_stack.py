@@ -3,12 +3,14 @@
 
 What Rouh for Mac's updater does by itself (StackUpdater, in rouh-it/rouh-mac), for a Linux machine
 the person looks after (task 158). Until 29 October 2026 that was steps 4, 6 and 7 of
-INSTALL-LINUX-VM.md done by hand, and nothing stopped a stack that failed its check from starting.
+INSTALL-LINUX.md done by hand, and nothing stopped a stack that failed its check from starting.
 
     linux_stack.py update [--dir DIR] [--release FILE]   the newest release of this Rouh's line
     linux_stack.py apply  [--dir DIR]                    the Rouh's own stack file again, after its check
     linux_stack.py back   [--dir DIR]                    the release before, on the images kept for it
     linux_stack.py status [--dir DIR]
+    linux_stack.py prepare [--dir DIR] [--release FILE]  the newest release pulled and its stack written,
+                                                       nothing started (for Bring back, before a first start)
     linux_stack.py restore [NAME] [--dir DIR]           a nightly copy of the database put back (the newest)
     linux_stack.py import BUNDLE [--dir DIR] [--release FILE]
                                                        an existing Rouh brought into a fresh stack
@@ -36,7 +38,7 @@ The check runs out of the release's guard image, not out of this checkout or the
 the Rouh can change its /code, and this checkout may be newer or older than the release, so the
 only check that is surely the release's own is the one in the image its signature names.
 
-DIR (~/rouh by default) holds the person's settings file, .env (INSTALL-LINUX-VM.md, step 5), which
+DIR (~/rouh by default) holds the person's settings file, .env (INSTALL-LINUX.md, step 5), which
 this never writes, and what this keeps: releases/ (current.json, previous.json, failed.json, each
 checked again whenever it is read), stack/ (release.env, the release's reference.yml and policy,
 the Rouh's own stack folder as last read and the last of it that passed, stack.json - the stack
@@ -152,8 +154,18 @@ class Machine:
 
     # ------------------------------------------------------------ Compose
 
+    def profiles(self) -> list[str]:
+        """``--profile edge`` when the owner turned a domain of their own on (``rouh domain``, task
+        176, step 176-24): only then is the stack's edge part, with ports 80 and 443, in the stack
+        at all, and the stack check holds it to the release's own and to a domain being set."""
+        try:
+            text = self.settings.read_text()
+        except OSError:
+            return []
+        return ["--profile", "edge"] if re.search(r"(?m)^ROUH_DOMAIN=\S+", text) else []
+
     def compose(self, file: Path, *args: str, env: Path | None = None) -> list[str]:
-        return ["docker", "compose", "--project-name", PROJECT, "-f", str(file),
+        return ["docker", "compose", "--project-name", PROJECT, "-f", str(file), *self.profiles(),
                 "--env-file", str(self.settings), "--env-file", str(env or self.release_env), *args]
 
     @staticmethod
@@ -208,7 +220,7 @@ class Machine:
         if works.returncode:
             raise Stop("this machine's Docker Compose could not run sealed on the release's base "
                        f"({(works.stderr or works.stdout).decode(errors='replace').strip()[-200:]}); nothing changed")
-        r = run(seal + ["--project-name", PROJECT, "-f", str(folder / "compose.yml"), "--env-file", str(self.settings),
+        r = run(seal + ["--project-name", PROJECT, "-f", str(folder / "compose.yml"), *self.profiles(), "--env-file", str(self.settings),
                         "--env-file", str(self.release_env), "config", "--format", "json", "--no-env-resolution"], timeout=120)
         return _resolved(r)
 
@@ -467,7 +479,7 @@ def newest_release(release_file: str | None, line: str) -> tuple[dict, bytes]:
 def update(m: Machine, release_file: str | None) -> int:
     cur = m.read_release("current.json")
     if cur is None and (m.root / "release.json").exists():
-        # A machine set up by hand (INSTALL-LINUX-VM.md before this): its release, if it is one, is the one in use.
+        # A machine set up by hand (INSTALL-LINUX.md before this): its release, if it is one, is the one in use.
         data = (m.root / "release.json").read_bytes()
         try:
             cur = mac_release.check_release(json.loads(data)), data
@@ -519,6 +531,20 @@ def update(m: Machine, release_file: str | None) -> int:
         return 0
     m.mark_failed(new["version"])
     return 1
+
+
+def prepare_only(m: Machine, release_file: str | None) -> int:
+    """The newest release's images pulled and its stack written, and nothing started: for a kept
+    Rouh brought back into a fresh machine before its first start (``rouh install``, Bring back)."""
+    if m.read_release("current.json") is not None:
+        raise Stop("this machine runs a Rouh already: prepare is only for before a first start")
+    new, _ = newest_release(release_file, mac_release.CHANNEL)
+    say(f"Getting base {new['level']} (release {new['version']}) ready, without starting it")
+    m.release_env.write_text(m.release_env_text(new, m.settings))
+    m.reference.write_text(new["compose"])
+    run(m.compose(m.reference, "pull", "--quiet"), check=True)
+    m.prepare(new)
+    return 0
 
 
 def apply(m: Machine) -> int:
@@ -851,6 +877,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("update").add_argument("--release", help="a signed release file, instead of rouh.land's newest")
     sub.add_parser("apply")
+    sub.add_parser("prepare").add_argument("--release", help="a signed release file, instead of rouh.land's newest")
     sub.add_parser("back")
     sub.add_parser("status")
     sub.add_parser("restore").add_argument("name", nargs="?", default="", help="a copy rouh-backup list names; the newest without")
@@ -864,12 +891,13 @@ def main(argv: list[str] | None = None) -> int:
         say(f"Put the folder somewhere with a plain name (letters, digits, . _ - / and spaces): {root}")
         return 2
     if a.cmd != "status" and not (root / ".env").is_file():
-        say(f"There is no settings file at {root / '.env'}: INSTALL-LINUX-VM.md, step 5.")
+        say(f"There is no settings file at {root / '.env'}: INSTALL-LINUX.md, step 5.")
         return 2
     m = Machine(root)
     try:
         return {"update": lambda: update(m, a.release), "apply": lambda: apply(m), "back": lambda: back(m),
                 "status": lambda: status(m), "restore": lambda: restore(m, a.name),
+                "prepare": lambda: prepare_only(m, a.release),
                 "import": lambda: import_cmd(m, a.bundle, a.release)}[a.cmd]()
     except Stop as e:
         say(str(e))
