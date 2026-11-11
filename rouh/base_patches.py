@@ -248,6 +248,23 @@ def _result(repo: Path, level: str) -> dict | None:
     return _failed(level, words)
 
 
+def _newer_published(repo: Path, level: str) -> str:
+    """The newest published level above `level` (a tag base-X.Y.Z), or "" when there is none."""
+    if _through_guard():
+        r = _git("for-each-ref", "--format=%(refname)", "refs/upstream/tags/", cwd=_app_dir(), timeout=20)
+        names = r.stdout.split()
+    else:
+        r = _git("ls-remote", "--tags", "origin", "refs/tags/base-*", cwd=repo, timeout=60)
+        names = [ln.split("\t")[1] for ln in r.stdout.splitlines() if "\t" in ln] if not r.returncode else []
+    mine = tuple(int(x) for x in level.split("."))
+    found = []
+    for name in names:
+        m = re.fullmatch(r"refs/(?:upstream/)?tags/base-(\d+)\.(\d+)\.(\d+)", name)
+        if m and tuple(map(int, m.groups())) > mine:
+            found.append(tuple(map(int, m.groups())))
+    return ".".join(map(str, max(found))) if found else ""
+
+
 def _failed(level: str, words: str) -> dict:
     what = next((ln[len("What failed: "):] for ln in words.splitlines() if ln.startswith("What failed: ")), "")
     run = next((ln[len("The run: "):] for ln in words.splitlines() if ln.startswith("The run: ")), "")
@@ -291,6 +308,13 @@ async def _settle(who, rec: dict, repo: Path) -> str:
     if not pending:
         return ""
     got = _result(repo, pending["level"])
+    newer = _newer_published(repo, pending["level"]) if got is None else ""
+    if newer:
+        # Replaced, not failed: on 11 November 2026 base 1.0.13 was cancelled while it waited for
+        # its approval, and 1.0.14 was cut on top of it and published. Nobody is told it failed.
+        rec.pop("pending", None)
+        rec["published"] = {"level": newer, "at": time.time()}
+        return f"base {pending['level']} was replaced by base {newer}, which is published"
     if got is None:
         if time.time() - pending.get("pushed_at", 0) < WATCH_FOR:
             return f"base {pending['level']} is still being built and checked"
