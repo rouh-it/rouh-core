@@ -152,6 +152,8 @@ def check_playwright(servers: dict, env: dict, *, cwd: str) -> None:
     Claude, and the same machine server that Codex is configured to launch.
     It checks the tool list and drives Chromium through browser_navigate and
     browser_snapshot, rather than treating an installed package as proof.
+    ``cwd`` is the run's checkout; the server itself starts in a scratch
+    folder, so the check leaves nothing in it.
     """
     spec = servers.get("playwright")
     if not isinstance(spec, dict):
@@ -166,8 +168,13 @@ def check_playwright(servers: dict, env: dict, *, cwd: str) -> None:
     server_env.update({str(k): str(v) for k, v in (spec.get("env") or {}).items()})
     args = [str(a) for a in (spec.get("args") or [])]
     proc = None
+    # In a folder of its own, never the run's checkout: Playwright MCP writes every snapshot to
+    # .playwright-mcp/ under the folder it starts in, and a run that then commits with
+    # `git add -A` carried that file into its change. On 11 November 2026 (dc300500) that is what
+    # stopped every change of Rouh's own code in the stack test from reaching the protected core.
+    scratch = tempfile.mkdtemp(prefix="one-browser-check-")
     try:
-        proc = subprocess.Popen([binary, *args], cwd=cwd, env=server_env,
+        proc = subprocess.Popen([binary, *args], cwd=scratch, env=server_env,
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, text=False, bufsize=0)
         deadline = time.monotonic() + 20
@@ -205,6 +212,7 @@ def check_playwright(servers: dict, env: dict, *, cwd: str) -> None:
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait(timeout=3)
+        shutil.rmtree(scratch, ignore_errors=True)
 
 
 #: What Codex has to be told to pass on to a machine server, by name. Claude
@@ -248,6 +256,13 @@ def _write_merged_mcp(cwd: str, command) -> str:
     """
     wanted = command._machine_mcp_servers()
     wanted.update(command._mcp_servers(os.path.join(cwd, ".mcp.json")))
+    # Pinned again after the merge: a checkout's own browser entry wins the name, and Rouh's own
+    # code commits one that says `npx @playwright/mcp@latest`, which has npm fetch a package at
+    # start and, with no registry to reach, never answers. That is what every run in a checkout of
+    # Rouh's code started with until 11 November 2026, so the browser check before the agent
+    # starts failed and a change of Rouh's own code never left its run (the stack test,
+    # guard.change-step, from dc300500).
+    wanted = command._pinned_browser(wanted)
     if not wanted:
         return ""
     own = os.path.join(cwd, ".one")

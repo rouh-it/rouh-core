@@ -92,9 +92,13 @@ def _improve(s: Stack) -> None:
             break
         time.sleep(10)
     else:
+        try:
+            runs = s.tool("one_runs", {})
+        except Exception as e:  # noqa: BLE001 - only to say more in the failure
+            runs = f"(one_runs: {e})"
         raise Failed(f"the change never became the code that runs (still {now[:60]}); "
-                     f"the guard said: {s.logs('guard', 60)[-700:]}; "
-                     f"the worker said: {s.logs('worker', 60)[-700:]}")
+                     f"the runs: {runs[-500:]}; the guard said: {s.logs('guard', 30)[-300:]}; "
+                     f"the worker said: {s.logs('worker', 30)[-300:]}")
     # Rouh starts again on it; wait for it to answer.
     for _ in range(60):
         try:
