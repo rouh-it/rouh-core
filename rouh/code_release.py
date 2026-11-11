@@ -1,9 +1,10 @@
-"""The Creator Rouh's releases of Rouh's code: the pointer every other Rouh updates itself to.
+"""Released changes of shared rouh-it/rouh-core main, after the early-test Rouhs' day with them.
 
-Task 140, step 140-18 (11 November 2026). A release is not every commit of main. It is a commit
-that has run on the Creator Rouh - the maker's own, where Rouh's code is made and which pushes
-each checked change to rouh-core's main (guard/rouh_guard/upstream.py) - for at least a day, with
-nothing put back and its checks passed. This module decides that, by itself, and moves rouh.land's
+Task 140, steps 140-18 and 140-19 (11 November 2026). The source is shared main, including changes
+published by collaborators. A release boundary has passed master's checks and has run on an
+authorised early-test Rouh for at least a day with nothing put back. Initially there is one
+early tester; authorised collaborators can join without changing the source branch. Local private
+commits are never released: candidate() requires membership on shared main. This module moves rouh.land's
 pointer (``POST /mac/code/release``) forward, at most once a day; nobody approves each release
 (Petar, 11 November 2026). Every Rouh reads the pointer (``rouh/code_update.py``).
 
@@ -41,7 +42,7 @@ from pathlib import Path
 
 log = logging.getLogger("rouh.code_release")
 
-#: How long a change must have run on the Creator Rouh before it is a release.
+#: How long a checked change on shared main must run on an authorised early-test Rouh.
 LIVE_FOR = float(os.environ.get("ROUH_RELEASE_LIVE_FOR", str(24 * 3600)))
 #: The longest gap between two looks that still counts as running throughout.
 GAP = float(os.environ.get("ROUH_RELEASE_GAP", str(3 * 3600)))

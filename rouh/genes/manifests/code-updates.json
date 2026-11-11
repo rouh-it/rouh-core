@@ -26,17 +26,18 @@
   "touches": {
     "permissions": [
       "reads rouh.land's public release of Rouh's code (/mac/code/release.json): every half hour while it rides along, or on a press; a Rouh on its own asks only on a press",
-      "downloads that release's code from the public rouh-it/rouh-core on GitHub, merges this Rouh's own changes on top in a copy of its code, and hands the result to the protected core, which checks it before it runs",
+      "reads released changes from shared rouh-it/rouh-core main in order, copies untouched files exactly, and adapts diverged code through a frontier model and protected checks",
       "adds the libraries a release needs to /extra, with the protected core's own installer, held to the base's pins",
-      "keeps a copy of the code and of the newest nightly database copy in the data folder before an update",
+      "keeps code backups; the protected core makes fresh full database backups and rehearses migrations on real-data copies, verifying counts and preservation before applying atomically",
       "on the Creator Rouh only: writes down which commit runs, and once a day publishes the newest commit that ran a day with nothing put back as rouh.land's release, signed with this Rouh's daily key",
-      "answers update_rouh in a chat (\"update yourself to the newest Rouh\"), the same path as the button on Anatomy, Meta, Changes, where its card is drawn"
+      "answers update_rouh in a chat (\"update yourself to the newest Rouh\"), the same path as the button on Anatomy, Meta, Changes, where its card is drawn",
+      "uses the Models setting Adapting master updates only with a frontier model; records copied, adapted and waiting changes in the local update ledger"
     ],
     "accounts": [],
     "tables": [],
     "jobs": [
       "the ride along and the Creator Rouh's releases, every half hour (code_update.Watch), and the note in General after an update's restart"
     ],
-    "remove": "Delete rouh/code_update.py, rouh/code_release.py, the updates part of rouh/web/changes.py and its three routes in rouh/project/urls.py, drawUpdates and its helpers in changespage.js and the cu- rules in changespage.css, code_updates in rouh/runtime.py, the update_rouh tool in rouh/tools.py and its names in toolsearch.py, protected.py and job_policy.py, the code-updates entry in rouh/genes/owners.json, and this manifest. The code a Rouh already took stays as it is."
+    "remove": "Delete rouh/code_update.py, rouh/code_evolution.py, rouh/code_release.py, the updates part of rouh/web/changes.py and its three routes in rouh/project/urls.py, drawUpdates and its helpers in changespage.js and the cu- rules in changespage.css, code_updates in rouh/runtime.py, the update_rouh tool in rouh/tools.py and its names in toolsearch.py, protected.py and job_policy.py, the code-updates entry in rouh/genes/owners.json, and this manifest. The code a Rouh already took stays as it is."
   }
 }

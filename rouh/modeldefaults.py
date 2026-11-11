@@ -240,6 +240,9 @@ GROUPS = ("Chats", "Heartbeat", "Runs and helpers", "Pages", "Genes", "Mail", "S
 #: is picked in the picture editor. The tier each starts on, and why, is the
 #: standard's (`model_standard.json`, `uses`).
 USES: tuple[Use, ...] = (
+    Use("code_adapt", "Runs and helpers", "Adapting master updates",
+        "Rebuilds a released change for this Rouh and proves database and security updates. "
+        "Only frontier models from the model standard's Smart tier may do this work."),
     # The chats themselves, which had a pair of their own each, a model and a level, until
     # 18 October 2026 (`default` and `general`), and before that a box beside the composer.
     Use("general", "Chats", "Rouh",
@@ -953,6 +956,8 @@ class Now:
         if choice == OFF:
             return ""
         pair = self.pair(use_id)
+        if use_id == "code_adapt" and pair.model not in standard.tier_pick(SMART, self.doc):
+            return "Needs a frontier model from the model standard's Smart tier. These changes wait."
         if pair.fallback:
             return use.fallback or f"Its provider has no key here, so {model_name(pair.model)} answers instead."
         if not pair.model:

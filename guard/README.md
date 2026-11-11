@@ -110,3 +110,19 @@ Deploys are not grouped: each waits only for the answers in progress when it com
 - A Rouh that keeps no count (not running, not answering, or from before this) is not waited for.
 
 Checked in the containers by `core.deploy-waits-for-answers` (CONTAINERS.md). Not yet waiting: a whole-stack update by `deploy/container/linux_stack.py update`, which replaces the images.
+
+## Taking a released master change (task 140, step 140-19)
+
+Changes contract 1 adds `features.master_changes`, `features.database_rehearsal`, `database_inventory` (schema names and types only), and an optional `update` field on `propose`.
+Older clients keep their existing proposal behaviour; the new updater refuses to use an older core that would ignore its proof.
+`updatecheck.py` runs the adapting job's proof as the isolated check user, on the old and new trees for security changes.
+A before failure must be an explicit vulnerability with named assertions, and the same assertions must pass afterwards; a crashed test is not proof.
+
+The protected database gate has a migration connection on the database network, apart from the check database.
+Its credentials never reach the worker or ordinary checks.
+The base includes the line's PostgreSQL backup clients in `/opt/pg`, with private libraries so they do not replace the base's other libraries.
+`database_update.py` makes a new full backup, restores it into an isolated copy, rehearses the adapted atomic migration, compares counts and existing values table by table (including declared renames), and runs the change's proof and the Rouh's own self-checks against the copy.
+Only afterwards does `rouh-update-database` lock writers, hold a full backup of that exact snapshot, and migrate the real schema and check preservation in one transaction; it reads back afterwards too.
+A failed rehearsal leaves the real database alone; a failed transaction rolls back.
+Each attempt keeps its backup, counts, result and reverse/restore instructions under `/guard/database-updates/`, beside the protected undo history.
+The migration's model must be frontier even when its files could otherwise have been copied exactly.

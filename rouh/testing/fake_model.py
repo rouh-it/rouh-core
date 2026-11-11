@@ -2959,6 +2959,9 @@ def build_app(record_dir: str) -> FastAPI:
             (is_triage(body), TRIAGE_FILE, a_decision),
             (is_filing(body), FILING_FILE, a_filing),
         )
+        from . import fake_code_adapt
+
+        errands += ((fake_code_adapt.matches(body), "code-adapt-", fake_code_adapt.answer),)
         naming = errands[0][0]
         # And a pass over a page's comments, which answers every thread in
         # one `answer_comments` call (`rouh/commentpass.py`).

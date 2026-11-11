@@ -27,10 +27,17 @@
 
 ARG PYTHON_IMAGE=python:3.12.14-slim-trixie
 ARG NODE_IMAGE=node:24.22.1-trixie-slim
+ARG PGCLIENT_IMAGE=pgvector/pgvector:0.8.7-pg18-trixie@sha256:5895949dfcdf308eb0cd31c950c93c14895c77f33fbedfecf1fa511ab1d4bcd2
+
+FROM ${PGCLIENT_IMAGE} AS pgclient
+RUN mkdir -p /opt/pg/bin /opt/pg/lib \
+ && cp /usr/lib/postgresql/18/bin/pg_dump /usr/lib/postgresql/18/bin/pg_restore /opt/pg/bin/ \
+ && ldd /opt/pg/bin/pg_dump /opt/pg/bin/pg_restore | awk '/=> \/|^\s*\// {for(i=1;i<=NF;i++) if ($i ~ /^\//) print $i}' | sort -u | xargs -r cp -t /opt/pg/lib/
 
 FROM ${NODE_IMAGE} AS node
 
 FROM ${PYTHON_IMAGE}
+COPY --from=pgclient /opt/pg /opt/pg
 
 ARG BASE_LINE=dev
 ARG BASE_LEVEL=dev

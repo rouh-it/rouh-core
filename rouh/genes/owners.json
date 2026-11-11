@@ -1784,6 +1784,7 @@
   "code-updates": {
    "files": [
     "rouh/code_update.py",
+    "rouh/code_evolution.py",
     "rouh/code_release.py",
     "rouh/web/changes.py",
     "rouh/static/changespage.*"
