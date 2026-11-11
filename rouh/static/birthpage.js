@@ -454,7 +454,8 @@
         ['Connecting gives it', (k === 'disconnected' ? ['Its URL back']
           : named() ? ['Its own URL, to reach it from your phone']
           : ['Its official name, for good', 'Its own URL, to reach it from your phone'])
-          .concat(['The Gene Pool, sharing only what you choose', 'Security fixes and the model price list'])],
+          .concat(['Sharing pages and tasks, like Google Drive: by email, read or edit, or by link',
+            'The Gene Pool, sharing only what you choose', 'Security fixes and the model price list'])],
         ['It sends rouh.land', ['A new key that proves it is this Rouh', 'Your email, to sign you in']],
         ['It stays private', ['Your files, mail and chats', 'Every call to a model', 'What you call it, and your name']],
       ]));
