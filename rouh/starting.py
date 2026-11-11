@@ -405,8 +405,11 @@ async def start(*, brief: str, title: str = "", preset: str = "",
     written them by Rouh as it is made (`crew.spawn`). Either way the brief
     already says where they are, and the grant is tied to the run's id here.
 
-    ``asked_for`` is the request as the tool was given it, before anything was
-    added to it. When it names Codex, an OpenAI model such as Astra, or OpenAI as
+    ``asked_for`` is the person's own words for this run, what they said or typed in
+    the turn that started it, and never the brief (`tools._their_words`; Petar,
+    11 November 2026: briefs naming luna.py, a run's history or a model bar started
+    three jobs as Codex he never asked for). Every start with no person's words passes
+    nothing, and starts as its Models page default. When those words ask for Codex, an OpenAI model such as Astra, or OpenAI as
     the model to use, and no agent was chosen on purpose (``agent_chosen``, which
     is the tool's agent "claude" or "codex" said out loud), the run is Codex on the
     ChatGPT subscription, with that model, and its record says which word did it

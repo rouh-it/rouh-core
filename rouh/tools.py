@@ -273,8 +273,9 @@ RUN_MODEL_PROPERTY = {
     "description": (
         "The exact model id for this run alone. Pass the OpenAI model the person named "
         "and agent codex, on the ChatGPT subscription. Accepts the OpenAI ids listed by "
-        "model_defaults. If omitted, Astra, Sol, Luna or Terra named as doing the work "
-        "is inferred even with agent codex; otherwise the run uses its Models page default. "
+        "model_defaults. If omitted, Astra, Sol, Luna or Terra named by the person, in their "
+        "own words, as doing the work is inferred even with agent codex; a model named only "
+        "in the brief is not; otherwise the run uses its Models page default. "
         "An unknown or unavailable model fails, never switches models. Other runs are unchanged."),
 }
 RUN_AGENT_PROPERTY = {
@@ -332,6 +333,25 @@ def _with_their_words(brief: str) -> str:
             f"{trace.asked.strip()[:8000]}\n>>>\n\nBefore you start, check the brief against their "
             "words. Where the two differ, or the brief leaves out or adds something they did not "
             "ask for, their words are what they asked for.")
+
+
+def _their_words() -> str:
+    """What the person said or typed in the turn that is starting a job, or "".
+
+    Only these words may make a run Codex (`rouh/codex_route.py`). Petar, 11 November 2026:
+    three jobs started as Codex because the brief Rouh wrote named a file (luna.py), quoted
+    a run's history (gpt-6-luna) or described a model bar ("the top GPT on Codex"). A turn
+    with no person's words - a note, a scheduled turn, a turn about mail, a call from a job
+    over the rouh MCP server - gives "", and the run starts as its Models page default.
+    """
+    from . import turntrace
+
+    trace = turntrace.current()
+    if trace is None or trace.note or protected.away():
+        return ""
+    if mail_turn.now() is not None:
+        return ""
+    return str(trace.asked or "").strip()
 
 
 def _billing_asked_for(args) -> str:
@@ -14070,9 +14090,9 @@ class ToolRegistry:
         """
         if not brief.strip():
             return "There was nothing to do, so nothing was started."
-        # The request as the model wrote it, before anything is added below: what
-        # says whether it is a run of Codex (`starting.route_to_codex`).
-        asked_for = brief
+        # The person's own words for this job, never the brief Rouh wrote: what says
+        # whether it is a run of Codex (`starting.route_to_codex`, Petar, 11 November 2026).
+        asked_for = _their_words()
         # A job started while handling an email is that email's work, written
         # down against it, so the email stays in progress until the job's
         # report comes back: a case's (`rouh/mail_cases.py`), or the owner's own

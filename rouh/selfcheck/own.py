@@ -655,3 +655,44 @@ def trials_pause_holds_back_only_automatic() -> None:
         models.TrialJob.objects.filter(**mine).delete()
         models.TrialTester.objects.filter(**mine).delete()
         models.UserSetting.objects.filter(user_id=who.user_id).delete()
+
+
+@check("own", "a job is Codex only when the person's own words ask for it",
+       "the brief Rouh writes never makes a job Codex: a file name, a quoted run history or a model bar in "
+       "it is not a request (Petar, 11 November 2026), while the person saying \"with openai astra\" or "
+       "\"do this with Codex\" still starts Codex with that model, and agent claude said on purpose wins")
+def codex_only_on_their_words() -> None:
+    from rouh import codex_route, starting, tools, turntrace
+
+    # The models by family, from the Models page's list, newest first, as the routing reads them.
+    newest: dict[str, str] = {}
+    for model, family, _ in codex_route._models():
+        newest.setdefault(family, model)
+    astra, sol, luna = newest["astra"], newest["sol"], newest["luna"]
+    not_asked = [
+        "Redo readable reasoning, safely: update the docstrings in luna.py and llmlog.py.",
+        "Jobs get their own tools. History: Codex run e32c0ff3 (11 Nov, 09:27, " + luna + ") failed.",
+        "Each Rouh adapts master's changes with the best model, e.g. Claude Opus or the top GPT on Codex.",
+        "update luna.py", "look at rouh/luna.py", "fix the Codex sign-in", "Luna's voice is bad",
+        f"`{luna}`", "there is a bug with the Codex sign-in", "don't use Codex", f"the {astra} model is slow",
+    ]
+    for text in not_asked:
+        got = codex_route.named(text)
+        expect(got is None, f"{text!r} made a job Codex on {got}")
+    asked = {"with openai astra": astra, "do this with Codex": "", f"use {astra} for this": astra,
+             "run it on Sol": sol, f"run it on {sol.replace('-', ' ')}": sol, "have Codex do it": ""}
+    for text, model in asked.items():
+        got = codex_route.named(text)
+        expect(got is not None and got.model == model, f"{text!r} came back {got}, not Codex on {model or 'its pick'}")
+    token = turntrace.CURRENT.set(turntrace.Trace("selfcheck", "t", None, asked="Make jobs get their own tools"))
+    try:
+        words = tools._their_words()
+        expect(words == "Make jobs get their own tools", f"the person's words were read as {words!r}")
+        expect(starting.route_to_codex(words) is None, "words with no model in them made a job Codex")
+        turntrace.CURRENT.set(turntrace.Trace("selfcheck", "t", None, asked="do it with openai astra"))
+        expect(starting.route_to_codex(tools._their_words(), agent="claude", agent_chosen=True) is None,
+               "agent claude said on purpose did not win over the person's words")
+        turntrace.CURRENT.set(None)
+        expect(tools._their_words() == "", "a start with no turn read words from somewhere")
+    finally:
+        turntrace.CURRENT.reset(token)
