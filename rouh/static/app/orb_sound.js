@@ -13,6 +13,7 @@ import { A } from 'app/voice.js';
 import { stillSpeaking } from 'app/transcript.js';
 import { speakerNudge } from 'app/attachments.js';
 import { ORB_CFG, orbW, ORBX } from 'app/orb.js';
+import { cfHush, cfNudge, cfPreview, cfStart, cfState, cfTick } from 'app/orb_cornfield.js';
 
 /* ---------- the sound of the open orb ---------------------------------
 
@@ -62,7 +63,15 @@ import { ORB_CFG, orbW, ORBX } from 'app/orb.js';
    too, and the press that opens the orb is one. The button beside the cog
    turns it off and on for this browser, because a phone in a meeting is not
    the desk; the cog's panel has the two levels, which are the person's own
-   like every other number there. */
+   like every other number there.
+
+   Since 12 November 2026 a Rouh whose owner has turned on the switch
+   `orb_cornfield` plays something else in place of the chords and the
+   notes: an arrangement in the style of "Cornfield Chase" that follows the
+   work (app/orb_cornfield.js, which says why it is behind a switch and must
+   not ship on by default in a public release without the rights cleared).
+   The page is told by `data-cornfield` on the sound button. Everything
+   below stays the fallback, and is what every other Rouh plays. */
 
 var KEY_ORB_SOUND = 'rouh.orb.sound.v1';
 
@@ -82,6 +91,7 @@ var ORB_SOUND = {
   pad: [],              // chords still sounding
   walk: { line: -1, call: -1 },
   levels: '',
+  cornfield: false,     // this Rouh plays the Cornfield Chase arrangement (app/orb_cornfield.js)
   played: []            // the last notes, for the checks
 };
 
@@ -352,6 +362,11 @@ function soundTick() {
   var S_ = ORB_SOUND, ctx = S_.ctx;
   if (!S_.live || !ctx) return;
   var t = ctx.currentTime, wall = performance.now();
+  if (S_.cornfield) {
+    soundLevels(t);
+    cfTick(ctx);
+    return;
+  }
   soundChords(t);
   soundLevels(t);
   // A speaker the browser is still holding back has a clock that is not
@@ -378,6 +393,8 @@ function orbSoundArrived(nodes) {
   for (i = 0; i < nodes.length; i++) {
     n = nodes[i];
     if (!n || (n.fade && t - n.fade > 1200)) continue;
+    // The arrangement plays no note of its own for an arrival: it is pushed on.
+    if (S_.cornfield) { cfNudge(n.kind === 'tool' ? 'call' : 'line'); continue; }
     S_.queue.push({ voice: n.kind === 'tool' ? 'call' : 'line', kind: n.kind, node: n, seen: wall });
   }
   // Too many at once: the lines are kept before the twigs, and the oldest
@@ -417,6 +434,12 @@ function orbSoundStart() {
   S_.master.gain.cancelScheduledValues(t);
   S_.master.gain.setValueAtTime(S_.master.gain.value, t);
   S_.master.gain.setTargetAtTime(1, t, 0.05);
+  if (S_.cornfield) {
+    cfStart(ctx, S_.music, S_.notes);
+    soundTick();
+    S_.timer = setInterval(soundTick, 60);
+    return;
+  }
   // The chords breathe: the strings open and close a little over a quarter
   // of a minute, so the same chord held is never quite still.
   try {
@@ -458,6 +481,7 @@ function soundHush() {
     try { S_.pad[i].gain.disconnect(); } catch (e) {}
   }
   S_.pad.length = 0;
+  cfHush(t);
   if (S_.lfo) {
     try { S_.lfo.stop(t); S_.lfo.disconnect(); } catch (e) {}
     S_.lfo = null;
@@ -477,7 +501,9 @@ function orbSoundPress() {
 // than guessed at. At most one waiting at a time, however fast the drag.
 function orbSoundPreview() {
   var S_ = ORB_SOUND;
-  if (!S_.live || S_.queue.length) return;
+  if (!S_.live) return;
+  if (S_.cornfield) { cfPreview(S_.ctx); return; }
+  if (S_.queue.length) return;
   S_.queue.push({ voice: 'call', kind: 'preview', node: null, seen: performance.now() });
 }
 
@@ -485,6 +511,11 @@ function orbSoundPaint() {
   var b = $('orbSound');
   if (!b) return;
   b.setAttribute('aria-pressed', ORB_SOUND.on ? 'true' : 'false');
+  if (ORB_SOUND.cornfield) {
+    b.title = ORB_SOUND.on ? 'Sound on: music that follows the work. Press to turn it off'
+      : 'Sound off. Press to hear music that follows the work';
+    return;
+  }
   b.title = ORB_SOUND.on ? 'Sound on: a note for everything new, and quiet music. Press to turn it off'
     : 'Sound off. Press to hear a note for everything new, and quiet music';
 }
@@ -496,6 +527,7 @@ function wireOrbSound() {
   ORB_SOUND.on = load(KEY_ORB_SOUND) !== '0';
   var b = $('orbSound');
   if (!b) return;
+  ORB_SOUND.cornfield = b.getAttribute('data-cornfield') === '1';
   orbSoundPaint();
   b.addEventListener('click', function () {
     ORB_SOUND.on = !ORB_SOUND.on;
@@ -516,4 +548,4 @@ function wireOrbSound() {
   });
 }
 
-export { ORB_SOUND, orbSoundArrived, orbSoundPreview, orbSoundSync, wireOrbSound };
+export { cfState, ORB_SOUND, orbSoundArrived, orbSoundPreview, orbSoundSync, wireOrbSound };

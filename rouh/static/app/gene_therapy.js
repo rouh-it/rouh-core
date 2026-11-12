@@ -15,6 +15,7 @@ import { applyTree, haveTree, KEY_ORB, memColour, orb, ORB_BASE, ORB_CFG, ORB_HI
   ORB_SOUND, orbFrameNo, orbMoved, orbPanelOpen, orbPointAt, orbRaf, orbStats, orbUnsent, orbW,
   ORDER, SCENE, SELF, setState } from 'app/orb.js';
 import { stillSpeaking, turnIsRunning } from 'app/transcript.js';
+import { cfState } from 'app/orb_sound.js';
 import { CARDS, layerOpen, loadOlderCards, renderCard, showLayer, streamEl, WORKSPACE_ROUTE } from 'app/cards.js';
 import { applyTaskList, since, taskRecs, upsertTask } from 'app/tasks.js';
 import { oneOpen, POLICY_MEANS, projectsClose, tasksFrame, whenWords } from 'app/runs.js';
@@ -1690,7 +1691,9 @@ window.__rouh = {
       time: A.ctx ? A.ctx.currentTime : 0,
       chords: ORB_SOUND.pad.length,
       queued: ORB_SOUND.queue.length,
-      played: ORB_SOUND.played.slice()
+      played: ORB_SOUND.played.slice(),
+      // The Cornfield Chase arrangement, on a Rouh whose switch has it on.
+      cornfield: ORB_SOUND.cornfield ? cfState() : null
     };
   },
   fakeTree: applyTree,

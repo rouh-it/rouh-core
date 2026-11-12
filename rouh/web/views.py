@@ -789,6 +789,25 @@ def _setting_up(request: HttpRequest) -> bool:
         return False
 
 
+#: The switch for the open orb's music as an arrangement of "Cornfield Chase" (Hans Zimmer,
+#: Interstellar), in `rouh/static/app/orb_cornfield.js`. The composition is its composer's and
+#: publisher's, so unlike every other switch it is OFF until the owner turns it on, on every
+#: installation: it must not ship on by default in a public release without the rights cleared.
+ORB_CORNFIELD = "orb_cornfield"
+ORB_CORNFIELD_TITLE = "The open orb's music as Cornfield Chase, Hans Zimmer's piece, whose rights are not Rouh's"
+
+
+def _orb_cornfield(request: HttpRequest) -> bool:
+    """Whether the open orb plays the Cornfield Chase arrangement here: only once its switch has
+    been turned on. It is made off the first time a page asks, so it is listed under Mutations'
+    Other switches for the owner to turn; anything that goes wrong is the old music."""
+    try:
+        org = getattr(who(request), "org_id", None) or None
+        return bool(switches.register(ORB_CORNFIELD, ORB_CORNFIELD_TITLE, org_id=org, on=False)["on"])
+    except Exception:
+        return False
+
+
 def _phone_address() -> str:
     """The phone address on the relay, for the chat's "Reach me from my phone" step; "" for none."""
     from rouh import relay
@@ -831,6 +850,8 @@ def _page_for(request: HttpRequest) -> HttpResponse:
         # up, which the chat takes the owner through (`firstrun.guiding`, the rule new-rouh).
         "SETTING_UP": _setting_up(request),
         "PHONE_ADDRESS": _phone_address(),
+        # The open orb's music: Rouh's own, or the Cornfield Chase arrangement where its switch is on.
+        "ORB_CORNFIELD": _orb_cornfield(request),
         # When the chats have no model key at all, the welcome says so and where to add one,
         # in place of "Ask me what I can do" (`providerkeys.where_to_add_a_key`).
         "CHATS_NEED_KEY": _chats_need_key(request),

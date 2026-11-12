@@ -4598,7 +4598,7 @@ with {% asset %}, which gives it its hashed address.
            section "the sound of the open orb" in app.js). Beside the cog,
            because it is the open orb's alone; the cog's panel has the two
            levels. The script says which it is. {% endcomment %}
-      <button id="orbSound" class="orb-sound" type="button" hidden
+      <button id="orbSound" class="orb-sound" type="button" hidden{% if ORB_CORNFIELD %} data-cornfield="1"{% endif %}
               aria-pressed="true" aria-label="Sound">
         {% comment %} A speaker, with two waves out of it while the sound is on and a
              cross beside it while it is off. {% endcomment %}

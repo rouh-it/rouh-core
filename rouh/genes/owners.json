@@ -161,6 +161,7 @@
     "rouh/static/app/welcome.js",
     "rouh/static/app/orb.js",
     "rouh/static/app/orb_sound.js",
+    "rouh/static/app/orb_cornfield.js",
     "rouh/static/app/orb_panel.js",
     "rouh/static/app/orb_costs.js",
     "rouh/static/three/**",
@@ -1280,7 +1281,8 @@
    "what": "Plays distinct musical notes for jobs, helpers and tool calls while the orb is open, with quiet ambient music underneath.",
    "files": [
     "rouh/static/app/orb.js",
-    "rouh/static/app/orb_sound.js"
+    "rouh/static/app/orb_sound.js",
+    "rouh/static/app/orb_cornfield.js"
    ]
   },
   "falling-stars-decoration": {
