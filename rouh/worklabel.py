@@ -1219,6 +1219,13 @@ def _contact_card(a):
     return "Making their card to pass on", _arg(a, "name") or ""
 
 
+@_step("contact_changes")
+def _contact_changes(a):
+    if a.get("confirmed"):
+        return "Putting the contact back", _arg(a, "name") or ""
+    return "Reading what changed on the contact", _arg(a, "name") or ""
+
+
 @_step("reply_times")
 def _reply_times(a):
     return "Counting reply times", _arg(a, "who") or ""

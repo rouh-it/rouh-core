@@ -1902,6 +1902,18 @@ class MailAlerts:
                 moved = ""
             if moved:
                 log.info("mail alert %s: %s", message_id, moved)
+            # A new company in their signature (night 41, `rouh/new_company.py`): a contact signing with a
+            # company their contact does not say is told, and the email goes on as before.
+            from . import new_company
+
+            try:
+                alert = await self._db(self.store.alert, user_id, org_id)
+                joined = await new_company.seen(who, message, mailbox=str(alert.get("mailbox") or ""))
+            except Exception:  # noqa: BLE001 - the email is handled all the same
+                log.exception("mail alert %s: the signature's company could not be read", message_id)
+                joined = ""
+            if joined:
+                log.info("mail alert %s: %s", message_id, joined)
         listed = None if pretender else await self._db(
             self.cases.trust.listed_for, user_id, org_id, address)
         if not existing and listed is None and not pretender and not row.get("replays"):

@@ -2878,6 +2878,63 @@
    "files": [
     "rouh/card_in_mail.py"
    ]
+  },
+  "n41-forward-twice": {
+   "name": "Not forwarded twice",
+   "what": "Before Rouh forwards an email or a whole conversation, it reads the Sent mail of the last day: when the same email already went to the same people, it is not forwarded again and Rouh says when it went.",
+   "switch": "forward_twice",
+   "signals": {
+    "events": {
+     "held": "You asked Rouh to forward an email it had already forwarded to the same people, and it told you when instead of sending it again"
+    }
+   },
+   "files": [
+    "rouh/forward_twice.py"
+   ]
+  },
+  "n41-new-company": {
+   "name": "A new company in their signature",
+   "what": "When somebody in your contacts signs an email with a company their contact does not say, you are told at once, with Change it on their contact, which writes the new company to the contact in iCloud.",
+   "switch": "new_company",
+   "signals": {
+    "events": {
+     "changed": "You pressed Change it on their contact on a notice that a contact signs with a new company"
+    },
+    "runs": {
+     "told": "A contact signed an email with a company their card does not say, and you were told in a notice"
+    }
+   },
+   "files": [
+    "rouh/new_company.py",
+    "rouh/web/new_company.py"
+   ]
+  },
+  "n41-contact-changes": {
+   "name": "What changed on a contact",
+   "what": "Asked what changed on a contact, Rouh reads the earlier versions it keeps of the card and says each change and when, newest first, and on your yes puts the contact back as it was before one of them.",
+   "switch": "contact_changes",
+   "signals": {
+    "events": {
+     "read": "You asked Rouh what changed on a contact, and it listed the changes and when",
+     "put_back": "You said yes to putting a contact back as it was, and Rouh wrote it to iCloud"
+    }
+   },
+   "files": [
+    "rouh/contact_changes.py"
+   ]
+  },
+  "n41-call-sender": {
+   "name": "Call them from their email",
+   "what": "An email opened on the inbox card from somebody whose number Rouh has shows Call and their numbers, mobile first, each one press away from ringing.",
+   "switch": "call_sender",
+   "signals": {
+    "events": {
+     "called": "You pressed a number on an email's Call line on the inbox card"
+    }
+   },
+   "files": [
+    "rouh/call_sender.py"
+   ]
   }
  }
 }

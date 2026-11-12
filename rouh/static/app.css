@@ -6997,6 +6997,10 @@ a.pf-co:hover { color: var(--accent); text-decoration: underline; }
 .ib-remind-note { flex: 0 1 auto; min-width: 0; }
 .ib-remind .ib-btn { flex: 0 0 auto; }
 .ib-remind-link { color: var(--accent); }
+/* Call them from their email (night 41): each number a link that looks like the line's buttons. */
+.ib-call .ib-call-at { display: inline-flex; align-items: center; text-decoration: none;
+  font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) { .ib-call .ib-call-at { min-height: 44px; } }
 /* You meet them soon (night 36): a meeting soon with somebody on the email, under its headers. */
 .ib-soon { display: grid; gap: 4px; margin: 6px 0 4px; }
 .ib-soon-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin: 0;

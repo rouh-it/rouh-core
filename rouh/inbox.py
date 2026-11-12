@@ -994,6 +994,18 @@ class Mailroom:
             newcomer = None
         if newcomer:
             shown = dict(shown, save_sender=newcomer)
+        # Call them from their email (night 41, `rouh/call_sender.py`): the sender's number, one press.
+        from . import call_sender
+
+        try:
+            who = self._owner(sealed)
+            own = await self._own_addresses(who, sealed)
+            ring = await asyncio.to_thread(call_sender.shown, who, found, own)
+        except Exception as exc:  # noqa: BLE001 - the message opens all the same
+            log.info("the sender's number could not be read: %s", exc)
+            ring = None
+        if ring:
+            shown = dict(shown, call_sender=ring)
         # A contact card in an email (night 40, `rouh/card_in_mail.py`): a .vcf on the email.
         from . import card_in_mail
 
@@ -1057,6 +1069,16 @@ class Mailroom:
         if not done:
             return Answer(False, why=said)
         return Answer(True, said={"said": said}, note=f"saved {about(found)} as a contact, pressed on the inbox card")
+
+    async def call_sender(self, how: str, sealed: dict | None) -> Answer:
+        """A number pressed on an email's Call line: only counted; the phone rings it."""
+        from . import call_sender
+
+        who = self._owner(sealed)
+        if not await asyncio.to_thread(call_sender.on, who):
+            return Answer(False, why="Call them from their email is switched off.")
+        await asyncio.to_thread(call_sender.pressed, who, how)
+        return Answer(True, said={"counted": True})
 
     async def card_in_mail(self, message_id: str, sealed: dict | None) -> Answer:
         """Save to contacts or Add to their contact, pressed on an email's contact card line: the card read
@@ -1323,7 +1345,7 @@ def serve(room: Mailroom) -> None:
 #: What the page may ask of a card.
 ASKS = {"list", "open", "archive", "unarchive", "read", "unread", "compose", "send",
         "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch", "know_them",
-        "save_sender", "card_in_mail"}
+        "save_sender", "card_in_mail", "call_sender"}
 
 
 async def press(msg: dict, who) -> Answer:
@@ -1359,7 +1381,7 @@ async def press(msg: dict, who) -> Answer:
     if what != "list" and not message_id:
         return Answer(False, why="Say which message.")
     if theirs and what not in ("list", "open", "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch",
-                               "know_them", "save_sender", "card_in_mail"):
+                               "know_them", "save_sender", "card_in_mail", "call_sender"):
         # The person's own inbox is connected read-only (`rouh/inboxes.py`):
         # the card has no such button, and a page that asks anyway is told why.
         return Answer(False, why="This inbox is connected read-only, so it can be read "
@@ -1399,6 +1421,11 @@ async def press(msg: dict, who) -> Answer:
         if what == "save_sender":
             # Save them as a contact: written to iCloud, nothing in the mailbox changes.
             done = await ROOM.save_sender(message_id, sealed)
+            done.chat = chat
+            return done
+        if what == "call_sender":
+            # Call them from their email, counted: nothing in the mailbox changes.
+            done = await ROOM.call_sender(str(msg.get("when") or ""), sealed)
             done.chat = chat
             return done
         if what == "card_in_mail":

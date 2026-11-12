@@ -2996,3 +2996,66 @@ print(json.dumps({"new": card_in_mail.line([], person), "known": card_in_mail.li
 """))
     expect("Save Sam Stack to contacts" in out and "Add to Sam Stack's contact" in out and "+386 41 555 333" in out,
            f"the card on the email was not read: {out[-500:]}")
+
+
+# --- Night 41 (12 November): not forwarded twice; a new company in their signature; what changed on a
+# contact; call them from their email
+
+@check("gene.forward-twice")
+def forward_twice(s: Stack) -> None:
+    """A sent forward of the same email to the same people is found; another person, another subject or a
+    plain email is not."""
+    out = core_py(s, _owner_py("""
+from rouh import forward_twice
+original = {"from": "Nina Stack <nina@fwd-stack.test>", "subject": "Seat plan"}
+sent = {"to": "pat@fwd-stack.test", "subject": "Fwd: Seat plan",
+        "body": "---------- Forwarded message ---------\\nFrom: Nina Stack <nina@fwd-stack.test>\\nSubject: Seat plan"}
+print(json.dumps({"same": forward_twice.same_forward(sent, to={"pat@fwd-stack.test"}, original=original),
+                  "other": forward_twice.same_forward(sent, to={"lee@fwd-stack.test"}, original=original),
+                  "plain": forward_twice.same_forward(dict(sent, body="Seat plan attached"),
+                                                      to={"pat@fwd-stack.test"}, original=original)}))
+"""))
+    expect('"same": true' in out and '"other": false' in out and '"plain": false' in out,
+           f"the same forward was not found as it should be: {out[-500:]}")
+
+
+@check("gene.new-company")
+def new_company(s: Stack) -> None:
+    """The company under a sender's name in a signature is read, and the same company written another way
+    is the same."""
+    out = core_py(s, _owner_py("""
+from rouh import new_company
+body = "Thanks,\\n\\nNina Stack\\nHead of Operations, Northwind Ltd\\nM: +44 7700 900123\\n"
+print(json.dumps({"got": new_company.company_in(body, "Nina Stack"),
+                  "same": new_company.same_company("Northwind Ltd", "Northwind"),
+                  "other": new_company.same_company("Brightline", "Northwind")}))
+"""))
+    expect('"Head of Operations", "Northwind Ltd"' in out and '"same": true' in out and '"other": false' in out,
+           f"the signature's company was not read: {out[-500:]}")
+
+
+@check("gene.contact-changes")
+def contact_changes(s: Stack) -> None:
+    """Two versions of a contact are told apart: a number taken off and another added, a company changed."""
+    out = core_py(s, _owner_py("""
+from rouh import contact_changes
+a = contact_changes.state_of({"name": "Dana Stack", "organisation": "Brightline",
+                              "icloud": {"phones": [{"number": "+44 20 7946 0000"}], "emails": []}})
+b = contact_changes.state_of({"name": "Dana Stack", "organisation": "Northwind",
+                              "icloud": {"phones": [{"number": "+359 88 765 4321", "label": "mobile"}], "emails": []}})
+print(json.dumps(contact_changes.differences(a, b), ensure_ascii=False))
+"""))
+    expect("company Brightline → Northwind" in out and "+359 88 765 4321 (mobile) added" in out
+           and "+44 20 7946 0000 taken off" in out, f"the change was not said: {out[-500:]}")
+
+
+@check("gene.call-sender")
+def call_sender(s: Stack) -> None:
+    """A contact's numbers are offered mobile first, each as a tel: link."""
+    out = core_py(s, _owner_py("""
+from rouh import call_sender
+card = {"phones": [{"number": "+44 20 7946 0000", "label": "work"}, {"number": "+359 88 765 4321", "label": "mobile"}]}
+print(json.dumps(call_sender.numbers_of(card)))
+"""))
+    expect(out.find("+359887654321") != -1 and out.find("mobile") < out.find("work"),
+           f"the numbers were not offered mobile first: {out[-500:]}")

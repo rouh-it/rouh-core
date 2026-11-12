@@ -2421,6 +2421,10 @@ function inboxBlock(b) {
   // holds, and one press that saves it to iCloud, onto the contact already there when there is one.
   var cardRow = el('div', 'ib-remind ib-card-in-mail');
   cardRow.hidden = true;
+  // Call them from their email (night 41, rouh/call_sender.py): the sender's numbers, mobile first,
+  // each a tel: link the phone rings in one press.
+  var callRow = el('div', 'ib-remind ib-call');
+  callRow.hidden = true;
   var mailSaid = el('p', 'ib-said');
   mailSaid.hidden = true;
   mailSaid.setAttribute('role', 'status');
@@ -2433,6 +2437,7 @@ function inboxBlock(b) {
   mail.appendChild(soonRow);
   mail.appendChild(tooRow);
   mail.appendChild(knowRow);
+  mail.appendChild(callRow);
   mail.appendChild(acts);
   mail.appendChild(unsubRow);
   mail.appendChild(remindRow);
@@ -2621,6 +2626,7 @@ function inboxBlock(b) {
     drawAnswerWatch(msg);
     drawSaveSender(msg);
     drawCardInMail(msg);
+    drawCallSender(msg);
   }
 
   /** @param {any} msg */
@@ -2746,6 +2752,26 @@ function inboxBlock(b) {
         see.href = '/clockwork';
         answerRow.appendChild(see);
       });
+    });
+  }
+
+  /** @param {any} msg */
+  function drawCallSender(msg) {
+    callRow.textContent = '';
+    var c = msg && msg.call_sender;
+    var numbers = (c && c.numbers) || [];
+    callRow.hidden = !numbers.length;
+    if (!numbers.length) return;
+    callRow.appendChild(el('span', 'ib-remind-note', c.said || 'Call them:'));
+    numbers.forEach(function (/** @type {any} */ n) {
+      var a = el('a', 'ib-btn ib-call-at', (n.label ? n.label + ' ' : '') + n.number);
+      a.href = String(n.tel || '');
+      a.title = 'Rings ' + (c.name || 'them') + ' on ' + n.number;
+      a.addEventListener('click', function () {
+        // Counted only; the link itself has the phone ring the number.
+        inboxAsk(token, 'call_sender', { id: msg.id, when: n.label || '' }, function () {});
+      });
+      callRow.appendChild(a);
     });
   }
 

@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 
 from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, calendar_away, clock, demo,
                composing, conversations, filing, imaging, inbox, inbox_grants, inboxes,
-               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, no_company, sent_twice, same_contact, draft_twice, contact_card, meeting_hours, meet_link, no_place,
+               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, no_company, sent_twice, same_contact, draft_twice, contact_card, forward_twice, contact_changes, meeting_hours, meet_link, no_place,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer, reply_times,
                their_clock, their_hours, unread_lists, their_language, promised_to_you,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer,
@@ -6353,6 +6353,8 @@ class ToolRegistry:
                     "without_files": {"type": "boolean",
                                       "description": "Leave the email's attached files off."},
                     "inbox": inboxes.INBOX_WRITE_ARG,
+                    # Not forwarded twice (night 41, `rouh/forward_twice.py`).
+                    "even_if_forwarded": forward_twice.FIELD,
                 },
                 "required": ["message_id", "to"],
             },
@@ -6397,6 +6399,8 @@ class ToolRegistry:
                     "without_files": {"type": "boolean",
                                       "description": "Leave the emails' attached files off."},
                     "inbox": inboxes.INBOX_WRITE_ARG,
+                    # Not forwarded twice (night 41, `rouh/forward_twice.py`).
+                    "even_if_forwarded": forward_twice.FIELD,
                 },
                 "required": ["message_id", "to"],
             },
@@ -7039,6 +7043,8 @@ class ToolRegistry:
                   self._same_contact)
         # Their card to pass on (night 40, `rouh/contact_card.py`): a contact as a .vcf to attach.
         self._own("contact_card", contact_card.DESCRIPTION, contact_card.SCHEMA, self._contact_card)
+        # What changed on a contact (night 41, `rouh/contact_changes.py`): its kept versions read back.
+        self._own("contact_changes", contact_changes.DESCRIPTION, contact_changes.SCHEMA, self._contact_changes)
         # Between you and them (night 37, `rouh/between_us.py`): what is open with one person by mail.
         self._own(between_us.TOOL_NAME, between_us.DESCRIPTION, between_us.SCHEMA, self._between_us)
         # Newsletters you never open (night 35, `rouh/unread_lists.py`): lists left unread, stopped in a word.
@@ -8839,6 +8845,11 @@ class ToolRegistry:
         gmail, theirs, refused = await self._forwarding_from(args, message_id)
         if refused:
             return refused
+        if not args.get("even_if_forwarded"):
+            # Not forwarded twice (night 41, `rouh/forward_twice.py`): the same forward already went.
+            stop = await self._forward_twice(gmail, message_id, to, cc, bcc, whole_thread)
+            if stop:
+                return untrusted.ours(stop)
         chat = self.memory.answering_chat()
         note = (args.get("note") or "").strip()
         try:
@@ -8885,6 +8896,26 @@ class ToolRegistry:
             said + ". It went as the original" + (" emails" if whole_thread else " email")
             + ", unchanged, under Gmail's forwarded message header"
             + (", with your note above it" if note else "") + "." + tidied.told())
+
+    async def _forward_twice(self, gmail, message_id: str, to: str, cc: str, bcc: str,
+                             whole_thread: bool) -> str:
+        """Not forwarded twice (night 41, `rouh/forward_twice.py`): why not, when the same email was already
+        forwarded to the same people in the last day; "" when it is off, new or cannot tell."""
+        who = self.google.person()
+        if not await asyncio.to_thread(forward_twice.on, who):
+            return ""
+        try:
+            stop, there = await forward_twice.check(gmail, message_id, to=to, cc=cc, bcc=bcc,
+                                                    zone=clock.zone_of(who), whole_thread=whole_thread)
+        except Exception:  # noqa: BLE001 - forwarded as asked when the Sent mail itself cannot be read
+            log.exception("the Sent mail could not be read for the same forward")
+            return ""
+        if stop:
+            from . import evolution
+
+            await asyncio.to_thread(evolution.used, forward_twice.SWITCH, "held", who=who,
+                                    detail=f"{str((there or {}).get('subject') or '')[:80]!r} already forwarded")
+        return stop
 
     async def _forwarding_from(self, args, message_id: str):
         """Which inbox a forward goes from, as (gmail, theirs, refusal).
@@ -10059,6 +10090,16 @@ class ToolRegistry:
         await asyncio.to_thread(evolution.used, to_answer.SWITCH, "asked", who=who,
                                 detail=f"{count} waiting")
         return untrusted.wrap(said, untrusted.SOURCES["read_recent_mail"])
+
+    async def _contact_changes(self, args, emit):
+        """What changed on a contact (night 41, `rouh/contact_changes.py`)."""
+        who = self.contacts.person()
+        if who is None:
+            return untrusted.ours("Nobody is signed in, so there are no contacts to read.")
+        if _in_case():
+            return untrusted.ours("The person's contacts are read only for the person, not in a contact's case.")
+        said = await contact_changes.answer(who, args, self.contacts, clock.zone_of(who))
+        return untrusted.wrap(said, untrusted.SOURCES["search_contacts"])
 
     async def _contact_card(self, args, emit):
         """Their card to pass on (night 40, `rouh/contact_card.py`)."""
