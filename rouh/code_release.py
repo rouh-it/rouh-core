@@ -310,11 +310,12 @@ def public() -> dict:
 
 # --- a release by hand ---------------------------------------------------------------------------
 #
-# Petar, 12 November 2026: "There's nothing to update to." The first release had to be published
-# before any Rouh had run a whole checked day on the shared history (rouh-core went public with a
-# fresh history on 7 November, so no undo point before then is on it). A release by hand skips only
-# the early-test day: the commit must still be on rouh-core's main, have passed master's Tests on
-# main, and contain the release before it. One step, from the core:
+# Petar, 12 November 2026: "There's nothing to update to." The automatic choice looks only at this
+# Rouh's own undo points of kind "change", and the newest of those old enough (593e6cf99981) was not
+# on rouh-core's main, so nothing was ever released. A release by hand takes the commits of
+# rouh-core's main itself: the newest that passed master's Tests on main, has run here a whole day
+# (rouh.land refuses a younger one: "a release must have run on the Creator Rouh for a day first")
+# and contains the release before it. One step, from the core:
 #
 #     python manage.py code_release --publish            the newest such commit
 #     python manage.py code_release --publish <commit>   that commit, if it qualifies
@@ -334,9 +335,17 @@ def _passed_on_main(most: int = 100) -> set[str]:
             and r.get("conclusion") == "success"}
 
 
-def newest_checked(since: str = "") -> tuple[str, str]:
-    """(the newest commit on rouh-core's main that passed Tests on main and contains `since`, "")
-    or ("", why there is none)."""
+def _went_live(commit: str, points: list[dict]) -> float:
+    """When `commit` went live here: its undo point's time, else its commit time on main."""
+    point = next((p for p in points if p.get("commit") == commit), {})
+    return float(point.get("at") or _git("show", "-s", "--format=%ct", commit).stdout.strip() or 0)
+
+
+def newest_checked(since: str = "", points: list[dict] | None = None, now: float | None = None) -> tuple[str, str]:
+    """(the newest commit on rouh-core's main that passed Tests on main, has run here a whole day
+    (rouh.land takes no release younger than that) and contains `since`, "") or ("", why not)."""
+    now = now or time.time()
+    points = points or []
     up = _git("rev-parse", "--verify", "-q", UPSTREAM).stdout.strip()
     if not up:
         return "", "rouh-core's main is not fetched here"
@@ -344,14 +353,19 @@ def newest_checked(since: str = "") -> tuple[str, str]:
         passed = _passed_on_main()
     except Exception as exc:  # noqa: BLE001 - said
         return "", f"master's check results could not be read ({type(exc).__name__})"
+    why = "no commit on rouh-core's main newer than the release has passed master's Tests on main"
     for commit in _git("rev-list", "--first-parent", "--max-count=200", up).stdout.split():
         if since and not _contains(commit, since):
             break
         if commit == since:
-            return "", f"the release {since[:12]} is already the newest commit that passed master's Tests on main"
-        if commit in passed:
-            return commit, ""
-    return "", "no commit on rouh-core's main newer than the release has passed master's Tests on main"
+            break
+        if commit not in passed:
+            continue
+        if now - _went_live(commit, points) < LIVE_FOR:
+            why = f"{commit[:12]} passed, and has not run here a whole day yet"
+            continue
+        return commit, ""
+    return "", why
 
 
 def publish_by_hand(commit: str = "", now: float | None = None) -> dict:
@@ -372,17 +386,17 @@ def publish_by_hand(commit: str = "", now: float | None = None) -> dict:
         if not passed:
             raise RuntimeError(why)
         commit = full
-    else:
-        commit, why = newest_checked(since)
-        if not commit:
-            raise RuntimeError(why)
     from . import guardface
 
-    point: dict = {}
+    points: list[dict] = []
     with contextlib.suppress(Exception):
-        point = next((p for p in guardface.ask("points").get("points") or []
-                      if p.get("commit") == commit), {})
-    when = float(point.get("at") or _git("show", "-s", "--format=%ct", commit).stdout.strip() or now)
+        points = guardface.ask("points").get("points") or []
+    if not commit:
+        commit, why = newest_checked(since, points, now)
+        if not commit:
+            raise RuntimeError(why)
+    point = next((p for p in points if p.get("commit") == commit), {})
+    when = _went_live(commit, points) or now
     got = publish({"commit": commit, "at": when, "n": point.get("n"),
                    "checked": {"passed": (point.get("checked") or {}).get("passed", True)}}, since)
     log.info("released %s by hand on rouh.land", commit[:12])

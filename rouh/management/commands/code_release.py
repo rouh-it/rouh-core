@@ -10,9 +10,10 @@
 
 Task 140, step 140-18, and Petar on 12 November 2026: "There's nothing to update to." The release
 is normally chosen and published by itself, once a day, after a checked change has run a whole day
-here (`rouh/code_release.py`, ``once``). A release by hand (``publish_by_hand``) skips only that
-day: the commit is still on rouh-core's main, passed master's Tests on main, and contains the
-release before it. It is signed with this Rouh's daily key, so it runs only on the Creator Rouh,
+here (`rouh/code_release.py`, ``once``), from this Rouh's own undo points. A release by hand
+(``publish_by_hand``) takes the commits of rouh-core's main itself: the newest that passed master's
+Tests on main, has run here a whole day (rouh.land refuses a younger one) and contains the release
+before it. It is signed with this Rouh's daily key, so it runs only on the Creator Rouh,
 the one rouh.land lists as a release maker.
 
 A job reaches it through ``core_command`` (`rouh/core_commands.py`): ``code_release_status`` reads,
@@ -37,7 +38,14 @@ def status() -> str:
     s = code_release._state()
     if s.get("said"):
         lines.append(f"The last look: {s['said']}")
-    nxt, why = code_release.newest_checked(str(got.get("commit") or ""))
+    points: list = []
+    try:
+        from rouh import guardface
+
+        points = guardface.ask("points").get("points") or []
+    except Exception:  # noqa: BLE001 - the commit times stand in
+        pass
+    nxt, why = code_release.newest_checked(str(got.get("commit") or ""), points)
     lines.append(f"Next by hand: {nxt}" if nxt else f"Next by hand: none ({why})")
     doc = code_evolution.ledger()
     if doc.get("installed"):
