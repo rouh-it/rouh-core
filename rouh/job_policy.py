@@ -72,11 +72,12 @@ NATIVE = (MAIL_FIND, MAIL_FILE, REQUEST, REQUEST_STATUS, CORE_COMMAND)
 
 #: The core's commands a job may name that only read: run at once, for the owner's and Rouh's
 #: own jobs.
-CORE_READS = frozenset({"table_sizes", "scrub_status"})
+CORE_READS = frozenset({"table_sizes", "scrub_status", "code_release_status"})
 #: The core's maintenance commands the owner has already agreed to (the scrub of private
 #: reasoning, 11 November 2026): started in the core's background, for the owner's and Rouh's
 #: own jobs. Each is idempotent and carries on from where it got to.
-CORE_MAINTENANCE = frozenset({"scrub_encrypted_reasoning"})
+#: Rouh's release by hand on rouh.land, agreed 12 November 2026 (`rouh/code_release.py`).
+CORE_MAINTENANCE = frozenset({"scrub_encrypted_reasoning", "code_release_publish"})
 
 #: Tools that only read, whatever their arguments.
 READS = frozenset({

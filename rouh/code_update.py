@@ -328,6 +328,9 @@ def public(who, *, look: bool = False) -> dict:
     b = base()
     from . import code_evolution
 
+    if b.get("how") == "history" and _guard() and not code_evolution.ledger().get("installed"):
+        with contextlib.suppress(Exception):
+            code_evolution.record_start(b)
     evolution = code_evolution.shown()
     own = on_its_own()
     out = {"mode": mode(), "modes": MODES, "admin": bool(getattr(who, "is_admin", False)), "on_its_own": own,
@@ -363,12 +366,12 @@ def public(who, *, look: bool = False) -> dict:
     if rel:
         out["newest"] = {"commit": rel["commit"], "label": label(rel["commit"], rel),
                          "released_at": rel.get("released_at"), "live_since": rel.get("live_since")}
-        if evolution.get("installed"):
-            out["up_to_date"] = here == rel["commit"] and not evolution["waiting"]
-        elif b.get("how") == "history":
+        if b.get("how") == "history":
             has = _git("cat-file", "-e", f"{rel['commit']}^{{commit}}", cwd=code_dir()).returncode == 0
             out["up_to_date"] = has and _git("merge-base", "--is-ancestor", rel["commit"], "HEAD",
                                                cwd=code_dir()).returncode == 0
+            if not out["up_to_date"] and evolution.get("installed"):
+                out["up_to_date"] = here == rel["commit"] and not evolution["waiting"]
         else:
             out["up_to_date"] = here == rel["commit"] and not evolution["waiting"]
         out["whats_new"] = [] if out["up_to_date"] else whats_new(rel, here)
@@ -387,7 +390,9 @@ def said(got: dict) -> str:
                      + (f", with {cur['own_commits']} change{'s' if cur['own_commits'] != 1 else ''} of its own"
                         if cur.get("own_commits") else "") + ".")
     if new:
-        if got.get("up_to_date"):
+        if got.get("up_to_date") and cur.get("commit") and cur.get("commit") != new.get("commit"):
+            parts.append(f"It already contains the newest release, {new['label']}.")
+        elif got.get("up_to_date"):
             parts.append(f"That is the newest release, {new['label']}.")
         else:
             parts.append(f"The newest release is {new['label']}.")
@@ -420,7 +425,13 @@ def why_not(b: dict, rel: dict, s: dict | None = None) -> str:
     from . import code_evolution
 
     if b.get("how") == "history" and not code_evolution.ledger().get("installed"):
-        return "This Rouh needs its protected core's recorded starting version before it can take master changes."
+        with contextlib.suppress(Exception):
+            code_evolution.record_start(b)
+        if not code_evolution.ledger().get("installed"):
+            return "This Rouh needs its protected core's recorded starting version before it can take master changes."
+    if b.get("how") == "history" and rel and _git("merge-base", "--is-ancestor", rel["commit"], "HEAD",
+                                                  cwd=code_dir()).returncode == 0:
+        return "This Rouh already has the newest release."
     if b.get("how") not in ("install", "update", "history"):
         return "This Rouh's code does not say which release it came from, so it cannot be updated this way."
     if not rel:

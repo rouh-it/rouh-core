@@ -51,6 +51,19 @@ COMMANDS = {
                 "Only reads.",
         "manage": ["scrub_encrypted_reasoning", "--status"],
     },
+    "code_release_status": {
+        "what": "Rouh's releases on rouh.land: what is released, the next commit a release by hand "
+                "would take, this Rouh's recorded starting version, and what update_rouh's check "
+                "says here (manage.py code_release). Only reads.",
+        "manage": ["code_release"],
+    },
+    "code_release_publish": {
+        "what": "Publish the newest commit of rouh-core's main that passed master's Tests on main "
+                "and comes after the release before it as Rouh's release on rouh.land, now, signed "
+                "by this Rouh (manage.py code_release --publish --record-start). Only the Creator "
+                "Rouh can. The owner agreed to it on 12 November 2026.",
+        "manage": ["code_release", "--publish", "--record-start"],
+    },
     "scrub_encrypted_reasoning": {
         "what": "Start the core's scrub of OpenAI encrypted_content and Anthropic thinking "
                 "signatures and redacted_thinking out of the stored model log now, in small "

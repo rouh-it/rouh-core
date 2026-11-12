@@ -92,28 +92,36 @@ def scan(release: dict, b: dict, *, report: bool = True) -> dict:
         u._git("init", "--bare", "-q", str(repo), cwd=repo.parent, check=True)
     if report:
         u._step("reading the released changes on shared main")
-    if ledger().get("seen") != release["commit"]:
+    if b.get("how") == "history":
+        held = ledger() if ledger().get("installed") else record_start(b, repo)
+        if held.get("installed") and u._git("merge-base", "--is-ancestor", release["commit"], "HEAD",
+                                            cwd=u.code_dir()).returncode == 0:
+            # This Rouh's own history already holds the release: nothing to fetch or list.
+            held["looked"] = release["commit"]
+            save(held)
+            return held
+    if release["commit"] not in (ledger().get("seen"), ledger().get("looked")):
         u._git("fetch", "-q", source(), "+refs/heads/main:refs/heads/main", cwd=repo, check=True)
     end = release["commit"]
     doc = ledger()
-    installed = doc.get("installed") or u._read(u.code_dir() / ".git/rouh-installed.json").get("commit") or b.get("release")
-    first = ""
-    if not installed and b.get("how") == "history":
-        from . import guardface
-
-        try:
-            first = next((p.get("commit", "") for p in guardface.ask("points").get("points", [])
-                          if p.get("n") == 1 and p.get("kind") == "first"), "")
-        except Exception:
-            first = ""
-        if first and u._git("merge-base", "--is-ancestor", first, "HEAD", cwd=u.code_dir()).returncode == 0:
-            u._git("fetch", "-q", str(u.code_dir()), first, cwd=repo, check=True)
-            installed = u._git("merge-base", first, "refs/heads/main", cwd=repo).stdout.strip()
+    if not doc.get("installed") and b.get("how") == "history":
+        doc = record_start(b, repo) or doc
+    # A one-time update (140-08) names its release in a Rouh-release trailer; its first install's
+    # record still names the commit it was installed from, which may be on the old history.
+    installed = doc.get("installed") or (b.get("release") if b.get("how") == "update" else "") \
+        or u._read(u.code_dir() / ".git/rouh-installed.json").get("commit") or b.get("release")
+    first = doc.get("history_first_point") or ""
     if not installed:
         raise u.Refused("This Rouh has no record of its installed master version; its history must be established before updating.")
     doc = doc or {"v": 1, "installed": installed, "through": installed, "changes": [],
                   "history_first_point": first}
     start = doc.get("seen") or doc["installed"]
+    if start != end and u._git("merge-base", "--is-ancestor", end, start, cwd=repo).returncode == 0:
+        # The release is already inside what this Rouh started from (the Creator Rouh, ahead of
+        # its own release): nothing to list, and nothing to fetch again for it.
+        doc["looked"] = end
+        save(doc)
+        return doc
     for older, newer in ((start, end), (end, "refs/heads/main")):
         if u._git("merge-base", "--is-ancestor", older, newer, cwd=repo).returncode:
             raise u.Refused("The released changes are not a continuation of shared main. Nothing was copied.")
@@ -138,7 +146,7 @@ def scan(release: dict, b: dict, *, report: bool = True) -> dict:
         security = bool(SENSITIVE.search(message) or (code_changed and SENSITIVE.search(diff)) or
                         any(f.startswith(SECURITY_PATHS) for f in all_files))
         purpose = message.splitlines()[0]
-        already_here = bool(doc.get("history_first_point")) and u._git(
+        already_here = bool(doc.get("history_first_point") or doc.get("history")) and u._git(
             "merge-base", "--is-ancestor", sha, "HEAD", cwd=u.code_dir()).returncode == 0
         doc["changes"].append({"master": sha, "parent": parent, "purpose": purpose, "files": files,
                                "database": database, "security": security, "urgent": security,
@@ -159,9 +167,48 @@ def scan(release: dict, b: dict, *, report: bool = True) -> dict:
     return doc
 
 
+def record_start(b: dict, repo: Path | None = None) -> dict:
+    """The starting version of a Rouh that carries Rouh's whole history (the Creator Rouh): the
+    commit of shared main its code started from, written in the ledger as ``installed``.
+
+    It is the protected core's first undo point, as shared main has it, when that point is in this
+    Rouh's history; else the newest commit of shared main this Rouh's code contains, as the
+    protected core keeps main fetched into /code (refs/upstream/heads/main). rouh-core went public
+    on 7 November 2026 with a fresh history, so a first undo point from before then is on neither.
+    {} when neither can be said; an existing record is never replaced."""
+    doc = ledger()
+    if doc.get("installed") or b.get("how") != "history":
+        return doc if doc.get("installed") else {}
+    code = u.code_dir()
+    first = ""
+    from . import guardface
+
+    with contextlib.suppress(Exception):
+        first = next((p.get("commit", "") for p in guardface.ask("points").get("points", [])
+                      if p.get("n") == 1 and p.get("kind") == "first"), "")
+    installed, how = "", ""
+    if first and u._git("merge-base", "--is-ancestor", first, "HEAD", cwd=code).returncode == 0:
+        if repo is not None and repo.exists():
+            u._git("fetch", "-q", str(code), first, cwd=repo)
+            installed = u._git("merge-base", first, "refs/heads/main", cwd=repo).stdout.strip()
+        if not installed:
+            installed = u._git("merge-base", first, "refs/upstream/heads/main", cwd=code).stdout.strip()
+        how = "the protected core's first undo point, as shared main has it"
+    if not installed:
+        first = ""
+        installed = u._git("merge-base", "HEAD", "refs/upstream/heads/main", cwd=code).stdout.strip()
+        how = "the newest commit of shared main this Rouh's code contains"
+    if not re.fullmatch(r"[0-9a-f]{40}", installed):
+        return {}
+    doc = {"v": 1, "installed": installed, "through": installed, "changes": [], "history": True,
+           "history_first_point": first, "start_how": how, "start_at": time.time()}
+    save(doc)
+    return doc
+
+
 def observe(release: dict, b: dict) -> None:
     """List released purposes before a press, without applying code or spending on a model."""
-    if ledger().get("seen") == release.get("commit") or not u._guard():
+    if release.get("commit") in (ledger().get("seen"), ledger().get("looked")) or not u._guard():
         return
     if not u._run_lock.acquire(blocking=False):
         return

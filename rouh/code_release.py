@@ -306,3 +306,91 @@ def public() -> dict:
     looks = seen()
     return {"said": s.get("said") or "", "released": s.get("released"), "tried_at": s.get("tried_at"),
             "seen_since": looks[0]["at"] if looks else None}
+
+
+# --- a release by hand ---------------------------------------------------------------------------
+#
+# Petar, 12 November 2026: "There's nothing to update to." The first release had to be published
+# before any Rouh had run a whole checked day on the shared history (rouh-core went public with a
+# fresh history on 7 November, so no undo point before then is on it). A release by hand skips only
+# the early-test day: the commit must still be on rouh-core's main, have passed master's Tests on
+# main, and contain the release before it. One step, from the core:
+#
+#     python manage.py code_release --publish            the newest such commit
+#     python manage.py code_release --publish <commit>   that commit, if it qualifies
+#
+# or from a job, ``core_command code_release_publish`` (`rouh/core_commands.py`).
+
+
+def _passed_on_main(most: int = 100) -> set[str]:
+    """The commits of rouh-core's main whose Tests on main succeeded, in one read of GitHub."""
+    query = urllib.parse.urlencode({"branch": "main", "status": "success", "per_page": most})
+    url = "https://api.github.com/repos/rouh-it/rouh-core/actions/workflows/main-tests.yml/runs?" + query
+    req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "Rouh releases"})
+    with urllib.request.urlopen(req, timeout=30) as response:
+        doc = json.loads(response.read(4 * 1024 * 1024))
+    return {str(r.get("head_sha")) for r in doc.get("workflow_runs", [])
+            if r.get("head_branch") == "main" and r.get("event") in ("push", "workflow_dispatch")
+            and r.get("conclusion") == "success"}
+
+
+def newest_checked(since: str = "") -> tuple[str, str]:
+    """(the newest commit on rouh-core's main that passed Tests on main and contains `since`, "")
+    or ("", why there is none)."""
+    up = _git("rev-parse", "--verify", "-q", UPSTREAM).stdout.strip()
+    if not up:
+        return "", "rouh-core's main is not fetched here"
+    try:
+        passed = _passed_on_main()
+    except Exception as exc:  # noqa: BLE001 - said
+        return "", f"master's check results could not be read ({type(exc).__name__})"
+    for commit in _git("rev-list", "--first-parent", "--max-count=200", up).stdout.split():
+        if since and not _contains(commit, since):
+            break
+        if commit == since:
+            return "", f"the release {since[:12]} is already the newest commit that passed master's Tests on main"
+        if commit in passed:
+            return commit, ""
+    return "", "no commit on rouh-core's main newer than the release has passed master's Tests on main"
+
+
+def publish_by_hand(commit: str = "", now: float | None = None) -> dict:
+    """Publish `commit` (or the newest that qualifies) as the release now. {"said", "commit"}."""
+    now = now or time.time()
+    rel = published()
+    since = str(rel.get("commit") or "")
+    if commit:
+        up = _git("rev-parse", "--verify", "-q", UPSTREAM).stdout.strip()
+        full = _git("rev-parse", "--verify", "-q", commit + "^{commit}").stdout.strip()
+        if not full:
+            raise RuntimeError(f"{commit[:12]} is not a commit this Rouh has")
+        if not up or not _contains(up, full):
+            raise RuntimeError(f"{full[:12]} is not on rouh-core's main")
+        if since and (full == since or not _contains(full, since)):
+            raise RuntimeError(f"{full[:12]} does not come after the release {since[:12]}")
+        passed, why = master_checked(full)
+        if not passed:
+            raise RuntimeError(why)
+        commit = full
+    else:
+        commit, why = newest_checked(since)
+        if not commit:
+            raise RuntimeError(why)
+    from . import guardface
+
+    point: dict = {}
+    with contextlib.suppress(Exception):
+        point = next((p for p in guardface.ask("points").get("points") or []
+                      if p.get("commit") == commit), {})
+    when = float(point.get("at") or _git("show", "-s", "--format=%ct", commit).stdout.strip() or now)
+    got = publish({"commit": commit, "at": when, "n": point.get("n"),
+                   "checked": {"passed": (point.get("checked") or {}).get("passed", True)}}, since)
+    log.info("released %s by hand on rouh.land", commit[:12])
+    with contextlib.suppress(Exception):
+        from . import code_update
+
+        code_update.newest(fresh=True)
+    said = f"Released {commit[:12]} by hand ({got.get('state') or 'published'})."
+    _save(tried_at=now, looked_at=now, released={"commit": commit, "at": now, "point": point.get("n"), "by_hand": True},
+          said=said)
+    return {"said": said, "commit": commit, "answer": got}

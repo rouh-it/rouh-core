@@ -1566,6 +1566,12 @@ The exact source commit must also have a successful **Tests on main** run at Git
 The public release pointer remains `/mac/code/release.json`.
 A private change on an early tester cannot become a release: the publisher verifies that the commit is on shared main and contains the preceding release.
 
+**A release by hand** is one step, on the Creator Rouh, and skips only the early-test day (Petar, 12 November 2026, when there was nothing yet to update to): `python manage.py code_release --publish` publishes the newest commit of rouh-core's main that passed Tests on main and contains the release before it, signed with that Rouh's daily key; `--publish <commit>` names one; with no option it says what is released, what a release by hand would take, and what update_rouh's check says.
+From a job it is `core_command code_release_publish`, and `core_command code_release_status` reads (`rouh/core_commands.py`).
+
+**The starting version of a Rouh with Rouh's whole history** (the Creator Rouh) is written in `ledger.json` the first time the card or the tool looks (`code_evolution.record_start`): the protected core's first undo point as shared main has it, or, when that point is on the history before rouh-core went public, the newest commit of shared main the Rouh's code contains (`refs/upstream/heads/main`, which the protected core keeps fetched). A Rouh whose code already contains the release says so and fetches nothing.
+A Rouh brought over once by step 140-08's updater names its release in a `Rouh-release:` trailer, and its updates start from that release rather than from the commit its first install recorded.
+
 **An update** takes the changes up to that boundary in order, grouped by the purpose in each commit and its diff (`rouh/code_evolution.py`).
 It fetches shared main and verifies that the installed version and the released boundary belong to that history.
 The durable record, `code-update/ledger.json`, keeps every change since installation, its purpose, result, plain reason and protected undo point.
