@@ -696,3 +696,85 @@ def codex_only_on_their_words() -> None:
         expect(tools._their_words() == "", "a start with no turn read words from somewhere")
     finally:
         turntrace.CURRENT.reset(token)
+
+
+#: Letters with every kind of address that opens only on the computer or network that sent them.
+_LOCAL_SAMPLES = (
+    "Press http://127.0.0.1:8420/login/link/abc to sign in.",
+    "Open https://localhost:8420/chat/7, then come back.",
+    "<a href=\"http://192.168.1.4:8420/x\">open</a> or <a href='http://10.0.0.7/y'>this</a>",
+    "http://172.20.3.4:8420/a http://[::1]:8420/b http://169.254.1.1/c http://100.64.0.9/d",
+    "http://mozart.local:8420/e http://0.0.0.0:8420/f http://rouh:8420/g",
+    "Or type 127.0.0.1:8420/login/link/abc into the browser; localhost:8420 also works.",
+)
+
+
+@check("own", "no letter leaves with an address that opens only on this computer",
+       "every way Rouh sends email moves or takes out links to 127.0.0.1, localhost and private networks, "
+       "and refuses to send a letter that still holds one", needs_db=True)
+def no_local_addresses_in_mail() -> None:
+    """Petar, 11 and 12 November 2026 (task 140, step 140-14): a sign-in email reached Maria with a
+    http://127.0.0.1 link, which opens nothing on her phone. This holds every mail exit to the guard."""
+    import asyncio
+    import re as _re
+
+    from rouh import mailer, outside_links, signin
+
+    for sample in _LOCAL_SAMPLES:
+        expect(outside_links.local_left(sample), f"the check does not see the local address in: {sample}")
+        for base in ("", "https://cherry-kelp.rouh.page"):
+            for html in (False, True):
+                out = outside_links.guard(sample, base=base, html=html)
+                expect(not outside_links.local_left(out), f"a local address is left in {out!r}")
+        expect("https://cherry-kelp.rouh.page/login/link/abc" in outside_links.clean(
+            sample, base="https://cherry-kelp.rouh.page") or "login/link" not in sample,
+            "a sign-in link is not moved onto the Rouh's outside address")
+    kept = "See https://rouh.land/mac/ and https://cherry-kelp.rouh.page/chat/7."
+    expect(outside_links.guard(kept) == kept, "a link the world can reach was changed")
+
+    subject, text = signin.letter("Cherry Kelp", "http://127.0.0.1:8420/login/link/abc", "296883")
+    expect("296883" in text and not outside_links.local_left(text), "the sign-in letter carries a local link")
+
+    # The Brevo exit, end to end, with the mail service stood in for.
+    sent: list[dict] = []
+
+    class _Answer:
+        status_code = 201
+
+        @staticmethod
+        def json():
+            return {"messageId": "x"}
+
+    async def _post(self, url, json=None, headers=None):  # noqa: A002 - httpx's own name
+        sent.append(json)
+        return _Answer()
+
+    import httpx
+
+    real_key, real_post = mailer._key, httpx.AsyncClient.post
+    mailer._key, httpx.AsyncClient.post = (lambda path: "k"), _post
+    try:
+        cfg = type("Cfg", (), {"brevo_file": "/nonexistent", "brevo_url": "http://brevo.invalid",
+                                "mail_from": "rouh@example.test", "mail_from_name": "Rouh"})()
+        letter = mailer.Letter(to="someone@example.test", subject="Sign in", text=_LOCAL_SAMPLES[0] + " "
+                               + _LOCAL_SAMPLES[5], html=_LOCAL_SAMPLES[2])
+        asyncio.run(mailer.Mailer(cfg).send(letter))
+    finally:
+        mailer._key, httpx.AsyncClient.post = real_key, real_post
+    expect(sent, "the mail service was never asked")
+    for field in ("textContent", "htmlContent"):
+        expect(not outside_links.local_left(sent[0].get(field, "")), f"Brevo was handed a local address in {field}")
+
+    # Every place in the code that hands a letter to a mail service goes through the guard.
+    exits = {"/v3/smtp/email": "outside_links.guard", "/messages/send": "outside_links.guard",
+             "api/sign-in-letter": "outside_links.is_local"}
+    # Passes on a message another module made and guarded: a forward `google_api/gmail.py` composed.
+    passes_on = {"rouh/inboxes.py", "rouh/mailboxes.py"}
+    for path in (CODE / "rouh").rglob("*.py"):
+        rel = path.relative_to(CODE).as_posix()
+        if rel.startswith(("rouh/testing/", "rouh/selfcheck/", "rouh/migrations/")) or rel in passes_on:
+            continue
+        src = path.read_text(encoding="utf-8", errors="replace")
+        for marker, needs in exits.items():
+            if _re.search(r"[\"']" + _re.escape(marker), src):
+                expect(needs in src, f"{rel} sends mail ({marker}) without {needs}")

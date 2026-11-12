@@ -149,14 +149,17 @@ class Mailer:
 
         # No letter of Rouh's carries a link that opens only on this computer (task 140, step 140-14).
         subject = owner.say(str(letter.subject or ""), letter.who)
-        payload = {
-            "sender": self.sender,
-            "to": [{"email": to}],
-            "subject": " ".join(subject.split())[:SUBJECT_MAX] or "Rouh",
-            "textContent": outside_links.clean(owner.say(letter.text, letter.who)),
-        }
-        if letter.html:
-            payload["htmlContent"] = outside_links.clean(owner.say(letter.html, letter.who), html=True)
+        try:
+            payload = {
+                "sender": self.sender,
+                "to": [{"email": to}],
+                "subject": " ".join(subject.split())[:SUBJECT_MAX] or "Rouh",
+                "textContent": outside_links.guard(owner.say(letter.text, letter.who)),
+            }
+            if letter.html:
+                payload["htmlContent"] = outside_links.guard(owner.say(letter.html, letter.who), html=True)
+        except outside_links.LocalAddress as exc:
+            raise NotSent(str(exc)) from None
         headers = {"api-key": key, "accept": "application/json",
                    "content-type": "application/json"}
         try:

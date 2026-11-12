@@ -358,8 +358,8 @@ class Gmail:
         """
         from rouh import outside_links
 
-        body = outside_links.clean(body, strict=not signed)
-        html = outside_links.clean(html, strict=not signed, html=True) if html else html
+        body = outside_links.guard(body, strict=not signed)
+        html = outside_links.guard(html, strict=not signed, html=True) if html else html
         raw, wrote = await self._compose(to, subject, body, cc, bcc, reply_to_message_id,
                                          html=html, attachments=attachments, signed=signed)
         payload = {"raw": raw}
@@ -457,6 +457,10 @@ class Gmail:
             raise CannotDoThat(
                 "The files on that message come to more than Gmail takes on one message "
                 "(25 MB). Forward it without some of them.")
+        from rouh import outside_links
+        # The note is Rouh's or the person's words: no link to this Rouh on this computer (step 140-14).
+        note = outside_links.guard(note, strict=False)
+        note_html = outside_links.guard(note_html, strict=False, html=True) if note_html else note_html
         text, html = forwarding.build(original, note, note_html or _note_markup(note))
         line = (subject or "").strip()
         if not line:
@@ -564,6 +568,10 @@ class Gmail:
                 + ", ".join(f"{one['name'] or 'a picture'} ({_megabytes(len(one['data']))})"
                             for one in biggest)
                 + ". Forward it without its files, or the emails one at a time.")
+        from rouh import outside_links
+        # The note is Rouh's or the person's words: no link to this Rouh on this computer (step 140-14).
+        note = outside_links.guard(note, strict=False)
+        note_html = outside_links.guard(note_html, strict=False, html=True) if note_html else note_html
         text, html = forwarding.build_thread(originals, note, note_html or _note_markup(note))
         line = (subject or "").strip()
         if not line:

@@ -33,7 +33,20 @@ _LOCAL_ENDINGS = (".localhost", ".local", ".lan", ".home.arpa", ".internal")
 _SHARED = ipaddress.ip_network("100.64.0.0/10")
 
 #: A web address in text or in HTML: up to a space, a quote, a bracket or an angle bracket.
-URL = re.compile(r"https?://[^\s<>\"'()\[\]{}]+", re.IGNORECASE)
+URL = re.compile(r"https?://(?:\[[0-9a-f:.]+\]|[^\s<>\"'()\[\]{}/])[^\s<>\"'()\[\]{}]*", re.IGNORECASE)
+
+#: A local address written without its "http://", with a port: "127.0.0.1:8420/login/link/x" or
+#: "localhost:8420". A mail client makes a link of it all the same (step 140-14, 12 November 2026).
+BARE = re.compile(
+    r"(?<![\w./@:-])(localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}"
+    r"|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|169\.254(?:\.\d{1,3}){2}|\[::1\])"
+    r"(:\d{2,5})(/[^\s<>\"'()\[\]{}]*)?", re.IGNORECASE)
+
+
+class LocalAddress(ValueError):
+    """A letter still held an address that opens only on this computer after `clean`: it is not
+    sent (`guard`)."""
+
 
 #: What stands where a link was taken out.
 GONE = "(a link that opens only on this Rouh's own computer was left out)"
@@ -111,7 +124,7 @@ def clean(text: str, *, strict: bool = True, base: str | None = None, html: bool
     on this computer (`_own_ports` on 127.x or localhost); any other address a person typed on
     purpose is theirs to send.
     A link is moved onto `base` (`outside_base` unless given) when there is one, else taken out."""
-    if not text or "://" not in text:
+    if not text or ("://" not in text and not BARE.search(text)):
         return text or ""
     there: list[str] = []
 
@@ -135,7 +148,21 @@ def clean(text: str, *, strict: bool = True, base: str | None = None, html: bool
         log.info("mail: a link to this Rouh's own computer was left out (no outside address)")
         return ("#" if html else GONE) + tail
 
-    return URL.sub(one, text)
+    text = URL.sub(one, text)
+
+    def bare(match: re.Match) -> str:
+        whole = match.group(0)
+        tail = ""
+        while whole and whole[-1] in ".,;:!?":
+            tail, whole = whole[-1] + tail, whole[:-1]
+        if not _bad("http://" + whole, strict):
+            return match.group(0)
+        to = target()
+        if to:
+            return _moved("http://" + whole, to) + tail
+        return ("#" if html else GONE) + tail
+
+    return BARE.sub(bare, text) if ":" in text else text
 
 
 def _own_ports() -> set[int]:
@@ -179,7 +206,30 @@ def _bad(url: str, strict: bool) -> bool:
 
 def has_local(text: str, *, strict: bool = True) -> bool:
     """Whether `text` holds a link `clean` would move or take out."""
-    return any(_bad(m.group(0).rstrip(".,;:!?"), strict) for m in URL.finditer(str(text or "")))
+    return bool(local_left(text, strict=strict))
+
+
+def local_left(text: str, *, strict: bool = True) -> list[str]:
+    """Every address in `text` that opens only on this computer or this network: written as a link,
+    or bare with a port ("127.0.0.1:8420/x", "localhost:8420")."""
+    text = str(text or "")
+    found = [m.group(0).rstrip(".,;:!?") for m in URL.finditer(text)]
+    found = [u for u in found if _bad(u, strict)]
+    found += [m.group(0).rstrip(".,;:!?") for m in BARE.finditer(text)
+              if _bad("http://" + m.group(0).rstrip(".,;:!?"), strict)]
+    return found
+
+
+def guard(text: str, *, strict: bool = True, html: bool = False, base: str | None = None) -> str:
+    """`clean`, and then the check that fails: if anything local is still in the letter, it is not
+    sent (`LocalAddress`). Every mail exit runs this (`mailer.Mailer.send`, `Gmail.send`), and the
+    self-check holds every exit to it (`rouh/selfcheck/own.py`, "no letter leaves with ...")."""
+    out = clean(text, strict=strict, base=base, html=html)
+    left = local_left(out, strict=strict)
+    if left:
+        log.error("mail: a letter still held %d address(es) that open only on this computer; not sent", len(left))
+        raise LocalAddress("The letter held an address that opens only on this computer, so it was not sent.")
+    return out
 
 
 def link_base(request) -> str:

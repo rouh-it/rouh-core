@@ -72,6 +72,11 @@ USE = "second_name"
 #: How often a Rouh registered on rouh.land asks after its own keys there (`check`).
 CHECK_EVERY = 6 * 3600
 TIMEOUT = 20.0
+#: The email code's ask waits longer (task 140, step 140-14, 12 November 2026): rouh.land answers it
+#: only once the letter is handed to its mail service, which was measured at 11.9 seconds on a cold
+#: ask. A lost answer costs more than a wait, because rouh.land has counted the code by then and holds
+#: the address for half a minute, while this Rouh has no ticket to use it with.
+EMAIL_CODE_TIMEOUT = 35.0
 #: How far back, at most, "stolen since" may go, and where it starts.
 SINCE_DEFAULT_DAYS = 30
 
@@ -82,6 +87,11 @@ class Refused(ValueError):
 
 class Clash(Refused):
     """rouh.land already has a Rouh of this name and tag: a name not yet given is made again."""
+
+
+class NoAnswer(Refused):
+    """The ask reached rouh.land, which did not answer in time: it may have done it all the same.
+    Its words still say "could not be reached", which every caller already reads."""
 
 
 class CodeRefused(Refused):
@@ -215,7 +225,7 @@ def _recovery_from(words: str) -> tuple[bytes, str]:
 
 
 def _call(url: str, key_pem: str, method: str, rest: str, body: dict | None, *, seed: bytes,
-          public: str = "", rouh_id: str = "") -> dict:
+          public: str = "", rouh_id: str = "", timeout: float = TIMEOUT) -> dict:
     """One signed request to rouh.land's birth service and its signed answer's payload. Signed the
     way the Gene Pool's requests are (`genepool._sign`), with this key; the answer must be signed
     by the registry's pinned key. Refused, in words, for anything else."""
@@ -233,8 +243,12 @@ def _call(url: str, key_pem: str, method: str, rest: str, body: dict | None, *, 
     if body is not None:
         headers["Content-Type"] = "application/json"
     try:
-        with httpx.Client(timeout=TIMEOUT, follow_redirects=False) as client:
+        with httpx.Client(timeout=timeout, follow_redirects=False) as client:
             r = client.request(method, full, content=raw if body is not None else None, headers=headers)
+    except httpx.ReadTimeout:
+        # The ask reached rouh.land and its answer did not come back in time: it may have done what
+        # was asked all the same (step 140-14). Said apart from "could not be reached" for that.
+        raise NoAnswer("rouh.land could not be reached in time (it did not answer).") from None
     except Exception as exc:  # noqa: BLE001 - said, not hidden
         raise Refused(f"rouh.land could not be reached ({type(exc).__name__}).") from None
     if 300 <= r.status_code < 400:
@@ -526,7 +540,8 @@ def ask_email_code(email: str, *, url: str = "", key_pem: str = "") -> dict:
         raise Refused("There is no email to send the code to.")
     url, key_pem = _registry(url, key_pem)
     seed, pub = new_key()
-    got = _call(url, key_pem, "POST", "api/email-code", {"email": email}, seed=seed, public=_b64(pub))
+    got = _call(url, key_pem, "POST", "api/email-code", {"email": email}, seed=seed, public=_b64(pub),
+                timeout=EMAIL_CODE_TIMEOUT)
     ticket = str(got.get("ticket") or "")
     if not ticket:
         raise Refused("rouh.land answered without a code to wait for.")

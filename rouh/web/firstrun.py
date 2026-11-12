@@ -603,44 +603,135 @@ CODE_WORDS = {
 UNREACHABLE = "rouh.land could not be reached just now. Try again in a moment."
 
 
-def _code_words(exc, to: str = "") -> str:
+def _code_words(exc, to: str = "", sent_at: float | None = None) -> str:
     """The words for a refusal, naming the birth service as this installation calls it."""
-    return _said(exc, to).replace("rouh.land", service_name())
+    return _said(exc, to, sent_at).replace("rouh.land", service_name())
 
 
-def _said(exc, to: str = "") -> str:
+def _said(exc, to: str = "", sent_at: float | None = None) -> str:
     from rouh import birth
 
     if isinstance(exc, birth.CodeRefused):
         if exc.why == "wrong" and exc.left:
             return CODE_WORDS["wrong"] + (f" {exc.left} tries left." if exc.left > 1 else " 1 try left.")
         if exc.why == "wait":
-            return (f"A code went to {to or 'this address'} a moment ago. You can ask for another in "
-                    f"{max(exc.seconds, 1)} seconds; look in spam meanwhile.")
+            # Only ever said while this Rouh holds the code that went (`_send_code`), so it is true.
+            ago = f"{int(time.time() - sent_at)} seconds ago" if sent_at and 0 < time.time() - sent_at < 600 \
+                else "a moment ago"
+            return (f"The code sent to {to or 'this address'} {ago} still works: look for it, in spam too. "
+                    f"A new one can be asked for in {_seconds(exc.seconds)}.")
         return CODE_WORDS.get(exc.why, str(exc))
     said = str(exc)
     return UNREACHABLE if "could not be reached" in said else said
 
 
-def _send_code(user) -> str:
-    """Ask rouh.land to email the owner a new code; "" when it went, else what to say."""
+def _seconds(n: int) -> str:
+    n = max(int(n or 0), 1)
+    return "1 second" if n == 1 else f"{n} seconds"
+
+
+#: How many times Rouh asks again by itself when the first ask for a code was lost (step 140-14).
+RETRIES = 3
+#: rouh.land holds an address for about this long after a code goes (measured: 30 seconds).
+HOLD_SECONDS = 32
+#: The words while Rouh asks again by itself, kept for the screen with no count in them, so they
+#: never go stale (Petar's photo, 12 November 2026: "You can ask for another in 2 seconds", long after).
+LOST_WORDS = {
+    "wait": ("rouh.land took the ask for a code to {to}, but its answer never reached this Rouh, so that "
+             "code would not work here. Rouh asks for a new one by itself within a minute: use the email "
+             "that comes after this."),
+    "unreachable": ("rouh.land did not answer in time, so no code has gone yet. Rouh asks again by itself "
+                    "within a minute. If two emails come, use the newest."),
+    "mail": ("rouh.land could not send the email just now, so no code has gone yet. Rouh asks again by "
+             "itself within a minute."),
+}
+GAVE_UP = ("The code could not be sent to {to} after {tries} tries. Press Send a new code to try again, or "
+           "go on as an Independent Rouh and connect later.")
+
+
+def _lost(exc) -> str:
+    """Which kind of lost ask this is, when asking again later can mend it; else ""."""
+    from rouh import birth
+
+    if isinstance(exc, birth.CodeRefused):
+        return exc.why if exc.why in ("wait", "mail") else ""
+    return "unreachable" if "could not be reached" in str(exc) else ""
+
+
+def _send_code(user, *, by_itself: int = 0) -> str:
+    """Ask rouh.land to email the owner a new code; "" when it went, else what to say.
+
+    When this Rouh holds no code it can use and the ask was lost on the way (no answer in time, or
+    rouh.land counted a code whose answer never came here, or its mail was down), the screen says so
+    plainly and Rouh asks again by itself, up to `RETRIES` times (task 140, step 140-14, 12 November
+    2026: "I had to press send again multiple times to get that going")."""
     from rouh import birth, signin
 
     email = signin.primary(user) or (user.email or "")
-    try:
-        got = birth.ask_email_code(email)
-    except birth.Refused as exc:
-        words = _code_words(exc, email)
-        log.info("first run: rouh.land did not email a code: %s", exc)
-        # Kept for the screen only while no code is waiting at all (the first one did not go); a
-        # resend refused for now ("too soon") is said once, and the code before still works.
-        held = record(user)
-        if not held.get("email_ticket") or held.get("email_to") != email:
-            _save(user, email_to=email, email_ticket="", email_problem=words)
-        return words
+    held = record(user)
+    usable = bool(held.get("email_ticket")) and held.get("email_to") == email
+    for attempt in (1, 2):
+        try:
+            got = birth.ask_email_code(email)
+            break
+        except birth.Refused as exc:
+            log.info("first run: rouh.land did not email a code (%s): %s",
+                     "a resend" if usable else f"no usable code, try {by_itself + 1}", exc)
+            if (usable and attempt == 1 and isinstance(exc, birth.CodeRefused) and exc.why == "wait"
+                    and exc.seconds <= 3):
+                # Pressed a breath before the hold ends: wait those seconds rather than refuse.
+                time.sleep(exc.seconds + 0.5)
+                continue
+            if usable:
+                # A resend refused for now: the code before still works. Said once, not kept.
+                return _code_words(exc, email, sent_at=held.get("email_sent_at"))
+            kind = _lost(exc)
+            if kind and by_itself < RETRIES:
+                words = LOST_WORDS[kind].format(to=email)
+                wait = (exc.seconds + 2) if kind == "wait" and getattr(exc, "seconds", 0) else HOLD_SECONDS
+                _save(user, email_to=email, email_ticket="", email_problem=words.replace("rouh.land", service_name()),
+                      email_retries=by_itself + 1)
+                _again_later(user, email, wait, by_itself + 1)
+                return words.replace("rouh.land", service_name())
+            words = GAVE_UP.format(to=email, tries=by_itself + 1) if kind else _code_words(exc, email)
+            _save(user, email_to=email, email_ticket="", email_problem=words.replace("rouh.land", service_name()))
+            return words.replace("rouh.land", service_name())
     _save(user, email_to=email, email_ticket=got["ticket"], email_sent_at=time.time(),
           email_minutes=got["minutes"], email_problem="", account_email=email)
+    if by_itself:
+        log.info("first run: the code went to %s when Rouh asked again by itself (try %d)", email, by_itself + 1)
     return ""
+
+
+def _again_later(user, email: str, seconds: float, tries: int) -> None:
+    """Ask rouh.land again in `seconds`, by itself, if the owner is still waiting on a code."""
+    import threading
+
+    def again() -> None:
+        from django.db import close_old_connections
+
+        close_old_connections()
+        try:
+            from rouh.models import User
+
+            fresh = User.objects.filter(pk=user.pk).first()
+            if fresh is None:
+                return
+            now = record(fresh)
+            from rouh import signin
+
+            if (not now.get("email_wait") or not now.get("connected") or now.get("email_ticket")
+                    or (signin.primary(fresh) or fresh.email or "") != email):
+                return  # A code came another way, the email changed, or the owner went on.
+            _send_code(fresh, by_itself=tries)
+        except Exception:  # noqa: BLE001 - a background ask never takes Rouh down
+            log.exception("first run: asking rouh.land again for the email code failed")
+        finally:
+            close_old_connections()
+
+    t = threading.Timer(max(float(seconds), 1.0), again)
+    t.daemon = True
+    t.start()
 
 
 def _born_with(user, ticket: str) -> str:
