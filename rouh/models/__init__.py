@@ -47,6 +47,7 @@ from .rest import (AppleConnection, AskEdit, AskMessage, AskThread,
 from .silos import Silo, SiloRule
 from .demo import DemoApproval, DemoEvent, DemoState
 from .dreame import DreameConnection
+from .servicekeys import ServiceCheck, ServiceKey
 from .hue import HueApp, HueConnection
 from .youtube import YouTubeTranscript
 from .slack import (SlackConnection, SlackConversation, SlackMessage, SlackPerson, SlackPromise,
@@ -58,6 +59,7 @@ from .trust import (CapabilityGrant, CapabilityGrantEvent, CapabilityUse, Contac
                     TrustedContact)
 
 __all__ = [
+    "ServiceCheck", "ServiceKey",
     "IncubatorEvent", "IncubatorIdea",
     "Trial", "TrialJob", "TrialNote", "TrialProblem", "TrialSighting", "TrialStep", "TrialTester",
     "DemoApproval", "DemoEvent", "DemoState",

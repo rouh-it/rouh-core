@@ -135,6 +135,28 @@ async def settings_models_keys(request: HttpRequest):
     if not modeldefaults.may_change(me):
         return refuse(NOT_ADMIN, 403, **(await sync_to_async(now)()))
     sent = body_of(request)
+    provider = str(sent.get("provider") or "").strip().lower()
+    if provider in providerkeys.CHAT_OWN:
+        # This Rouh's own Anthropic or OpenAI key: checked and kept the way the first run does it,
+        # in the keys folder the key proxy reads, and given to Rouh's calls at once (no restart).
+        from . import claude_signin, firstrun
+
+        key = "".join(str(sent.pop("key", "") or "").split())
+        if not providerkeys.own_writable():
+            return refuse("This server's own key is set where the server runs, not here.", 400,
+                          **(await sync_to_async(now)()))
+        said = firstrun._shape(provider, key)
+        if not said:
+            got = await firstrun.check_key(provider, key, request.user)
+            said = "" if got.state == "ok" else got.said
+        if said:
+            return refuse(said, 400, **(await sync_to_async(now)()))
+        await sync_to_async(claude_signin.keep_key)(key, provider)
+        key = ""
+        from rouh import runtime
+
+        await runtime.announce_model_defaults()
+        return answer({"ok": True, **(await sync_to_async(now)())})
     try:
         await sync_to_async(providerkeys.save)(me.org_id, str(sent.get("provider") or ""),
                                                str(sent.get("key") or ""),

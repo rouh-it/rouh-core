@@ -185,11 +185,13 @@ async def _embed(texts: list[str], model: str, about, input_type: str) -> tuple[
     return vectors, usage, str(getattr(got, "model", model) or model)
 
 
-def voyage_url() -> str:
+def voyage_url(endpoint: str | None = None) -> str:
     """Voyage's embeddings address, from `VOYAGE_ENDPOINT` however it was
     written: a host (MongoDB's, for an Atlas key), a base ending in `/v1`, or
-    the whole address. Nothing said is Voyage's own address."""
-    said = (getattr(config, "voyage_endpoint", "") or "").strip().strip('"').strip("'").rstrip("/")
+    the whole address. Nothing said is Voyage's own address. `endpoint` is one
+    being checked in Settings before it is kept (`rouh/service_keys.py`)."""
+    said = (getattr(config, "voyage_endpoint", "") if endpoint is None else endpoint) or ""
+    said = said.strip().strip('"').strip("'").rstrip("/")
     base = said or llmlog.VOYAGE_DEFAULT
     if "://" not in base:
         base = "https://" + base
@@ -214,7 +216,8 @@ async def _embed_voyage(texts: list[str], model: str, about, input_type: str):
     texts as `input`, `input_type` query or document, 1,024 numbers each."""
     key = getattr(config, "voyage_api_key", "") or ""
     if not key:
-        raise NoKey("This machine has no VOYAGE_API_KEY, so Synapse cannot make voyage-4 vectors.")
+        raise NoKey("There is no Voyage AI key, so Synapse cannot make voyage-4 vectors: the owner adds "
+                    "one in Anatomy, Connections, Keys, never in a chat.")
     body = {"input": texts, "model": model, "input_type": input_type, "output_dimension": EMBED_DIMS}
     with about:
         try:

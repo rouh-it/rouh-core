@@ -35,7 +35,6 @@ log = logging.getLogger("rouh.workspace_follow")
 
 EVERY = float(os.environ.get("ROUH_WORKSPACE_FOLLOW_EVERY", "30"))
 REMOTE = os.environ.get("ROUH_WORKSPACE_REMOTE", "").strip()
-TOKEN = os.environ.get("ROUH_WORKSPACE_REMOTE_TOKEN", "").strip()
 #: Or, for an ssh address, a key that may write to that one repository (a deploy key), kept in the
 #: core's data volume. The Creator Rouh's (task 161): GitHub's API makes a deploy key, and nobody
 #: has to make a token by hand.
@@ -56,14 +55,17 @@ def _git(*args: str, where: str | None = None, timeout: float = 120):
 
 
 def _remote_url() -> str:
-    """The owner's repository, with the token in it for https; never logged."""
-    if not REMOTE:
+    """The owner's repository, with the token in it for https; never logged. Read when it is
+    asked, so one set in Settings, Keys is used from the next pass (`rouh/service_keys.py`)."""
+    remote = os.environ.get("ROUH_WORKSPACE_REMOTE", "").strip()
+    token = os.environ.get("ROUH_WORKSPACE_REMOTE_TOKEN", "").strip()
+    if not remote:
         return ""
-    if TOKEN and REMOTE.startswith("https://"):
-        parts = urlsplit(REMOTE)
-        return urlunsplit(parts._replace(netloc=f"x-access-token:{quote(TOKEN, safe='')}@{parts.hostname}"
+    if token and remote.startswith("https://"):
+        parts = urlsplit(remote)
+        return urlunsplit(parts._replace(netloc=f"x-access-token:{quote(token, safe='')}@{parts.hostname}"
                                          + (f":{parts.port}" if parts.port else "")))
-    return REMOTE
+    return remote
 
 
 def _ssh() -> tuple[str, ...]:

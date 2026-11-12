@@ -269,6 +269,14 @@ class Telegram:
         and reading it each time is what lets the file be written on a running
         server without a restart.
         """
+        # What the owner set in Anatomy, Connections, Keys wins (`rouh/service_keys.py`); then a
+        # file of an old server's; then the settings file's.
+        from . import service_keys
+
+        token = service_keys.stored("ROUH_TELEGRAM_BOT_TOKEN")
+        if token:
+            chat = service_keys.stored("ROUH_TELEGRAM_CHAT_ID")
+            return (token, chat) if chat else None
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, ValueError):

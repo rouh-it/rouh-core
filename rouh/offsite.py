@@ -18,7 +18,8 @@ host's PostgreSQL); a stack has neither, so:
 The core does it because the core is what holds what goes in: the keys, the data and the way out.
 No other part gains a key or a way out, and no AI key is near it.
 
-Set up in the settings file (deploy/stack/settings.env.example, "Backups"):
+Set up in Anatomy, Connections, Keys (`rouh/service_keys.py`), or in the settings file
+(deploy/stack/settings.env.example, "Backups"):
 
     ROUH_OFFSITE_ENDPOINT, ROUH_OFFSITE_BUCKET, ROUH_OFFSITE_KEY_ID, ROUH_OFFSITE_SECRET
     ROUH_OFFSITE_RECIPIENT  an age public key, age1... (its private half kept off this machine), or
@@ -76,11 +77,11 @@ def settings() -> dict:
     """Where the copy goes and how it is locked; NotSetUp, saying what is missing, otherwise."""
     s = {k: _env(f"ROUH_OFFSITE_{k.upper()}") for k in ("endpoint", "bucket", "key_id", "secret", "recipient", "passphrase")}
     if not any(s[k] for k in ("endpoint", "bucket", "key_id", "secret")):
-        raise NotSetUp("no off-site copy is set up: ROUH_OFFSITE_ENDPOINT, _BUCKET, _KEY_ID and _SECRET in the "
-                       "settings file say where it goes")
+        raise NotSetUp("no off-site copy is set up: the owner sets where it goes in Anatomy, Connections, Keys, "
+                       "Weekly copy off this machine")
     missing = [f"ROUH_OFFSITE_{k.upper()}" for k in ("endpoint", "bucket", "key_id", "secret") if not s[k]]
     if missing:
-        raise NotSetUp(f"the off-site copy is half set up: {', '.join(missing)} is not set")
+        raise NotSetUp(f"the off-site copy is half set up: {', '.join(missing)} is not set (Anatomy, Connections, Keys)")
     if bool(s["recipient"]) == bool(s["passphrase"]):
         raise NotSetUp("the off-site copy needs ROUH_OFFSITE_RECIPIENT (an age public key) or "
                        "ROUH_OFFSITE_PASSPHRASE, one of the two, to be encrypted with; nothing is sent unencrypted")

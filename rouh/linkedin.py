@@ -212,7 +212,8 @@ class Apify:
             raise Trouble("Apify, which reads LinkedIn for Rouh, could not be "
                           "reached.") from exc
         if answer.status_code in (401, 403):
-            raise Trouble("Apify refused this machine's key (APIFY_API_TOKEN).")
+            raise Trouble("Apify refused this Rouh's token. The owner replaces it in Anatomy, "
+                          "Connections, Keys, never in a chat.")
         if answer.status_code == 402:
             raise Trouble("The Apify account has run out of credit, so HarvestAPI "
                           "would not run.")

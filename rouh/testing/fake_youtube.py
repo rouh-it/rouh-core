@@ -39,7 +39,7 @@ def build_app() -> FastAPI:
     calls: list[dict] = []
 
     def refused(request: Request):
-        if request.query_params.get("key") == KEY:
+        if KEY in (request.query_params.get("key"), request.headers.get("x-goog-api-key")):
             return None
         return JSONResponse({"error": {"code": 400, "message": "API key not valid. Please pass a valid API key.",
                                        "errors": [{"reason": "keyInvalid", "message": "Bad Request"}]}},

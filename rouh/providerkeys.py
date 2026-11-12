@@ -30,6 +30,19 @@ log = logging.getLogger("rouh.providerkeys")
 
 #: The providers whose key is typed into Settings.
 TYPED = (GOOGLE, XAI)
+#: This installation's own two, typed on the Models page too where the keys folder can be written
+#: (the containers'), checked and kept the way the first run keeps them (`claude_signin.keep_key`).
+CHAT_OWN = (ANTHROPIC, OPENAI)
+
+
+def own_writable() -> bool:
+    """Whether this Rouh keeps Anthropic's and OpenAI's keys in a folder it may write: the containers'."""
+    import os
+
+    from .web import claude_signin
+
+    folder = claude_signin.keys_dir()
+    return os.path.isdir(folder) and os.access(folder, os.W_OK)
 #: The setting each provider's own key is in, for this installation.
 ENV_FIELD = {ANTHROPIC: "anthropic_api_key", OPENAI: "openai_api_key",
              GOOGLE: "google_api_key", XAI: "xai_api_key"}
@@ -122,10 +135,10 @@ def where_to_add_a_key() -> str:
     from .web import claude_signin
 
     if claude_signin.enabled():
-        return ("Rouh's chats have no model key. Add an Anthropic or OpenAI API key at "
-                "/setup/claude, under Rouh's own chats: Claude Code's sign-in does not cover them.")
-    return ("Rouh's chats have no model key. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in Rouh's "
-            "settings, or add a Google or xAI key on the Models page.")
+        return ("Rouh's chats have no model key. Add an Anthropic or OpenAI API key in Anatomy, Behaviour, "
+                "Models: Claude Code's sign-in does not cover them.")
+    return ("Rouh's chats have no model key. Add an Anthropic, OpenAI, Google or xAI key in Anatomy, "
+            "Behaviour, Models.")
 
 
 def shown(org_id: str | None = None, cfg=None) -> list[dict]:
@@ -134,11 +147,12 @@ def shown(org_id: str | None = None, cfg=None) -> list[dict]:
     cfg = cfg or _config
     org = _org(org_id)
     rows = _rows(org)
+    writable = own_writable()
     out = []
     for p in PROVIDERS:
         own = rows.get(p)
         env = bool(getattr(cfg, ENV_FIELD[p], ""))
-        out.append({"id": p, "name": PROVIDER_NAMES[p], "typed": p in TYPED,
+        out.append({"id": p, "name": PROVIDER_NAMES[p], "typed": p in TYPED or (p in CHAT_OWN and writable),
                     "has": bool((own and own[0]) or env),
                     "source": "settings" if own and own[0] else "server" if env else "",
                     "last4": own[1] if own else "", "saved_by": own[2] if own else "",

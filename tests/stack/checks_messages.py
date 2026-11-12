@@ -37,28 +37,34 @@ def telegram_send(s: Stack) -> None:
     _wait_phone(s, "Hello from the stack test")
 
 
-@check("install.telegram-page")
-def telegram_from_the_page(s: Stack) -> None:
-    """A new owner sets Rouh's bot on the page, not in stack.env (`rouh/telegram_bot.py`): the core
-    checks it with Telegram's stand-in, writes it itself, and uses it at once, with nothing restarted."""
+@check("install.telegram-page", "install.keys-page")
+def keys_from_the_page(s: Stack) -> None:
+    """A new owner sets a service's key on the page, not in stack.env (`rouh/service_keys.py`): the core
+    checks it with the service's stand-in, keeps it sealed, and uses it at once, with nothing restarted.
+    Telegram's bot is the one checked end to end, because its stand-in shows what reached the phone."""
     from checks_tools import post
 
     secret = "S" * 35
     token = "123456789:" + secret
-    code, got = post(s, "/api/settings/telegram-bot", {"token": token, "chat": str(CHAT)})
+    code, got = post(s, "/api/settings/keys/save",
+                     {"service": "telegram", "values": {"ROUH_TELEGRAM_BOT_TOKEN": token,
+                                                        "ROUH_TELEGRAM_CHAT_ID": str(CHAT)}})
     try:
-        expect(code == 200 and (got.get("bot") or {}).get("source") == "page",
-               f"the page's save: {code} {json.dumps(got)[:400]}")
+        tg = next((x for x in got.get("services") or [] if x.get("id") == "telegram"), {})
+        expect(code == 200 and tg.get("from_page"), f"the page's save: {code} {json.dumps(got)[:400]}")
         expect(secret not in json.dumps(got), "the token came back in the page's answer")
-        r = s.run("core", 'stat -c "%a" "$ROUH_TELEGRAM_FILE"')
-        expect(r.stdout.strip() == "600", f"the bot's file in the core: {(r.stdout + r.stderr)[-300:]}")
         said = s.tool("send_telegram", {"text": "Sent with the bot set on the page", "straight_to_phone": True})
         expect("not set up" not in said.lower(), f"send_telegram: {said[:300]}")
         _wait_phone(s, "Sent with the bot set on the page")
         expect(secret not in s.logs("core", 2000), "the token is in the core's log")
+        # A wrong key for another service is refused in words and nothing is kept.
+        code, got = post(s, "/api/settings/keys/save",
+                         {"service": "youtube", "values": {"YOUTUBE_API_KEY": "AIza-wrong-key-for-the-stack-test"}})
+        expect(code == 400 and "wrong-key-for" not in json.dumps(got), f"a wrong key: {code} {json.dumps(got)[:300]}")
     finally:
-        code, got = post(s, "/api/settings/telegram-bot/remove")
-    expect(code == 200 and (got.get("bot") or {}).get("source") == "settings_file",
+        code, got = post(s, "/api/settings/keys/remove", {"service": "telegram"})
+    tg = next((x for x in got.get("services") or [] if x.get("id") == "telegram"), {})
+    expect(code == 200 and not tg.get("from_page") and tg.get("set"),
            f"Remove did not give the settings file's bot back: {code} {json.dumps(got)[:300]}")
 
 

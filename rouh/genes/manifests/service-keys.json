@@ -1,0 +1,59 @@
+{
+  "id": "service-keys",
+  "name": "Keys",
+  "title": "Keys: every service's key and settings, pasted in Settings, checked and kept sealed",
+  "aliases": [
+    "keys",
+    "api keys",
+    "tokens",
+    "secrets",
+    "integrations",
+    "stack.env",
+    "settings file",
+    "elevenlabs",
+    "voyage",
+    "youtube key",
+    "apify",
+    "brevo",
+    "meeting library",
+    "off-site backup",
+    "workspace repository"
+  ],
+  "group": "machine",
+  "route": "/anatomy/connections/keys",
+  "anatomy": {
+    "order": 15
+  },
+  "icon": "<circle cx=\"8\" cy=\"15\" r=\"4\"/><path d=\"M10.8 12.2 20 3\"/><path d=\"M16 7l3 3\"/><path d=\"M14 9l2 2\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "calls each service's own API once with the values typed, to check them before they are kept, never showing them"
+    ],
+    "accounts": [
+      "ElevenLabs",
+      "Voyage AI",
+      "Google (YouTube Data API)",
+      "Apify",
+      "Brevo",
+      "Telegram",
+      "a meeting library",
+      "a git host",
+      "an S3 bucket"
+    ],
+    "tables": [
+      "service_key",
+      "service_check"
+    ],
+    "jobs": [],
+    "remove": "the Settings section in rouh/templates/rouh/index.html, keyspage.js/.css, rouh/service_keys.py, rouh/web/service_keys.py, its addresses in rouh/project/urls.py, the calls in runtime.startup and manage.py, and this manifest; drop the service_key and service_check tables with a migration. Every service then reads the settings file alone again."
+  },
+  "uses": {
+    "tools": []
+  }
+}

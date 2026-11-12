@@ -39,6 +39,13 @@ def build_app(record_dir: str | None = None, key: str = KEY) -> FastAPI:
     app = FastAPI()
     kept: list[dict] = []
 
+    @app.get("/v3/account")
+    async def account(request: Request):
+        """The account the key is, as Settings, Keys checks it (`rouh/service_keys.py`)."""
+        if request.headers.get("api-key") != key:
+            return JSONResponse({"code": "unauthorized", "message": "Key not found"}, status_code=401)
+        return JSONResponse({"email": "owner@example.test", "companyName": "Example"})
+
     @app.post("/v3/smtp/email")
     async def send(request: Request):
         if request.headers.get("api-key") != key:

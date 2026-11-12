@@ -8380,7 +8380,7 @@ var APPLE = { data: null, editing: false, timer: null, tell: false };
 // waiting for a code or a password: the first form, whatever the server holds.
 var TGACC = { data: null, again: false };
 
-// Rouh's Telegram bot card's (GET /api/settings/telegram-bot). `changing` is
+// Rouh's Telegram bot card's (GET /api/settings/keys, its telegram service). `changing` is
 // Change bot pressed: the form shown over a bot that is already set.
 var TGBOT = { data: null, changing: false };
 
@@ -8602,7 +8602,7 @@ function settingsShowGroup(where, item, query) {
 function settingsPages(section) {
   var pages = { heartbeat: window.RouhHeartbeat, beats: window.RouhBeats, payments: window.RouhPayments,
                 shipping: window.RouhShipping, services: window.RouhServices, signups: window.RouhSignups,
-                cloudflare: window.RouhCloudflare, slack: window.RouhSlack, hue: window.RouhHue, dreame: window.RouhDreame,
+                cloudflare: window.RouhCloudflare, keys: window.RouhKeys, slack: window.RouhSlack, hue: window.RouhHue, dreame: window.RouhDreame,
                 'draft-edits': window.RouhDraftEdits,
                 'gene-pool': window.RouhGenes, changes: window.RouhChanges, silos: window.RouhSilos,
                 stats: window.RouhStats, offline: window.RouhOfflinePanel, 'this-rouh': window.RouhBirth,
@@ -9764,7 +9764,8 @@ function pickFill() {
 }
 
 /* The providers, each with whether it can be asked here. Google's and xAI's keys are typed
-   here, kept sealed, and never shown again but for their last four characters. */
+   here, kept sealed, and never shown again but for their last four characters; in the
+   containers Anthropic's and OpenAI's too, checked and kept the way the first run keeps them. */
 function providersDraw(d, locked) {
   var box = $('modelProviders');
   if (!box || !d.providers) return;
@@ -9793,7 +9794,11 @@ function providersDraw(d, locked) {
         form.addEventListener('submit', function (e) {
           e.preventDefault();
           if (!input.value.trim()) return;
-          keySave(p.id, input.value, function () { input.value = ''; });
+          // The key leaves the page with this one request and is not kept in it.
+          var typed = input.value;
+          input.value = '';
+          keySave(p.id, typed, null);
+          typed = '';
         });
         drop.addEventListener('click', function () { keySave(p.id, '', null); });
         row.appendChild(form);
@@ -12956,21 +12961,33 @@ $('appleDisconnect').addEventListener('click', function () {
 
 /* ---------- Settings: Rouh's Telegram bot ----------
  *
- * The bot Rouh writes to the phone with (`rouh/telegram_bot.py`). The token
- * is typed here and posted once, straight to Rouh's core, which checks it
- * with Telegram and keeps it in its own secrets file: it is wiped out of its
- * box as it is sent, whatever the answer, and never comes back. The card is
- * shown only to the person whose phone the bot reaches; anybody else is
- * answered 403 and sees nothing.
+ * The bot Rouh writes to the phone with, kept the way every key of a service
+ * is (`rouh/service_keys.py`, Settings, Keys): typed here and posted once,
+ * straight to Rouh's core, which checks it with Telegram, keeps it sealed and
+ * uses it at once. The token is wiped out of its box as it is sent, whatever
+ * the answer, and never comes back: the card is told that one is set, its
+ * last four, the chat, and what Telegram said when it was checked.
  */
+
+function tgBotService(data) {
+  var found = null;
+  ((data && data.services) || []).forEach(function (sv) { if (sv.id === 'telegram') found = sv; });
+  return found;
+}
+
+/** @returns {any} */
+function tgBotField(sv, name) {
+  var found = null;
+  ((sv && sv.fields) || []).forEach(function (f) { if (f.name === name) found = f; });
+  return found || {};
+}
 
 function tgBotLoad() {
   if (typeof fetch !== 'function') return Promise.resolve();
-  return fetch('/api/settings/telegram-bot', { credentials: 'same-origin' })
+  return fetch('/api/settings/keys', { credentials: 'same-origin', cache: 'no-store' })
     .then(function (r) {
       if (r.status === 401) { location.href = '/login'; return null; }
-      if (r.status === 403) return { hidden: true };
-      if (!r.ok) throw new Error('telegram bot ' + r.status);
+      if (!r.ok) throw new Error('keys ' + r.status);
       return r.json();
     })
     .then(function (data) {
@@ -12988,26 +13005,30 @@ function tgBotLoad() {
 function tgBotDraw() {
   var d = TGBOT.data;
   if (!d) return;
-  $('tgBotCard').hidden = !!d.hidden;
-  if (d.hidden) return;
-  var b = d.bot || {};
-  var set = !!b.configured;
+  var sv = tgBotService(d);
+  $('tgBotCard').hidden = !sv;
+  if (!sv) return;
+  var token = tgBotField(sv, 'ROUH_TELEGRAM_BOT_TOKEN');
+  var chat = tgBotField(sv, 'ROUH_TELEGRAM_CHAT_ID');
+  var set = !!sv.set;
+  var check = sv.check || {};
   $('tgBotNone').hidden = set;
   $('tgBotState').hidden = !set;
-  $('tgBotActions').hidden = !set;
-  $('tgBotRemove').hidden = b.source !== 'page';
+  $('tgBotActions').hidden = !set || !d.admin;
+  $('tgBotRemove').hidden = token.source !== 'page';
   if (set) {
-    $('tgBotName').textContent = b.bot ? '@' + b.bot : 'Bot ' + (b.bot_id || '');
-    $('tgBotChat').textContent = b.chat || '-';
-    $('tgBotFrom').textContent = b.source === 'page'
-      ? 'Here' + (b.saved_at ? ', ' + whenWords(b.saved_at) : '')
+    var named = /@([A-Za-z0-9_]+)/.exec(check.said || '');
+    $('tgBotName').textContent = named ? '@' + named[1] : 'Token ending ' + (token.last4 || '…');
+    $('tgBotChat').textContent = chat.value || '-';
+    $('tgBotFrom').textContent = token.source === 'page'
+      ? 'Here' + (token.saved ? ', ' + token.saved : '')
       : 'In the settings file this Rouh was installed with. Setting a bot here replaces it.';
   }
   var trouble = '';
-  if (!b.writable) trouble = 'Rouh cannot save a bot on this computer: its secrets folder cannot be written. Nothing here will change until it can.';
+  if (check.ok === false) trouble = 'The last check failed: ' + check.said;
   $('tgBotTrouble').textContent = trouble;
   $('tgBotTrouble').hidden = !trouble;
-  var showForm = !set || TGBOT.changing;
+  var showForm = d.admin && (!set || TGBOT.changing);
   $('tgBotSetup').hidden = !showForm;
   $('tgBotSetupHead').textContent = set ? 'Set another bot' : 'Set your bot';
   $('tgBotCancel').hidden = !set;
@@ -13015,22 +13036,29 @@ function tgBotDraw() {
   $('tgBotSave').textContent = 'Save';
 }
 
+function tgBotPost(path, body) {
+  return fetch(path, {
+    method: 'POST', credentials: 'same-origin', cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  }).then(function (r) {
+    return r.json().then(function (out) { return { ok: r.ok, out: out || {} }; });
+  });
+}
+
 $('tgBotForm').addEventListener('submit', function (e) {
   e.preventDefault();
   var said = $('tgBotSaid');
-  var body = { token: $('tgBotToken').value.trim(), chat: $('tgBotChatId').value.trim() };
+  var values = { ROUH_TELEGRAM_BOT_TOKEN: $('tgBotToken').value.trim(),
+                 ROUH_TELEGRAM_CHAT_ID: $('tgBotChatId').value.trim() };
+  // The token leaves the page with this one request and is not kept in it.
   $('tgBotToken').value = '';
   said.hidden = true;
   $('tgBotSave').disabled = true;
   $('tgBotSave').textContent = 'Checking with Telegram…';
-  fetch('/api/settings/telegram-bot', {
-    method: 'POST', credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-  }).then(function (r) {
-    return r.json().then(function (out) { return { ok: r.ok, out: out }; });
-  }).then(function (answer) {
-    var out = answer.out || {};
-    if (out.bot) TGBOT.data = { bot: out.bot };
+  tgBotPost('/api/settings/keys/save', { service: 'telegram', values: values }).then(function (answer) {
+    values = null;
+    var out = answer.out;
+    if (out.services) TGBOT.data = out;
     if (answer.ok) {
       TGBOT.changing = false;
       $('tgBotChatId').value = '';
@@ -13042,8 +13070,9 @@ $('tgBotForm').addEventListener('submit', function (e) {
       $('tgBotToken').focus();
       return;
     }
-    settingsSay(out.said || 'Rouh\'s bot is set.', 'good');
+    settingsSay((out.said || 'Rouh\'s bot is set.') + ' Rouh reads what you write there within half a minute, with nothing to restart.', 'good');
   }).catch(function () {
+    values = null;
     tgBotDraw();
     said.textContent = 'Rouh could not be reached. Try again in a moment.';
     said.hidden = false;
@@ -13066,13 +13095,13 @@ $('tgBotCancel').addEventListener('click', function () {
 
 $('tgBotRemove').addEventListener('click', function () {
   $('tgBotRemove').disabled = true;
-  fetch('/api/settings/telegram-bot/remove', { method: 'POST', credentials: 'same-origin' })
-    .then(function (r) { return r.json(); })
-    .then(function (out) {
+  tgBotPost('/api/settings/keys/remove', { service: 'telegram' })
+    .then(function (answer) {
       $('tgBotRemove').disabled = false;
-      if (out && out.bot) TGBOT.data = { bot: out.bot };
+      if (answer.out.services) TGBOT.data = answer.out;
       TGBOT.changing = false;
-      settingsSay((out && out.bot && out.bot.configured)
+      var sv = tgBotService(TGBOT.data);
+      settingsSay(sv && sv.set
         ? 'The bot set here is removed. The one in the settings file this Rouh was installed with is used again.'
         : 'Rouh\'s bot is removed. Nothing reaches your phone until you set one again.', null);
       tgBotDraw();

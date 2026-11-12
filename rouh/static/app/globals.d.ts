@@ -60,6 +60,7 @@ interface Window {
   RouhSignIn?: any;
   RouhGuestSignIn?: any;
   RouhCloudflare?: any;
+  RouhKeys?: any;
   RouhPhone?: any;
   RouhChanges?: any;
   RouhSlack?: any;

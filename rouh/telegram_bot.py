@@ -7,33 +7,26 @@ they had to open ``stack.env``, add two lines and press Stop and Start. "That sh
 So the owner sets the bot in Anatomy, Connections, Telegram, on the card Rouh's Telegram bot:
 
 - **The token goes one way.** It is typed into a password field on the page and posted once, over
-  the page's own connection, to Rouh's core (`rouh/web/telegram_bot.py`). It is never in a
+  the page's own connection, to Rouh's core (`rouh/web/service_keys.py`). It is never in a
   conversation, a turn, a model's prompt, a tool result, an event or a log line, and no answer
   ever carries it back: the page is told the bot's @username and the chat, and nothing else.
 - **Checked before it is kept.** Telegram is asked who the bot is (``getMe``), so a token copied
   wrong is refused with words, and the bot writes one short message to the chat, so a chat id
   that is wrong, or a bot nobody has pressed Start on, is refused too. A chat id left empty is
   found from the last private message the bot was sent.
-- **Written by the core alone, to the one file the bot is read from.** `telegram.Telegram` reads
-  ``ROUH_TELEGRAM_FILE`` on every call and a file there wins over the settings file
-  (``stack.env``), so writing it is the whole of applying it: mail alerts and `send_telegram`
-  use it on their next message, and the phone's chat (`telegram_chat.PhoneChat`) starts reading
-  within `telegram_chat.IDLE_SECONDS`, with no restart. In the containers that file is in the
-  core's own volume (``/data/secrets/rouh_telegram.json``), which the worker - where the model's
-  commands and every job run - cannot reach at all. Nothing here gives the worker, a job or the
-  model any way to write anything: this is one form, for one setting, for the owner only.
-- **The owner only.** The bot reaches one person's phone (`telegram.phone_owner`), so only that
-  person may set or remove it.
+- **Kept the way every other key is** (`rouh/service_keys.py`, Petar the same day: "this should be
+  done for all such integrations"): sealed in the database, and taken up at once. `telegram.Telegram`
+  asks Settings first on every call, so mail alerts and `send_telegram` use it on their next message,
+  and the phone's chat (`telegram_chat.PhoneChat`) starts reading within `telegram_chat.IDLE_SECONDS`,
+  with no restart. Nothing here gives the worker, a job or the model any way to read or write it.
 """
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import json
 import logging
 import os
 import re
-import secrets
 import time
 from pathlib import Path
 
@@ -66,39 +59,6 @@ class _Candidate(telegram.Telegram):
 
 def _clean(text) -> str:
     return re.sub(r"\s+", "", str(text or ""))
-
-
-def _read(path: Path) -> dict | None:
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    return data if isinstance(data, dict) else None
-
-
-def state(bot: telegram.Telegram) -> dict:
-    """What the card draws: whether there is a bot, from where, its @username and chat. Never the token."""
-    found = bot._settings()
-    data = _read(bot.path)
-    if found is None:
-        return {"configured": False, "source": "", "writable": _writable(bot.path)}
-    from_file = bool(data and str(data.get("bot_token") or "").strip())
-    return {
-        "configured": True,
-        "source": "page" if from_file else "settings_file",
-        "bot": str((data or {}).get("bot_username") or "") if from_file else "",
-        "bot_id": found[0].split(":", 1)[0],
-        "chat": str(found[1]),
-        "saved_at": (data or {}).get("saved_at") if from_file else None,
-        "writable": _writable(bot.path),
-    }
-
-
-def _writable(path: Path) -> bool:
-    folder = path.parent
-    while not folder.exists() and folder != folder.parent:
-        folder = folder.parent
-    return os.access(folder, os.W_OK)
 
 
 async def _find_chat(cand: _Candidate) -> str:
@@ -149,34 +109,31 @@ async def check(token: str, chat, api_base: str | None) -> tuple[str, str]:
     return str((me or {}).get("username") or ""), chat
 
 
-def write(path: Path, doc: dict) -> None:
-    """The file, whole or not at all, readable by the core's own user and nobody else."""
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    tmp = path.parent / f".{path.name}.{secrets.token_hex(6)}"
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as out:
-            json.dump(doc, out)
-            out.flush()
-            os.fsync(out.fileno())
-        os.replace(tmp, path)
-    except BaseException:
-        with contextlib.suppress(OSError):
-            os.unlink(tmp)
-        raise
-    os.chmod(path, 0o600)
+def _bot_id(token: str) -> str:
+    return token.split(":", 1)[0] if token else ""
 
 
-def _applied(bot: telegram.Telegram, old_bot_id: str, new_bot_id: str) -> None:
-    """What this process held about the bot before, forgotten, so the new one is used at once."""
+#: The bot this process last used, so a different one is noticed (`forget_held`).
+_LAST = {"bot": ""}
+
+
+def forget_held() -> None:
+    """After the bot is set or removed in Settings: what this process held about the old bot
+    forgotten - who it is, and where its messages had got to, which mean nothing to another bot."""
     from . import telegram_chat
 
-    for held in {id(bot): bot, **_running()}.values():
+    now = _bot_id(_effective_token())
+    for held in _running().values():
         held._me = None
-    if old_bot_id and old_bot_id != new_bot_id:
-        # Where the old bot's messages had got to means nothing to another bot's.
+    if _LAST["bot"] and now != _LAST["bot"]:
         with contextlib.suppress(Exception):
             telegram_chat._set_state(telegram_chat.OFFSET, None)
+    _LAST["bot"] = now
+
+
+def _effective_token() -> str:
+    found = telegram.Telegram()._settings()
+    return found[0] if found else ""
 
 
 def _running() -> dict:
@@ -188,32 +145,30 @@ def _running() -> dict:
     return {id(got): got} if got is not None else {}
 
 
-async def save(bot: telegram.Telegram, token: str, chat) -> dict:
-    """Check the bot with Telegram and keep it, in the one file it is read from. What the card draws."""
-    username, chat = await check(token, chat, bot.api_base)
-    before = bot._settings()
-    old_id = before[0].split(":", 1)[0] if before else ""
-    token = _clean(token)
-    try:
-        write(bot.path, {"bot_token": token, "chat_id": int(chat), "bot_username": username,
-                         "saved_at": int(time.time())})
-    except OSError as exc:
-        log.warning("Rouh's Telegram bot could not be saved: %s", type(exc).__name__)
-        raise Refused("Rouh could not save the bot on this computer. Nothing was changed.") from None
-    await asyncio.to_thread(_applied, bot, old_id, token.split(":", 1)[0])
-    log.info("Rouh's Telegram bot was set from Anatomy (bot %s)", token.split(":", 1)[0])
-    return state(bot)
+def carry_over() -> None:
+    """The bot this card wrote to the core's secrets file on 12 November 2026, before it was kept in
+    Settings like every other key, carried into Settings once and the file deleted. A file written by
+    hand (an old server's) is left as it is: it is beneath what Settings keeps."""
+    from . import service_keys
+    from .config import config
+    from .encryption import box
+    from .models import ServiceKey
 
-
-def remove(bot: telegram.Telegram) -> dict:
-    """The bot set on this page taken away. One from the settings file stays: it is the installer's.
-    Synchronous: it touches the database, so an async caller runs it in a thread."""
-    before = bot._settings()
+    path = Path(config.telegram_file)
     try:
-        os.unlink(bot.path)
-    except FileNotFoundError:
-        pass
-    after = bot._settings()
-    _applied(bot, before[0].split(":", 1)[0] if before else "", after[0].split(":", 1)[0] if after else "")
-    log.info("Rouh's Telegram bot set from Anatomy was removed")
-    return state(bot)
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if not isinstance(data, dict) or "saved_at" not in data or "bot_username" not in data:
+        return
+    token = str(data.get("bot_token") or "").strip()
+    chat = str(data.get("chat_id") or "").strip()
+    if token and not ServiceKey.objects.filter(org_id=service_keys._org(), name="ROUH_TELEGRAM_BOT_TOKEN").exists():
+        now = time.time()
+        for name, v, last4 in (("ROUH_TELEGRAM_BOT_TOKEN", token, token[-4:]), ("ROUH_TELEGRAM_CHAT_ID", chat, "")):
+            if v:
+                ServiceKey.objects.update_or_create(org_id=service_keys._org(), name=name, defaults={
+                    "value_sealed": box().seal(v), "last4": last4, "saved_by": "", "saved_at": now})
+    with contextlib.suppress(OSError):
+        os.unlink(path)
+    log.info("the Telegram bot set on 12 November was carried into Settings, Keys")

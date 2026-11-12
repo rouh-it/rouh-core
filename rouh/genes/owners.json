@@ -1189,8 +1189,7 @@
     "rouh/telegram_bot.py",
     "rouh/telegram_chat.py",
     "rouh/telegram_forks.py",
-    "rouh/web/telegram_account.py",
-    "rouh/web/telegram_bot.py"
+    "rouh/web/telegram_account.py"
    ]
   },
   "slack": {
@@ -2937,6 +2936,15 @@
    },
    "files": [
     "rouh/call_sender.py"
+   ]
+  },
+  "service-keys": {
+   "files": [
+    "rouh/service_keys.py",
+    "rouh/web/service_keys.py",
+    "rouh/models/servicekeys.py",
+    "rouh/migrations/0249_service_keys.py",
+    "rouh/static/keyspage.*"
    ]
   }
  }

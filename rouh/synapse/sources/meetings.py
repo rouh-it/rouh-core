@@ -174,9 +174,9 @@ def off_words(cfg: dict | None = None) -> str:
         return ""
     where = (f"{cfg['file']} does not exist yet" if not cfg["file_exists"] else
              f"{cfg['file']} does not have {' or '.join(n for n in cfg['missing'] if n != NAMES[2])}")
-    return (f"The meeting library's settings are not on this server: {where}, and Rouh's environment does not "
-            f"have them either. The sync is on and waiting; it starts by itself once {', '.join(NAMES[:2])} and "
-            f"{NAMES[2]} are there.")
+    return (f"The meeting library is not set up: {where}, and Settings has none either. The owner sets its "
+            "address and key in Anatomy, Connections, Keys, Meeting library; the sync is on and waiting and "
+            "starts by itself once they are there.")
 
 
 def where(cfg: dict | None = None) -> str:

@@ -331,6 +331,15 @@ def build_app(key: str = KEY) -> FastAPI:
     calls: list[dict] = []
     asked: Counter = Counter()
 
+    @app.get("/v2/users/me")
+    async def me(request: Request):
+        """Who the token is, as Settings, Keys checks it (`rouh/service_keys.py`)."""
+        if request.headers.get("authorization") != f"Bearer {key}":
+            return JSONResponse({"error": {"type": "user-or-token-not-found",
+                                           "message": "User was not found or authentication "
+                                                      "token is not valid"}}, status_code=401)
+        return JSONResponse({"data": {"id": "fakeUser", "username": "alex-example"}})
+
     @app.post("/v2/acts/{actor}/run-sync-get-dataset-items")
     async def run(actor: str, request: Request):
         if request.headers.get("authorization") != f"Bearer {key}":

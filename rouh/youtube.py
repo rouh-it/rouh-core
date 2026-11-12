@@ -144,7 +144,7 @@ class Unreachable(YouTubeTrouble):
 
 
 class NoKey(YouTubeTrouble):
-    """There is no YOUTUBE_API_KEY on this machine."""
+    """There is no YouTube API key: the owner adds one in Anatomy, Connections, Keys."""
 
 
 class OutOfQuota(YouTubeTrouble):

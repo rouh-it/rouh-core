@@ -597,6 +597,13 @@ def _until_words(end: float) -> str:
     return f"{dt:%a} {dt.day} {dt:%b %H:%M}"
 
 
+def _keys_section() -> dict:
+    """Which services' keys are set and where they are set: Settings, Keys. Never a value."""
+    from . import service_keys
+
+    return {"human": service_keys.status_line()}
+
+
 def server_health() -> dict:
     """Disk, memory, load, uptime, running version, the sandbox, the backups and what the owner
     opened for the runs, errors reported in place."""
@@ -609,6 +616,7 @@ def server_health() -> dict:
         ("access", _access_section),
         ("backups", _backups_section),
         ("scheduled_jobs", _jobs_section),
+        ("keys", _keys_section),
         ("memory", _memory_section),
         ("load", _load_section),
         ("uptime", _uptime_section),
@@ -15101,11 +15109,11 @@ class ToolRegistry:
         except Exception as exc:
             said = _youtube_trouble(exc)
             return untrusted.ours(
-                "There is no YouTube API key configured on this machine "
-                "(YOUTUBE_API_KEY), so this fell back to reading YouTube's own "
+                "There is no YouTube API key set (the owner adds one in Anatomy, "
+                "Connections, Keys, never in a chat), so this fell back to reading YouTube's own "
                 f"results page, and that did not work either. {said}")
-        return ("There is no YouTube API key configured on this machine "
-                "(YOUTUBE_API_KEY), so these were read off YouTube's own results "
+        return ("There is no YouTube API key set (the owner adds one in Anatomy, "
+                "Connections, Keys, never in a chat), so these were read off YouTube's own results "
                 "page instead. They are right, but thinner than the API's: say so "
                 "if the numbers matter.\n\n"
                 + youtube.render_results(found, query=query, scraped=True))

@@ -140,6 +140,7 @@ with {% asset %}, which gives it its hashed address.
 <link rel="stylesheet" href="{% asset "shippingpage.css" %}">
 <link rel="stylesheet" href="{% asset "signupspage.css" %}">
 <link rel="stylesheet" href="{% asset "cloudflarepage.css" %}">
+<link rel="stylesheet" href="{% asset "keyspage.css" %}">
 <link rel="stylesheet" href="{% asset "phonepage.css" %}">
 <link rel="stylesheet" href="{% asset "changespage.css" %}">
 <link rel="stylesheet" href="{% asset "slackpage.css" %}">
@@ -3379,6 +3380,15 @@ with {% asset %}, which gives it its hashed address.
                  /api/settings/cloudflare. {% endcomment %}
             <div id="cloudflareBody" class="hb-body" aria-busy="false"></div>
           </div>
+          <div class="settings-section" data-section="keys" hidden>
+            {% comment %} The keys of the services Rouh uses (`rouh/service_keys.py`). Petar, 12 November
+                 2026: "this should be done for all such integrations and connections ... just like
+                 the cloudflare setup, you paste the code there, not in the chat and not in the file
+                 on the computer directly". Each value goes straight to the server, is checked with
+                 the service and sealed, and is used at once; a secret's last four is all that comes
+                 back. keyspage.js draws it from /api/settings/keys. {% endcomment %}
+            <div id="keysBody" class="hb-body" aria-busy="false"></div>
+          </div>
           <div class="settings-section" data-section="slack" hidden>
             {% comment %} Rouh's own Slack app (`rouh/slack.py`). Petar, 16 October 2026: "I need you
                  to evesdrop on my slack. Full integration." One press creates the app in
@@ -5246,6 +5256,7 @@ with {% asset %}, which gives it its hashed address.
 <script defer src="{% asset "shippingpage.js" %}"></script>
 <script defer src="{% asset "signupspage.js" %}"></script>
 <script defer src="{% asset "cloudflarepage.js" %}"></script>
+<script defer src="{% asset "keyspage.js" %}"></script>
 <script defer src="{% asset "phonepage.js" %}"></script>
 <script defer src="{% asset "changespage.js" %}"></script>
 <script defer src="{% asset "slackpage.js" %}"></script>

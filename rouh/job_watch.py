@@ -209,7 +209,11 @@ def _rule_defaults(now: float) -> dict:
 
 
 def _where(path: str, env: str) -> str:
-    """Where a secret comes from: its file, the settings file's environment, or nowhere."""
+    """Where a secret comes from: Settings, Keys, its file, the settings file's environment, or nowhere."""
+    from . import service_keys
+
+    if service_keys.stored(env):
+        return "Anatomy, Connections, Keys"
     if path and os.path.exists(path):
         return f"the file {path}"
     if (os.environ.get(env) or "").strip():
@@ -233,8 +237,8 @@ def secrets() -> list[dict]:
     mail = mailer.ready(config)
     src = _where(config.brevo_file, "ROUH_BREVO_API_KEY")
     out.append(_entry("secret.mail", "Rouh's own mail (Brevo)", True if mail else None,
-                      f"from {src}" if mail else "no sender address (ROUH_MAIL_FROM) or no key (ROUH_BREVO_API_KEY, "
-                      "or the file), so Rouh's own letters are not sent"))
+                      f"from {src}" if mail else "no sender address or no Brevo key, so Rouh's own letters are not sent: "
+                      "the owner sets both in Anatomy, Connections, Keys"))
     key = bool(os.environ.get("ROUH_ENCRYPTION_KEY") or getattr(config, "encryption_key", ""))
     out.append(_entry("secret.encryption", "The key credentials are sealed with", True if key else None,
                       "from the environment" if key else "ROUH_ENCRYPTION_KEY is not set: a key beside the data is used"))

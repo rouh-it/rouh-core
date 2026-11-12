@@ -59,7 +59,7 @@ from rouh.web import (apple, assets, auth, boxes, brief, changes as changes_web,
                       page_gdoc as page_gdoc_web, page_listen as page_listen_web, page_pdf as page_pdf_web,
                       pagestate as pagestate_web,
                       since_read as since_read_web,
-                      doc_on_page as doc_on_page_web, meeting_attach as meeting_attach_web, task_docs as task_docs_web, to_send as to_send_web, open_items as open_items_web, task_time as task_time_web, not_arrived as not_arrived_web, away_after as away_after_web, new_number as new_number_web, new_address as new_address_web, new_company as new_company_web, renewal as renewal_web, objecttreeapi, taskapi, telegram_account, telegram_bot as telegram_bot_web, trusted, views)
+                      doc_on_page as doc_on_page_web, meeting_attach as meeting_attach_web, task_docs as task_docs_web, to_send as to_send_web, open_items as open_items_web, task_time as task_time_web, not_arrived as not_arrived_web, away_after as away_after_web, new_number as new_number_web, new_address as new_address_web, new_company as new_company_web, renewal as renewal_web, objecttreeapi, taskapi, telegram_account, service_keys as service_keys_web, trusted, views)
 
 
 def _admin_sign_in(request, extra_context=None):
@@ -484,8 +484,10 @@ urlpatterns = [
     path("api/settings/my-card", mycard.settings_my_card),
     path("api/settings/my-card/search", mycard.search),
     path("api/settings/my-card/emails", mycard.emails),
-    path("api/settings/telegram-bot", telegram_bot_web.settings_telegram_bot),
-    path("api/settings/telegram-bot/remove", telegram_bot_web.remove),
+    path("api/settings/keys", service_keys_web.page),
+    path("api/settings/keys/save", service_keys_web.save),
+    path("api/settings/keys/check", service_keys_web.check),
+    path("api/settings/keys/remove", service_keys_web.remove),
     path("api/settings/telegram-account", telegram_account.settings_telegram_account),
     path("api/settings/telegram-account/code", telegram_account.code),
     path("api/settings/telegram-account/password", telegram_account.password),

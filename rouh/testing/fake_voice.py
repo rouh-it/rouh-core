@@ -105,7 +105,10 @@ def build_app(record_dir: str | None = None) -> FastAPI:
         return JSONResponse({"text": said, "language_code": "eng"})
 
     @app.get("/v1/voices")
-    async def voices():
+    async def voices(request: Request):
+        # A key with "wrong" in it is one ElevenLabs does not know (Settings, Keys checks it here).
+        if "wrong" in (request.headers.get("xi-api-key") or ""):
+            return JSONResponse({"detail": {"status": "invalid_api_key"}}, status_code=401)
         return JSONResponse({"voices": [{"voice_id": "test-voice", "name": "A test voice"}]})
 
     @app.post("/v1/text-to-speech/{voice_id}/stream")

@@ -601,7 +601,7 @@ async def _offsite_loop() -> None:
 
     await asyncio.sleep(120)
     if not offsite.set_up():
-        log.info("no weekly off-site copy is set up (ROUH_OFFSITE_* in the settings file)")
+        log.info("no weekly off-site copy is set up (Anatomy, Connections, Keys)")
     while True:
         try:
             if await asyncio.to_thread(offsite.due):
@@ -7413,6 +7413,14 @@ async def startup() -> None:
     # to the pool when it is done, instead of its thread keeping one for ever
     # (`rouh/dbwork.py`). First, before anything hands work to a thread.
     dbwork.install()
+    # The keys and settings the owner set in Anatomy, Connections, Keys, taken up before anything
+    # uses one: they win over the settings file's (`rouh/service_keys.py`).
+    try:
+        from rouh import service_keys
+
+        await asyncio.to_thread(service_keys.start)
+    except Exception:  # noqa: BLE001 - the settings file's still work
+        log.exception("the keys kept in Settings could not be taken up")
     # A deploy is the one job that cannot report its own result: the process
     # that started it is the process the restart kills. This process starting
     # is that result, so the card is finished here, before any tab can connect

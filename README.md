@@ -702,10 +702,10 @@ sign-in: a username and a password, on an account of your own.
   `tg-ask` and the one program's phone share, which still only sends. Only
   one process may read a bot, so only the service does: every test world is
   pointed at a file that is not there.
-  The bot's key and the chat it talks to live in one file on the server, outside
-  this repository, owned by the user the service runs as and mode 0600
-  (`ROUH_TELEGRAM_FILE`, `/var/www/rouh/.secrets/rouh_telegram.json`); with
-  no file there Rouh says it is not set up rather than pretending it sent
+  The owner sets the bot's key and the chat in Anatomy, Connections, Telegram, where they are
+  checked with Telegram, sealed and used at once (`rouh/service_keys.py`, "Keys of the services",
+  below); an old server's file (`ROUH_TELEGRAM_FILE`) and the settings file are read beneath it.
+  With none of them Rouh says it is not set up rather than pretending it sent
   something, and reads nothing. `rouh/telegram.py` is the bot,
   `rouh/telegram_chat.py` the conversation, `rouh/telegram_forks.py` which
   chat the phone is in and the forks made there, and
@@ -809,7 +809,7 @@ sign-in: a username and a password, on an account of your own.
   transcript of this video from <day>" or "Transcribed now, and stored".
   Rows are kept for good and nothing refreshes them; the fortnight's file cache
   that came before was not brought in.
-  Search uses the Data API v3 when `YOUTUBE_API_KEY` is in the environment,
+  Search uses the Data API v3 when a key is set in Anatomy, Connections, Keys (or `YOUTUBE_API_KEY`),
   says plainly when it is not, tells a spent quota apart from a failure, and
   falls back to reading YouTube's own results page, saying in the answer that
   it did.
@@ -822,7 +822,7 @@ sign-in: a username and a password, on an account of your own.
   Pressing Research harvests that person at once on the server (`card_pick`); saying "the second one" does the same through `linkedin_profile` with the card and the number; a LinkedIn address skips the search.
   The harvest is the HR project's own two scrapers, the profile and the latest posts, drawn as a card laid out like its Lookup page, and the conversation is told who it was.
   Nobody is harvested who was not picked, and a search that finds nobody says so.
-  The key is the HR project's Apify token, `APIFY_API_TOKEN` in `/var/www/rouh/.env`; without it neither tool is offered.
+  The key is an Apify token, set in Anatomy, Connections, Keys (or `APIFY_API_TOKEN` in the settings file); without it neither tool is offered, and one set there offers them at once.
   Each search costs about a cent and each harvest about two.
   A test world's are a stand-in, `rouh/testing/fake_apify.py`.
 - **Knows who is coming to your meetings before they start** (`rouh/meeting_people.py`).
@@ -2234,11 +2234,23 @@ The `talking` world's stand-in model answers a pass on its own (`fake_model.a_co
 
 ### Rouh's own mail
 
+### Keys of the services
+
+> "this should be done for all such integrations and connections. we should be able to save it in there. in the settings. just like the cloudflare setup, you paste the code there, not in the chat and not in the file on the computer directly" - Petar, 12 November 2026.
+
+Every service that needed a line in the settings file (`stack.env` on a Mac, `.env` on a server) is set in Anatomy, Connections, Keys (`rouh/service_keys.py`, `rouh/web/service_keys.py`, `keyspage.js`), built the way Cloudflare's page is.
+The voice (ElevenLabs), Synapse's search (Voyage AI), YouTube, LinkedIn look-ups (Apify), Rouh's own letters (Brevo), the meeting library, the workspace's own repository and the weekly off-site copy each have a card with their fields; Telegram's bot has its own card in Anatomy, Connections, Telegram on the same store, and the model keys are on the Models page.
+A value is pasted there and leaves the page in one request; the service is asked whether it works before anything is kept, and a refusal says why and keeps nothing.
+It is kept sealed (`ServiceKey`), keyed by the installation's own organisation, and only that organisation's administrators change it; the page is shown a secret's last four and nothing more.
+It is used at once: every save puts what is kept into the process's settings and environment, which each service reads when it calls (`apply`), at start too and in a command's own process (`manage.py`), so nothing is stopped and started.
+What is kept wins over the settings file, which still works beneath it for an installer who writes one.
+No chat, model, tool result or log line ever carries a value, and Rouh says where to set a key rather than asking for one (`send_telegram`, `server_health`'s `keys`, every "not set up" message).
+
 > "What we're missing here is an email service, and I think we're going to use Brevo... the sender is noreply@example.com." - Petar, 24 September 2026.
 
 The invitations, the notes, a guest's password link and the letter to somebody tagged in a comment go through Brevo's API from the installation's own sender, `ROUH_MAIL_FROM` (`rouh/mailer.py`).
 This is the install's own key, like its Anthropic key: it sends Rouh's few letters from Rouh's own address and never anybody's mail, so it is not the global credential the rules forbid.
-The key is in one file on the server, outside the checkout, root's and mode 0600, like Telegram's: `/var/www/rouh/.secrets/brevo.json`, `{"api_key": "..."}` (`ROUH_BREVO_FILE`).
+The key and the sender are set in Anatomy, Connections, Keys, Rouh's own letters, checked with Brevo and sealed (`rouh/service_keys.py`); an old server's file, `/var/www/rouh/.secrets/brevo.json` (`ROUH_BREVO_FILE`), and the settings file are read beneath it.
 With no file there an invitation is still made and the panel says the letter did not go.
 The `talking` world stands in for Brevo (`rouh/testing/fake_brevo.py`), with an inbox at the address `./e2e.sh serve talking` prints, whose letters' links can be pressed.
 

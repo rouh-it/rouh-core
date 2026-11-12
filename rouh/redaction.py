@@ -43,6 +43,9 @@ PATTERNS: tuple[re.Pattern[str], ...] = (
     # (`rouh/linkedin.py`). It goes in a header there and never in an address;
     # this is the net under that.
     re.compile(r"apify_api_[A-Za-z0-9]{8,}"),
+    # A key carried in an address, as Google's APIs take one (`?key=AIza...`): httpx logs every
+    # address it calls at INFO, and YouTube's search sends its key that way (`rouh/youtube.py`).
+    re.compile(r"([?&](?:key|api_key|token|access_token)=)(?!\[redacted\])([^&\s\"']{6,})"),
     # An Apple app-specific password: sixteen lower-case letters in four
     # groups of four (`rouh/apple_contacts.py`). And the Basic authorisation
     # header CardDAV carries it in, which is the same password in base64.
@@ -60,11 +63,26 @@ PATTERNS: tuple[re.Pattern[str], ...] = (
 )
 
 
+#: Every secret this Rouh keeps for a service in Settings, Keys, by its exact text, whatever its
+#: shape (`rouh/service_keys.py` gives them here each time they change): the net under the rule
+#: that no value is ever passed to a log call.
+_HELD: frozenset = frozenset()
+
+
+def hold(values) -> None:
+    """These exact values are masked wherever they appear from now on (and only these)."""
+    global _HELD
+    _HELD = frozenset(v for v in values if v and len(v) >= 8)
+
+
 def scrub(text: str) -> str:
     """The same text with anything credential-shaped masked."""
     if not text:
         return text
     out = str(text)
+    for held in _HELD:
+        if held in out:
+            out = out.replace(held, MASK)
     for pattern in PATTERNS:
         if pattern.groups == 2:
             out = pattern.sub(lambda m: m.group(1) + MASK, out)

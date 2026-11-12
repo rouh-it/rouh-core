@@ -88,7 +88,13 @@ class Letter:
 
 
 def _key(path: Path) -> str:
-    """The key in the file, or empty. JSON with ``api_key``, or the bare key."""
+    """The key set in Settings, Keys (`rouh/service_keys.py`), else the one in the file, else the
+    settings file's. JSON with ``api_key``, or the bare key."""
+    from . import service_keys
+
+    kept = service_keys.stored("ROUH_BREVO_API_KEY")
+    if kept:
+        return kept
     try:
         raw = path.read_text(encoding="utf-8").strip()
     except OSError:
