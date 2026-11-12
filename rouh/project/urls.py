@@ -56,7 +56,7 @@ from rouh.web import (apple, assets, auth, boxes, brief, changes as changes_web,
                       rules,
                       signatures, sources, vocabulary,
                       
-                      page_gdoc as page_gdoc_web, page_listen as page_listen_web, page_pdf as page_pdf_web,
+                      page_gdoc as page_gdoc_web, page_listen as page_listen_web, read_aloud as read_aloud_web, page_pdf as page_pdf_web,
                       pagestate as pagestate_web,
                       since_read as since_read_web,
                       doc_on_page as doc_on_page_web, meeting_attach as meeting_attach_web, task_docs as task_docs_web, to_send as to_send_web, open_items as open_items_web, task_time as task_time_web, not_arrived as not_arrived_web, away_after as away_after_web, new_number as new_number_web, new_address as new_address_web, new_company as new_company_web, renewal as renewal_web, objecttreeapi, taskapi, telegram_account, service_keys as service_keys_web, trusted, views)
@@ -262,6 +262,9 @@ urlpatterns = [
     # Listen to this page, the speaker in a page's floating control (`rouh/web/page_listen.py`,
     # `rouh/page_listen.py`), carried by the canvas's relay.
     path("api/page-listen", page_listen_web.for_owner),
+    # A message in the conversation read aloud, the speaker under it (`rouh/web/read_aloud.py`,
+    # `rouh/read_aloud.py`).
+    path("api/read-aloud", read_aloud_web.say),
     # What changed on a page since its owner last saw it, the canvas bar's What changed
     # (`rouh/web/since_read.py`, `rouh/since_read.py`).
     path("api/since-read", since_read_web.for_owner),

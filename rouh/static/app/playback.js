@@ -286,6 +286,8 @@ function onAudioStart(m) {
   // arriving from the server for it. Without this line one late chunk turned
   // playback on again and Rouh carried on talking after Escape.
   if (S.stopped) return;
+  // A message being read aloud gives way to the answer being spoken.
+  readAloudStop();
   pbEnsure();
   PB.rate = Number(m.sample_rate) || 24000;
   PB.turn = m.turn_id || null;
@@ -432,6 +434,8 @@ function pbLevel() {
 }
 
 function stopPlayback() {
+  // Stop and Escape silence a message being read aloud as surely as an answer.
+  if (RA.btn) readAloudStop();
   if (PB.timer) { clearTimeout(PB.timer); PB.timer = null; }
   for (var i = 0; i < PB.sources.length; i++) {
     try { PB.sources[i].onended = null; PB.sources[i].stop(); } catch (e) {}
@@ -450,5 +454,140 @@ function stopPlayback() {
   PB.dropTailUntil = now() + TAIL_MS;
 }
 
+
+/* ---------- a message read aloud ---------------------------------------
+
+   The speaker after the clock under an answer (`fitActs` in app/transcript.js,
+   fr_fc456cc390af). A press asks Rouh for that message in its own voice
+   (`POST /api/read-aloud`, rouh/read_aloud.py) and plays what comes back as it
+   comes, through the same speaker and output a spoken answer goes through.
+   One message at a time: a press on another stops the first, a second press
+   on the same one stops it, and so do Stop, Escape and an answer starting to
+   be spoken. While it plays the button is a stop button, and it is a speaker
+   again the moment the sound ends, however it ended. */
+
+var RA = {
+  /** @type {HTMLButtonElement|null} */ btn: null,
+  /** @type {AbortController|null} */ ask: null,
+  /** @type {AudioBufferSourceNode[]} */ sources: [],
+  next: 0,
+  rate: 24000,
+  /** @type {Uint8Array|null} */ leftover: null,
+  done: false
+};
+
+/** @param {HTMLButtonElement} b @param {boolean} on */
+function readAloudPaint(b, on) {
+  b.classList.toggle('reading', on);
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  var said = on ? 'Stop reading aloud' : (b.__sayLabel || 'Read this aloud');
+  b.title = said;
+  b.setAttribute('aria-label', said);
+}
+
+function readAloudStop() {
+  var b = RA.btn;
+  RA.btn = null;
+  if (RA.ask) { try { RA.ask.abort(); } catch (e) {} RA.ask = null; }
+  for (var i = 0; i < RA.sources.length; i++) {
+    try { RA.sources[i].onended = null; RA.sources[i].stop(); } catch (e) {}
+    try { RA.sources[i].disconnect(); } catch (e) {}
+  }
+  RA.sources.length = 0;
+  RA.leftover = null;
+  RA.next = 0;
+  RA.done = false;
+  if (b) readAloudPaint(b, false);
+}
+
+// Over when everything asked for has been said, or when the message it is
+// reading is no longer on the screen (another chat, the conversation redrawn).
+function readAloudCheck() {
+  if (!RA.btn) return;
+  if (!RA.btn.isConnected || (RA.done && !RA.sources.length)) readAloudStop();
+}
+
+/** @param {Uint8Array} part */
+function readAloudPlay(part) {
+  if (!A.ctx || !PB.gain || !part.length) return;
+  var bytes = part;
+  if (RA.leftover) {
+    bytes = new Uint8Array(RA.leftover.length + part.length);
+    bytes.set(RA.leftover, 0);
+    bytes.set(part, RA.leftover.length);
+    RA.leftover = null;
+  }
+  var usable = bytes.length - (bytes.length % 2);
+  if (usable < bytes.length) RA.leftover = bytes.slice(usable);
+  if (!usable) return;
+  var whole = bytes.slice(0, usable);
+  var pcm = new Int16Array(whole.buffer, 0, usable / 2);
+  var audio = A.ctx.createBuffer(1, pcm.length, RA.rate);
+  var ch = audio.getChannelData(0);
+  for (var k = 0; k < pcm.length; k++) ch[k] = pcm[k] / 32768;
+  var src = A.ctx.createBufferSource();
+  src.buffer = audio;
+  src.connect(PB.gain);
+  var t = A.ctx.currentTime;
+  var at = RA.next < t + 0.02 ? t + 0.05 : RA.next;
+  src.start(at);
+  RA.next = at + audio.duration;
+  RA.sources.push(src);
+  src.onended = function () {
+    var i = RA.sources.indexOf(src);
+    if (i >= 0) RA.sources.splice(i, 1);
+    readAloudCheck();
+  };
+}
+
+/** The speaker under a message was pressed.
+    @param {HTMLButtonElement} b @param {string} text */
+function readAloud(b, text) {
+  if (RA.btn === b) { readAloudStop(); return; }
+  readAloudStop();
+  if (!text || !makeSpeaker() || !A.ctx) return;
+  // An answer being spoken right now is talked over by nothing.
+  if (PB.sources.length) stopPlayback();
+  // A press is what a browser waits for before it lets a page make a sound.
+  if (A.ctx.state !== 'running') { try { A.ctx.resume(); } catch (e) {} }
+  pbEnsure();
+  if (b.__sayLabel == null) b.__sayLabel = b.getAttribute('aria-label');
+  RA.btn = b;
+  readAloudPaint(b, true);
+  var ask = RA.ask = new AbortController();
+  var mine = function () { return RA.ask === ask; };
+  fetch('/api/read-aloud', {
+    method: 'POST', credentials: 'same-origin', cache: 'no-store', signal: ask.signal,
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text })
+  }).then(function (r) {
+    if (!mine()) return;
+    if (!r.ok || !r.body) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!mine()) return;
+        readAloudStop();
+        notify((j && j.error) || 'This message could not be read aloud.', { tone: 'error' });
+      });
+    }
+    RA.rate = Number(r.headers.get('X-Sample-Rate')) || 24000;
+    var reader = r.body.getReader();
+    var pump = function () {
+      return reader.read().then(function (got) {
+        if (!mine()) { try { reader.cancel(); } catch (e) {} return; }
+        if (got.done) { RA.done = true; readAloudCheck(); return; }
+        readAloudPlay(got.value);
+        readAloudCheck();
+        return pump();
+      });
+    };
+    return pump();
+  }).catch(function (err) {
+    if (!mine()) return;
+    readAloudStop();
+    if (!err || err.name !== 'AbortError') {
+      notify('This message could not be read aloud: the connection was lost.', { tone: 'error' });
+    }
+  });
+}
+
 export { holdAudioSession, makeSpeaker, onAudioChunk, onAudioEnd, onAudioStart, PB, pbEnsure,
-  pbFlush, pbLevel, silentTick, speakerReady, SPK, stopPlayback };
+  pbFlush, pbLevel, readAloud, readAloudStop, silentTick, speakerReady, SPK, stopPlayback };

@@ -9,7 +9,7 @@ import { $, browserTakes, el, linkTo, now } from 'app/helpers.js';
 import { cfg } from 'app/settings.js';
 import { notify } from 'app/notices.js';
 import { S, send } from 'app/socket.js';
-import { PB, stopPlayback } from 'app/playback.js';
+import { PB, readAloud, stopPlayback } from 'app/playback.js';
 import { ANSWER_HELD, answerHeldGo, cardsUnpark, footnotes, goToAddress, renderBlock, resetCanvas, resetStreamCards, svgEl } from 'app/cards.js';
 import { copyText, growToLines } from 'app/runs.js';
 import { CHATS, forkBtnPaint, forkComeNow, forkKeys, forkMarksDraw, FORKS, isSendKey, sendKeys } from 'app/chats.js';
@@ -523,6 +523,12 @@ function actIcon(kind) {
   } else if (kind === 'when') {
     svg.appendChild(svgEl('circle', { cx: '12', cy: '12', r: '9' }));
     svg.appendChild(svgEl('path', { d: 'M12 7.5V12l3 2' }));
+  } else if (kind === 'say') {
+    // A speaker with its sound, and while it reads, a square to stop it.
+    svg.appendChild(svgEl('path', { class: 'ico-say', d: 'M4 9.5h3.5L12 5.5v13l-4.5-4H4z' }));
+    svg.appendChild(svgEl('path', { class: 'ico-say', d: 'M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11' }));
+    svg.appendChild(svgEl('rect', { class: 'ico-stop', x: '7', y: '7', width: '10', height: '10',
+                                    rx: '1.5', fill: 'currentColor' }));
   }
   return svg;
 }
@@ -624,6 +630,15 @@ function fitActs(turn) {
     when.setAttribute('aria-expanded', 'false');
     when.addEventListener('click', function () { toggleWhen(turn, when); });
     row.appendChild(when);
+
+    // After the clock, on what the person receives: the message read aloud in
+    // Rouh's own voice (fr_fc456cc390af, app/playback.js `readAloud`).
+    if (!mine) {
+      var say = actBtn('say', 'Read this aloud');
+      say.setAttribute('aria-pressed', 'false');
+      say.addEventListener('click', function () { readAloud(say, turnWords(turn)); });
+      row.appendChild(say);
+    }
     row.__steps = steps;
   }
   // When it was: the stored message's own time, and for one drawn live, the
@@ -641,6 +656,8 @@ function fitActs(turn) {
   // copy button that copies nothing is a button that looks broken.
   var copyBtn = row.querySelector('.act-copy');
   if (copyBtn) copyBtn.disabled = !turnWords(turn);
+  var sayBtn = row.querySelector('.act-say');
+  if (sayBtn) sayBtn.disabled = !turnWords(turn);
   fitSteps(turn, row);
   return row;
 }

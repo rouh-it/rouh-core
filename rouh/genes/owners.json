@@ -1266,6 +1266,8 @@
    "what": "Rouh's ears and mouth: the microphone heard, the end of a turn told from the words, and every answer spoken aloud.",
    "files": [
     "rouh/speech.py",
+    "rouh/read_aloud.py",
+    "rouh/web/read_aloud.py",
     "rouh/turnmarks.py",
     "rouh/replymode.py",
     "rouh/static/app/voice.js",

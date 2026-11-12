@@ -5824,6 +5824,11 @@ button.rule-tag:focus-visible { outline: 2px solid var(--r-accent); outline-offs
 .act .ico-copied { display: none; }
 .act.copied .ico-copy { display: none; }
 .act.copied .ico-copied { display: inline; }
+/* The speaker after the clock (`readAloud`): a stop square while it reads. */
+.act .ico-stop { display: none; }
+.act.reading { color: var(--accent); }
+.act.reading .ico-say { display: none; }
+.act.reading .ico-stop { display: inline; }
 
 .turn-steps { display: flex; align-items: center; gap: 0; }
 .turn-steps[hidden] { display: none; }
