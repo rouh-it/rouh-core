@@ -717,6 +717,14 @@ A Connected Rouh may take a second address, chosen by its owner (`petar.rouh.pag
 
 The Rouh keeps `chosen` and `aliases` beside `hostname`, opens both names in frpc (port 80 for all; https for the names its certificate covers), gets one Let's Encrypt certificate for all of them, and opens the chosen one once that certificate covers it.
 
+Since 12 November 2026 (task 176, step 176-29) the setting up of a chosen name is watched, so the screen that waits on it never freezes:
+
+- Before Let's Encrypt is asked for a name the certificate does not cover yet, the Rouh asks for the name itself through the relay's port 80 (a probe token of its own on `/.well-known/acme-challenge/`), every 5 s, so a name the relay does not route yet costs no failed check there; after a minute of misses it asks anyway.
+- A certificate try for a name chosen in the last 15 minutes that fails is tried again after 10, 20, 40 s and then every minute, not after the 15 minutes and more that renewals wait.
+- Once the certificate covers it, the Rouh asks `https://<chosen>/healthz` from outside every 5 s until it answers as this Rouh.
+- Rouh's setup API (`/setup/api/state`, Rouh for Mac's) carries `name_progress`: `{"state": "none"|"working"|"ready"|"failed", "name", "address", "since", "until", "said", "detail"}`. `ready` is the certificate covering it and the check from outside passing; `failed` is not ready 180 s after it was chosen (the Rouh goes on trying); `said` is one plain sentence and `detail` the technical part, for Show details only.
+- `POST /setup/api/name` answers at once. The name it already has, or `{"do": "again"}`, is Try again: the setting up and its 180 s start over, and rouh.land is not asked again. A press while a name is being taken answers the state with a `notice`, never a second claim.
+
 ### frpc
 
 Started the moment the claim is granted, at birth (since 8 November 2026; before, only when the owner pressed Reach me from my phone), and kept off only once the owner turns it off, with frp's client of the version `rouh/relay.py` pins (and the base image carries).

@@ -32,7 +32,7 @@ Everything that names a service is a setting, so an installation can have a rela
 ``ROUH_RELAY_URL`` (the claim endpoint's folder), ``ROUH_RELAY_DOMAIN`` (only shown before the
 claim answers; the claim's hostname is the truth), ``ROUH_RELAY=0`` (no relay at all),
 ``ROUH_FRPC`` (the frpc binary), ``ROUH_ACME_DIRECTORY`` and, for tests, ``ROUH_ACME_CA_BUNDLE``
-and ``ROUH_RELAY_CHECK_CA``.
+``ROUH_RELAY_CHECK_CA`` and ``ROUH_RELAY_HTTP_PORT`` (the relay's plain-HTTP port, 80).
 
 The relay's own side (frps, its Login and NewProxy checks, the claim endpoint, the traffic
 counts) is the service's and not in this repository; `PROTOCOL.md`, "The relay: a Rouh's phone
@@ -498,27 +498,112 @@ def _signed_post(rest: str, payload: dict, user=None):
         return {}
 
 
+#: Choosing a name is one claim at a time: a second press while one is on its way is not a second
+#: claim fighting the first (Petar, 12 November 2026: "nothing happens ... we should remove the old
+#: url on submit and make a loading circle").
+_NAME_LOCK = threading.Lock()
+#: How long a newly chosen name may take to answer before the screen says so and offers Try again.
+#: The supervisor goes on trying after it, more slowly.
+NAME_PATIENCE = 180.0
+#: How soon the certificate of a newly chosen name is asked for again after a try that failed:
+#: 10 s, 20 s, 40 s, then every minute while the name is fresh (`NAME_FRESH`), never 15 minutes.
+NAME_RETRY = (10.0, 20.0, 40.0, 60.0)
+NAME_FRESH = 15 * 60.0
+#: Looks through the relay's port 80 (5 s apart) before Let's Encrypt is asked anyway.
+PROBE_MISSES = 12
+
+
+class Busy(Refused):
+    """A name is already being chosen: the press is not a second claim."""
+
+
 def choose_name(text: str, user=None) -> dict:
     """Take a name of the owner's own (petar.rouh.page) beside the born one, or give it back with
     "". rouh.land checks and keeps it; this Rouh then answers on both, gets one certificate for
-    both, and opens the chosen one from then on. The born name keeps working for good."""
+    both, and opens the chosen one from then on. The born name keeps working for good.
+
+    The name it already has is not asked of rouh.land again: that is Try again, which starts the
+    setting up over at once (`retry_name`). `name_progress` says how far it has got."""
     name = plain_name(text)
     if name:
         bad = _shape_problem(name)
         if bad:
             raise Refused(bad)
-    answer = _signed_post("name", {"name": name}, user)
-    chosen = str(answer.get("chosen") or "").strip().lower().rstrip(".")
-    aliases = [str(a).strip().lower().rstrip(".") for a in answer.get("aliases") or [] if str(a).strip()]
-    host = read().get("hostname") or str(answer.get("hostname") or "").strip().lower()
-    _change(chosen=chosen or None, aliases=[a for a in aliases if a != host] or None, chosen_at=time.time())
-    allow_host()
+    if not _NAME_LOCK.acquire(blocking=False):
+        raise Busy("Your address is already being set up.")
+    try:
+        held = read()
+        if name and str(held.get("chosen") or "") == f"{name}.{domain()}":
+            return retry_name()
+        answer = _signed_post("name", {"name": name}, user)
+        chosen = str(answer.get("chosen") or "").strip().lower().rstrip(".")
+        aliases = [str(a).strip().lower().rstrip(".") for a in answer.get("aliases") or [] if str(a).strip()]
+        host = read().get("hostname") or str(answer.get("hostname") or "").strip().lower()
+        _change(chosen=chosen or None, aliases=[a for a in aliases if a != host] or None, chosen_at=time.time(),
+                chosen_ok_at=None, name_said=None)
+        allow_host()
+        SUPERVISOR.restart_wanted = True
+        SUPERVISOR.cert_now = True
+        log.info("relay: the owner's own address is now %s", chosen or "none (the born one only)")
+        with contextlib.suppress(Exception):
+            open_by_itself(user)
+        return {"chosen": chosen, "addresses": hostnames()}
+    finally:
+        _NAME_LOCK.release()
+
+
+def retry_name() -> dict:
+    """Try again: the chosen name's setting up starts over now (frpc again, its certificate asked
+    for at once), and the screen's three minutes start again."""
+    held = read()
+    if not held.get("chosen"):
+        return {"chosen": "", "addresses": hostnames(held)}
+    _change(chosen_at=time.time(), chosen_ok_at=None, name_said=None)
     SUPERVISOR.restart_wanted = True
     SUPERVISOR.cert_now = True
-    log.info("relay: the owner's own address is now %s", chosen or "none (the born one only)")
+    log.info("relay: setting up %s again, as asked", held["chosen"])
     with contextlib.suppress(Exception):
-        open_by_itself(user)
-    return {"chosen": chosen, "addresses": hostnames()}
+        open_by_itself()
+    return {"chosen": str(held["chosen"]), "addresses": hostnames()}
+
+
+def name_progress(held: dict | None = None, now: float | None = None) -> dict:
+    """How far the owner's own name has got, for the screen that waits on it (Rouh for Mac's
+    address page): ``none``, ``working`` (with one plain line), ``ready`` (its certificate covers it
+    and it answered from outside as this Rouh) or ``failed`` (not ready after `NAME_PATIENCE`;
+    the supervisor still goes on trying). ``detail`` is the technical part, for Show details only."""
+    held = read() if held is None else held
+    now = time.time() if now is None else now
+    chosen = str(held.get("chosen") or "")
+    if not chosen:
+        return {"state": "none", "name": "", "said": "", "detail": ""}
+    since = float(held.get("chosen_at") or 0)
+    port = int(held.get("https_port") or 443)
+    url = f"https://{chosen}" + ("" if port == 443 else f":{port}")
+    out = {"name": chosen, "address": url, "since": since, "until": since + NAME_PATIENCE,
+           "detail": _name_detail(held)}
+    if chosen in _cert_names(held) and float(held.get("chosen_ok_at") or 0) >= since:
+        return {**out, "state": "ready", "said": f"{chosen} is ready.", "detail": ""}
+    if now - since > NAME_PATIENCE:
+        return {**out, "state": "failed",
+                "said": "Your new address isn't working yet. Rouh keeps trying; press Try Again to start over."}
+    return {**out, "state": "working", "said": "Setting up your address… this can take a minute."}
+
+
+def _name_detail(held: dict) -> str:
+    """The technical account of a chosen name's setting up: what the supervisor is doing and the
+    last thing that went wrong."""
+    parts = []
+    if held.get("name_said"):
+        parts.append(str(held["name_said"]))
+    snap = SUPERVISOR.snapshot()
+    if held.get("on") and snap.get("said"):
+        parts.append(f"Relay: {snap['state']}, {snap['said']}")
+    elif not held.get("on"):
+        parts.append("The address is turned off on this Rouh.")
+    if held.get("cert_error"):
+        parts.append(f"Last certificate try: {held['cert_error']}")
+    return " ".join(" ".join(parts).split())[:600]
 
 
 def address_letter(user=None) -> dict:
@@ -830,6 +915,12 @@ def get_cert() -> dict:
         names = hostnames(held)
         chain = client.certificate(names, key_pem, publish=CHALLENGES.__setitem__,
                                    unpublish=lambda t: CHALLENGES.pop(t, None))
+    except acme.AcmeError as exc:
+        if "accountDoesNotExist" in str(exc):
+            # The certificate service no longer knows the account: a new one on the next try,
+            # rather than the same refusal for ever.
+            _change(acme_account=None, acme_kid=None)
+        raise
     finally:
         client.close()
     cert, key = cert_paths()
@@ -866,6 +957,68 @@ def check_from_outside() -> bool:
         ok, said = False, f"the address did not answer from outside ({type(exc).__name__})"
     _change(checked_at=time.time(), checked_ok=ok, check_error=said or None)
     return ok
+
+
+def _http_port() -> int:
+    """The relay's plain-HTTP port, which Let's Encrypt checks on: 80, another only in a test rig."""
+    try:
+        return int(os.environ.get("ROUH_RELAY_HTTP_PORT", "") or 80)
+    except ValueError:
+        return 80
+
+
+def answers_on_port_80(name: str) -> str:
+    """Whether ``name`` reaches this Rouh through the relay's port 80, the way Let's Encrypt's check
+    will come: "" when it does, else what came back. Asked before Let's Encrypt is, so a name the
+    relay or DNS does not route yet costs no failed check there (it allows only a few an hour)."""
+    import httpx
+
+    token = "rouh-probe-" + secrets.token_urlsafe(12)
+    said = secrets.token_urlsafe(16)
+    CHALLENGES[token] = said
+    port = _http_port()
+    url = f"http://{name}" + ("" if port == 80 else f":{port}") + CHALLENGE_PATH + token
+    try:
+        got = httpx.get(url, timeout=8.0, follow_redirects=False)
+        if got.status_code == 200 and got.text.strip() == said:
+            return ""
+        return f"{name} on port {port} answered {got.status_code}, not as this Rouh"
+    except httpx.HTTPError as exc:
+        return f"{name} on port {port} did not answer ({type(exc).__name__})"
+    finally:
+        CHALLENGES.pop(token, None)
+
+
+def check_chosen_from_outside(held: dict | None = None) -> bool:
+    """Whether the owner's own name answers as this Rouh over https from outside, with a certificate
+    a phone trusts; kept as ``chosen_ok_at`` (`name_progress` reads it)."""
+    import httpx
+
+    held = read() if held is None else held
+    chosen = str(held.get("chosen") or "")
+    if not chosen or chosen not in _cert_names(held):
+        return False
+    port = int(held.get("https_port") or 443)
+    url = f"https://{chosen}" + ("" if port == 443 else f":{port}") + "/healthz"
+    verify = os.environ.get("ROUH_RELAY_CHECK_CA", "").strip() or True
+    try:
+        got = httpx.get(url, timeout=10.0, verify=verify)
+        ok = got.status_code == 200 and b'"ok"' in got.content
+        said = "" if ok else f"https://{chosen} answered {got.status_code}"
+    except httpx.HTTPError as exc:
+        ok, said = False, f"https://{chosen} did not answer from outside ({type(exc).__name__}: {str(exc)[:120]})"
+    if ok:
+        _change(chosen_ok_at=time.time(), name_said=None)
+        log.info("relay: %s answers from outside", chosen)
+    else:
+        _change(name_said=said)
+    return ok
+
+
+def _fresh_choice(held: dict, now: float) -> bool:
+    """A name chosen a moment ago whose certificate has not come yet: asked for again soon."""
+    chosen = str(held.get("chosen") or "")
+    return bool(chosen) and chosen not in _cert_names(held) and now - float(held.get("chosen_at") or 0) < NAME_FRESH
 
 
 # --- the supervisor ------------------------------------------------------------------------------
@@ -979,6 +1132,8 @@ class Supervisor:
         checked = usage_at = renew_look = 0.0
         cert_wait_until = 0.0
         cert_backoff = 900.0
+        name_tries = probe_misses = 0
+        chosen_look = 0.0
         while True:
             try:
                 held = read()
@@ -1015,25 +1170,54 @@ class Supervisor:
                 if self.cert_now:
                     self.cert_now = False
                     cert_wait_until = 0.0
+                    name_tries = probe_misses = 0
+                    chosen_look = 0.0
                 if proxies.get("http") == "running":
                     wait = 2.0
                     if needs_cert(held) and now >= cert_wait_until:
                         self._set("connected" if self.ever_connected and has_cert(held) else "connecting",
                                   "Getting this address's certificate from Let's Encrypt.")
-                        try:
-                            await asyncio.to_thread(get_cert)
-                            cert_backoff = 900.0
-                            self.restart_wanted = True
-                            continue
-                        except Exception as exc:  # noqa: BLE001 - said, and tried again later
-                            said = str(exc) or type(exc).__name__
-                            log.warning("relay: no certificate for %s: %s", held.get("hostname"), said)
-                            _change(cert_error=said[:300], cert_tried_at=now)
-                            cert_wait_until = now + cert_backoff
-                            cert_backoff = min(cert_backoff * 2, 6 * 3600)
+                        # A name not on the certificate yet is first asked for through the relay
+                        # here: until the relay routes it, Let's Encrypt is not asked (step 176-29).
+                        new = [n for n in hostnames(held) if n not in _cert_names(held)]
+                        unrouted = ""
+                        for n in new:
+                            unrouted = await asyncio.to_thread(answers_on_port_80, n)
+                            if unrouted:
+                                break
+                        if unrouted and probe_misses < PROBE_MISSES:
+                            # Asked again in 5 s; after a minute of that Let's Encrypt is asked
+                            # anyway, in case only this computer cannot see its own address.
+                            probe_misses += 1
+                            _change(name_said=f"Waiting for the relay to route the new name: {unrouted}.")
+                            cert_wait_until = now + 5.0
+                        else:
+                            probe_misses = 0
+                            try:
+                                await asyncio.to_thread(get_cert)
+                                cert_backoff = 900.0
+                                name_tries = 0
+                                self.restart_wanted = True
+                                continue
+                            except Exception as exc:  # noqa: BLE001 - said, and tried again later
+                                said = str(exc) or type(exc).__name__
+                                log.warning("relay: no certificate for %s: %s", held.get("hostname"), said)
+                                _change(cert_error=said[:300], cert_tried_at=now)
+                                if _fresh_choice(held, now):
+                                    # A name chosen a moment ago: again in seconds, not in 15 minutes.
+                                    cert_wait_until = now + NAME_RETRY[min(name_tries, len(NAME_RETRY) - 1)]
+                                    name_tries += 1
+                                else:
+                                    cert_wait_until = now + cert_backoff
+                                    cert_backoff = min(cert_backoff * 2, 6 * 3600)
                     if has_cert(held) and proxies.get("https") == "running":
                         self.ever_connected = True
                         self._set("connected")
+                        chosen = str(held.get("chosen") or "")
+                        if (chosen in _cert_names(held) and float(held.get("chosen_ok_at") or 0) < float(held.get("chosen_at") or 0)
+                                and now - chosen_look >= 5.0):
+                            chosen_look = now
+                            await asyncio.to_thread(check_chosen_from_outside, held)
                         if now - checked > CHECK_EVERY:
                             checked = now
                             await asyncio.to_thread(check_from_outside)

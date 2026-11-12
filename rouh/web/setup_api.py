@@ -134,7 +134,8 @@ def _relay_part() -> dict:
             "addresses": relay.hostnames(held), "address": relay.preferred_address(held),
             "relay_state": st["state"] if held.get("on") else "off", "relay_said": st["said"] if held.get("on") else "",
             "reachable": bool(held.get("on") and st["state"] == "connected" and relay.has_cert(held)),
-            "pending": (held.get("pending") or {}).get("said") or "", "claim_error": held.get("claim_error") or ""}
+            "pending": (held.get("pending") or {}).get("said") or "", "claim_error": held.get("claim_error") or "",
+            "name_progress": relay.name_progress(held)}
 
 
 def state(user=None) -> dict:
@@ -482,15 +483,24 @@ def _connected_owner():
 @endpoint("GET", "POST")
 async def name(request: HttpRequest) -> JsonResponse:
     """GET ``?name=``: whether that name is free on rouh.page (asked of rouh.land). POST ``{name}``:
-    take it as this Rouh's own address beside its born one ("" gives it back)."""
+    take it as this Rouh's own address beside its born one ("" gives it back); the name it already
+    has, or ``{"do": "again"}``, is Try again. The answer comes at once: the state's
+    ``name_progress`` says how the setting up goes, and the screen reads it until it is ready
+    (step 176-29). A press while a name is being taken answers the state, not a second claim."""
     from rouh import relay
 
     if await asyncio.to_thread(_connected_owner) is None:
         return _problem("Only a Connected Rouh has an address to name.", 409)
+    body = _body(request) if request.method == "POST" else {}
     try:
         if request.method == "GET":
             return _answer(await asyncio.to_thread(relay.name_free, request.GET.get("name", "")))
-        got = await asyncio.to_thread(relay.choose_name, str(_body(request).get("name") or ""))
+        if body.get("do") == "again":
+            got = await asyncio.to_thread(relay.retry_name)
+        else:
+            got = await asyncio.to_thread(relay.choose_name, str(body.get("name") or ""))
+    except relay.Busy as exc:
+        return _answer({**await _full_state(request, plan=False), "notice": str(exc)})
     except relay.Refused as exc:
         return _problem(str(exc), 409)
     return _answer({**await _full_state(request, plan=False), "chosen_now": got.get("chosen", "")})
