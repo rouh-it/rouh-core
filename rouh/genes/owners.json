@@ -1282,7 +1282,9 @@
    "files": [
     "rouh/static/app/orb.js",
     "rouh/static/app/orb_sound.js",
-    "rouh/static/app/orb_cornfield.js"
+    "rouh/static/app/orb_cornfield.js",
+    "rouh/static/orb_cornfield/**",
+    "tools/orb_cornfield/**"
    ]
   },
   "falling-stars-decoration": {

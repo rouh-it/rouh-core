@@ -23,6 +23,11 @@ This product includes software developed by other projects:
 - Lucide icons, Copyright (c) Lucide Contributors, ISC License.
 - Tables and error texts adapted from Tasshack/dreame-vacuum,
   Copyright (c) Tasshack, MIT License.
+- Instrument samples (pipe organ, upright piano, violin and cello
+  sections, contrabass) from the Versilian Community Sample Library,
+  VSCO 2 Community Edition, Versilian Studios LLC, organ and piano
+  sampled by Simon Dalzell of Ivy Audio, CC0 1.0 Universal
+  (rouh/static/orb_cornfield/, credits in its LICENSE.md).
 
 Python packages that Rouh uses at run time under the LGPL-3.0
 (psycopg, psycopg-binary, pyte) and the MPL-2.0 (certifi) are used

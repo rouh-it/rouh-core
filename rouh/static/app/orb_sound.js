@@ -92,6 +92,7 @@ var ORB_SOUND = {
   walk: { line: -1, call: -1 },
   levels: '',
   cornfield: false,     // this Rouh plays the Cornfield Chase arrangement (app/orb_cornfield.js)
+  cornfieldSamples: null, // where its recorded instruments are, { json, bin }
   played: []            // the last notes, for the checks
 };
 
@@ -435,7 +436,7 @@ function orbSoundStart() {
   S_.master.gain.setValueAtTime(S_.master.gain.value, t);
   S_.master.gain.setTargetAtTime(1, t, 0.05);
   if (S_.cornfield) {
-    cfStart(ctx, S_.music, S_.notes);
+    cfStart(ctx, S_.music, S_.notes, S_.cornfieldSamples);
     soundTick();
     S_.timer = setInterval(soundTick, 60);
     return;
@@ -528,6 +529,11 @@ function wireOrbSound() {
   var b = $('orbSound');
   if (!b) return;
   ORB_SOUND.cornfield = b.getAttribute('data-cornfield') === '1';
+  // Its recorded instruments' addresses, fetched only once it plays.
+  if (ORB_SOUND.cornfield) ORB_SOUND.cornfieldSamples = {
+    json: b.getAttribute('data-cornfield-manifest') || '',
+    bin: b.getAttribute('data-cornfield-samples') || ''
+  };
   orbSoundPaint();
   b.addEventListener('click', function () {
     ORB_SOUND.on = !ORB_SOUND.on;
