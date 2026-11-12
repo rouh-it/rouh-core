@@ -99,6 +99,10 @@ PERSON = 4242
 CODE = "12345"
 PASSWORD = "open sesame"
 
+#: A token Telegram does not know: the secret after the colon starts with this. What a token
+#: copied wrong really gives is a 401 from every method, getMe first (`rouh/telegram_bot.py`).
+WRONG_TOKEN = "AAwrong"
+
 #: The bot, as getMe says it.
 BOT = {"id": 123456789, "is_bot": True, "first_name": "Rouh", "username": "rouh_telegram_bot",
        "can_join_groups": True, "can_read_all_group_messages": False}
@@ -296,6 +300,8 @@ def build_app(record_dir: str | None = None, first_update: int = FIRST_UPDATE) -
 
     @app.post("/bot{token}/getMe")
     async def get_me(token: str):
+        if token.partition(":")[2].startswith(WRONG_TOKEN):
+            return refused(401, "Unauthorized")
         return JSONResponse({"ok": True, "result": BOT})
 
     @app.post("/bot{token}/createChatInviteLink")

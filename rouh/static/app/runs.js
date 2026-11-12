@@ -8380,6 +8380,10 @@ var APPLE = { data: null, editing: false, timer: null, tell: false };
 // waiting for a code or a password: the first form, whatever the server holds.
 var TGACC = { data: null, again: false };
 
+// Rouh's Telegram bot card's (GET /api/settings/telegram-bot). `changing` is
+// Change bot pressed: the form shown over a bot that is already set.
+var TGBOT = { data: null, changing: false };
+
 // The New mail card's (GET /api/settings/mail-alerts), up here for the
 // same reason.
 var MAIL = { data: null, editingTopic: false, guide: false, timer: null };
@@ -8816,6 +8820,7 @@ function settingsLoad() {
   briefSettingsLoad();
   mboxLoad();
   appleLoad();
+  tgBotLoad();
   tgLoad();
   mailLoad();
   tcLoad();
@@ -12946,6 +12951,135 @@ $('appleDisconnect').addEventListener('click', function () {
     .catch(function () {
       $('appleDisconnect').disabled = false;
       settingsSay('Apple Contacts could not be disconnected. Try again in a moment.', 'bad');
+    });
+});
+
+/* ---------- Settings: Rouh's Telegram bot ----------
+ *
+ * The bot Rouh writes to the phone with (`rouh/telegram_bot.py`). The token
+ * is typed here and posted once, straight to Rouh's core, which checks it
+ * with Telegram and keeps it in its own secrets file: it is wiped out of its
+ * box as it is sent, whatever the answer, and never comes back. The card is
+ * shown only to the person whose phone the bot reaches; anybody else is
+ * answered 403 and sees nothing.
+ */
+
+function tgBotLoad() {
+  if (typeof fetch !== 'function') return Promise.resolve();
+  return fetch('/api/settings/telegram-bot', { credentials: 'same-origin' })
+    .then(function (r) {
+      if (r.status === 401) { location.href = '/login'; return null; }
+      if (r.status === 403) return { hidden: true };
+      if (!r.ok) throw new Error('telegram bot ' + r.status);
+      return r.json();
+    })
+    .then(function (data) {
+      if (!data) return;
+      TGBOT.data = data;
+      tgBotDraw();
+    })
+    .catch(function () {
+      $('tgBotCard').hidden = false;
+      $('tgBotTrouble').textContent = 'Rouh\'s bot could not be read from the server. Try again in a moment.';
+      $('tgBotTrouble').hidden = false;
+    });
+}
+
+function tgBotDraw() {
+  var d = TGBOT.data;
+  if (!d) return;
+  $('tgBotCard').hidden = !!d.hidden;
+  if (d.hidden) return;
+  var b = d.bot || {};
+  var set = !!b.configured;
+  $('tgBotNone').hidden = set;
+  $('tgBotState').hidden = !set;
+  $('tgBotActions').hidden = !set;
+  $('tgBotRemove').hidden = b.source !== 'page';
+  if (set) {
+    $('tgBotName').textContent = b.bot ? '@' + b.bot : 'Bot ' + (b.bot_id || '');
+    $('tgBotChat').textContent = b.chat || '-';
+    $('tgBotFrom').textContent = b.source === 'page'
+      ? 'Here' + (b.saved_at ? ', ' + whenWords(b.saved_at) : '')
+      : 'In the settings file this Rouh was installed with. Setting a bot here replaces it.';
+  }
+  var trouble = '';
+  if (!b.writable) trouble = 'Rouh cannot save a bot on this computer: its secrets folder cannot be written. Nothing here will change until it can.';
+  $('tgBotTrouble').textContent = trouble;
+  $('tgBotTrouble').hidden = !trouble;
+  var showForm = !set || TGBOT.changing;
+  $('tgBotSetup').hidden = !showForm;
+  $('tgBotSetupHead').textContent = set ? 'Set another bot' : 'Set your bot';
+  $('tgBotCancel').hidden = !set;
+  $('tgBotSave').disabled = false;
+  $('tgBotSave').textContent = 'Save';
+}
+
+$('tgBotForm').addEventListener('submit', function (e) {
+  e.preventDefault();
+  var said = $('tgBotSaid');
+  var body = { token: $('tgBotToken').value.trim(), chat: $('tgBotChatId').value.trim() };
+  $('tgBotToken').value = '';
+  said.hidden = true;
+  $('tgBotSave').disabled = true;
+  $('tgBotSave').textContent = 'Checking with Telegram…';
+  fetch('/api/settings/telegram-bot', {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  }).then(function (r) {
+    return r.json().then(function (out) { return { ok: r.ok, out: out }; });
+  }).then(function (answer) {
+    var out = answer.out || {};
+    if (out.bot) TGBOT.data = { bot: out.bot };
+    if (answer.ok) {
+      TGBOT.changing = false;
+      $('tgBotChatId').value = '';
+    }
+    tgBotDraw();
+    if (!answer.ok) {
+      said.textContent = out.error || 'That was not accepted.';
+      said.hidden = false;
+      $('tgBotToken').focus();
+      return;
+    }
+    settingsSay(out.said || 'Rouh\'s bot is set.', 'good');
+  }).catch(function () {
+    tgBotDraw();
+    said.textContent = 'Rouh could not be reached. Try again in a moment.';
+    said.hidden = false;
+  });
+});
+
+$('tgBotChange').addEventListener('click', function () {
+  TGBOT.changing = true;
+  tgBotDraw();
+  $('tgBotToken').focus();
+});
+
+$('tgBotCancel').addEventListener('click', function () {
+  TGBOT.changing = false;
+  $('tgBotToken').value = '';
+  $('tgBotChatId').value = '';
+  $('tgBotSaid').hidden = true;
+  tgBotDraw();
+});
+
+$('tgBotRemove').addEventListener('click', function () {
+  $('tgBotRemove').disabled = true;
+  fetch('/api/settings/telegram-bot/remove', { method: 'POST', credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (out) {
+      $('tgBotRemove').disabled = false;
+      if (out && out.bot) TGBOT.data = { bot: out.bot };
+      TGBOT.changing = false;
+      settingsSay((out && out.bot && out.bot.configured)
+        ? 'The bot set here is removed. The one in the settings file this Rouh was installed with is used again.'
+        : 'Rouh\'s bot is removed. Nothing reaches your phone until you set one again.', null);
+      tgBotDraw();
+    })
+    .catch(function () {
+      $('tgBotRemove').disabled = false;
+      settingsSay('The bot could not be removed. Try again in a moment.', 'bad');
     });
 });
 

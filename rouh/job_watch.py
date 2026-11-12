@@ -228,8 +228,8 @@ def secrets() -> list[dict]:
     tg = telegram.Telegram(config.telegram_file, api_base=config.telegram_api_base).configured()
     src = _where(config.telegram_file, "ROUH_TELEGRAM_BOT_TOKEN")
     out.append(_entry("secret.telegram", "Rouh's Telegram bot", True if tg else None,
-                      f"from {src}" if tg else "no bot and chat are set (ROUH_TELEGRAM_BOT_TOKEN and ROUH_TELEGRAM_CHAT_ID, "
-                      "or the file), so nothing reaches the phone"))
+                      f"from {src}" if tg else "no bot is set, so nothing reaches the phone: the owner sets it in Anatomy, "
+                      "Connections, Telegram (/anatomy/connections/telegram), with nothing to restart"))
     mail = mailer.ready(config)
     src = _where(config.brevo_file, "ROUH_BREVO_API_KEY")
     out.append(_entry("secret.mail", "Rouh's own mail (Brevo)", True if mail else None,

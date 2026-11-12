@@ -2867,7 +2867,61 @@ with {% asset %}, which gives it its hashed address.
           </div>
 
           <div class="settings-section" data-section="telegram" hidden>
-            {% comment %} Telegram account: the person's own, so every fork made on Telegram
+            {% comment %} Rouh's Telegram bot (`rouh/telegram_bot.py`): the owner pastes the
+                 token BotFather gave and, if known, the chat id. Rouh checks both with
+                 Telegram and keeps them in the core's own secrets file, which the bot is read
+                 from on every call, so it works within half a minute with nothing to restart
+                 and no settings file to edit. The token goes one way: the field is emptied as
+                 it is sent and the page is told only the bot's @username and the chat.
+                 Only the person whose phone the bot reaches sees this card. {% endcomment %}
+            <section class="setting-card" aria-labelledby="tgBotHead" id="tgBotCard" hidden>
+              <h4 id="tgBotHead">Rouh's Telegram bot</h4>
+              <p class="settings-help">The bot Rouh writes to your phone with, and that you can write to Rouh through. Set it here: no file to edit, no Terminal, nothing to restart.</p>
+
+              <div class="setting-part">
+                <h5>Your bot</h5>
+                <p id="tgBotNone" class="settings-note">Not set yet, so nothing reaches your phone.</p>
+                <dl class="readout" id="tgBotState" hidden>
+                  <div><dt>Bot</dt><dd class="wrap" id="tgBotName">-</dd></div>
+                  <div><dt>Chat</dt><dd class="mono" id="tgBotChat">-</dd></div>
+                  <div><dt>Set</dt><dd class="wrap" id="tgBotFrom">-</dd></div>
+                </dl>
+                <p id="tgBotTrouble" class="settings-note bad" role="alert" hidden></p>
+                <div class="setting-actions" id="tgBotActions" hidden>
+                  <button type="button" id="tgBotChange" class="ctl small">Change bot</button>
+                  <button type="button" id="tgBotRemove" class="ctl small">Remove</button>
+                </div>
+              </div>
+
+              <div class="setting-part" id="tgBotSetup">
+                <h5 id="tgBotSetupHead">Set your bot</h5>
+                <ol class="settings-steps" id="tgBotGuide">
+                  <li>In Telegram, open <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">@BotFather</a>, send <strong>/newbot</strong>, and pick a name. It answers with a token.</li>
+                  <li>Open your new bot and press <strong>Start</strong>, so it may write to you.</li>
+                  <li>Paste the token here and press <strong>Save</strong>. Rouh finds your chat by itself; type the chat id only if you have it.</li>
+                </ol>
+                <form id="tgBotForm" class="setting-form" autocomplete="off">
+                  <div class="field">
+                    <label for="tgBotToken">Bot token</label>
+                    <input id="tgBotToken" type="password" autocomplete="new-password" spellcheck="false"
+                           autocapitalize="off" placeholder="123456789:AAH..." required>
+                  </div>
+                  <div class="field">
+                    <label for="tgBotChatId">Chat id, if you have it</label>
+                    <input id="tgBotChatId" type="text" inputmode="numeric" spellcheck="false"
+                           autocapitalize="off" autocomplete="off" placeholder="Found by itself">
+                  </div>
+                  <p class="settings-help">The token goes straight to Rouh on this computer and is kept where only Rouh can read it. It never goes into a chat, so never paste it to Rouh in a message.</p>
+                  <p id="tgBotSaid" class="settings-help bad" role="alert" hidden></p>
+                  <div class="setting-actions">
+                    <button type="submit" id="tgBotSave" class="ctl small primary">Save</button>
+                    <button type="button" id="tgBotCancel" class="ctl small" hidden>Cancel</button>
+                  </div>
+                </form>
+              </div>
+            </section>
+
+            {% comment %} Telegram account:the person's own, so every fork made on Telegram
                  opens in a new group of its own, made as them with Rouh's bot in
                  it (`rouh/telegram_account.py`), the way a project of the person's opens
                  a group for an idea. A bot cannot make a group; only a person can.

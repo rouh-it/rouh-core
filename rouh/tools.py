@@ -2202,7 +2202,13 @@ class ToolRegistry:
             "‹He› can write back on the same bot. What ‹he› writes there comes into General "
             "as ‹his› own words and is answered there, and that answer is sent to ‹his› "
             "phone by itself: never call this to answer a message that came from "
-            "Telegram, or ‹he› gets it twice.",
+            "Telegram, or ‹he› gets it twice.\n\n"
+            "Setting the bot up is ‹his› and takes a minute on a page: Anatomy, Connections, "
+            "Telegram, the card Rouh's Telegram bot (/anatomy/connections/telegram), where ‹he› "
+            "pastes the token BotFather gave and, if ‹he› knows it, the chat id. Rouh checks it "
+            "with Telegram, keeps it where only Rouh's core can read it, and uses it within half a "
+            "minute: no settings file to edit, no Terminal and no Stop and Start, on a Mac or a "
+            "server. Never ask for the token in the chat or in a box.",
             {
                 "type": "object",
                 "properties": {
@@ -13581,8 +13587,12 @@ class ToolRegistry:
         try:
             await self.telegram.send(text)
         except telegram.NotSetUp:
-            return ("Not sent: Telegram is not set up on this machine yet. It needs a "
-                    "bot token and a chat id in the secrets file the config names.")
+            return ("Not sent: Telegram is not set up yet. ‹owner› sets Rouh's bot ‹himself› in "
+                    "Anatomy, Connections, Telegram, on the card Rouh's Telegram bot "
+                    "(/anatomy/connections/telegram): ‹he› pastes the token from BotFather there, "
+                    "Rouh checks it and starts using it within half a minute, with no file to edit "
+                    "and nothing to restart. The token never goes through this chat, so never ask "
+                    "for it here or in a box.")
         except telegram.NotSent as exc:
             return f"Not sent. {exc}"
         if turn is not None:

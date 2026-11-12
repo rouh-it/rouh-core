@@ -37,6 +37,31 @@ def telegram_send(s: Stack) -> None:
     _wait_phone(s, "Hello from the stack test")
 
 
+@check("install.telegram-page")
+def telegram_from_the_page(s: Stack) -> None:
+    """A new owner sets Rouh's bot on the page, not in stack.env (`rouh/telegram_bot.py`): the core
+    checks it with Telegram's stand-in, writes it itself, and uses it at once, with nothing restarted."""
+    from checks_tools import post
+
+    secret = "S" * 35
+    token = "123456789:" + secret
+    code, got = post(s, "/api/settings/telegram-bot", {"token": token, "chat": str(CHAT)})
+    try:
+        expect(code == 200 and (got.get("bot") or {}).get("source") == "page",
+               f"the page's save: {code} {json.dumps(got)[:400]}")
+        expect(secret not in json.dumps(got), "the token came back in the page's answer")
+        r = s.run("core", 'stat -c "%a" "$ROUH_TELEGRAM_FILE"')
+        expect(r.stdout.strip() == "600", f"the bot's file in the core: {(r.stdout + r.stderr)[-300:]}")
+        said = s.tool("send_telegram", {"text": "Sent with the bot set on the page", "straight_to_phone": True})
+        expect("not set up" not in said.lower(), f"send_telegram: {said[:300]}")
+        _wait_phone(s, "Sent with the bot set on the page")
+        expect(secret not in s.logs("core", 2000), "the token is in the core's log")
+    finally:
+        code, got = post(s, "/api/settings/telegram-bot/remove")
+    expect(code == 200 and (got.get("bot") or {}).get("source") == "settings_file",
+           f"Remove did not give the settings file's bot back: {code} {json.dumps(got)[:300]}")
+
+
 @check("telegram.chat")
 def telegram_chat(s: Stack) -> None:
     """The owner writes to the bot; Rouh takes it as a turn of General and answers on the phone."""

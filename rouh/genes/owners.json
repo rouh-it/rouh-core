@@ -1186,9 +1186,11 @@
     "rouh/web/phoneapi.py",
     "rouh/telegram.py",
     "rouh/telegram_account.py",
+    "rouh/telegram_bot.py",
     "rouh/telegram_chat.py",
     "rouh/telegram_forks.py",
-    "rouh/web/telegram_account.py"
+    "rouh/web/telegram_account.py",
+    "rouh/web/telegram_bot.py"
    ]
   },
   "slack": {

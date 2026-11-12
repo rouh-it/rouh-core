@@ -304,8 +304,8 @@ class Telegram:
         found = self._settings()
         if found is None:
             raise NotSetUp(
-                "Telegram is not set up on this machine: there is no bot token and "
-                f"chat id in {self.path}.")
+                "Telegram is not set up on this machine: there is no bot yet. The owner sets "
+                "it in Anatomy, Connections, Telegram.")
         return found
 
     # --- the one way anything reaches Telegram -------------------------------
