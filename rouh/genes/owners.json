@@ -2952,6 +2952,66 @@
     "rouh/migrations/0249_service_keys.py",
     "rouh/static/keyspage.*"
    ]
+  },
+  "n42-known-contact": {
+   "name": "Already in your contacts",
+   "what": "Before Rouh adds a new contact, it reads your contacts for the same person (the same address, the same number, or the same name with no other company): when they are there, no second card is made and Rouh is told which card to change instead.",
+   "switch": "known_contact",
+   "signals": {
+    "events": {
+     "held": "You asked Rouh to add somebody who was already in your contacts, and it changed nothing and told you which card they are on"
+    }
+   },
+   "files": [
+    "rouh/known_contact.py"
+   ]
+  },
+  "n42-told-address": {
+   "name": "A new address they told you",
+   "what": "When somebody in your contacts writes that their email address is now another one, you are told at once, with Add it to their contact, and Add it, take the old one off, which change the contact in iCloud.",
+   "switch": "told_address",
+   "signals": {
+    "events": {
+     "added": "You pressed Add it to their contact on a notice that a contact announced a new address",
+     "replaced": "You pressed Add it, take the old one off on a notice that a contact announced a new address"
+    },
+    "runs": {
+     "told": "A contact's email announced a new address, and you were told in a notice"
+    }
+   },
+   "files": [
+    "rouh/told_address.py",
+    "rouh/web/told_address.py"
+   ]
+  },
+  "n42-job-title": {
+   "name": "A contact's job title",
+   "what": "Rouh reads, searches and writes the Job title on your iPhone contacts: it says each contact's title, finds people by the words in their title, and puts a title on a contact when you ask.",
+   "switch": "job_title",
+   "signals": {
+    "events": {
+     "written": "You asked Rouh to put a job title on a contact, and it saved it to iCloud",
+     "found": "You asked Rouh who you know by a job title, and it found them by the title on their contact"
+    }
+   },
+   "files": [
+    "rouh/job_title.py"
+   ]
+  },
+  "n42-card-call": {
+   "name": "Call from their contact card",
+   "what": "Every number on a contact card in the chat is a link the phone rings, with Call and Text beside it, so a number Rouh shows you is one press from a call or a text.",
+   "switch": "card_call",
+   "signals": {
+    "events": {
+     "called": "You pressed a number or Call on a contact card in the chat",
+     "texted": "You pressed Text beside a number on a contact card in the chat"
+    }
+   },
+   "files": [
+    "rouh/card_call.py",
+    "rouh/web/card_call.py"
+   ]
   }
  }
 }

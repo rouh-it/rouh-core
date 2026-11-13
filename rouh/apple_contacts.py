@@ -114,7 +114,7 @@ UNREADABLE = (
 
 #: The field names of `vcard.Person`, said the way a person says them.
 FIELD_WORDS = {"name": "name", "organisation": "organisation", "birthday": "birthday",
-               "note": "note"}
+               "note": "note", "title": "job title"}
 
 
 def _count(user_id: str, org_id: str) -> int:
@@ -649,6 +649,11 @@ class ContactDesk:
     def _found(self, who: Identity, query: str, limit: int) -> list:
         """The cards a query finds, each with its profile, then Rouh's own matches."""
         rows = self.store.search(who.user_id, who.org_id, query, limit)
+        # A contact's job title (night 42, `rouh/job_title.py`): words in somebody's job title find
+        # them too, after the matches by name, number, address or company.
+        from . import job_title
+
+        rows = rows + job_title.found(who, query, {str(r.get("id")) for r in rows}, limit - len(rows))
         found = self.people.attach(who.user_id, who.org_id, rows)
         more = self.people.search(who.user_id, who.org_id, query,
                                   skip={one.id for one in found})
@@ -1120,7 +1125,7 @@ def _changes_from(args: dict) -> vcard.Changes:
 
     changes = vcard.Changes(
         name=maybe("name"), organisation=maybe("organisation"),
-        birthday=maybe("birthday"), note=maybe("note"),
+        birthday=maybe("birthday"), note=maybe("note"), title=maybe("title"),
         add_phones=pairs("add_phones", "number"), remove_phones=plain("remove_phones"),
         add_emails=pairs("add_emails", "address"), remove_emails=plain("remove_emails"))
     if changes.birthday:
@@ -1195,9 +1200,12 @@ def _fields(person) -> dict:
     def get(key: str):
         return person.get(key) if isinstance(person, dict) else getattr(person, key, None)
 
+    from . import job_title
+
     return {"name": str(get("name") or ""), "organisation": str(get("organisation") or ""),
             "phones": list(get("phones") or []), "emails": list(get("emails") or []),
-            "birthday": str(get("birthday") or ""), "note": str(get("note") or "")}
+            "birthday": str(get("birthday") or ""), "note": str(get("note") or ""),
+            "title": job_title.of(person)}
 
 
 def _rows(after: dict, before: dict | None) -> list[dict]:
@@ -1242,6 +1250,8 @@ def _rows(after: dict, before: dict | None) -> list[dict]:
                              "value": value, "change": "removed"})
 
     single("organisation", "company", after["organisation"], had.get("organisation", ""))
+    # A contact's job title (night 42, `rouh/job_title.py`): "" while its switch is off.
+    single("title", "job title", after.get("title", ""), had.get("title", ""))
     several("phone", "number", after["phones"], had.get("phones") or [], vcard.same_number)
     several("email", "address", after["emails"], had.get("emails") or [],
             lambda a, b: a.strip().lower() == b.strip().lower())
@@ -1393,6 +1403,9 @@ def profile_card(person, *, state: str = SHOWN, status: str = "") -> dict:
         _with_profile(block, person)
     _with_aka(block, person)
     _with_addresses(block, person)
+    from . import card_call
+
+    card_call.mark(block)
     return {"title": f"{'You' if person.is_me else 'Contact'}: {name}",
             "description": (f"the contact {name}, with who they are to you and the online "
                             "research about them"),
@@ -1442,6 +1455,10 @@ def contact_card(after, before, state: str, *, remark: str = "", person=None) ->
         if person is not None:
             _with_aka(block, person)
             _with_addresses(block, person)
+    # Call from their contact card (night 42, `rouh/card_call.py`): its numbers one press from ringing.
+    from . import card_call
+
+    card_call.mark(block)
     return {"title": title, "description": description, "blocks": [block]}
 
 
@@ -1450,6 +1467,11 @@ def _person_said(row: dict) -> str:
     if row.get("organisation"):
         head += f" - {row['organisation']}"
     lines = [head]
+    from . import job_title
+
+    title = job_title.of(row)
+    if title:
+        lines.append(f"  job title {title}")
     if row.get("phones"):
         lines.append("  " + "; ".join(_labelled(p["number"], p.get("label", ""))
                                       for p in row["phones"]))

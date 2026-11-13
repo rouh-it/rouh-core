@@ -3059,3 +3059,71 @@ print(json.dumps(call_sender.numbers_of(card)))
 """))
     expect(out.find("+359887654321") != -1 and out.find("mobile") < out.find("work"),
            f"the numbers were not offered mobile first: {out[-500:]}")
+
+
+# --- Night 42 (13 November): already in your contacts; a new address they told you; a contact's job title;
+# call from their contact card
+
+@check("gene.known-contact")
+def known_contact(s: Stack) -> None:
+    """A new contact with the address, the number or the name of a card is found on it; a switchboard number
+    and a namesake at another company are not."""
+    out = core_py(s, _owner_py("""
+from rouh import known_contact
+cards = [{"id": "1", "name": "Nina Stack", "organisation": "Paywell", "emails": [{"address": "nina@kc-stack.test"}],
+          "phones": [{"number": "+359 888 123 456"}]},
+         {"id": "2", "name": "Ann Bo", "phones": [{"number": "+44 20 7946 0000"}]},
+         {"id": "3", "name": "Kim Ro", "phones": [{"number": "+44 20 7946 0000"}]},
+         {"id": "4", "name": "Lee Mo", "phones": [{"number": "020 7946 0000"}]}]
+def ids(a): return [c["id"] for c, _ in known_contact.matches(cards, a)]
+print(json.dumps({"mail": ids({"name": "N", "add_emails": [{"address": "NINA@kc-stack.test"}]}),
+                  "number": ids({"name": "X", "add_phones": [{"number": "0888 123 456"}]}),
+                  "name": ids({"name": "Stack Nina"}),
+                  "other": ids({"name": "Nina Stack", "organisation": "Northwind"}),
+                  "board": ids({"name": "Y", "add_phones": [{"number": "+442079460000"}]})}))
+"""))
+    expect('"mail": ["1"]' in out and '"number": ["1"]' in out and '"name": ["1"]' in out
+           and '"other": []' in out and '"board": []' in out, f"the same person was not found: {out[-500:]}")
+
+
+@check("gene.told-address")
+def told_address(s: Stack) -> None:
+    """An address an email announces as the sender's new one is read; an address in a quoted reply or one
+    merely mentioned is not."""
+    out = core_py(s, _owner_py("""
+from rouh import told_address
+print(json.dumps({
+    "new": told_address.announced("Hi,\n\nPlease note my new email address is dana@ta-stack.test from Monday."),
+    "quoted": told_address.announced("Thanks!\n\nOn Mon, Bob <bob@x.test> wrote:\n> my new email address is o@ta-stack.test"),
+    "mentioned": told_address.announced("Send the invoice to billing@ta-stack.test please.")}))
+"""))
+    expect('"new": ["dana@ta-stack.test"]' in out and '"quoted": []' in out and '"mentioned": []' in out,
+           f"the announced address was not read as it should be: {out[-500:]}")
+
+
+@check("gene.job-title")
+def job_title(s: Stack) -> None:
+    """A job title is written to a card and read back from it, and cleared."""
+    out = core_py(s, _owner_py("""
+from rouh import vcard
+card, _ = vcard.new_card("JT1", vcard.Changes(name="Nina Stack", title="Head of Operations"))
+first = vcard.read(card.text()).title
+said = vcard.apply(card, vcard.Changes(title=""))
+print(json.dumps({"first": first, "said": said, "after": vcard.read(card.text()).title}))
+"""))
+    expect('"first": "Head of Operations"' in out and "the job title is cleared" in out and '"after": ""' in out,
+           f"the job title was not written and read: {out[-500:]}")
+
+
+@check("gene.card-call")
+def card_call(s: Stack) -> None:
+    """A saved contact card with a number is marked callable; one not saved yet is not."""
+    out = core_py(s, _owner_py("""
+from rouh import card_call, switches
+switches.set_on("card_call", True, by="stack test")
+rows = [{"kind": "phone", "value": "+359 888 123 456"}]
+print(json.dumps({"saved": card_call.mark({"state": "saved", "rows": rows}).get("call", False),
+                  "unsaved": card_call.mark({"state": "unsaved", "rows": rows}).get("call", False)}))
+"""))
+    expect('"saved": true' in out and '"unsaved": false' in out, f"the card was not marked callable: {out[-500:]}")
+

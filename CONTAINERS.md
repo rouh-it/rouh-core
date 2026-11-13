@@ -411,6 +411,10 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `gene.new-company` | A new company in their signature | untested | works | the company under a sender's name in a signature is read, and the same company written another way is the same |
 | `gene.contact-changes` | What changed on a contact | untested | works | two versions of a contact are told apart: a number taken off and another added, a company changed |
 | `gene.call-sender` | Call them from their email | untested | works | a contact's numbers are offered mobile first, each as a tel: link |
+| `gene.known-contact` | Already in your contacts | untested | works | a new contact with the address, the number or the name of a card is found on it; a switchboard number and a namesake at another company are not |
+| `gene.told-address` | A new address they told you | untested | works | an address an email announces as the sender's new one is read; an address in a quoted reply or one merely mentioned is not |
+| `gene.job-title` | A contact's job title | untested | works | a job title is written to a card and read back from it, and cleared |
+| `gene.card-call` | Call from their contact card | untested | works | a saved contact card with a number is marked callable; one not saved yet is not |
 | `core.commands-open-credentials` | A command run in the core beside Rouh (`docker compose exec core python manage.py ...`) opens what Rouh sealed | broken | works | with Google connected, Python in the core opens the sealed refresh token with the key from the keys volume (`ROUH_ENCRYPTION_KEY_FILE`), and Google is still connected after. It was broken: only the core's start put the key in Rouh's environment, so a command beside it made a key of its own in `/data`, could open no credential, and marked the owner's Google to be connected again |
 
 ## Checks a person makes

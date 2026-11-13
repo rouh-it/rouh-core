@@ -7056,7 +7056,7 @@ class ToolRegistry:
         self._own("same_contact", same_contact.DESCRIPTION, {"type": "object", "properties": {}},
                   self._same_contact)
         # Their card to pass on (night 40, `rouh/contact_card.py`): a contact as a .vcf to attach.
-        self._own("contact_card", contact_card.DESCRIPTION, contact_card.SCHEMA, self._contact_card)
+        self._own("contact_card", contact_card.DESCRIPTION, contact_card.SCHEMA, self._pass_on_card)
         # What changed on a contact (night 41, `rouh/contact_changes.py`): its kept versions read back.
         self._own("contact_changes", contact_changes.DESCRIPTION, contact_changes.SCHEMA, self._contact_changes)
         # Between you and them (night 37, `rouh/between_us.py`): what is open with one person by mail.
@@ -7678,6 +7678,14 @@ class ToolRegistry:
                             "required": ["address"]},
                     },
                     "remove_emails": {"type": "array", "items": {"type": "string"}},
+                    "title": {"type": "string",
+                              "description": "The job title, as the phone's Job title field "
+                                             "shows it; an empty string clears it."},
+                    "even_if_known": {"type": "boolean",
+                                      "description": "true only when the person said the new "
+                                                     "contact is somebody else than the card "
+                                                     "already there with the same address, "
+                                                     "number or name."},
                 },
             },
             self._save_contact,
@@ -7759,6 +7767,23 @@ class ToolRegistry:
         """
         confirmed = args.get("confirmed") is True or \
             str(args.get("confirmed") or "").strip().lower() == "true"
+        # Already in your contacts (night 42, `rouh/known_contact.py`): a new card is not made for a
+        # person who is on one already; the model is told which, to change that one instead.
+        from . import job_title, known_contact
+
+        me = self.contacts.person()
+        if me is not None and not args.get("contact_id"):
+            try:
+                known = await asyncio.to_thread(known_contact.check, me, args)
+            except Exception:  # noqa: BLE001 - a check that cannot run never stops the save
+                log.exception("save_contact: the contacts could not be read for the same person")
+                known = ""
+            if known:
+                return untrusted.ours(known)
+        # A contact's job title (night 42, `rouh/job_title.py`): off, a title is not written.
+        args, untitled = await asyncio.to_thread(job_title.allowed, me, args)
+        if untitled:
+            return untrusted.ours(untitled)
         chat = self.memory.answering_chat()
         key = apple_contacts.key_for(args)
         if not confirmed:
@@ -7793,6 +7818,13 @@ class ToolRegistry:
         the card when it was drawn, never anything the page sent.
         """
         key = apple_contacts.key_for(args)
+        from . import job_title
+
+        args, untitled = await asyncio.to_thread(job_title.allowed, self.contacts.person(),
+                                                 dict(args, confirmed=True))
+        if untitled:
+            return asking.Done(False, untitled)
+        args.pop("confirmed", None)
         async with self._contact_saving:
             twice = self._added_already(press.chat, key)
             if twice:
@@ -10115,7 +10147,7 @@ class ToolRegistry:
         said = await contact_changes.answer(who, args, self.contacts, clock.zone_of(who))
         return untrusted.wrap(said, untrusted.SOURCES["search_contacts"])
 
-    async def _contact_card(self, args, emit):
+    async def _pass_on_card(self, args, emit):
         """Their card to pass on (night 40, `rouh/contact_card.py`)."""
         who = self.contacts.person()
         if who is None:

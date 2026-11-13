@@ -322,7 +322,9 @@ export interface Blocks {
              aka?: any; people_ds?: string;
              /** Every address of theirs as one list, with label, source, silo and mailbox state
               *  (rouh/person_addresses.py, personaddresses.js). */
-             addresses?: { person: string; rows: any[]; silos: any[]; me: boolean; }; };
+             addresses?: { person: string; rows: any[]; silos: any[]; me: boolean; };
+             /** Each number drawn with Call and Text, while Call from their contact card is on (rouh/card_call.py). */
+             call?: boolean; };
   /** One email, whole (rouh/mail_alerts.py). `from_photo` is the sender's face when they are a contact. */
   email: { from?: string; to?: string; cc?: string; date?: string; subject?: string; body?: string; filed?: any;
            files?: Array<{ name: string; [field: string]: any; }>; checked?: any; from_photo?: string; };

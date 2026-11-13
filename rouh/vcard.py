@@ -335,6 +335,8 @@ class Person:
     organisation: str = ""
     birthday: str = ""
     note: str = ""
+    #: The card's Job title (TITLE), read and written by night 42's gene `job_title`.
+    title: str = ""
     #: "individual", or "group" for one of iCloud's contact groups.
     kind: str = "individual"
     #: Where the card's picture is, without its bytes (`photo_of`), or {} for none.
@@ -372,6 +374,7 @@ def read(text: str) -> Person:
         organisation=organisation,
         birthday=_birthday_of(card.first("BDAY")),
         note=card.value("NOTE").strip(),
+        title=card.value("TITLE").strip(),
         kind="group" if kind == "group" else "individual",
         photo=photo_of(card),
     )
@@ -565,6 +568,7 @@ class Changes:
     organisation: str | None = None
     birthday: str | None = None
     note: str | None = None
+    title: str | None = None
     add_phones: list[dict] = field(default_factory=list)
     remove_phones: list[str] = field(default_factory=list)
     add_emails: list[dict] = field(default_factory=list)
@@ -573,7 +577,8 @@ class Changes:
     def scalars(self) -> dict[str, str]:
         """The single-valued fields this sets, by `Person`'s own names."""
         return {k: v for k, v in (("name", self.name), ("organisation", self.organisation),
-                                  ("birthday", self.birthday), ("note", self.note))
+                                  ("birthday", self.birthday), ("note", self.note),
+                                  ("title", self.title))
                 if v is not None}
 
     def empty(self) -> bool:
@@ -610,6 +615,11 @@ def apply(card: Card, changes: Changes) -> list[str]:
             else:
                 card.set("BDAY", "")
                 said.append("the birthday is cleared")
+    if changes.title is not None:
+        title = " ".join(changes.title.split())
+        if title != card.value("TITLE").strip():
+            card.set("TITLE", escape(title))
+            said.append(f"the job title is now {title}" if title else "the job title is cleared")
     if changes.note is not None:
         note = changes.note.strip()
         if note != card.value("NOTE").strip():
@@ -642,6 +652,7 @@ def new_card(uid: str, changes: Changes) -> tuple[Card, list[str]]:
     card.props.append(Prop(name="FN", value=escape(name)))
     said = apply(card, Changes(organisation=changes.organisation or None,
                                birthday=changes.birthday or None, note=changes.note or None,
+                               title=changes.title or None,
                                add_phones=changes.add_phones, add_emails=changes.add_emails))
     card.props.append(Prop(name="UID", value=uid))
     return card, said

@@ -893,6 +893,50 @@ function contactWas(text) {
   return was;
 }
 
+/* ---------- Call from their contact card (night 42, rouh/card_call.py) ----------
+
+   A card marked `call` draws each number as a tel: link with Call and Text
+   beside it, so the phone rings or opens a text in one press. The press is
+   only counted (POST /api/card-call, no number sent); the link does the rest. */
+
+/** The number as a phone dials it: digits, with a leading +; "" when there are too few. */
+function contactTel(number) {
+  var text = String(number == null ? '' : number).trim();
+  var digits = text.replace(/[^0-9]/g, '');
+  if (digits.length < 3) return '';
+  return (text.charAt(0) === '+' ? '+' : '') + digits;
+}
+
+function contactCall(b, r) {
+  var tel = contactTel(r.value);
+  var who = b.name || 'them';
+  var line = el('span', 'ct-call');
+  var number = el('a', 'ct-val ct-tel', String(r.value));
+  number.href = 'tel:' + tel;
+  number.title = 'Rings ' + who + ' on ' + r.value;
+  line.appendChild(number);
+  var acts = el('span', 'ct-acts');
+  [['Call', 'tel:', 'call', 'Call '], ['Text', 'sms:', 'text', 'Text ']].forEach(function (one) {
+    var a = el('a', 'ct-act', one[0]);
+    a.href = one[1] + tel;
+    a.setAttribute('aria-label', one[3] + who + ' on ' + r.value);
+    a.addEventListener('click', function () { contactCalled(one[2]); });
+    acts.appendChild(a);
+  });
+  number.addEventListener('click', function () { contactCalled('call'); });
+  line.appendChild(acts);
+  return line;
+}
+
+function contactCalled(how) {
+  try {
+    fetch('/api/card-call', {
+      method: 'POST', keepalive: true, credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ how: how })
+    }).catch(function () {});
+  } catch (e) { /* counting a use is never worth an error */ }
+}
+
 /** @param {import('./protocol').BlockOf<'contact'>} b */
 function contactBlock(b) {
   var saved = b.state === 'saved';
@@ -943,7 +987,11 @@ function contactBlock(b) {
         + (r.kind === 'note' ? ' is-note' : ''));
       line.appendChild(el('dt', null, r.label || r.kind || ''));
       var value = el('dd');
-      value.appendChild(el(change === 'removed' ? 's' : 'span', 'ct-val', r.value == null ? '' : r.value));
+      if (b.call && r.kind === 'phone' && change !== 'removed' && contactTel(r.value)) {
+        value.appendChild(contactCall(b, r));
+      } else {
+        value.appendChild(el(change === 'removed' ? 's' : 'span', 'ct-val', r.value == null ? '' : r.value));
+      }
       if (r.was) value.appendChild(contactWas(r.was));
       line.appendChild(value);
       if (change) line.appendChild(el('span', 'ct-tag is-' + change, CONTACT_CHANGE[change]));

@@ -1914,6 +1914,18 @@ class MailAlerts:
                 joined = ""
             if joined:
                 log.info("mail alert %s: %s", message_id, joined)
+            # A new address they told you (night 42, `rouh/told_address.py`): a contact whose email says
+            # their address is now another one is told, and the email goes on as before.
+            from . import told_address
+
+            try:
+                alert = await self._db(self.store.alert, user_id, org_id)
+                announced = await told_address.seen(who, message, mailbox=str(alert.get("mailbox") or ""))
+            except Exception:  # noqa: BLE001 - the email is handled all the same
+                log.exception("mail alert %s: an announced address could not be read", message_id)
+                announced = ""
+            if announced:
+                log.info("mail alert %s: %s", message_id, announced)
         listed = None if pretender else await self._db(
             self.cases.trust.listed_for, user_id, org_id, address)
         if not existing and listed is None and not pretender and not row.get("replays"):
