@@ -81,9 +81,11 @@ cat "$root/etc/rouh-wsl-release" >> "$log" 2>/dev/null || true
 img="rouh-wsl-check:$(basename "$wsl" .wsl)"
 docker import "$wsl" "$img" >>"$log"
 docker rm -f rouh-wsl-check >/dev/null 2>&1 || true
-docker volume rm -f rouh-wsl-check-docker >/dev/null 2>&1 || true
+docker volume rm -f rouh-wsl-check-docker rouh-wsl-check-containerd >/dev/null 2>&1 || true
+# Docker's and containerd's stores on volumes of their own, as they are on WSL's own ext4 disk: on
+# the check container's overlay root, an image layer's whiteouts cannot be made (overlay in overlay).
 docker run -d --name rouh-wsl-check --hostname rouh --privileged --cgroupns=private --network host \
-  --tmpfs /run --tmpfs /run/lock --tmpfs /tmp:exec -v rouh-wsl-check-docker:/var/lib/docker \
+  --tmpfs /run --tmpfs /run/lock --tmpfs /tmp:exec -v rouh-wsl-check-docker:/var/lib/docker -v rouh-wsl-check-containerd:/var/lib/containerd \
   "$img" /usr/lib/systemd/systemd >>"$log"
 in_root() { docker exec rouh-wsl-check "$@"; }
 as_rouh() { docker exec -u rouh -w /home/rouh -e HOME=/home/rouh rouh-wsl-check "$@"; }
@@ -129,4 +131,4 @@ after="$(as_rouh rouh fingerprint 2>>"$log" | sha256sum | cut -c1-16)"
 echo "fingerprint before $before, after $after" >> "$log"
 docker logs rouh-wsl-check > "$out/systemd.log" 2>&1 || true
 docker rm -f rouh-wsl-check >/dev/null 2>&1 || true
-docker volume rm -f rouh-wsl-check-docker >/dev/null 2>&1 || true
+docker volume rm -f rouh-wsl-check-docker rouh-wsl-check-containerd >/dev/null 2>&1 || true
