@@ -1,0 +1,159 @@
+# Rouh's own WSL Linux for Windows (task 186, step 186-04): built for Intel and Arm, checked on
+# Linux, then attached to the GitHub Release wsl-<version> and its record signed for rouh.land.
+#
+# GitHub's Windows machines cannot run WSL2 (no nested virtualisation), so what is checked here is
+# what can be checked on Linux (deploy/windows/wsl/check-image.sh): the file itself, and the same
+# root file system booted with systemd as its first process, Docker Engine coming up inside, and
+# Rouh installed in it through rouh-wsl first-start with the live https://rouh.land/install.sh and
+# signed release, as Rouh for Windows does it; then the setup address opening from outside, the
+# nightly timer, an update, a restart, uninstall Keep my data and Bring back. WSL itself, its
+# idle shut-down, sleep and wake and its localhost forwarding are proved only on a real Windows
+# computer (deploy/windows/release-check, INSTALL-WINDOWS.md).
+#
+# Runs for every push to main that touches deploy/windows/, for a branch proof/wsl-*, and by hand.
+# On main (or by hand with publish), when both check out: the GitHub Release wsl-<version> with
+# both files and their SHA-256s, then the record signed with Rouh's release key in the
+# release-signing environment, which waits for its reviewer's Approve as a base release does, and
+# sent to rouh.land, /windows/wsl/stable.json. A proof branch publishes nothing; its results are
+# pushed to proof/wsl-results-<run> (artifacts cannot be read from a Rouh's worker).
+
+name: WSL image
+
+on:
+  push:
+    branches: [main, "proof/wsl-**"]
+    paths: ["deploy/windows/**", ".github/workflows/wsl-image.yml"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the release and its signed record (needs the release-signing environment's Approve)
+        type: boolean
+        default: false
+      install:
+        description: Install Rouh inside the booted image (about 2 GB of downloads); off checks the image only
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wsl-image-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  ROUH_SITE_URL: ${{ vars.ROUH_SITE_URL || 'https://rouh.land' }}
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        run: echo "version=$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and check, ${{ matrix.arch }}
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 90
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      WIN: ${{ matrix.arch == 'arm64' && 'arm64' || 'x64' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+
+      - name: Build the .wsl file
+        run: deploy/windows/wsl/build.sh --arch "${{ matrix.arch }}" --version "$VERSION" --out out
+
+      - name: Check it, booted, with Rouh installed in it
+        run: |
+          set -euo pipefail
+          flags=()
+          if [[ "${{ github.event_name }}" == workflow_dispatch && "${{ inputs.install }}" == false ]]; then flags+=(--static-only); fi
+          deploy/windows/wsl/check-image.sh "out/rouh-wsl-$VERSION-$WIN.wsl" --out "check-$WIN" "${flags[@]}"
+
+      - name: What it holds
+        if: always()
+        run: |
+          {
+            echo "### Rouh's WSL Linux $VERSION, $WIN"; echo
+            echo '```'; cat out/*.sha256 out/*.contents 2>/dev/null; echo '```'; echo
+            echo '```'; grep -E '^(PASS|FAIL)' "check-$WIN/check.log" || true; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          rm -rf "check-$WIN/root"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: wsl-${{ env.WIN }}
+          path: out/
+          retention-days: 14
+
+      - name: The results, on a branch a Rouh can read
+        if: always()
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          d="$RUNNER_TEMP/results"; rm -rf "$d"; mkdir -p "$d/$WIN"
+          cp -r "check-$WIN/." "$d/$WIN/" 2>/dev/null || true
+          cp out/*.sha256 out/*.contents "$d/$WIN/" 2>/dev/null || true
+          cd "$d" && git init -q -b r && git -c user.name=wsl-image -c user.email=wsl-image@rouh.invalid add -A \
+            && git -c user.name=wsl-image -c user.email=wsl-image@rouh.invalid commit -q -m "WSL image $VERSION, $WIN, run $GITHUB_RUN_ID"
+          git push -q -f "https://x-access-token:$TOKEN@github.com/$GITHUB_REPOSITORY.git" "HEAD:refs/heads/proof/wsl-results-$GITHUB_RUN_ID-$WIN"
+
+  publish:
+    name: Release and sign
+    needs: [version, build]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.publish)
+    environment: release-signing
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: wsl-${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          pattern: wsl-*
+          merge-multiple: true
+          path: out
+
+      - name: The GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          (cd out && sha256sum -c ./*.sha256)
+          gh release create "$TAG" out/*.wsl out/*.sha256 out/*.contents --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Rouh's WSL Linux $VERSION" --latest=false \
+            --notes "Rouh's own Linux for Windows (Debian with Docker Engine, for WSL2), built at GitHub from $GITHUB_SHA and checked on Linux (deploy/windows/wsl/check-image.sh). A Windows install trusts it only through rouh.land's signed record, /windows/wsl/stable.json, which names each file's SHA-256."
+
+      - name: Sign the record and send it to rouh.land
+        env:
+          ROUH_MAC_STACK_SIGNING_KEY: ${{ secrets.ROUH_MAC_STACK_SIGNING_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [ -n "$ROUH_MAC_STACK_SIGNING_KEY" ] || { echo "the secret ROUH_MAC_STACK_SIGNING_KEY is not set" >&2; exit 1; }
+          python3 deploy/windows/wsl_image.py sign out record.json --version "$VERSION" --commit "$GITHUB_SHA" \
+            --run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --base-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          unset ROUH_MAC_STACK_SIGNING_KEY
+          python3 deploy/windows/wsl_image.py verify record.json --file "x64=out/rouh-wsl-$VERSION-x64.wsl" --file "arm64=out/rouh-wsl-$VERSION-arm64.wsl"
+          python3 deploy/windows/wsl_image.py publish record.json
+          gh release upload "$TAG" record.json --repo "$GITHUB_REPOSITORY"
+          { echo '### Published'; echo; echo '```'; python3 deploy/windows/wsl_image.py status; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

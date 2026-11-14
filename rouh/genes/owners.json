@@ -293,6 +293,7 @@
     "deploy/with-rouh-env.sh",
     "deploy/container/**",
     "deploy/linux/**",
+    "deploy/windows/**",
     "rouh/management/commands/creator_watch.py",
     "mac/**",
     ".dockerignore",

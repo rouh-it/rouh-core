@@ -1,0 +1,69 @@
+# The Windows release check (task 186, step 186-06), on Rouh's own Windows test computer: GitHub's
+# Windows machines cannot run WSL2, so this runs only on a self-hosted runner labelled
+# [self-hosted, windows, wsl2], and only when started (Actions, Windows release check, Run).
+# There is no such computer yet: until one is registered (deploy/windows/release-check/README.md),
+# a run waits for a runner and is cancelled after its timeout. Nothing starts it by itself.
+#
+# What it runs is deploy/windows/release-check/windows-release-check.ps1: install from empty with
+# rouh.land's install.ps1 (or the one given), everything it set up checked from Windows, left idle,
+# update and back, sleep and wake, Keep my data and Bring back, then Wipe. Its result goes on the
+# branch windows-checks, results/<wsl version>-<arch>.json, where a Rouh reads it: rouh.land offers
+# Windows only once a release has a passing result there.
+
+name: Windows release check
+
+on:
+  workflow_dispatch:
+    inputs:
+      installer:
+        description: install.ps1 to check (an https address, or a path on the test computer)
+        default: https://rouh.land/install.ps1
+      idle_minutes:
+        description: Minutes left alone, to prove WSL does not stop it when idle
+        default: "15"
+      sleep:
+        description: Suspend the computer for two minutes and wake it
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: [self-hosted, windows, wsl2]
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The check
+        shell: powershell
+        run: |
+          $flags = @{ Installer = '${{ inputs.installer }}'; IdleMinutes = [int]'${{ inputs.idle_minutes }}'; Out = "$env:RUNNER_TEMP\check" }
+          if ('${{ inputs.sleep }}' -eq 'true') { $flags.Sleep = $true }
+          & deploy\windows\release-check\windows-release-check.ps1 @flags
+          exit $LASTEXITCODE
+
+      - name: The result, on the branch windows-checks
+        if: always()
+        shell: bash
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          r="$RUNNER_TEMP/check/result.json"; [ -f "$r" ] || { echo "no result.json"; exit 0; }
+          v="$(curl -fsS https://rouh.land/windows/wsl/stable.json | python -c 'import json,sys; print(json.loads(json.load(sys.stdin)["payload"])["version"])' || echo unknown)"
+          arch="$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["arch"].lower())' "$r")"
+          d="$RUNNER_TEMP/branch"; rm -rf "$d"
+          git clone -q --depth 1 -b windows-checks "https://x-access-token:$TOKEN@github.com/$GITHUB_REPOSITORY.git" "$d" 2>/dev/null \
+            || { git init -q -b windows-checks "$d"; git -C "$d" remote add origin "https://x-access-token:$TOKEN@github.com/$GITHUB_REPOSITORY.git"; }
+          mkdir -p "$d/results"; cp "$r" "$d/results/$v-$arch.json"; cp "$RUNNER_TEMP/check/check.log" "$d/results/$v-$arch.log"
+          git -C "$d" add -A
+          git -C "$d" -c user.name=windows-check -c user.email=windows-check@rouh.invalid commit -q -m "Windows release check: $v, $arch, run $GITHUB_RUN_ID"
+          git -C "$d" push -q origin HEAD:windows-checks

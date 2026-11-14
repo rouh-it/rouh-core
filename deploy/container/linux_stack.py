@@ -463,10 +463,15 @@ def newest_release(release_file: str | None, line: str) -> tuple[dict, bytes]:
     if release_file:
         data = Path(release_file).read_bytes()
     else:
+        # The same signed releases, at the address that names no platform (task 186: Linux and
+        # Windows read /release/); /mac/release/ only when rouh.land does not answer that yet.
         try:
-            data = json.dumps(mac_release._get(f"/mac/release/{line}.json")).encode()
-        except mac_release.FetchError as e:
-            raise Stop(f"refused: rouh.land did not hand out the newest release: {e}; nothing changed")
+            data = json.dumps(mac_release._get(f"/release/{line}.json")).encode()
+        except mac_release.FetchError:
+            try:
+                data = json.dumps(mac_release._get(f"/mac/release/{line}.json")).encode()
+            except mac_release.FetchError as e:
+                raise Stop(f"refused: rouh.land did not hand out the newest release: {e}; nothing changed")
     try:
         new = mac_release.check_release(json.loads(data))
     except (ValueError, KeyError, json.JSONDecodeError) as e:

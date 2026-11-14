@@ -1,0 +1,16 @@
+# Rouh's own WSL Linux: no general sudo (186-02). Only the commands Rouh's own command
+# (rouh-core deploy/linux/rouh.py) and install.sh run with sudo on a Linux server, word for word.
+# Windows itself is the way in as root here (wsl -d Rouh -u root), never a password.
+Cmnd_Alias ROUH_CLI = /usr/bin/install -m 0755 /home/rouh/rouh/.rouh-launcher /usr/local/bin/rouh, \
+                      /usr/bin/rm -f /usr/local/bin/rouh
+Cmnd_Alias ROUH_TIMER = /usr/bin/install -m 0644 /home/rouh/rouh/.rouh-update.service /etc/systemd/system/rouh-update.service, \
+                        /usr/bin/install -m 0644 /home/rouh/rouh/.rouh-update.timer /etc/systemd/system/rouh-update.timer, \
+                        /usr/bin/systemctl daemon-reload, \
+                        /usr/bin/systemctl enable --now rouh-update.timer, \
+                        /usr/bin/systemctl disable --now rouh-update.timer, \
+                        /usr/bin/rm -f /etc/systemd/system/rouh-update.timer /etc/systemd/system/rouh-update.service
+Cmnd_Alias ROUH_DOCKER = /usr/bin/docker compose version, \
+                         /usr/bin/systemctl enable --now docker, \
+                         /usr/bin/systemctl start docker
+Defaults:rouh !lecture, env_reset
+rouh ALL=(root) NOPASSWD: ROUH_CLI, ROUH_TIMER, ROUH_DOCKER

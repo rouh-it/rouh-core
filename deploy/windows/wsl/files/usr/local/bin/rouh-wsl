@@ -1,0 +1,180 @@
+#!/usr/bin/env python3
+"""rouh-wsl: what Rouh for Windows and install.ps1 ask of Rouh's own WSL Linux (task 186).
+
+The Windows side runs each as `wsl.exe -d Rouh -u rouh --cd ~ -- rouh-wsl <command>`; this is the
+one contract between them, so the tray app and the script say the same and change nothing the
+Linux path does: underneath it is https://rouh.land/install.sh and Rouh's own `rouh` command.
+
+    rouh-wsl first-start      Docker up, then install.sh --yes --no-setup: the signed release, the
+                              updater at the signed commit, the nightly update, the first start.
+                              Run again, it updates instead. A kept Rouh here is brought back.
+    rouh-wsl state            one line of JSON: is Docker up, is Rouh installed, running, has it an
+                              owner, which release (signature checked by the rouh command)
+    rouh-wsl link             the address that opens setup, or signs the owner in once
+    rouh-wsl update           rouh update: the newest signed release, going back by itself if unhealthy
+    rouh-wsl back             rouh back: the release before
+    rouh-wsl uninstall-keep   rouh uninstall, Keep my data: the checked copy in ~/rouh-kept
+    rouh-wsl keep-awake       holds this Linux up while Windows holds the process (WSL stops an idle Linux)
+
+Standard library only. Exit 0 when it worked; otherwise the last line says why, in plain words.
+"""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.request
+from pathlib import Path
+
+HOME = Path(os.environ.get("HOME") or "/home/rouh")
+ROUH_LAND = (os.environ.get("ROUH_LAND") or "https://rouh.land").rstrip("/")
+ROUH_DIR = Path(os.environ.get("ROUH_DIR") or HOME / "rouh")
+CORE = Path(os.environ.get("ROUH_CORE_DIR") or HOME / "rouh-core")
+ROUH = os.environ.get("ROUH_BIN") or "/usr/local/bin/rouh"
+DOCKER_WAIT = float(os.environ.get("ROUH_WSL_DOCKER_WAIT", "180"))
+SCHEMA = 1
+
+
+def say(line: str) -> None:
+    print(line, flush=True)
+
+
+def run(args: list[str], timeout: float = 120) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(args, capture_output=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return subprocess.CompletedProcess(args, 127, b"", str(e).encode())
+
+
+def docker_up() -> bool:
+    return run(["docker", "info", "--format", "{{.ServerVersion}}"], timeout=30).returncode == 0
+
+
+def wait_for_docker() -> bool:
+    end = time.monotonic() + DOCKER_WAIT
+    while not docker_up():
+        if time.monotonic() > end:
+            return False
+        if shutil.which("systemctl"):
+            run(["sudo", "-n", "/usr/bin/systemctl", "start", "docker"], timeout=60)
+        time.sleep(3)
+    return True
+
+
+def installed() -> bool:
+    return (ROUH_DIR / "releases" / "current.json").is_file() and Path(ROUH).exists()
+
+
+def common():
+    """The rouh command's own module, from the updater's checkout, for what it already knows."""
+    sys.path.insert(0, str(CORE / "deploy" / "linux"))
+    import common as c  # noqa: PLC0415
+
+    return c
+
+
+def cmd_first_start(_args: list[str]) -> int:
+    if not wait_for_docker():
+        say("Docker did not start inside Rouh's Linux. Restart Windows, then open Rouh for Windows again.")
+        return 1
+    if installed():
+        say("Rouh is installed here already: updating it to the newest signed release.")
+        return subprocess.call([ROUH, "update"])
+    say(f"Getting Rouh's installer from {ROUH_LAND}...")
+    with tempfile.TemporaryDirectory() as t:
+        script = Path(t, "install.sh")
+        try:
+            with urllib.request.urlopen(f"{ROUH_LAND}/install.sh", timeout=60) as r:
+                script.write_bytes(r.read())
+        except OSError as e:
+            say(f"Could not reach {ROUH_LAND} ({e}). Check the internet connection, then try again.")
+            return 1
+        env = dict(os.environ, ROUH_LAND=ROUH_LAND)
+        return subprocess.call(["sh", str(script), "--yes", "--no-setup"], env=env, stdin=subprocess.DEVNULL)
+
+
+def state() -> dict:
+    out = {"schema": SCHEMA, "docker": docker_up(), "installed": installed(), "running": False,
+           "owner": None, "release": None, "port": "8420", "image": image_release()}
+    if not (out["docker"] and out["installed"] and CORE.is_dir()):
+        return out
+    try:
+        c = common()
+        out["port"] = c.port()
+        out["running"] = bool(c.core_healthy())
+        rel = c.release() or {}
+        if rel:
+            out["release"] = {k: rel.get(k) for k in ("version", "level", "line") if rel.get(k) is not None}
+        if out["running"]:
+            out["owner"] = bool(c.code_status().get("owner"))
+    except Exception as e:  # noqa: BLE001 - state says what it can, never fails
+        out["error"] = str(e)[:300]
+    return out
+
+
+def image_release() -> dict:
+    f = Path("/etc/rouh-wsl-release")
+    if not f.is_file():
+        return {}
+    return dict(line.split("=", 1) for line in f.read_text().splitlines() if "=" in line)
+
+
+def cmd_state(_args: list[str]) -> int:
+    print(json.dumps(state(), sort_keys=True))
+    return 0
+
+
+def cmd_link(_args: list[str]) -> int:
+    if not installed():
+        say("Rouh is not installed in this Linux yet.")
+        return 1
+    c = common()
+    if not c.core_healthy():
+        say("Rouh is not running yet.")
+        return 1
+    r = c.core_exec("python", "manage.py", "setup_link")
+    url = (r.stdout or b"").decode(errors="replace").strip().splitlines()
+    if r.returncode or not url or not url[-1].startswith("http://127.0.0.1:"):
+        say("Rouh did not give a sign-in address.")
+        return 1
+    print(url[-1])
+    return 0
+
+
+def cmd_update(_args: list[str]) -> int:
+    return subprocess.call([ROUH, "update"])
+
+
+def cmd_back(_args: list[str]) -> int:
+    return subprocess.call([ROUH, "back"])
+
+
+def cmd_uninstall_keep(_args: list[str]) -> int:
+    if not installed():
+        say("Rouh is not installed here; nothing to keep.")
+        return 0
+    return subprocess.call([ROUH, "uninstall", "--keep", "--yes"], stdin=subprocess.DEVNULL)
+
+
+def cmd_keep_awake(_args: list[str]) -> int:
+    os.execvp("sleep", ["sleep", "infinity"])
+    return 0  # not reached
+
+
+COMMANDS = {"first-start": cmd_first_start, "state": cmd_state, "link": cmd_link, "update": cmd_update,
+            "back": cmd_back, "uninstall-keep": cmd_uninstall_keep, "keep-awake": cmd_keep_awake}
+
+
+def main(argv: list[str]) -> int:
+    if not argv or argv[0] not in COMMANDS:
+        say(__doc__.strip())
+        return 2
+    return COMMANDS[argv[0]](argv[1:])
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
