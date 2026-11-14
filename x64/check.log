@@ -1,0 +1,43 @@
+PASS file.sha256
+PASS file.gzip
+PASS file.no-container-leftovers
+PASS file.has-docker-systemd-python-git
+PASS wslconf.systemd
+PASS wslconf.user
+PASS wslconf.no-windows-drives
+PASS wslconf.no-interop
+PASS account.rouh-1000
+PASS account.in-docker-group
+PASS account.no-passwords
+PASS sudo.narrow
+PASS helper.compiles
+built=2026-11-14T08:29:33Z
+arch=amd64
+debian=13.7
+docker=5:29.9.3-1~debian.13~trixie
+compose=5.7.1-1~debian.13~trixie
+containerd=2.4.2-4~debian.13~trixie
+python=3.13.5
+sha256:fd511167e8f32b057296c0b9cb205e01a07f3a2133cdef2bf30a9b33838c3040
+96166902d0e748c44b679b50a6a801a055ce3cd65a6443f84883d21aa74dae89
+systemd: degraded
+● systemd-modules-load.service loaded failed failed Load Kernel Modules
+PASS boot.systemd
+PASS boot.docker-under-systemd
+29.9.3 overlayfs cgroup v2
+PASS boot.docker-for-rouh
+PASS sudo.no-general
+sudo: unable to resolve host rouh: Temporary failure in name resolution
+Docker Compose version v5.7.1
+PASS sudo.compose-version
+state before: {"docker": true, "image": {"arch": "amd64", "built": "2026-11-14T08:29:33Z", "compose": "5.7.1-1~debian.13~trixie", "containerd": "2.4.2-4~debian.13~trixie", "debian": "13.7", "docker": "5:29.9.3-1~debian.13~trixie", "python": "3.13.5"}, "installed": false, "owner": null, "port": "8420", "release": null, "running": false, "schema": 1}
+PASS helper.state-before
+Getting Rouh's installer from https://rouh.land...
+Could not reach https://rouh.land (HTTP Error 403: Forbidden). Check the internet connection, then try again.
+FAIL rouh.first-start: first-start failed; the end of check.log says why
+state after: {"docker": true, "image": {"arch": "amd64", "built": "2026-11-14T08:29:33Z", "compose": "5.7.1-1~debian.13~trixie", "containerd": "2.4.2-4~debian.13~trixie", "debian": "13.7", "docker": "5:29.9.3-1~debian.13~trixie", "python": "3.13.5"}, "installed": false, "owner": null, "port": "8420", "release": null, "running": false, "schema": 1}
+FAIL rouh.running: {"docker": true, "image": {"arch": "amd64", "built": "2026-11-14T08:29:33Z", "compose": "5.7.1-1~debian.13~trixie", "containerd": "2.4.2-4~debian.13~trixie", "debian": "13.7", "docker": "5:29.9.3-1~debian.13~trixie", "python": "3.13.5"}, "installed": false, "owner": null, "port": "8420", "release": null, "running": false, "schema": 1}
+FAIL rouh.no-owner-yet: {"docker": true, "image": {"arch": "amd64", "built": "2026-11-14T08:29:33Z", "compose": "5.7.1-1~debian.13~trixie", "containerd": "2.4.2-4~debian.13~trixie", "debian": "13.7", "docker": "5:29.9.3-1~debian.13~trixie", "python": "3.13.5"}, "installed": false, "owner": null, "port": "8420", "release": null, "running": false, "schema": 1}
+curl: (7) Failed to connect to 127.0.0.1 port 8420 after 0 ms: Couldn't connect to server
+FAIL rouh.reached-from-outside: 127.0.0.1:8420 does not answer
+some checks failed
