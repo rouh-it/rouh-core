@@ -37,6 +37,8 @@ CORE = Path(os.environ.get("ROUH_CORE_DIR") or HOME / "rouh-core")
 ROUH = os.environ.get("ROUH_BIN") or "/usr/local/bin/rouh"
 DOCKER_WAIT = float(os.environ.get("ROUH_WSL_DOCKER_WAIT", "180"))
 SCHEMA = 1
+#: Cloudflare in front of rouh.land refuses Python's own User-Agent (403), as mac_release.py found.
+UA = "rouh-wsl/1 (Rouh for Windows; +https://rouh.land)"
 
 
 def say(line: str) -> None:
@@ -88,7 +90,8 @@ def cmd_first_start(_args: list[str]) -> int:
     with tempfile.TemporaryDirectory() as t:
         script = Path(t, "install.sh")
         try:
-            with urllib.request.urlopen(f"{ROUH_LAND}/install.sh", timeout=60) as r:
+            req = urllib.request.Request(f"{ROUH_LAND}/install.sh", headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=60) as r:
                 script.write_bytes(r.read())
         except OSError as e:
             say(f"Could not reach {ROUH_LAND} ({e}). Check the internet connection, then try again.")
