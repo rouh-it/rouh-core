@@ -34,6 +34,7 @@ FAILED=0
 finish() {
   { printf '{\n'; local IFS=$',\n'; printf ' %s\n' "${results[*]}"; printf '}\n'; } > "$out/result.json"
   [ "$FAILED" = 0 ] && echo "every check passed" | tee -a "$log" || echo "some checks failed" | tee -a "$log"
+  exit "$FAILED"
 }
 trap finish EXIT
 
@@ -113,7 +114,8 @@ s="$(state)"; echo "state after: $s" >> "$log"
 [ "$(field "$s" owner)" = false ] && pass rouh.no-owner-yet || fail rouh.no-owner-yet "$s"
 curl -fsS --max-time 10 http://127.0.0.1:8420/healthz >>"$log" 2>&1 && pass rouh.reached-from-outside || fail rouh.reached-from-outside "127.0.0.1:8420 does not answer"
 link="$(as_rouh rouh-wsl link 2>>"$log" | tail -n 1)"
-code="$(curl -s -o "$out/setup.html" -w '%{http_code}' --max-time 20 "$link" || true)"
+# The address takes its code and sends the browser on to the first run (303); followed, as a browser does.
+code="$(curl -sL -c "$out/cookies" -o "$out/setup.html" -w '%{http_code}' --max-time 20 "$link" || true)"
 echo "link answered $code" >> "$log"
 [[ "$link" == http://127.0.0.1:8420/setup\?code=* ]] && [ "$code" = 200 ] && pass rouh.setup-link-opens || fail rouh.setup-link-opens "the setup address answered $code"
 in_root systemctl is-enabled -q rouh-update.timer && pass rouh.nightly-timer || fail rouh.nightly-timer "rouh-update.timer is not enabled"
@@ -123,12 +125,32 @@ as_rouh rouh status >>"$log" 2>&1 || true
 docker restart -t 60 rouh-wsl-check >>"$log"
 for _ in $(seq 90); do s="$(state || true)"; [ "$(field "$s" running 2>/dev/null)" = true ] && break; sleep 5; done
 [ "$(field "$s" running)" = true ] && pass rouh.after-restart || fail rouh.after-restart "Rouh did not come back by itself: $s"
-before="$(as_rouh rouh fingerprint 2>>"$log" | sha256sum | cut -c1-16)"
+# As Linux's own proof (176-25): Rouh stopped, its database alone up, so nothing changes under the count.
+as_rouh sh -c 'c="docker compose -p rouh -f $HOME/rouh/stack/stack.json"; $c stop && $c start postgres' >>"$log" 2>&1 || true
+as_rouh rouh fingerprint > "$out/fingerprint-before.json" 2>>"$log" || true
 as_rouh rouh-wsl uninstall-keep >>"$log" 2>&1 && as_rouh test -d /home/rouh/rouh-kept && pass rouh.uninstall-keep || fail rouh.uninstall-keep "no checked copy in ~/rouh-kept"
-as_rouh rouh-wsl first-start >>"$log" 2>&1 && pass rouh.bring-back || fail rouh.bring-back "first-start after Keep did not bring it back"
+# Brought back and not started yet, so the fingerprint is of exactly what came back; then started.
+docker exec -u rouh -w /home/rouh -e HOME=/home/rouh -e ROUH_STOP_AFTER_BRING_BACK=1 rouh-wsl-check rouh-wsl first-start >>"$log" 2>&1 \
+  && pass rouh.bring-back || fail rouh.bring-back "first-start after Keep did not bring it back"
+as_rouh rouh fingerprint > "$out/fingerprint-after.json" 2>>"$log" || true
+as_rouh rouh update >>"$log" 2>&1 || true
 s="$(state)"; [ "$(field "$s" running)" = true ] && pass rouh.running-after-bring-back || fail rouh.running-after-bring-back "$s"
-after="$(as_rouh rouh fingerprint 2>>"$log" | sha256sum | cut -c1-16)"
-echo "fingerprint before $before, after $after" >> "$log"
+# The same Rouh: what Linux's own proof compares (task 176, step 176-25), key by key.
+python3 - "$out/fingerprint-before.json" "$out/fingerprint-after.json" >> "$log" 2>&1 <<'PY' && pass rouh.same-after-bring-back || fail rouh.same-after-bring-back "the fingerprint differs; check.log names what"
+import json, sys
+a, b = (json.load(open(p)) for p in sys.argv[1:3])
+def flat(d, pre=""):
+    out = {}
+    for k, v in (d.items() if isinstance(d, dict) else []):
+        out.update(flat(v, f"{pre}{k}.") if isinstance(v, dict) else {f"{pre}{k}": v})
+    return out
+fa, fb = flat(a), flat(b)
+diff = sorted(k for k in set(fa) | set(fb) if fa.get(k) != fb.get(k))
+for k in diff:
+    print(f"fingerprint {k}: before {str(fa.get(k))[:120]!r}, after {str(fb.get(k))[:120]!r}")
+print(f"fingerprint: {len(fa)} values, {len(diff)} differ")
+sys.exit(1 if diff or not fa else 0)
+PY
 docker logs rouh-wsl-check > "$out/systemd.log" 2>&1 || true
 docker rm -f rouh-wsl-check >/dev/null 2>&1 || true
 docker volume rm -f rouh-wsl-check-docker rouh-wsl-check-containerd >/dev/null 2>&1 || true
