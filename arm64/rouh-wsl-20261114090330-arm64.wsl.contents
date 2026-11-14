@@ -1,0 +1,8 @@
+built=2026-11-14T09:04:12Z
+arch=arm64
+debian=13.7
+docker=5:29.9.3-1~debian.13~trixie
+compose=5.7.1-1~debian.13~trixie
+containerd=2.4.2-4~debian.13~trixie
+python=3.13.5
+version=20261114090330
