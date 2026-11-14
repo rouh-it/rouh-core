@@ -928,6 +928,44 @@ function contactCall(b, r) {
   return line;
 }
 
+/* ---------- Directions from their contact card (night 43, rouh/card_directions.py) ----------
+
+   A card marked `directions` draws each postal address as a link to the way
+   there in Google Maps, with Directions beside it; on a phone it opens the
+   Maps app. The press is only counted (POST /api/card-directions, no address
+   sent); the link does the rest. */
+
+function contactDirections(b, r) {
+  var where = String(r.value);
+  var href = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(where);
+  var line = el('span', 'ct-call');
+  var place = el('a', 'ct-val ct-tel', where);
+  place.href = href;
+  place.target = '_blank';
+  place.rel = 'noopener noreferrer';
+  place.title = 'The way to ' + where + ' in Maps';
+  line.appendChild(place);
+  var acts = el('span', 'ct-acts');
+  var go = el('a', 'ct-act', 'Directions');
+  go.href = href;
+  go.target = '_blank';
+  go.rel = 'noopener noreferrer';
+  go.setAttribute('aria-label', 'Directions to ' + (b.name || 'them') + ', ' + where);
+  acts.appendChild(go);
+  line.appendChild(acts);
+  [place, go].forEach(function (a) {
+    a.addEventListener('click', function () {
+      try {
+        fetch('/api/card-directions', {
+          method: 'POST', keepalive: true, credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' }, body: '{}'
+        }).catch(function () {});
+      } catch (e) { /* counting a use is never worth an error */ }
+    });
+  });
+  return line;
+}
+
 function contactCalled(how) {
   try {
     fetch('/api/card-call', {
@@ -989,6 +1027,8 @@ function contactBlock(b) {
       var value = el('dd');
       if (b.call && r.kind === 'phone' && change !== 'removed' && contactTel(r.value)) {
         value.appendChild(contactCall(b, r));
+      } else if (b.directions && r.kind === 'postal' && change !== 'removed' && r.value) {
+        value.appendChild(contactDirections(b, r));
       } else {
         value.appendChild(el(change === 'removed' ? 's' : 'span', 'ct-val', r.value == null ? '' : r.value));
       }

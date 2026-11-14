@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 
 from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, calendar_away, clock, demo,
                composing, conversations, filing, imaging, inbox, inbox_grants, inboxes,
-               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, no_company, sent_twice, same_contact, draft_twice, contact_card, forward_twice, contact_changes, meeting_hours, meet_link, no_place,
+               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, no_company, sent_twice, same_contact, draft_twice, contact_card, forward_twice, contact_changes, postal_address, meeting_hours, meet_link, no_place,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer, reply_times,
                their_clock, their_hours, unread_lists, their_language, promised_to_you,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer,
@@ -7681,6 +7681,15 @@ class ToolRegistry:
                     "title": {"type": "string",
                               "description": "The job title, as the phone's Job title field "
                                              "shows it; an empty string clears it."},
+                    "add_addresses": {
+                        "type": "array", "items": postal_address.PARTS_SCHEMA,
+                        "description": "Postal addresses to add, as the phone's Address field: "
+                                       "street, city, postal_code, region, country and a label.",
+                    },
+                    "remove_addresses": {"type": "array", "items": {"type": "string"},
+                                         "description": "Postal addresses to take off, each as "
+                                                        "the contact shows it or a part of it "
+                                                        "(the street)."},
                     "even_if_known": {"type": "boolean",
                                       "description": "true only when the person said the new "
                                                      "contact is somebody else than the card "
@@ -7784,6 +7793,12 @@ class ToolRegistry:
         args, untitled = await asyncio.to_thread(job_title.allowed, me, args)
         if untitled:
             return untrusted.ours(untitled)
+        # A contact's postal address (night 43, `rouh/postal_address.py`): off, an address is not written.
+        from . import postal_address
+
+        args, unaddressed = await asyncio.to_thread(postal_address.allowed, me, args)
+        if unaddressed:
+            return untrusted.ours(unaddressed)
         chat = self.memory.answering_chat()
         key = apple_contacts.key_for(args)
         if not confirmed:
@@ -7824,6 +7839,11 @@ class ToolRegistry:
                                                  dict(args, confirmed=True))
         if untitled:
             return asking.Done(False, untitled)
+        from . import postal_address
+
+        args, unaddressed = await asyncio.to_thread(postal_address.allowed, self.contacts.person(), args)
+        if unaddressed:
+            return asking.Done(False, unaddressed)
         args.pop("confirmed", None)
         async with self._contact_saving:
             twice = self._added_already(press.chat, key)

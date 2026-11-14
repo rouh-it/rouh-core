@@ -67,6 +67,12 @@ PHONE_TYPES = {
 #: The same for email. "other" has no TYPE of its own on Apple's side.
 EMAIL_TYPES = {"home": ("INTERNET", "HOME"), "work": ("INTERNET", "WORK")}
 
+#: The same for a postal address (ADR), read and written by night 43's gene `postal_address`.
+ADDRESS_TYPES = {"home": ("HOME",), "work": ("WORK",)}
+
+#: The parts of a postal address after the post office box and the extended address, in ADR's order.
+ADDRESS_PARTS = ("street", "city", "region", "postal_code", "country")
+
 #: TYPE values that say nothing a person would call a label.
 _NOT_LABELS = {"voice", "pref", "internet", "x400", "msg", "text"}
 
@@ -337,6 +343,9 @@ class Person:
     note: str = ""
     #: The card's Job title (TITLE), read and written by night 42's gene `job_title`.
     title: str = ""
+    #: The card's postal addresses (ADR), each {"address": one line, "label", "parts"}; read and written by
+    #: night 43's gene `postal_address`.
+    addresses: list[dict] = field(default_factory=list)
     #: "individual", or "group" for one of iCloud's contact groups.
     kind: str = "individual"
     #: Where the card's picture is, without its bytes (`photo_of`), or {} for none.
@@ -375,6 +384,7 @@ def read(text: str) -> Person:
         birthday=_birthday_of(card.first("BDAY")),
         note=card.value("NOTE").strip(),
         title=card.value("TITLE").strip(),
+        addresses=addresses_of(card),
         kind="group" if kind == "group" else "individual",
         photo=photo_of(card),
     )
@@ -560,6 +570,73 @@ def remove_email(card: Card, address: str) -> bool:
     return bool(gone)
 
 
+def address_parts(prop: Prop) -> dict:
+    """An ADR line's parts by name: street, city, region, postal_code, country (the post office box and
+    the extended address go in front of the street)."""
+    got = [" ".join(p.split()) for p in split_structured(prop.value)] + [""] * 7
+    box, extended, street = got[0], got[1], got[2]
+    street = ", ".join(p for p in (box, extended, street) if p)
+    return dict(zip(ADDRESS_PARTS, (street, got[3], got[4], got[5], got[6])))
+
+
+def address_line(parts: dict) -> str:
+    """A postal address as one line, the way a letter is addressed: street, postal code and city,
+    region, country."""
+    town = " ".join(p for p in (str(parts.get("postal_code") or "").strip(), str(parts.get("city") or "").strip())
+                    if p)
+    bits = [str(parts.get("street") or "").strip(), town, str(parts.get("region") or "").strip(),
+            str(parts.get("country") or "").strip()]
+    return ", ".join(" ".join(b.split()) for b in bits if b)
+
+
+def addresses_of(card: Card) -> list[dict]:
+    out = []
+    for prop in card.all("ADR"):
+        parts = address_parts(prop)
+        line = address_line(parts)
+        if line:
+            out.append({"address": line, "label": card.label_of(prop), "parts": parts})
+    return out
+
+
+def same_address(a: str, b: str) -> bool:
+    """Whether a line someone said names this address: equal, or one inside the other, case, accents
+    and punctuation aside."""
+    pa = " ".join(re.findall(r"\w+", _plain(a or "")))
+    pb = " ".join(re.findall(r"\w+", _plain(b or "")))
+    if not pa or not pb:
+        return False
+    return pa == pb or f" {pa} " in f" {pb} " or f" {pb} " in f" {pa} "
+
+
+def add_address(card: Card, parts: dict, label: str = "") -> bool:
+    clean = {k: " ".join(str(parts.get(k) or "").split()) for k in ADDRESS_PARTS}
+    line = address_line(clean)
+    if not line:
+        raise BadField("An address needs at least a street, a city or a country.")
+    if any(same_address(address_line(address_parts(p)), line) for p in card.all("ADR")):
+        return False
+    value = ";".join(["", ""] + [escape(clean[k]) for k in ADDRESS_PARTS])
+    label = (label or "home").strip()
+    known = ADDRESS_TYPES.get(label.lower())
+    if known:
+        card.props.append(Prop(name="ADR", value=value, params=[("TYPE", t) for t in known]))
+        return True
+    group = card.next_item()
+    card.props.append(Prop(name="ADR", value=value, group=group))
+    apple = APPLE_RAW.get(label.lower())
+    card.props.append(Prop(name="X-ABLABEL", value=escape(f"_$!<{apple}>!$_" if apple else label), group=group))
+    return True
+
+
+def remove_address(card: Card, said: str) -> list[str]:
+    """The addresses taken off for a line someone said, each as one line."""
+    gone = [p for p in card.all("ADR") if same_address(address_line(address_parts(p)), said)]
+    for prop in gone:
+        card.remove(prop)
+    return [address_line(address_parts(p)) for p in gone]
+
+
 @dataclass
 class Changes:
     """What one write asks for. None is "leave it as it is"; "" is "clear it"."""
@@ -573,6 +650,9 @@ class Changes:
     remove_phones: list[str] = field(default_factory=list)
     add_emails: list[dict] = field(default_factory=list)
     remove_emails: list[str] = field(default_factory=list)
+    #: Postal addresses (night 43, `postal_address`): each {"parts": {street, city, ...}, "label"}.
+    add_addresses: list[dict] = field(default_factory=list)
+    remove_addresses: list[str] = field(default_factory=list)
 
     def scalars(self) -> dict[str, str]:
         """The single-valued fields this sets, by `Person`'s own names."""
@@ -583,7 +663,8 @@ class Changes:
 
     def empty(self) -> bool:
         return not (self.scalars() or self.add_phones or self.remove_phones
-                    or self.add_emails or self.remove_emails)
+                    or self.add_emails or self.remove_emails or self.add_addresses
+                    or self.remove_addresses)
 
 
 def apply(card: Card, changes: Changes) -> list[str]:
@@ -639,6 +720,13 @@ def apply(card: Card, changes: Changes) -> list[str]:
         address, label = str(email.get("address") or ""), str(email.get("label") or "")
         if add_email(card, address, label):
             said.append(f"added {address.strip()}" + (f" ({label})" if label else ""))
+    for said_line in changes.remove_addresses:
+        for line in remove_address(card, said_line):
+            said.append(f"removed the address {line}")
+    for one in changes.add_addresses:
+        parts, label = dict(one.get("parts") or {}), str(one.get("label") or "")
+        if add_address(card, parts, label):
+            said.append(f"added the address {address_line(parts)}" + (f" ({label})" if label else ""))
     return said
 
 
@@ -653,7 +741,8 @@ def new_card(uid: str, changes: Changes) -> tuple[Card, list[str]]:
     said = apply(card, Changes(organisation=changes.organisation or None,
                                birthday=changes.birthday or None, note=changes.note or None,
                                title=changes.title or None,
-                               add_phones=changes.add_phones, add_emails=changes.add_emails))
+                               add_phones=changes.add_phones, add_emails=changes.add_emails,
+                               add_addresses=changes.add_addresses))
     card.props.append(Prop(name="UID", value=uid))
     return card, said
 

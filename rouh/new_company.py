@@ -279,7 +279,16 @@ async def change(who, key: str, desk) -> tuple[bool, str]:
         return True, f"{name}'s contact already says {company}."
     if desk is None:
         return False, "iCloud contacts are not connected, so the company could not be changed."
-    done = await desk.save({"contact_id": told["contact"], "organisation": company}, who)
+    # Their job title saved with them (night 43, `rouh/title_saved.py`): the title signed beside the new
+    # company goes on the card with it.
+    from . import title_saved
+
+    title = (told.get("title") or "") if await sync_to_async(title_saved.on)(who) else ""
+    title = title if 0 < len(title) <= title_saved.LONGEST else ""
+    fields = {"contact_id": told["contact"], "organisation": company}
+    if title:
+        fields["title"] = title
+    done = await desk.save(fields, who)
     words = str(getattr(done, "text", "") or done)
     ok = words.startswith("Changed") or "already reads that way" in words
     if not ok:
@@ -287,7 +296,11 @@ async def change(who, key: str, desk) -> tuple[bool, str]:
     await sync_to_async(mark)(who, key, changed=True, changed_at=time.time())
     await sync_to_async(evolution.used)(SWITCH, "changed", who=who, detail=f"{name}: company changed")
     was = told.get("was") or ""
+    if title:
+        await sync_to_async(evolution.used)("title_saved", "changed", who=who,
+                                            detail=f"{name}: their job title went with it")
     said = (f"{name}'s contact now says {company}" + (f", not {was}" if was else "")
+            + (f", and the job title {title}" if title else "")
             + ". It reaches your phone when it next syncs with iCloud.")
     await notices.notify(title=f"Changed on {name}'s contact", body=said, kind="mail", key=key + "-changed",
                          who=who)

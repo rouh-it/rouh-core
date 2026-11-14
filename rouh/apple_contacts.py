@@ -654,6 +654,10 @@ class ContactDesk:
         from . import job_title
 
         rows = rows + job_title.found(who, query, {str(r.get("id")) for r in rows}, limit - len(rows))
+        # A contact's postal address (night 43, `rouh/postal_address.py`): a city or a street finds them too.
+        from . import postal_address
+
+        rows = rows + postal_address.found(who, query, {str(r.get("id")) for r in rows}, limit - len(rows))
         found = self.people.attach(who.user_id, who.org_id, rows)
         more = self.people.search(who.user_id, who.org_id, query,
                                   skip={one.id for one in found})
@@ -1128,6 +1132,10 @@ def _changes_from(args: dict) -> vcard.Changes:
         birthday=maybe("birthday"), note=maybe("note"), title=maybe("title"),
         add_phones=pairs("add_phones", "number"), remove_phones=plain("remove_phones"),
         add_emails=pairs("add_emails", "address"), remove_emails=plain("remove_emails"))
+    # A contact's postal address (night 43, `rouh/postal_address.py`); taken out of the arguments while off.
+    from . import postal_address
+
+    changes.add_addresses, changes.remove_addresses = postal_address.to_changes(args)
     if changes.birthday:
         vcard.check_birthday(changes.birthday)            # said before anything is sent
     for phone in changes.add_phones:
@@ -1200,12 +1208,15 @@ def _fields(person) -> dict:
     def get(key: str):
         return person.get(key) if isinstance(person, dict) else getattr(person, key, None)
 
-    from . import job_title
+    from . import job_title, postal_address
 
     return {"name": str(get("name") or ""), "organisation": str(get("organisation") or ""),
             "phones": list(get("phones") or []), "emails": list(get("emails") or []),
             "birthday": str(get("birthday") or ""), "note": str(get("note") or ""),
-            "title": job_title.of(person)}
+            "title": job_title.of(person),
+            # On the card an address says so, beside a work number and a work email: "work address".
+            "addresses": [dict(a, label=a["label"] if "address" in a["label"].lower() else f"{a['label']} address")
+                          for a in postal_address.of(person)]}
 
 
 def _rows(after: dict, before: dict | None) -> list[dict]:
@@ -1255,6 +1266,8 @@ def _rows(after: dict, before: dict | None) -> list[dict]:
     several("phone", "number", after["phones"], had.get("phones") or [], vcard.same_number)
     several("email", "address", after["emails"], had.get("emails") or [],
             lambda a, b: a.strip().lower() == b.strip().lower())
+    # A contact's postal address (night 43, `rouh/postal_address.py`): [] while its switch is off.
+    several("postal", "address", after.get("addresses") or [], had.get("addresses") or [], vcard.same_address)
     single("birthday", "birthday", vcard.birthday_words(after["birthday"]),
            vcard.birthday_words(had.get("birthday", "")))
     single("note", "note", after["note"], had.get("note", ""))
@@ -1403,9 +1416,11 @@ def profile_card(person, *, state: str = SHOWN, status: str = "") -> dict:
         _with_profile(block, person)
     _with_aka(block, person)
     _with_addresses(block, person)
-    from . import card_call
+    from . import card_call, card_directions
 
     card_call.mark(block)
+    # Directions from their contact card (night 43, `rouh/card_directions.py`): each address one press from Maps.
+    card_directions.mark(block)
     return {"title": f"{'You' if person.is_me else 'Contact'}: {name}",
             "description": (f"the contact {name}, with who they are to you and the online "
                             "research about them"),
@@ -1456,9 +1471,11 @@ def contact_card(after, before, state: str, *, remark: str = "", person=None) ->
             _with_aka(block, person)
             _with_addresses(block, person)
     # Call from their contact card (night 42, `rouh/card_call.py`): its numbers one press from ringing.
-    from . import card_call
+    from . import card_call, card_directions
 
     card_call.mark(block)
+    # Directions from their contact card (night 43, `rouh/card_directions.py`): each address one press from Maps.
+    card_directions.mark(block)
     return {"title": title, "description": description, "blocks": [block]}
 
 
@@ -1478,6 +1495,10 @@ def _person_said(row: dict) -> str:
     if row.get("emails"):
         lines.append("  " + "; ".join(e["address"] + (f" ({e['label']})" if e.get("label")
                                                       else "") for e in row["emails"]))
+    from . import postal_address
+
+    for one in postal_address.of(row):
+        lines.append(f"  address{' (' + one['label'] + ')' if one.get('label') else ''}: {one['address']}")
     if row.get("birthday"):
         lines.append(f"  birthday {vcard.birthday_words(row['birthday'])}")
     if row.get("note"):

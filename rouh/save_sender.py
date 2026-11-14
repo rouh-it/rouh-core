@@ -87,7 +87,7 @@ def known(cards: list[dict], address: str) -> bool:
                for c in cards for e in c.get("emails") or [])
 
 
-def card_for(found: dict, cards: list[dict], own: list[str] = ()) -> dict | None:
+def card_for(found: dict, cards: list[dict], own: list[str] = (), who=None) -> dict | None:
     """What would be saved for the sender of `found`, or None when they are no new person."""
     from . import new_number
     from .sig_phones import label_for, phones
@@ -103,13 +103,20 @@ def card_for(found: dict, cards: list[dict], own: list[str] = ()) -> dict | None
     org, how = company_for(address, cards)
     body = found.get("body") or ""
     numbers = [{"number": n, "label": label_for(body, n)} for n in phones(body)]
-    return {"name": name, "address": address, "company": org, "company_how": how, "phones": numbers}
+    # Their job title saved with them (night 43, `rouh/title_saved.py`): "" while its switch is off.
+    from . import title_saved
+
+    title = title_saved.for_new(who, body, name)
+    return {"name": name, "address": address, "company": org, "company_how": how, "phones": numbers,
+            "title": title}
 
 
 def sentence(card: dict) -> str:
     bits = [card["address"]]
     if card.get("company"):
         bits.append(f"company {card['company']} ({card['company_how']})")
+    if card.get("title"):
+        bits.append(f"job title {card['title']}")
     bits += [f"{p['label']} {p['number']}" for p in card.get("phones") or []]
     return f"{card['name']} is not in your contacts. Saving them adds: " + "; ".join(bits) + "."
 
@@ -128,7 +135,7 @@ def shown(who, found: dict, own: list[str] = ()) -> dict | None:
     cards = _cards(who)
     if not cards:
         return None          # iCloud contacts not connected: nothing to save into.
-    card = card_for(found, cards, own)
+    card = card_for(found, cards, own, who)
     if card is None:
         return None
     from . import new_address
@@ -155,7 +162,7 @@ async def save(who, found: dict, desk, own: list[str] = ()) -> tuple[bool, str]:
     address = (email.utils.parseaddr(found.get("from", ""))[1] or "").strip().lower()
     if address and known(cards, address):
         return True, "They are in your contacts already."
-    card = card_for(found, cards, own)
+    card = card_for(found, cards, own, who)
     if card is None:
         return False, "This sender cannot be saved as a person."
     args = {"name": card["name"], "add_emails": [{"address": card["address"], "label": "work" if card["company"]
@@ -163,6 +170,8 @@ async def save(who, found: dict, desk, own: list[str] = ()) -> tuple[bool, str]:
             "add_phones": card["phones"]}
     if card["company"]:
         args["organisation"] = card["company"]
+    if card.get("title"):
+        args["title"] = card["title"]
     done = await desk.save(args, who)
     words = str(getattr(done, "text", "") or done)
     if not words.startswith("Added"):
@@ -170,7 +179,12 @@ async def save(who, found: dict, desk, own: list[str] = ()) -> tuple[bool, str]:
     await asyncio.to_thread(evolution.used, SWITCH, "saved", who=who,
                             detail=f"{'with a company' if card['company'] else 'no company'}, "
                                    f"{len(card['phones'])} number(s)")
-    company = f", {card['company']}" if card["company"] else ""
+    if card.get("title"):
+        # Their job title saved with them (night 43, `rouh/title_saved.py`).
+        await asyncio.to_thread(evolution.used, "title_saved", "saved", who=who,
+                                detail=f"{card['name']}: their job title went with it")
+    company = f", {card['title']}" if card.get("title") else ""
+    company += f", {card['company']}" if card["company"] else ""
     return True, (f"Saved {card['name']}{company} to your contacts. It reaches your phone when it next "
                   "syncs with iCloud.")
 

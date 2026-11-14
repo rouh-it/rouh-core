@@ -3127,3 +3127,76 @@ print(json.dumps({"saved": card_call.mark({"state": "saved", "rows": rows}).get(
 """))
     expect('"saved": true' in out and '"unsaved": false' in out, f"the card was not marked callable: {out[-500:]}")
 
+
+
+# --- Night 43 (14 November): their job title saved with them; a new job title in their signature; a contact's
+# postal address; directions from their contact card
+
+@check("gene.title-saved")
+def title_saved(s: Stack) -> None:
+    """The job title under the sender's name in a signature is read for a new contact, and nothing while the
+    switch is off."""
+    out = core_py(s, _owner_py("""
+from rouh import title_saved
+body = "Hi,\\n\\nBest regards,\\nKai Stack\\nSales Director, Quay Logistics\\nM: +49 151 9876 5432\\n"
+print(json.dumps({"read": title_saved.from_signature(body, "Kai Stack"),
+                  "none": title_saved.from_signature("Hi,\\n\\nThanks,\\nKai Stack\\n", "Kai Stack")}))
+"""))
+    expect('"read": "Sales Director"' in out and '"none": ""' in out,
+           f"the signature's job title was not read as it should be: {out[-500:]}")
+
+
+@check("gene.new-title")
+def new_title(s: Stack) -> None:
+    """A signature's job title is told only when it differs from the card's at the same company; the same
+    title, a new company or a card with no title is not."""
+    out = core_py(s, _owner_py("""
+from unittest import mock
+from rouh import new_company, new_title
+card = {"id": "1", "name": "Nina Stack", "organisation": "Paywell",
+        "vcard": "BEGIN:VCARD\\r\\nVERSION:3.0\\r\\nFN:Nina Stack\\r\\nTITLE:Partnerships Manager\\r\\nEND:VCARD\\r\\n"}
+bare = dict(card, vcard="BEGIN:VCARD\\r\\nVERSION:3.0\\r\\nFN:Nina Stack\\r\\nEND:VCARD\\r\\n")
+def told(c, sig):
+    msg = {"from": "Nina Stack <nina@nt-stack.test>", "body": "Hi,\\n\\nBest,\\nNina Stack\\n" + sig + "\\n"}
+    with mock.patch.object(new_company, "_contact_of", return_value=c), \\
+         mock.patch("rouh.new_number.is_a_person", return_value=True):
+        got = new_title.find(None, msg)
+    return got[1]
+print(json.dumps({"new": told(card, "Head of Partnerships, Paywell"), "same": told(card, "Partnerships Manager, Paywell"),
+                  "moved": told(card, "Head of Sales, Northwind"), "bare": told(bare, "Head of Partnerships, Paywell")}))
+"""))
+    expect('"new": "Head of Partnerships"' in out and '"same": ""' in out and '"moved": ""' in out
+           and '"bare": ""' in out, f"a new job title was not told as it should be: {out[-500:]}")
+
+
+@check("gene.postal-address")
+def postal_address(s: Stack) -> None:
+    """A postal address is written to a card, read back as one line with its label, matched by a part of it,
+    and taken off."""
+    out = core_py(s, _owner_py("""
+from rouh import vcard
+card = vcard.Card.parse("BEGIN:VCARD\\r\\nVERSION:3.0\\r\\nFN:Lena Stack\\r\\nEND:VCARD\\r\\n")
+vcard.apply(card, vcard.Changes(add_addresses=[{"parts": {"street": "Torstrasse 1", "city": "Berlin",
+            "postal_code": "10119", "country": "Germany"}, "label": "work"}]))
+read = vcard.read(card.text()).addresses
+vcard.apply(card, vcard.Changes(remove_addresses=["torstrasse 1"]))
+print(json.dumps({"read": [[a["address"], a["label"]] for a in read], "left": vcard.read(card.text()).addresses}))
+"""))
+    expect('"read": [["Torstrasse 1, 10119 Berlin, Germany", "work"]]' in out and '"left": []' in out,
+           f"the postal address did not go on and off the card: {out[-500:]}")
+
+
+@check("gene.card-directions")
+def card_directions(s: Stack) -> None:
+    """A saved contact card with a postal address is marked for directions; one not saved yet is not."""
+    out = core_py(s, _owner_py("""
+from unittest import mock
+from rouh import card_directions
+rows = [{"kind": "postal", "label": "work address", "value": "Torstrasse 1, 10119 Berlin, Germany"}]
+with mock.patch.object(card_directions, "on", return_value=True):
+    saved = card_directions.mark({"state": "saved", "rows": list(rows)})
+    unsaved = card_directions.mark({"state": "unsaved", "rows": list(rows)})
+print(json.dumps({"saved": bool(saved.get("directions")), "unsaved": bool(unsaved.get("directions"))}))
+"""))
+    expect('"saved": true' in out and '"unsaved": false' in out,
+           f"a contact card was not marked for directions as it should be: {out[-500:]}")

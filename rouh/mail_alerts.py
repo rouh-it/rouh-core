@@ -1914,6 +1914,18 @@ class MailAlerts:
                 joined = ""
             if joined:
                 log.info("mail alert %s: %s", message_id, joined)
+            # A new job title in their signature (night 43, `rouh/new_title.py`): a contact signing with a
+            # job title their contact does not say, at the same company, is told.
+            from . import new_title
+
+            try:
+                alert = await self._db(self.store.alert, user_id, org_id)
+                promoted = await new_title.seen(who, message, mailbox=str(alert.get("mailbox") or ""))
+            except Exception:  # noqa: BLE001 - the email is handled all the same
+                log.exception("mail alert %s: the signature's job title could not be read", message_id)
+                promoted = ""
+            if promoted:
+                log.info("mail alert %s: %s", message_id, promoted)
             # A new address they told you (night 42, `rouh/told_address.py`): a contact whose email says
             # their address is now another one is told, and the email goes on as before.
             from . import told_address

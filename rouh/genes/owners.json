@@ -3012,6 +3012,65 @@
     "rouh/card_call.py",
     "rouh/web/card_call.py"
    ]
+  },
+  "n43-title-saved": {
+   "name": "Their job title saved with them",
+   "what": "When you save somebody to your contacts from their email, or change a contact's company from a notice, the job title their signature gives goes on the card with it.",
+   "switch": "title_saved",
+   "signals": {
+    "events": {
+     "saved": "You pressed Save to contacts on an email, and their job title from the signature was saved with them",
+     "changed": "You pressed Change it on their contact for a new company, and their new job title went with it"
+    }
+   },
+   "files": [
+    "rouh/title_saved.py"
+   ]
+  },
+  "n43-new-title": {
+   "name": "A new job title in their signature",
+   "what": "When somebody in your contacts signs an email with a job title their contact does not say, at the same company, you are told at once, with Change it on their contact, which writes the new title to the contact in iCloud.",
+   "switch": "new_title",
+   "signals": {
+    "events": {
+     "changed": "You pressed Change it on their contact on a notice that a contact signs with a new job title"
+    },
+    "runs": {
+     "told": "A contact signed an email with a job title their card does not say, and you were told in a notice"
+    }
+   },
+   "files": [
+    "rouh/new_title.py",
+    "rouh/web/new_title.py"
+   ]
+  },
+  "n43-postal-address": {
+   "name": "A contact's postal address",
+   "what": "Rouh reads, searches and writes the addresses on your iPhone contacts: it says each contact's home or work address, finds people by a city or a street, and puts an address on a contact when you ask.",
+   "switch": "postal_address",
+   "signals": {
+    "events": {
+     "written": "You asked Rouh to put a postal address on a contact, or take one off, and it saved it to iCloud",
+     "found": "You asked Rouh who you know in a city or on a street, and it found them by the address on their contact"
+    }
+   },
+   "files": [
+    "rouh/postal_address.py"
+   ]
+  },
+  "n43-card-directions": {
+   "name": "Directions from their contact card",
+   "what": "Every postal address on a contact card in the chat is a link to the way there in Maps, with Directions beside it, so an address Rouh shows you is one press from the route.",
+   "switch": "card_directions",
+   "signals": {
+    "events": {
+     "directions": "You pressed an address or Directions on a contact card in the chat"
+    }
+   },
+   "files": [
+    "rouh/card_directions.py",
+    "rouh/web/card_directions.py"
+   ]
   }
  }
 }
