@@ -1076,6 +1076,17 @@ def _task_comments_hooks() -> None:
 _task_comments_hooks()
 
 
+def _pagestate_hooks() -> None:
+    """What Done picking on a page borrows from here to start its replanning job (`rouh/pagestate.py`)."""
+    from . import pagestate, starting
+
+    pagestate.hooks.start = lambda **fields: starting.start(
+        cfg=config, crew=crew, one=one, emit=Hub.broadcast, **fields)
+
+
+_pagestate_hooks()
+
+
 async def _thought_task_made(task_id: str) -> None:
     """A new thought's own task (`rouh/thought_enrich.py`): on every screen, then filed into the
     project it belongs in, waited for so its run is told the folder it stays in."""

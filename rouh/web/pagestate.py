@@ -45,11 +45,26 @@ async def for_owner(request: HttpRequest):
     if request.method != "POST":
         return answer(await asyncio.to_thread(pagestate.read, me.org_id, me.user_id, rel),
                       headers=NO_STORE)
+    from rouh.config import config
+
+    page = await asyncio.to_thread(askai.resolve, config.assistant_repo, rel)
+    asks = await asyncio.to_thread(pagestate.saves_beside, page)
+    before = (await asyncio.to_thread(pagestate.read, me.org_id, me.user_id, rel))["settings"] if asks else {}
     try:
-        return answer(await asyncio.to_thread(pagestate.write, me.org_id, me.user_id, rel, body),
-                      headers=NO_STORE)
+        saved = await asyncio.to_thread(pagestate.write, me.org_id, me.user_id, rel, body)
     except pagestate.Refused as exc:
         return refuse(str(exc), exc.status)
+    if asks:
+        # A page that keeps its choices where a job can read them (`pagestate.beside`).
+        try:
+            saved["file"] = await asyncio.to_thread(pagestate.beside, page, saved["settings"],
+                                                    saved["updated_at"], me)
+        except OSError as exc:
+            saved["file_error"] = f"Saved in Rouh, but the file beside the page was not written: {exc}"
+        done = saved["settings"].get(pagestate.DONE)
+        if done and done != before.get(pagestate.DONE):
+            saved["picked"] = await pagestate.picked(me, config.assistant_repo, rel)
+    return answer(saved, headers=NO_STORE)
 
 
 __all__ = ["for_owner"]

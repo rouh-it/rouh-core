@@ -111,6 +111,8 @@ SHARED_NOTES = "shared-notes.md"
 NOTES = ("AGENTS.md", "step.md")
 #: The task list, generated out of the database (`rouh/tasklist.py`).
 LISTING = "_tasks.md"
+#: A page's choices, written beside it when it asks (`rouh/pagestate.py`, 14 November 2026).
+CHOICES = "choices.json"
 
 
 def _git(where: str | Path, *args: str, timeout: int = 120) -> subprocess.CompletedProcess:
@@ -806,9 +808,10 @@ def _kept_in_place(path: str) -> bool:
     """A file Rouh changes in place rather than makes: a page, an
     `.object.json` whose title a rename changed (`owning.rename`), a
     quest's file (`rouh/quests.py`), a shared task's notes (`SHARED_NOTES`), or
-    a task's own notes edited offline (`NOTES`)."""
+    a task's own notes edited offline (`NOTES`), or the choices a page keeps
+    beside itself (`CHOICES`, `rouh/pagestate.py`)."""
     return (path.lower().endswith(PAGE)
-            or os.path.basename(path) in (SIDECAR, SHARED_NOTES, *QUEST_FILES, *NOTES))
+            or os.path.basename(path) in (SIDECAR, SHARED_NOTES, CHOICES, *QUEST_FILES, *NOTES))
 
 
 def _mtime(path: Path) -> float:
