@@ -1,0 +1,75 @@
+PASS file.sha256
+PASS file.gzip
+PASS file.no-container-leftovers
+PASS file.has-docker-systemd-python-git
+PASS wslconf.systemd
+PASS wslconf.user
+PASS wslconf.no-windows-drives
+PASS wslconf.no-interop
+PASS account.rouh-1000
+PASS account.in-docker-group
+PASS account.no-passwords
+PASS sudo.narrow
+PASS helper.compiles
+built=2026-11-14T08:35:09Z
+arch=arm64
+debian=13.7
+docker=5:29.9.3-1~debian.13~trixie
+compose=5.7.1-1~debian.13~trixie
+containerd=2.4.2-4~debian.13~trixie
+python=3.13.5
+sha256:ed12bd392cf689078808a8fb90365b6d43477eae3f37ae65c7d59059ae3d0952
+c8807d2077580333e21e12b232d78068446966fa804e9614b63a849b976b05dc
+systemd: degraded
+● systemd-modules-load.service loaded failed failed Load Kernel Modules
+PASS boot.systemd
+PASS boot.docker-under-systemd
+29.9.3 overlayfs cgroup v2
+PASS boot.docker-for-rouh
+PASS sudo.no-general
+sudo: unable to resolve host rouh: Temporary failure in name resolution
+Docker Compose version v5.7.1
+PASS sudo.compose-version
+state before: {"docker": true, "image": {"arch": "arm64", "built": "2026-11-14T08:35:09Z", "compose": "5.7.1-1~debian.13~trixie", "containerd": "2.4.2-4~debian.13~trixie", "debian": "13.7", "docker": "5:29.9.3-1~debian.13~trixie", "python": "3.13.5"}, "installed": false, "owner": null, "port": "8420", "release": null, "running": false, "schema": 1}
+PASS helper.state-before
+Getting Rouh's installer from https://rouh.land...
+Rouh on Linux: one command. It checks this server, installs what is missing, and starts Rouh.
+
+Checking this server
+  ✓ Debian GNU/Linux 13 (trixie), aarch64
+  ✓ 4 processor cores
+  ✓ 16 GB of memory
+  ✓ 103 GB of free disk
+  ✓ Python 3.13.5 for Rouh's updater
+  ✓ Port 8420 is free (Rouh's page, on this machine only)
+  ✓ Reaches rouh.land, ghcr.io and github.com
+
+What happens now
+  · Get Rouh's updater (rouh-core) into /home/rouh/rouh-core, at the commit rouh.land signed
+  · Install the rouh command, and turn on the nightly update (03:00 to 05:00, after a backup)
+  · Download and start Rouh: about 2 GB, about 5 minutes
+  Nothing of Rouh's listens beyond this machine. Uninstall any time: rouh uninstall
+
+Installing what is missing
+
+Checking what rouh.land hands out, before anything is installed
+  ✓ rouh.land's release: signed with Rouh's key
+  ✓ rouh.land's newest tested code: signed with Rouh's key (eb35f86105)
+  ✓ Docker version 29.9.3, Compose 5.7.1
+
+Getting Rouh's updater
+  ✓ Rouh's updater at the signed, tested commit eb35f86105
+Made the settings file /home/rouh/rouh/.env.
+
+Starting Rouh (the first time downloads about 2 GB)
+Updating to base 1.0.14, release 20261111201145
+docker compose --project-name failed: r/lib/apt/lists/.wh.auxfiles": operation not permitted
+failed to extract layer (application/vnd.oci.image.layer.v1.tar+gzip sha256:08eeb37ca166db6440642bda069d02b32c5df65c05535a6dea88db20241cd55f) to overlayfs as "extract-847579501-dn8a sha256:cd62d66ec84060f875861177d1170805b6fab22f3683b593444f7198c6f468e3": failed to convert whiteout file "var/lib/apt/lists/.wh.auxfiles": operation not permitted
+[no] Rouh's updater stopped; its words are above.
+FAIL rouh.first-start: first-start failed; the end of check.log says why
+state after: {"docker": true, "image": {"arch": "arm64", "built": "2026-11-14T08:35:09Z", "compose": "5.7.1-1~debian.13~trixie", "containerd": "2.4.2-4~debian.13~trixie", "debian": "13.7", "docker": "5:29.9.3-1~debian.13~trixie", "python": "3.13.5"}, "installed": false, "owner": null, "port": "8420", "release": null, "running": false, "schema": 1}
+FAIL rouh.running: {"docker": true, "image": {"arch": "arm64", "built": "2026-11-14T08:35:09Z", "compose": "5.7.1-1~debian.13~trixie", "containerd": "2.4.2-4~debian.13~trixie", "debian": "13.7", "docker": "5:29.9.3-1~debian.13~trixie", "python": "3.13.5"}, "installed": false, "owner": null, "port": "8420", "release": null, "running": false, "schema": 1}
+FAIL rouh.no-owner-yet: {"docker": true, "image": {"arch": "arm64", "built": "2026-11-14T08:35:09Z", "compose": "5.7.1-1~debian.13~trixie", "containerd": "2.4.2-4~debian.13~trixie", "debian": "13.7", "docker": "5:29.9.3-1~debian.13~trixie", "python": "3.13.5"}, "installed": false, "owner": null, "port": "8420", "release": null, "running": false, "schema": 1}
+curl: (7) Failed to connect to 127.0.0.1 port 8420 after 0 ms: Couldn't connect to server
+FAIL rouh.reached-from-outside: 127.0.0.1:8420 does not answer
+some checks failed
