@@ -1,0 +1,183 @@
+PASS file.sha256
+PASS file.gzip
+PASS file.no-container-leftovers
+PASS file.has-docker-systemd-python-git
+PASS wslconf.systemd
+PASS wslconf.user
+PASS wslconf.no-windows-drives
+PASS wslconf.no-interop
+PASS account.rouh-1000
+PASS account.in-docker-group
+PASS account.no-passwords
+PASS sudo.narrow
+PASS helper.compiles
+built=2026-11-14T08:37:28Z
+arch=amd64
+debian=13.7
+docker=5:29.9.3-1~debian.13~trixie
+compose=5.7.1-1~debian.13~trixie
+containerd=2.4.2-4~debian.13~trixie
+python=3.13.5
+sha256:34423d16c65a831744e89a0780267d8ddacdbecc2bf4cc79b49c158dcc0aa826
+5004e40594e86db7a3e131b8c09c48ff1f8d0bf895bd5cd0ec687ef48c24a4fa
+systemd: degraded
+● systemd-modules-load.service loaded failed failed Load Kernel Modules
+PASS boot.systemd
+PASS boot.docker-under-systemd
+29.9.3 overlayfs cgroup v2
+PASS boot.docker-for-rouh
+PASS sudo.no-general
+sudo: unable to resolve host rouh: Temporary failure in name resolution
+Docker Compose version v5.7.1
+PASS sudo.compose-version
+state before: {"docker": true, "image": {"arch": "amd64", "built": "2026-11-14T08:37:28Z", "compose": "5.7.1-1~debian.13~trixie", "containerd": "2.4.2-4~debian.13~trixie", "debian": "13.7", "docker": "5:29.9.3-1~debian.13~trixie", "python": "3.13.5"}, "installed": false, "owner": null, "port": "8420", "release": null, "running": false, "schema": 1}
+PASS helper.state-before
+Getting Rouh's installer from https://rouh.land...
+Rouh on Linux: one command. It checks this server, installs what is missing, and starts Rouh.
+
+Checking this server
+  ✓ Debian GNU/Linux 13 (trixie), x86_64
+  ✓ 4 processor cores
+  ✓ 16 GB of memory
+  ✓ 83 GB of free disk
+  ✓ Python 3.13.5 for Rouh's updater
+  ✓ Port 8420 is free (Rouh's page, on this machine only)
+  ✓ Reaches rouh.land, ghcr.io and github.com
+
+What happens now
+  · Get Rouh's updater (rouh-core) into /home/rouh/rouh-core, at the commit rouh.land signed
+  · Install the rouh command, and turn on the nightly update (03:00 to 05:00, after a backup)
+  · Download and start Rouh: about 2 GB, about 5 minutes
+  Nothing of Rouh's listens beyond this machine. Uninstall any time: rouh uninstall
+
+Installing what is missing
+
+Checking what rouh.land hands out, before anything is installed
+  ✓ rouh.land's release: signed with Rouh's key
+  ✓ rouh.land's newest tested code: signed with Rouh's key (eb35f86105)
+  ✓ Docker version 29.9.3, Compose 5.7.1
+
+Getting Rouh's updater
+  ✓ Rouh's updater at the signed, tested commit eb35f86105
+Made the settings file /home/rouh/rouh/.env.
+
+Starting Rouh (the first time downloads about 2 GB)
+Updating to base 1.0.14, release 20261111201145
+No code yet: nothing to check the new base with.
+The stack in use is the release's own.
+Started base 1.0.14 (release 20261111201145): every part is healthy
+[ok] Nightly update is on: every night between 03:00 and 05:00 (this server's time), after a backup. Next: Sun 2026-11-15 04:25:56 UTC
+[ok] Rouh is running (base 1.0.14, release 20261111201145, signature checked).
+
+Next, set your Rouh up in a terminal on this server:
+
+    rouh setup
+
+PASS rouh.first-start
+state after: {"docker": true, "image": {"arch": "amd64", "built": "2026-11-14T08:37:28Z", "compose": "5.7.1-1~debian.13~trixie", "containerd": "2.4.2-4~debian.13~trixie", "debian": "13.7", "docker": "5:29.9.3-1~debian.13~trixie", "python": "3.13.5"}, "installed": true, "owner": false, "port": "8420", "release": {"level": "1.0.14", "line": "1.0", "version": 20261111201145}, "running": true, "schema": 1}
+PASS rouh.running
+PASS rouh.no-owner-yet
+{"ok":true,"database":"postgresql","framework":"django","database_pool":{"pooled":true,"max":50,"open":9,"free":5,"waiting":0,"background_in_use":0,"background_share":38,"timeouts":0,"held":{"by_thread":{"MainThread":1,"uploads":1,"rouh-events":1,"rouh-thread":1},"threads_ended":0}},"model":"","luna_ready":false,"voice_ready":false,"ears_ready":false,"delegation":false,"accounts":0,"tools":["show_on_screen","what_was_on_screen","show_again","read_card","read_rouh_link","revise_on_screen","make_a_task","move_task","rename_task","move_step","pin","decisions","actions","delegate","rename_this_chat","model_defaults","update_rouh","gene_offer","gene_draft","ask_for_location","set_panels","remember","forget","list_memory","agent_instructions","capture_thought","thoughts","incubator_list","incubator_read","incubator_add","incubator_edit","incubator_status","incubator_merge","incubator_link","incubator_score","trials","new_box","open_box","print_page","send_telegram","what_is_running","answer_conflict","show_the_gaps","look_into","one_runs","one_start","one_say","one_stop","one_answer","one_take","one_give","run_command","assistant_job","check_tasks","improve_myself","worker_outbox","read_recent_mail","read_mail","read_mail_attachment","mail_alerts","handle_email_again","send_mail","forward_mail","forward_thread","draft_mail","modify_mail","show_inbox","search_drive","list_drive_folder","list_shared_drives","create_shared_drive","add_shared_drive_members","write_drive_file","upload_drive_file","create_drive_folder","manage_drive_file","share_drive_file","list_drive_permissions","read_doc","doc_changes","reply_to_doc_comment","comment_on_doc","comments_by","page_asks","page_comments","edit_sheet","copy_drive_file","block_my_time","to_answer","reply_times","no_company","same_contact","contact_card","between_us","unread_lists","promised_to_you","when_free","read_calendar_link","public_holidays","meeting_hours","edit_slides","find_slides","create_doc","edit_doc","list_calendars","list_calendar_events","read_calendar_event","create_calendar_event","update_calendar_event","delete_calendar_event","restore_calendar_event","add_shared_calendar","create_calendar","share_calendar","search_contacts","show_contact","update_contact_profile","save_contact","delete_contact","link_person","meeting_people","youtube_transcript","youtube_search","browser","schedule","upcoming","change_scheduled","set_goal","plan_goal","goal_step","goals","goal_control","heartbeat","quest","long_work","payments","shipping","stripe","server_health","cloudflare","slack_channels","slack_read","slack_search","slack_join","slack_send","slack_link","hue","vacuum","read_workspace","show_workspace_page","show_canvas","publish_task","check_task_sharing","share_with_person","web_search","web_fetch","meeting_search","meeting_read"],"missing_config":["ANTHROPIC_API_KEY","ELEVENLABS_API_KEY","ROUH_VOICE_ID"],"encryption_key":"environment","version":"1.0.0","revision":"8c69f3e","build":"1.0.0+8c69f3e","started":1794645582899,"planned":false,"assets":"134eb6f4a0","git":{"sha":"8c69f3e7daee4b6c30b76fade7746a1f35663483","short_sha":"8c69f3e","commit_date":"2026-11-14T08:39:14Z","branch":"main","dirty":false,"human_readable":"8c69f3e, committed 14 Nov 2026"}}PASS rouh.reached-from-outside
+link answered 303
+FAIL rouh.setup-link-opens: the setup address answered 303
+PASS rouh.nightly-timer
+Up to date: base 1.0.14, release 20261111201145
+PASS rouh.update
+[!] Rouh is running, and its setup is not finished: rouh setup
+  Release:     base 1.0.14 (release 20261111201145), signature checked
+  Updates:     every night between 03:00 and 05:00, after a backup; next Sun 2026-11-15 04:25:56 UTC; last: 2026-11-14 08:39: updated by hand
+  Backups:     0 nightly copies
+  Open ports:  127.0.0.1:8420 (this machine only)
+rouh-wsl-check
+PASS rouh.after-restart
+
+What should happen to Rouh's data?
+
+  K  Keep my data (recommended)
+     Saves a checked copy of everything that makes this Rouh itself: its memory database, your workspace,
+     its own code, its identity and keys, its undo points and its agents' sign-ins, into ~/rouh-kept.
+     Then removes Rouh. Install Rouh again and choose Bring back your Rouh: it comes back as itself.
+
+  W  Wipe my data
+     Removes Rouh and everything it knows: its memory, your workspace in it, its code and its keys.
+     This cannot be undone. A Connected Rouh's rouh.land account and registration are not deleted.
+
+Either way Docker itself, your other containers and everything else on this server stay.
+
+Stopping Rouh, and starting its database alone
+Saving the database, and checking it by restoring it once into a test database
+The database: 243 tables, checked
+Saving and checking your workspace, Rouh's own code, the libraries Rouh added, the keys it seals your logins with, its identity and data folder, its undo points, its agents' sign-ins
+Kept, and checked: /home/rouh/rouh-kept/20261114-084120 (540.0 MB)
+
+Rouh is removed from this server
+  · Rouh's containers, networks and volumes
+  · its 3 images
+  · the nightly update
+  · /home/rouh/rouh (settings, releases, backups)
+  · /usr/local/bin/rouh
+  · /home/rouh/rouh-core (the updater)
+
+[ok] Kept, and checked: /home/rouh/rouh-kept/20261114-084120
+To bring it back: curl -fsSL https://rouh.land/install.sh | sh, and choose Bring back your Rouh.
+PASS rouh.uninstall-keep
+Getting Rouh's installer from https://rouh.land...
+Rouh on Linux: one command. It checks this server, installs what is missing, and starts Rouh.
+
+Checking this server
+  ✓ Debian GNU/Linux 13 (trixie), x86_64
+  ✓ 4 processor cores
+  ✓ 16 GB of memory
+  ✓ 82 GB of free disk
+  ✓ Python 3.13.5 for Rouh's updater
+  ✓ Port 8420 is free (Rouh's page, on this machine only)
+  ✓ Reaches rouh.land, ghcr.io and github.com
+
+What happens now
+  · Get Rouh's updater (rouh-core) into /home/rouh/rouh-core, at the commit rouh.land signed
+  · Install the rouh command, and turn on the nightly update (03:00 to 05:00, after a backup)
+  · Download and start Rouh: about 2 GB, about 5 minutes
+  Nothing of Rouh's listens beyond this machine. Uninstall any time: rouh uninstall
+
+Installing what is missing
+
+Checking what rouh.land hands out, before anything is installed
+  ✓ rouh.land's release: signed with Rouh's key
+  ✓ rouh.land's newest tested code: signed with Rouh's key (eb35f86105)
+  ✓ Docker version 29.9.3, Compose 5.7.1
+
+Getting Rouh's updater
+  ✓ Rouh's updater at the signed, tested commit eb35f86105
+
+A kept Rouh is on this server
+Saved 20261114-084120, when Rouh was uninstalled with Keep my data: 243 tables of memory, your workspace, its code and keys.
+
+  B  Bring back your Rouh (recommended): the same Rouh, as itself.
+  F  Start fresh: a new Rouh. The kept copy stays in /home/rouh/rouh-kept/20261114-084120.
+
+
+Bringing back your Rouh
+Getting base 1.0.14 (release 20261111201145) ready, without starting it
+The stack in use is the release's own.
+Checking the kept copy
+Putting back your workspace, Rouh's own code, the libraries Rouh added, the keys it seals your logins with, its identity and data folder, its undo points, its agents' sign-ins
+Putting back Rouh's database
+Your Rouh is back: 7 volumes and the database (243 tables), from /home/rouh/rouh-kept/20261114-084120
+
+Starting Rouh (the first time downloads about 2 GB)
+Updating to base 1.0.14, release 20261111201145
+Base 1.0.14 passed this Rouh's own checks
+refused: Rouh's own stack file could not be read. Compose could not read it: stat /home/rouh/rouh/.env: permission denied
+The stack in use is the release's own, because Rouh's own was refused.
+Started base 1.0.14 (release 20261111201145): every part is healthy
+[ok] Nightly update is on: every night between 03:00 and 05:00 (this server's time), after a backup. Next: Sun 2026-11-15 04:25:56 UTC
+[ok] Rouh is running (base 1.0.14, release 20261111201145, signature checked).
+
+Next, set your Rouh up in a terminal on this server:
+
+    rouh setup
+
+PASS rouh.bring-back
+PASS rouh.running-after-bring-back
+fingerprint before 9e06250977b690f2, after 47a76c53c81dfabd
+some checks failed
