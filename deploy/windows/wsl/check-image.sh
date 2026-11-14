@@ -132,6 +132,7 @@ as_rouh rouh-wsl uninstall-keep >>"$log" 2>&1 && as_rouh test -d /home/rouh/rouh
 # Brought back and not started yet, so the fingerprint is of exactly what came back; then started.
 docker exec -u rouh -w /home/rouh -e HOME=/home/rouh -e ROUH_STOP_AFTER_BRING_BACK=1 rouh-wsl-check rouh-wsl first-start >>"$log" 2>&1 \
   && pass rouh.bring-back || fail rouh.bring-back "first-start after Keep did not bring it back"
+as_rouh sh -c 'docker compose -p rouh -f $HOME/rouh/stack/stack.json start postgres' >>"$log" 2>&1 || true
 as_rouh rouh fingerprint > "$out/fingerprint-after.json" 2>>"$log" || true
 as_rouh rouh update >>"$log" 2>&1 || true
 s="$(state)"; [ "$(field "$s" running)" = true ] && pass rouh.running-after-bring-back || fail rouh.running-after-bring-back "$s"
