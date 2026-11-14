@@ -176,7 +176,7 @@ It and `mac_release.py` beside it decide which releases are trusted, so take the
 
 ```bash
 git clone https://github.com/rouh-it/rouh-core.git ~/rouh-core   # Rouh's code, public since 7 November 2026
-commit="$(curl -fsS https://rouh.land/mac/release/stable.json | python3 -c 'import json,sys; print(json.loads(json.load(sys.stdin)["payload"])["commit"])')"
+commit="$(curl -fsS https://rouh.land/release/stable.json | python3 -c 'import json,sys; print(json.loads(json.load(sys.stdin)["payload"])["commit"])')"
 git -C ~/rouh-core checkout -q "$commit"
 [ -f ~/rouh-core/deploy/container/linux_stack.py ] || git -C ~/rouh-core checkout -q main   # a release made before linux_stack.py existed has none: the one time main is used
 python3 ~/rouh-core/deploy/container/mac_release.py release-status
