@@ -6792,7 +6792,8 @@ function askInit() {
   box.placeholder = ASK_PLACEHOLDER;
   $('askSend').title = 'Ask (' + sendKeys() + ')';
   box.addEventListener('input', askGrow);
-  // Enter is a new line here too, and Ctrl+Enter asks (`isSendKey`).
+  // Enter asks and Shift+Enter is a new line here too; there is nothing to
+  // fork, so Cmd+Enter asks as well (`isSendKey`).
   box.addEventListener('keydown', function (e) {
     if (isSendKey(e)) {
       e.preventDefault();

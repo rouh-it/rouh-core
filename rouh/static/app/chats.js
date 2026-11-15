@@ -2434,6 +2434,7 @@ function forkBtnPaint() {
   var can = !ADDR.front && !!chat && (chat.draft ? FORKS.bare && !turns
     : FORKS.bare || turns);
   b.hidden = !can;
+  keysHintPaint();
   var typed = !!(input && input.value.trim()) || (shared.attached && shared.attached.length > 0);
   b.disabled = !typed || !!S.busy;
   // The same two buttons on every message being edited, by the same rule:
@@ -2456,37 +2457,72 @@ function onMac() {
   return /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
 }
 
-// What Ctrl+Shift+Enter is called on this keyboard, for Fork's tooltip on
-// the main box and on a message being edited.
+// What Cmd+Enter, or Ctrl+Enter off a Mac, is called on this keyboard, for
+// Fork's tooltip on the main box and on a message being edited.
 function forkKeys() {
-  return onMac() ? '⌘⇧↩' : 'Ctrl+Shift+Enter';
-}
-
-/* Enter is a new line in every box a message is written in, and Ctrl+Enter,
-   or Cmd+Enter on a Mac, sends it. Petar, 26 September 2026
-   (fr_06ec274f0b97): "Can you make the keyboard button make a new line
-   instead of submitting the chat message?" Until then Enter sent and only
-   Shift+Enter made a new line, so a message of more than one line had to be
-   written with a finger on Shift. A phone's return key is a new line as
-   well, and its arrow sends. A composition in progress (an IME choosing a
-   character) owns the key and keeps it. */
-function isSendKey(e) {
-  return e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey
-    && !e.isComposing;
-}
-
-// What that is called on this keyboard, for Send's tooltip.
-function sendKeys() {
   return onMac() ? '⌘↩' : 'Ctrl+Enter';
 }
 
-// An empty box says how to send what is written in it, where there is a
-// keyboard to send it from. On a phone the arrow beside the box is the only
-// way, and the words stay as they are. `shorter` is what to say instead of
-// `words` when the keys would take them past one line.
+/* Whether the box is being typed on with a phone's own keyboard: a touch
+   screen and nothing finer to point with. A tablet with a keyboard and a
+   trackpad has a fine pointer as well, and types as a desk does. */
+function touchTyping() {
+  if (!window.matchMedia) return false;
+  return window.matchMedia('(pointer: coarse)').matches
+    && !window.matchMedia('(any-pointer: fine)').matches;
+}
+
+/* What a key pressed in a box a message is written in does: 'send', 'fork',
+   or '' for whatever the box does with it itself (a new line, a letter).
+   Petar, 15 November 2026: "can we make ENTER/RETURN submit the message and
+   SHIFT+ENTER/RETURN make a new line? ... and make CMD+ENTER/RETURN fork and
+   the windows equivalent." So Enter sends, Shift+Enter is a new line, and
+   Cmd+Enter on a Mac, Ctrl+Enter elsewhere, asks it in a fork (the old
+   Ctrl+Shift+Enter forks too). From 26 September 2026 (fr_06ec274f0b97)
+   until then Enter was the new line and Ctrl+Enter sent.
+   - A composition in progress (an IME choosing a character, a dead key, the
+     key code 229 a browser gives while one is open) owns the key.
+   - On a phone's own keyboard Return stays a new line and the arrow sends,
+     because a message sent by accident there is the worse mistake.
+   - `canFork` false is a box with nothing to fork (Ask AI, a note): its
+     Cmd+Enter sends, as it did before. */
+function composerKey(e, canFork) {
+  if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229 || e.altKey) return '';
+  if (e.ctrlKey || e.metaKey) return canFork === false ? 'send' : 'fork';
+  if (e.shiftKey) return '';
+  return touchTyping() ? '' : 'send';
+}
+
+// Kept for the boxes that only send: Enter, or Ctrl/Cmd+Enter where there is
+// nothing to fork.
+function isSendKey(e) {
+  return composerKey(e, false) === 'send';
+}
+
+// What sending is called on this keyboard, for Send's tooltip.
+function sendKeys() {
+  return touchTyping() ? 'the arrow' : 'Enter';
+}
+
+// An empty box used to say how to send what is written in it. Enter sends
+// now, as everywhere else, so the words stay as they are, and the main box
+// has its quiet line of keys under it instead (`keysHintPaint`).
 function withSendKeys(words, shorter) {
-  return window.matchMedia && window.matchMedia('(pointer: fine)').matches
-    ? (shorter || words) + ' (' + sendKeys() + ' to send)' : words;
+  return words;
+}
+
+/* The line of keys under the main box, at a desk only: what Enter, Shift+
+   Enter and Cmd+Enter do, with Ctrl in place of the Cmd sign off a Mac, and
+   without the fork where there is nothing to fork. */
+function keysHintPaint() {
+  var h = $('composerKeys');
+  if (!h) return;
+  if (touchTyping()) { h.hidden = true; return; }
+  h.hidden = false;
+  var fork = $('forkBtn');
+  var parts = ['Enter to send', 'Shift+Enter new line'];
+  if (fork && !fork.hidden) parts.push((onMac() ? '⌘' : 'Ctrl') + '+Enter fork');
+  h.textContent = parts.join(' · ');
 }
 
 (function () {
@@ -2629,9 +2665,10 @@ $('parentNoteForm').addEventListener('submit', function (e) {
   e.preventDefault();
   parentNoteSend();
 });
-// Ctrl or Cmd with Enter sends, as a box that takes several lines does.
+// Enter sends and Shift+Enter is a new line, as in every message box
+// (`composerKey`); there is nothing to fork, so Cmd+Enter sends too.
 $('parentNoteText').addEventListener('keydown', function (e) {
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+  if (isSendKey(e)) {
     e.preventDefault();
     parentNoteSend();
   }
@@ -2704,6 +2741,6 @@ $('deleteChatBtn').addEventListener('click', function () {
 });
 
 export { applyChats, chatById, chatIsTask, chatMenuShow, CHATS, chatShow, forkBehind, forkBtnPaint, forkTip,
-  forkComeNow, forkHold, forkKeptStale, forkPeeked, forkKeys, forkMarksDraw, forkPark, forkRefused, forkReplay,
+  composerKey, forkComeNow, forkHold, forkKeptStale, forkPeeked, forkKeys, keysHintPaint, touchTyping, forkMarksDraw, forkPark, forkRefused, forkReplay,
   forkResume, FORKS, forkWithin, isSendKey, onChatSwitched, onNoteSent, openChat, sendKeys,
   showCrumb, withSendKeys };

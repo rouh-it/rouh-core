@@ -211,19 +211,24 @@
 
   /* ---------- the box at the top, and the floating button ---------- */
 
-  /* Enter is a new line and Ctrl+Enter, or Cmd+Enter on a Mac, sends: the
-     rule every message box in Rouh keeps, so the one on this page does not
-     need learning separately (`isSendKey` in app.js, and why). The empty box
-     says so where there is a keyboard to press it on. */
+  /* Enter sends and Shift+Enter is a new line: the rule every message box
+     in Rouh keeps, so the one on this page does not need learning
+     separately (`composerKey` in app/chats.js, and why). Nothing is forked
+     from here, so Ctrl+Enter, or Cmd+Enter, sends as well. On a phone's own
+     keyboard Return is a new line and the arrow sends. */
+  function touchTyping() {
+    return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+      && !window.matchMedia('(any-pointer: fine)').matches);
+  }
+
   function isSendKey(e) {
-    return e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey
-      && !e.isComposing;
+    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229 || e.altKey) { return false; }
+    if (e.ctrlKey || e.metaKey) { return true; }
+    return !e.shiftKey && !touchTyping();
   }
 
   function withSendKeys(words) {
-    if (!(window.matchMedia && window.matchMedia('(pointer: fine)').matches)) { return words; }
-    var mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
-    return words + ' (' + (mac ? '\u2318\u21a9' : 'Ctrl+Enter') + ' to send)';
+    return words;
   }
 
   /* And it grows the way every one does: a line at a time, with no

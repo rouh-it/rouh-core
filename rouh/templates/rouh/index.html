@@ -1069,10 +1069,11 @@ with {% asset %}, which gives it its hashed address.
                   aria-label="Stop making a picture">&times;</button>
         </div>
         <label class="sr-only" for="input">Message</label>
-        {% comment %} Enter is a new line, on a phone's keyboard as well, and
-             Ctrl+Enter (Cmd on a Mac) or the arrow sends: `isSendKey` in
-             app.js, which also adds the keys to these words at a desk. {% endcomment %}
+        {% comment %} Enter sends, Shift+Enter is a new line and Cmd+Enter (Ctrl+Enter off
+             a Mac) forks; on a phone's own keyboard Return is a new line and
+             the arrow sends: `composerKey` in app/chats.js. {% endcomment %}
         <textarea id="input" class="composer-input" rows="1" placeholder="Type to Rouh"
+                  aria-describedby="composerKeys"
                   enterkeyhint="enter" autocomplete="off" spellcheck="true"></textarea>
 
         {% comment %} What the microphone is hearing, the full width of the box. The
@@ -1200,12 +1201,12 @@ with {% asset %}, which gives it its hashed address.
                rather than a choice hidden behind a chevron on Send, because it
                is the answer to "I did not understand that", which is asked
                often and should cost one press: Send stays the filled one, the
-               default, and this is the quiet one beside it. Ctrl+Shift+Enter
-               (Cmd on a Mac) is the same press from the keyboard. Not drawn in
+               default, and this is the quiet one beside it. Cmd+Enter (Ctrl+Enter
+               off a Mac) is the same press from the keyboard. Not drawn in
                a chat with nothing in it yet, where there is nothing to fork. {% endcomment %}
           <button id="forkBtn" class="tog fork-btn" type="button" hidden disabled
                   aria-label="Send as a fork"
-                  aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter">
+                  aria-keyshortcuts="Meta+Enter Control+Enter">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none"
                stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M6 20V4"/><path d="M6 15c0-4.5 3.5-7 12-7"/><path d="M15 5l3 3-3 3"/>
@@ -1220,13 +1221,15 @@ with {% asset %}, which gives it its hashed address.
                words go when they are sent: into the conversation above the box.
                The name is still in the label and the tooltip. {% endcomment %}
           <button id="sendBtn" class="send-btn" type="submit" aria-label="Send message" title="Send"
-                  aria-keyshortcuts="Control+Enter Meta+Enter">
+                  aria-keyshortcuts="Enter">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 20V6M6 11l6-6 6 6"/>
             </svg>
           </button>
         </div>
       </div>
+      {% comment %} The keys, quietly, under the box at a desk only (`keysHintPaint`). {% endcomment %}
+      <p class="composer-keys" id="composerKeys" hidden></p>
     </form>
 
     {% comment %} Under the box while the welcome is up: the other half of the column,
@@ -1334,7 +1337,7 @@ with {% asset %}, which gives it its hashed address.
           {% comment %} Ask is Send's twin on this side, so it is the same arrow and no
                word either. {% endcomment %}
           <button id="askSend" class="send-btn" type="submit" aria-label="Ask about this page" title="Ask"
-                  aria-keyshortcuts="Control+Enter Meta+Enter">
+                  aria-keyshortcuts="Enter">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 20V6M6 11l6-6 6 6"/>
             </svg>

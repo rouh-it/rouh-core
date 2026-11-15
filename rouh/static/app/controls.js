@@ -16,7 +16,7 @@ import { atBottom, closeAssistant, drawWaiting, drawWords, fitActs, keepEnd, new
   scrollDown, setBusy, showStop, stopTheTurn, T, transcriptEl, watchTheTurn } from 'app/transcript.js';
 import { CARDS_UP, cardsBackInPlace, cardsGoOut, cardsSettle, cardsUncover, layerOpen, LAYERS, paintCovered } from 'app/cards.js';
 import { canvasTask, growToLines, projectsClose, rowsFollowSidebar } from 'app/runs.js';
-import { chatById, CHATS, forkBtnPaint, forkComeNow, FORKS, isSendKey, sendKeys, withSendKeys } from 'app/chats.js';
+import { chatById, CHATS, composerKey, forkBtnPaint, forkComeNow, FORKS, keysHintPaint, sendKeys, withSendKeys } from 'app/chats.js';
 import { ADDR, addrChatIsShowing, addrTouch, freshChatFirst } from 'app/address.js';
 import { attReady, attUploading, clearAttachments, drawTurnFiles, PICS, sendPicture, unlockAudio } from 'app/attachments.js';
 
@@ -1807,19 +1807,15 @@ if (input) {
   input.addEventListener('input', growInput);
   input.addEventListener('input', forkBtnPaint);
   input.addEventListener('keydown', function (e) {
-    // Ctrl+Shift+Enter, or Cmd+Shift+Enter on a Mac, sends as a fork: the
-    // same as Fork beside Send (`rouh/forks.py`).
-    if (e.key === 'Enter' && e.shiftKey && (e.ctrlKey || e.metaKey) && !e.isComposing) {
-      e.preventDefault();
-      sendTyped(true);
-      return;
-    }
-    // Ctrl+Enter, or Cmd+Enter, sends (`isSendKey`). Enter on its own is the
-    // new line the box makes of it, and `growInput` makes room for it.
-    if (isSendKey(e)) {
-      e.preventDefault();
-      $('composer').requestSubmit ? $('composer').requestSubmit() : sendTyped();
-    }
+    // Enter sends, Shift+Enter is the new line the box makes of it, and
+    // Cmd+Enter (Ctrl+Enter off a Mac) sends as a fork: the same as Fork
+    // beside Send (`composerKey`, `rouh/forks.py`). A phone's Return stays
+    // a new line and the arrow sends.
+    var does = composerKey(e);
+    if (!does) return;
+    e.preventDefault();
+    if (does === 'fork') { sendTyped(true); return; }
+    $('composer').requestSubmit ? $('composer').requestSubmit() : sendTyped();
   });
   input.placeholder = withSendKeys(input.placeholder);
   $('sendBtn').title = 'Send (' + sendKeys() + ')';
@@ -1946,7 +1942,7 @@ if (window.MutationObserver) {
 }
 queueFold();
 
-/* `asFork` is Fork beside Send, or Ctrl+Shift+Enter: the same words, asked
+/* `asFork` is Fork beside Send, or Cmd+Enter (Ctrl+Enter off a Mac): the same words, asked
    in a new fork of this chat instead of in it (`rouh/forks.py`). The fork
    opens in every tab, and this one draws the words there once it has
    (`forkTypedArrived`), the way it draws them here for Send. */

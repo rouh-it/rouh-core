@@ -12,7 +12,7 @@ import { S, send } from 'app/socket.js';
 import { PB, readAloud, stopPlayback } from 'app/playback.js';
 import { ANSWER_HELD, answerHeldGo, cardsUnpark, footnotes, goToAddress, renderBlock, resetCanvas, resetStreamCards, svgEl } from 'app/cards.js';
 import { copyText, growToLines } from 'app/runs.js';
-import { CHATS, forkBtnPaint, forkComeNow, forkKeys, forkMarksDraw, FORKS, isSendKey, sendKeys } from 'app/chats.js';
+import { CHATS, composerKey, forkBtnPaint, forkComeNow, forkKeys, forkMarksDraw, FORKS, sendKeys } from 'app/chats.js';
 import { welcomeShow } from 'app/welcome.js';
 import { screenHeight } from 'app/controls.js';
 import { drawTurnFiles, isDrawn } from 'app/attachments.js';
@@ -844,9 +844,9 @@ function stepVersion(root, version) {
    Send asks the new words in place of the old ones (`askAgain`). Fork asks
    them in a fork that comes off just above this message, as the chat stood
    when it was first asked (`rouh/forks.py`), and this message and its
-   answer stay as they were. The keys are the main box's too: Enter is a new
-   line, Ctrl+Enter sends (`isSendKey`), Ctrl+Shift+Enter forks (Cmd for
-   Ctrl on a Mac), and Escape cancels, which is also a button, because this
+   answer stay as they were. The keys are the main box's too: Enter sends,
+   Shift+Enter is a new line, Cmd+Enter (Ctrl+Enter off a Mac) forks
+   (`composerKey`), and Escape cancels, which is also a button, because this
    is used with a thumb as much as with a keyboard. */
 function editTurn(turn, words) {
   if (turn.__editing) { turn.__editing.focus(); return; }
@@ -910,11 +910,14 @@ function editTurn(turn, words) {
   area.addEventListener('keydown', function (e) {
     if (e.isComposing) return;
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
-    else if (e.key === 'Enter' && e.shiftKey && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      forkIt();
+    else {
+      // Enter asks it again here, Shift+Enter is a new line, and Cmd+Enter
+      // (Ctrl+Enter off a Mac) asks it in a fork, as in the main box.
+      var does = composerKey(e);
+      if (does) e.preventDefault();
+      if (does === 'fork') forkIt();
+      else if (does === 'send') commit();
     }
-    else if (isSendKey(e)) { e.preventDefault(); commit(); }
   });
   // A press on the box around the words, the line under them included, puts
   // the cursor back in them, as it does in the main box.

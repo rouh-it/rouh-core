@@ -7221,6 +7221,14 @@ a.pf-co:hover { color: var(--accent); text-decoration: underline; }
    the background under both belongs to the text box: clicking any part of it
    puts the cursor back in the text. */
 .composer { flex: 0 0 auto; display: block; }
+/* The keys, under the box at a desk: one quiet line, the size of the
+   tooltips, out of the way of the controls (`keysHintPaint`). */
+.composer-keys {
+  margin: 4px 10px 0; font-size: 11px; line-height: 16px;
+  color: var(--dim); text-align: right;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.composer-keys[hidden] { display: none; }
 .composer-box {
   /* Three rows, one under the other, each with its own room: the text, the
      level meter, the controls. They used to share one box, with the meter and

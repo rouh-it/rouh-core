@@ -1922,20 +1922,19 @@
       text.addEventListener('input', grow);
       // A wider or narrower page wraps the same words onto more or fewer lines.
       window.addEventListener('resize', grow);
-      // Enter is a new line and Ctrl+Enter, or Cmd+Enter on a Mac, sends, as
-      // in Rouh's own box (`isSendKey` in app.js, and why). The empty box says
-      // so where there is a keyboard to press it on.
+      // Enter sends and Shift+Enter is a new line, as in Rouh's own box
+      // (`composerKey` in app/chats.js, and why); Ctrl+Enter, or Cmd+Enter,
+      // sends too. On a phone's own keyboard Return is a new line and the
+      // arrow sends.
       text.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey
-            && !e.isComposing) {
+        if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229 || e.altKey) { return; }
+        var touch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+          && !window.matchMedia('(any-pointer: fine)').matches);
+        if (e.ctrlKey || e.metaKey || (!e.shiftKey && !touch)) {
           e.preventDefault();
           sendOwn();
         }
       });
-      if (window.matchMedia && window.matchMedia('(pointer: fine)').matches) {
-        var mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
-        text.placeholder += ' (' + (mac ? '\u2318\u21a9' : 'Ctrl+Enter') + ' to send)';
-      }
       if (arrow) { arrow.addEventListener('click', sendOwn); }
     }
   }
