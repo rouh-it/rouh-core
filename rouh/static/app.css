@@ -11268,3 +11268,20 @@ body.chat-incognito .stream-title, body.chat-incognito #crumbLine { display: non
 }
 .incog-mark svg { color: var(--incog); }
 .incog-mark[hidden] { display: none; }
+
+/* ---------- One chat: the page beside it (rouh/page_in_chat.py) ----------
+
+   What of the page the next message is about, over the one box, as the This page side's quote was;
+   and Point on the composer's line while a page is open. */
+.page-about {
+  display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; padding: 8px 10px;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-s);
+}
+.page-about[hidden] { display: none; }
+.page-about p {
+  flex: 1; min-width: 0; margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--dim);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.page-about b { color: var(--text); font-weight: 600; }
+.page-point-btn[hidden] { display: none; }
+.page-point-btn.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }

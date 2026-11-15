@@ -21,6 +21,7 @@
 import { CHATS, openChat } from 'app/chats.js';
 import { composerPopsClose } from 'app/composer_extras.js';
 import { $, el } from 'app/helpers.js';
+import { ASK } from 'app/runs.js';
 import { notify } from 'app/notices.js';
 
 /** @typedef {{ id: string, kind: string, label: string, owner: string, path: string, size: string,
@@ -34,7 +35,7 @@ import { notify } from 'app/notices.js';
 var btn = /** @type {HTMLButtonElement | null} */ ($('readingBtn'));
 var pop = $('readingPop');
 var strip = /** @type {HTMLButtonElement | null} */ ($('readingStrip'));
-var READ = { chat: '', data: /** @type {ReadView | null} */ (null), more: false, busy: false, asked: 0, focus: '', painted: '', openAfter: false };
+var READ = { chat: '', data: /** @type {ReadView | null} */ (null), more: false, busy: false, asked: 0, focus: '', painted: '', openAfter: false, doc: '' };
 
 var LOCK = 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z';
 
@@ -134,7 +135,11 @@ function paintStrip(d) {
     words.appendChild(document.createTextNode('nothing here is kept, and the chat is deleted when you leave it'));
   } else {
     words.appendChild(el('b', '', 'Reading'));
-    d.strip.split(' · ').forEach(function (bit, i) {
+    // The page open on the canvas beside the chat, which every message is told (`rouh/page_in_chat.py`).
+    var bits = d.strip.split(' · ');
+    if (ASK.doc) bits.push('This page');
+    READ.doc = ASK.doc;
+    bits.forEach(function (bit, i) {
       if (i) words.appendChild(document.createTextNode(' · '));
       words.appendChild(el('span', 'reading-strip-bit', bit));
     });
@@ -413,6 +418,7 @@ if (btn && pop) {
   setInterval(function () {
     var chat = currentChat();
     if (chat !== READ.chat) { READ.more = false; load(chat); }
+    else if (READ.data && (ASK.doc || '') !== READ.doc) paintStrip(READ.data);
   }, 400);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) READ.chat = ''; });
   window.addEventListener('rouh:reading-again', function () { READ.chat = ''; });

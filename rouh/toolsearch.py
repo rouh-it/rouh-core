@@ -172,7 +172,7 @@ AREA_OF: dict[str, str] = {
     "one_answer": "one", "one_take": "one", "one_give": "one",
     # Tasks, chats and the workspace
     "make_a_task": "tasks", "move_task": "tasks", "rename_task": "tasks", "move_step": "tasks", "pin": "tasks", "rename_this_chat": "tasks",
-    "read_workspace": "tasks", "show_workspace_page": "tasks", "publish_task": "tasks",
+    "read_workspace": "tasks", "show_workspace_page": "tasks", "edit_page": "tasks", "publish_task": "tasks",
     "check_task_sharing": "tasks", "share_with_person": "tasks", "page_asks": "tasks",
     "page_comments": "tasks",
     # Memory and Telegram

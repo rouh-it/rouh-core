@@ -132,6 +132,9 @@ export interface ServerMessages {
   /* Sent by the server, and not in PROTOCOL.md's table until 5 October 2026. */
   /** The default models were changed in Settings: ask for them again (`modeldefaults`). */
   model_defaults: {};
+  /** The page open beside the chat was changed by Rouh in the one conversation (`edit_page`,
+   *  `rouh/page_in_chat.py`): the canvas draws it again when it is that page. */
+  page_changed: { doc: string; summary?: string; };
   /** Cheap, Smart or Auto for one chat, the control beside the composer (`chatkinds.choice_of`): said back to
    *  the tab that asked or set it, and to every other tab of the person's when it was set. */
   chat_model: { chat: string; choice?: string; own?: boolean; default?: string; chooses?: boolean; mode?: string;
@@ -170,6 +173,9 @@ export interface ClientMessages {
   interrupt: {};
   dictation: { on: any; };
   text: { text: any; attachments?: any; answers?: any;
+    /** The page open on the canvas beside the chat, and what of it was selected or pointed at
+     *  (`rouh/page_in_chat.py`). */
+    page?: { doc: string; quote?: string; picked?: any; title?: string; };
     /** Sent while an answer is being written: the page's own name for it, said back in `steer_taken`. */
     steer?: string; };
   dismiss_question: { task: any; asked: any; };

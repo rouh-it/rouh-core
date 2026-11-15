@@ -3293,6 +3293,13 @@ class ToolRegistry:
                 },
                 self._show_workspace_page,
             )
+            # The page open on the canvas beside the chat, changed from the one box: Ask AI's own edit,
+            # for the owner, in the one conversation (`rouh/page_in_chat.py`, Petar, 15 November 2026).
+            from . import page_in_chat
+
+            _edit = page_in_chat.tool_definition()
+            self._own(_edit["name"], _edit["description"], _edit["input_schema"], self._edit_page,
+                      area="tasks", brief="change the page open on the canvas beside this chat")
             # What the canvas can be pointed at. Two modes and no more: the
             # tasks, and now. Opening one task or one step is not a third mode
             # - it is what to load, and it is loaded exactly as a click on it
@@ -13979,6 +13986,16 @@ class ToolRegistry:
                     "the one they are talking in.")
         return ("The canvas is showing the task browser: every task in the workspace, "
                 "by category. Say one short sentence; do not read the list out.")
+
+    async def _edit_page(self, args, emit):
+        """Change the page open beside this chat (`rouh/page_in_chat.py`), and tell the tab to draw it again."""
+        from . import page_in_chat
+
+        said, changed = await asyncio.to_thread(page_in_chat.edit, args if isinstance(args, dict) else {})
+        if changed:
+            with contextlib.suppress(Exception):
+                await emit({"type": "page_changed", "doc": changed["doc"], "summary": changed["summary"]})
+        return said
 
     async def _show_workspace_page(self, args, emit):
         """A page from the person's workspace, whole, in a sandboxed frame on a card."""

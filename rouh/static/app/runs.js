@@ -5734,6 +5734,10 @@ var ASK = {
 var ASK_PLACEHOLDER = withSendKeys('Ask about this page, or say what to change',
                                    'Ask, or say what to change');
 var ASK_CHANGE_HERE = withSendKeys('What should change here?');
+//: The one box's own words while a page is open beside the chat, and what it said before.
+var PAGE_PLACEHOLDER = withSendKeys('Ask about this page, or say what to change', 'Ask, or say what to change');
+/** @type {string | null} */
+var ROUH_PLACEHOLDER = null;
 
 /* The page the canvas is showing, as the workspace addresses it, or nothing.
 
@@ -5770,10 +5774,20 @@ function askShows() {
   var doc = askDoc();
   if (doc !== ASK.doc) askStartOver(doc);
   seenTouch(doc);
-  tabs.hidden = !doc;
-  // Nothing loaded is one conversation and no tabs over it.
-  if (!doc) ASK.tab = 'rouh';
-  var on = ASK.tab === 'page';
+  // One chat, no tabs (Petar, 15 November 2026, Chat Change Planning): the conversation column is
+  // Rouh's, with the page beside it in the turn (`rouh/page_in_chat.py`). The This page side's own
+  // panel and box stay in the page, unused by the owner: a reader the page was shared with is
+  // served Ask AI on its own sealed path (`rouh/web/guests.py`), never this column.
+  tabs.hidden = true;
+  ASK.tab = 'rouh';
+  var on = false;
+  pageAboutDraw();
+  if (input) {
+    if (ROUH_PLACEHOLDER === null) ROUH_PLACEHOLDER = input.placeholder;
+    if (!ASK.picked && !ASK.quote) input.placeholder = doc ? PAGE_PLACEHOLDER : ROUH_PLACEHOLDER;
+  }
+  var point = $('pagePointBtn');
+  if (point) point.hidden = !doc;
   col.setAttribute('data-chat', on ? 'page' : 'rouh');
   var page = $('chatTabPage'), rouh = $('chatTabRouh');
   page.classList.toggle('on', on);
@@ -5842,8 +5856,9 @@ function askStartOver(doc) {
 // a page is loaded - so it comes back the way every other way of opening one
 // brings it back.
 function askTab(which) {
-  var want = which === 'page' ? 'page' : 'rouh';
-  if (want === 'page' && !askDoc()) return;
+  // There is one side now: asking about the page is asking in the conversation, with the page in it.
+  var want = 'rouh';
+  void which;
   ASK.tab = want;
   chatIsWanted();
   // On a phone the conversation and the canvas are two panes and only one of
@@ -5854,7 +5869,7 @@ function askTab(which) {
   askShows();
   growInput();
   askGrow();
-  var box = want === 'page' ? $('askInput') : input;
+  var box = input;
   if (box) setTimeout(function () { try { box.focus(); } catch (err) {} }, 0);
   /* A transcript that was off the screen could not be scrolled while it was
      there - an element with no layout has no scroll - so anything that
@@ -5895,9 +5910,39 @@ function askCite(text) {
 
 function askDrawQuote() {
   var box = $('askQuote'), words = $('askQuoteText');
+  pageAboutDraw();
   if (!box || !words) return;
   words.textContent = ASK.quote;
   box.hidden = !ASK.quote;
+}
+
+/* What of the page the next message is about, over the one box: the passage selected on it, or the
+   part of it pointed at. The cross lets it go, and the message takes it (`askPageNow`). */
+function pageAboutDraw() {
+  var row = $('pageAbout'), what = $('pageAboutWhat'), words = $('pageAboutWords');
+  if (!row || !what || !words) return;
+  var p = ASK.picked;
+  var on = !!askDoc() && (!!ASK.quote || !!p);
+  row.hidden = !on;
+  what.textContent = p ? p.label + ': ' : 'Passage: ';
+  words.textContent = p ? p.text : ASK.quote;
+}
+
+/** The page beside the chat, for a message about to be sent, or null; what was selected or pointed at
+    goes with it once and is then let go. */
+function askPageNow() {
+  var doc = askDoc();
+  if (!doc) return null;
+  /** @type {{doc: string, quote?: string, picked?: any, title?: string}} */
+  var out = { doc: doc, title: askName(doc) };
+  if (ASK.quote) out.quote = ASK.quote;
+  if (ASK.picked) out.picked = ASK.picked;
+  ASK.quote = '';
+  ASK.picked = null;
+  askDrawQuote();
+  askDrawPicked();
+  if (input && ROUH_PLACEHOLDER !== null) input.placeholder = PAGE_PLACEHOLDER;
+  return out;
 }
 
 function askClear() {
@@ -6384,7 +6429,7 @@ function askLoad(id) {
 // The passage quoted, and the box asking what should change about it.
 function askChangeHere() {
   askTab('page');
-  var box = $('askInput');
+  var box = input;
   if (!box) return;
   box.placeholder = ASK_CHANGE_HERE;
   setTimeout(function () { try { box.focus(); } catch (err) {} }, 0);
@@ -6401,10 +6446,12 @@ function askToFrame(what) {
 // Whether the page is waiting for the reader to point, as the button says it.
 function askPointing(on) {
   ASK.pointing = !!on;
-  var btn = $('askPoint');
-  if (!btn) return;
-  btn.classList.toggle('on', ASK.pointing);
-  btn.setAttribute('aria-pressed', ASK.pointing ? 'true' : 'false');
+  ['askPoint', 'pagePointBtn'].forEach(function (id) {
+    var btn = $(id);
+    if (!btn) return;
+    btn.classList.toggle('on', ASK.pointing);
+    btn.setAttribute('aria-pressed', ASK.pointing ? 'true' : 'false');
+  });
 }
 
 // Point, pressed: the page starts pointing, and pressed again it stops.
@@ -6436,6 +6483,7 @@ function askPicked(said, still) {
 
 function askDrawPicked() {
   var box = $('askPicked'), what = $('askPickedWhat'), words = $('askPickedText');
+  pageAboutDraw();
   if (!box) return;
   var p = ASK.picked;
   box.hidden = !p;
@@ -6772,6 +6820,23 @@ function askInit() {
   $('askStop').addEventListener('click', askAbort);
   $('whatChangedBtn').addEventListener('click', seenPress);
   $('askPoint').addEventListener('click', askPoint);
+  // The one box's own: Point while a page is open, the cross on what it is about, and the page drawn
+  // again when Rouh changed it in the conversation.
+  var pointBtn = $('pagePointBtn');
+  if (pointBtn) pointBtn.addEventListener('click', askPoint);
+  var aboutX = $('pageAboutX');
+  if (aboutX) aboutX.addEventListener('click', function () {
+    if (ASK.picked) askToFrame('unpick');
+    ASK.quote = '';
+    ASK.picked = null;
+    askDrawQuote();
+    askDrawPicked();
+    if (input) { input.placeholder = askDoc() ? PAGE_PLACEHOLDER : (ROUH_PLACEHOLDER || ''); input.focus(); }
+  });
+  window.addEventListener('rouh:page-changed', function (e) {
+    var m = /** @type {CustomEvent} */ (e).detail || {};
+    if (m.doc && askDoc() === m.doc) askReload();
+  });
   // Escape while the page waits to be pointed at stops the pointing and
   // closes nothing (`somethingElseIsOver` steps aside for it).
   document.addEventListener('keydown', function (e) {
@@ -18288,7 +18353,7 @@ window.RouhBeatsHost = {
 
 oneConnect();
 
-export { applyObjects, applyWorkspace, ASK, askDelete, askFromPage, BRIEF, briefClose, briefOpen,
+export { applyObjects, applyWorkspace, ASK, askDelete, askFromPage, askPageNow, BRIEF, briefClose, briefOpen,
   WORK, workClose, workOpen, workViewing,
   DECIDE, decisionsClose, decisionsHeard, decisionsOpen, decisionsViewing, ACTS, actionsClose, actionsOpen, actionsViewing,
   receiptsClose, receiptsOpen, receiptsViewing, HOME, homeClose, homeOpen, homeViewing, SOURCES, sourcesClose, sourcesOpen, sourcesViewing,

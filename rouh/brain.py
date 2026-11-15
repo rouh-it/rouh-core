@@ -232,6 +232,13 @@ def _reading_block(chat_id: str = "") -> str:
     return reading.block(chat_id)
 
 
+def _page_block() -> str:
+    """The page open beside the chat, for this turn (`rouh/page_in_chat.py`)."""
+    from . import page_in_chat
+
+    return page_in_chat.block()
+
+
 def _general_summary_block(chat_id: str = "") -> str:
     """General's running summary, in General only (`rouh/general_summary.py`)."""
     from . import general_summary
@@ -934,6 +941,8 @@ class Brain:
                 (32, "What is turned off in this chat", "rouh/reading.py", lambda: _reads_off_line(reads)),
                 # A task's chat: the task, its goal, AGENTS.md, notes and pages, as the person set it.
                 (45, "What this chat is reading", "rouh/reading.py", lambda: _reading_block(chat)),
+                # The page open on the canvas beside the chat, and what of it they selected or pointed at.
+                (47, "The page beside the chat", "rouh/page_in_chat.py", _page_block),
                 # General's running summary of what fell out of its window (`rouh/general_summary.py`).
                 (35, "What General said before", "rouh/general_summary.py", lambda: _general_summary_block(chat)),
                 (40, "The person's goals", "rouh/goals.py", lambda: _goals_block(chat)),

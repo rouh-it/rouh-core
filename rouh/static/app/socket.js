@@ -904,6 +904,10 @@ function handleMessage(m) {
       modelsLoad();
       window.dispatchEvent(new CustomEvent('rouh:chat-model', { detail: null }));
       break;
+    case 'page_changed':
+      // Rouh changed the page open beside the chat (app/runs.js draws it again).
+      window.dispatchEvent(new CustomEvent('rouh:page-changed', { detail: m }));
+      break;
     case 'chat_model':
       // Cheap, Smart or Auto for a chat, from this tab or another of the
       // person's (app/composer_extras.js).

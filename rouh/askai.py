@@ -87,6 +87,14 @@ question is answered and a request is carried out, from the one box, for the
 owner and for a reader a page was shared with to change alike. The Rouh tab is
 still beside it for anything bigger than one page.
 
+**Since 15 November 2026 the owner has no tabs** (Petar, Chat Change Planning: "ONE CHAT, NO TABS ... The
+owner gets the full Rouh, with the page in context and able to edit the page"). The column is Rouh's
+conversation alone, and a message typed while a page is open carries which page it is and the passage or element
+of it, so Rouh reads it and changes it with this module's own edit (`rouh/page_in_chat.py`). Everything below
+still serves a reader a page was shared with, on its own sealed routes (`rouh/web/guests.py`): that reader gets
+this page's chat and nothing of the owner's, which is the separation above, kept on the server and not in a
+switch on the screen.
+
 What is left in the page is what can only be there: the passage a reader
 selects, the bar over it, the marks over every passage already asked about,
 the box that follows the pointer while the reader points at part of the page,

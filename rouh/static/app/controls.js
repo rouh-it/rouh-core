@@ -15,7 +15,7 @@ import { orbExpand, orbMenu, orbRowHeight, ORBX, setState } from 'app/orb.js';
 import { atBottom, closeAssistant, drawWaiting, drawWords, fitActs, keepEnd, newTurn, onTranscriptScroll, readerHand,
   scrollDown, setBusy, showStop, stopTheTurn, T, transcriptEl, watchTheTurn } from 'app/transcript.js';
 import { CARDS_UP, cardsBackInPlace, cardsGoOut, cardsSettle, cardsUncover, layerOpen, LAYERS, paintCovered } from 'app/cards.js';
-import { canvasTask, growToLines, projectsClose, rowsFollowSidebar } from 'app/runs.js';
+import { askPageNow, canvasTask, growToLines, projectsClose, rowsFollowSidebar } from 'app/runs.js';
 import { chatById, CHATS, composerKey, forkBtnPaint, forkComeNow, FORKS, keysHintPaint, sendKeys, withSendKeys } from 'app/chats.js';
 import { ADDR, addrChatIsShowing, addrTouch, freshChatFirst } from 'app/address.js';
 import { attReady, attUploading, clearAttachments, drawTurnFiles, PICS, sendPicture, unlockAudio } from 'app/attachments.js';
@@ -1999,6 +1999,11 @@ function sendTyped(asFork) {
     /** @type {import('./protocol').ToServer<'text'>} */ (msg).answers = shared.TYPED_ANSWER.answers;
   }
   shared.TYPED_ANSWER = null;
+  // The page open beside the chat, and what of it was selected or pointed at (`rouh/page_in_chat.py`).
+  if (!asFork) {
+    var beside = askPageNow();
+    if (beside) /** @type {import('./protocol').ToServer<'text'>} */ (msg).page = beside;
+  }
   if (!send(msg)) {
     notify('Not connected, so that message was not sent. It will not be queued.', { tone: 'error' });
     return;

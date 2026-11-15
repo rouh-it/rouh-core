@@ -1065,6 +1065,14 @@ with {% asset %}, which gives it its hashed address.
            the box it pushed the text and every control around as files came
            and went. {% endcomment %}
       <div class="attach-row" id="attachRow" hidden></div>
+      {% comment %} What of the page beside the chat the next message is about: the passage selected on
+           it, or the part pointed at (app/runs.js `pageAboutDraw`). One chat, no tabs: Petar,
+           15 November 2026. {% endcomment %}
+      <div class="page-about" id="pageAbout" hidden>
+        <p><b id="pageAboutWhat"></b><span id="pageAboutWords"></span></p>
+        <button id="pageAboutX" class="ask-quote-x" type="button"
+                aria-label="Let it go: ask about the whole page" title="Ask about the whole page instead">&times;</button>
+      </div>
       <input type="file" id="fileInput" class="sr-only" multiple
              accept="{{ATTACH_ACCEPT}}" data-max="{{ATTACH_MAX}}" aria-hidden="true" tabindex="-1">
 
@@ -1158,6 +1166,16 @@ with {% asset %}, which gives it its hashed address.
             </div>
           </div>
 
+          {% comment %} Point, while a page is open beside the chat: the page waits for a click on
+               the part to change, and the next message is about it (app/runs.js `askPoint`). {% endcomment %}
+          <button id="pagePointBtn" class="tog page-point-btn" type="button" aria-pressed="false" hidden
+                  aria-label="Point at the part of the page to change"
+                  title="Point at the part of the page to change, then say what should change">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none"
+                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="1.5"/>
+            </svg>
+          </button>
           <button id="attachBtn" class="tog" type="button"
                   title="Attach files. You can also drop them on the conversation, or paste a screenshot."
                   aria-label="Attach files">

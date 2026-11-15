@@ -6795,8 +6795,18 @@ class Session:
             said = msg.get("answers")
             if isinstance(said, dict):
                 await self.answered(said)
-            await self.typed((msg.get("text") or "").strip(), msg.get("attachments"),
-                             steer=str(msg.get("steer") or "")[:64])
+            # The page open on the canvas beside the chat, when there is one: Rouh reads it and can change
+            # it in this turn (`rouh/page_in_chat.py`). Set around the turn's start, so the turn's own task
+            # carries it and nothing after it does.
+            from . import page_in_chat
+
+            page = await asyncio.to_thread(page_in_chat.take, msg.get("page"))
+            beside = page_in_chat.NOW.set(page)
+            try:
+                await self.typed((msg.get("text") or "").strip(), msg.get("attachments"),
+                                 steer=str(msg.get("steer") or "")[:64])
+            finally:
+                page_in_chat.NOW.reset(beside)
 
         elif kind == "dismiss_question":
             # Dismiss, on the question box at the top of a task's page: the
