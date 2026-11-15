@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 
 from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, calendar_away, clock, demo,
                composing, conversations, filing, imaging, inbox, inbox_grants, inboxes,
-               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, no_company, sent_twice, same_contact, draft_twice, contact_card, forward_twice, contact_changes, postal_address, meeting_hours, meet_link, no_place,
+               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, no_company, sent_twice, same_contact, draft_twice, contact_card, forward_twice, contact_changes, postal_address, related_people, meeting_hours, meet_link, no_place,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer, reply_times,
                their_clock, their_hours, unread_lists, their_language, promised_to_you,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer,
@@ -7690,6 +7690,15 @@ class ToolRegistry:
                                          "description": "Postal addresses to take off, each as "
                                                         "the contact shows it or a part of it "
                                                         "(the street)."},
+                    "add_related": {
+                        "type": "array", "items": related_people.ITEM_SCHEMA,
+                        "description": "People around them to add, as the phone's Related name "
+                                       "field: their assistant, manager, spouse, partner, child, "
+                                       "parent, brother, sister or friend, each a name and a label.",
+                    },
+                    "remove_related": {"type": "array", "items": {"type": "string"},
+                                       "description": "Related names to take off, each by the "
+                                                      "name the contact shows."},
                     "even_if_known": {"type": "boolean",
                                       "description": "true only when the person said the new "
                                                      "contact is somebody else than the card "
@@ -7799,6 +7808,10 @@ class ToolRegistry:
         args, unaddressed = await asyncio.to_thread(postal_address.allowed, me, args)
         if unaddressed:
             return untrusted.ours(unaddressed)
+        # The people around a contact (night 44, `rouh/related_people.py`): off, a related name is not written.
+        args, unrelated = await asyncio.to_thread(related_people.allowed, me, args)
+        if unrelated:
+            return untrusted.ours(unrelated)
         chat = self.memory.answering_chat()
         key = apple_contacts.key_for(args)
         if not confirmed:
@@ -7844,6 +7857,9 @@ class ToolRegistry:
         args, unaddressed = await asyncio.to_thread(postal_address.allowed, self.contacts.person(), args)
         if unaddressed:
             return asking.Done(False, unaddressed)
+        args, unrelated = await asyncio.to_thread(related_people.allowed, self.contacts.person(), args)
+        if unrelated:
+            return asking.Done(False, unrelated)
         args.pop("confirmed", None)
         async with self._contact_saving:
             twice = self._added_already(press.chat, key)

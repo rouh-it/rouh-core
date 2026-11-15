@@ -1926,6 +1926,18 @@ class MailAlerts:
                 promoted = ""
             if promoted:
                 log.info("mail alert %s: %s", message_id, promoted)
+            # A new address in their signature (night 44, `rouh/sig_address.py`): a contact signing from a
+            # postal address their contact does not have is told.
+            from . import sig_address
+
+            try:
+                alert = await self._db(self.store.alert, user_id, org_id)
+                moved_office = await sig_address.seen(who, message, mailbox=str(alert.get("mailbox") or ""))
+            except Exception:  # noqa: BLE001 - the email is handled all the same
+                log.exception("mail alert %s: the signature's postal address could not be read", message_id)
+                moved_office = ""
+            if moved_office:
+                log.info("mail alert %s: %s", message_id, moved_office)
             # A new address they told you (night 42, `rouh/told_address.py`): a contact whose email says
             # their address is now another one is told, and the email goes on as before.
             from . import told_address

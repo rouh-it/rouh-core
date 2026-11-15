@@ -326,7 +326,9 @@ export interface Blocks {
              /** Each number drawn with Call and Text, while Call from their contact card is on (rouh/card_call.py). */
              call?: boolean;
              /** Each postal address drawn with Directions, while Directions from their contact card is on (rouh/card_directions.py). */
-             directions?: boolean; };
+             directions?: boolean;
+             /** Send their card under the rows, while Send their contact card is on (rouh/card_share.py). */
+             share?: boolean; };
   /** One email, whole (rouh/mail_alerts.py). `from_photo` is the sender's face when they are a contact. */
   email: { from?: string; to?: string; cc?: string; date?: string; subject?: string; body?: string; filed?: any;
            files?: Array<{ name: string; [field: string]: any; }>; checked?: any; from_photo?: string; };

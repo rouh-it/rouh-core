@@ -73,6 +73,12 @@ ADDRESS_TYPES = {"home": ("HOME",), "work": ("WORK",)}
 #: The parts of a postal address after the post office box and the extended address, in ADR's order.
 ADDRESS_PARTS = ("street", "city", "region", "postal_code", "country")
 
+#: The people a card names (X-ABRELATEDNAMES, the phone's Related name field), by the label as a person says
+#: it, to how Apple writes its own; read and written by night 44's gene `related_people`.
+RELATED_LABELS = {"assistant": "Assistant", "manager": "Manager", "spouse": "Spouse", "partner": "Partner",
+                  "child": "Child", "parent": "Parent", "mother": "Mother", "father": "Father",
+                  "brother": "Brother", "sister": "Sister", "friend": "Friend"}
+
 #: TYPE values that say nothing a person would call a label.
 _NOT_LABELS = {"voice", "pref", "internet", "x400", "msg", "text"}
 
@@ -346,6 +352,9 @@ class Person:
     #: The card's postal addresses (ADR), each {"address": one line, "label", "parts"}; read and written by
     #: night 43's gene `postal_address`.
     addresses: list[dict] = field(default_factory=list)
+    #: The people the card names (X-ABRELATEDNAMES), each {"name", "label"}; read and written by night 44's
+    #: gene `related_people`.
+    related: list[dict] = field(default_factory=list)
     #: "individual", or "group" for one of iCloud's contact groups.
     kind: str = "individual"
     #: Where the card's picture is, without its bytes (`photo_of`), or {} for none.
@@ -385,6 +394,7 @@ def read(text: str) -> Person:
         note=card.value("NOTE").strip(),
         title=card.value("TITLE").strip(),
         addresses=addresses_of(card),
+        related=related_of(card),
         kind="group" if kind == "group" else "individual",
         photo=photo_of(card),
     )
@@ -637,6 +647,47 @@ def remove_address(card: Card, said: str) -> list[str]:
     return [address_line(address_parts(p)) for p in gone]
 
 
+def related_of(card: Card) -> list[dict]:
+    """The people a card names, each {"name", "label"} ("assistant", "spouse", or the person's own word)."""
+    out = []
+    for prop in card.all("X-ABRELATEDNAMES"):
+        name = " ".join(prop.text().split())
+        if name:
+            out.append({"name": name, "label": card.label_of(prop) or "related"})
+    return out
+
+
+def same_person_name(a: str, b: str) -> bool:
+    """Whether two ways of writing a name are the same, case, accents and punctuation aside."""
+    pa = " ".join(re.findall(r"\w+", _plain(a or "")))
+    pb = " ".join(re.findall(r"\w+", _plain(b or "")))
+    return bool(pa) and pa == pb
+
+
+def add_related(card: Card, name: str, label: str = "") -> bool:
+    name = " ".join(str(name or "").split())
+    if not name:
+        raise BadField("A related name needs a name.")
+    label = " ".join(str(label or "").split()) or "related"
+    for prop in card.all("X-ABRELATEDNAMES"):
+        if same_person_name(prop.text(), name) and (card.label_of(prop) or "related").lower() == label.lower():
+            return False
+    group = card.next_item()
+    card.props.append(Prop(name="X-ABRELATEDNAMES", value=escape(name), group=group))
+    apple = RELATED_LABELS.get(label.lower())
+    card.props.append(Prop(name="X-ABLABEL", value=escape(f"_$!<{apple}>!$_" if apple else label), group=group))
+    return True
+
+
+def remove_related(card: Card, said: str) -> list[str]:
+    """The related names taken off for a name someone said."""
+    gone = [p for p in card.all("X-ABRELATEDNAMES") if same_person_name(p.text(), said)]
+    names = [" ".join(p.text().split()) for p in gone]
+    for prop in gone:
+        card.remove(prop)
+    return names
+
+
 @dataclass
 class Changes:
     """What one write asks for. None is "leave it as it is"; "" is "clear it"."""
@@ -653,6 +704,9 @@ class Changes:
     #: Postal addresses (night 43, `postal_address`): each {"parts": {street, city, ...}, "label"}.
     add_addresses: list[dict] = field(default_factory=list)
     remove_addresses: list[str] = field(default_factory=list)
+    #: Related names (night 44, `related_people`): each {"name", "label"}.
+    add_related: list[dict] = field(default_factory=list)
+    remove_related: list[str] = field(default_factory=list)
 
     def scalars(self) -> dict[str, str]:
         """The single-valued fields this sets, by `Person`'s own names."""
@@ -664,7 +718,7 @@ class Changes:
     def empty(self) -> bool:
         return not (self.scalars() or self.add_phones or self.remove_phones
                     or self.add_emails or self.remove_emails or self.add_addresses
-                    or self.remove_addresses)
+                    or self.remove_addresses or self.add_related or self.remove_related)
 
 
 def apply(card: Card, changes: Changes) -> list[str]:
@@ -727,6 +781,13 @@ def apply(card: Card, changes: Changes) -> list[str]:
         parts, label = dict(one.get("parts") or {}), str(one.get("label") or "")
         if add_address(card, parts, label):
             said.append(f"added the address {address_line(parts)}" + (f" ({label})" if label else ""))
+    for said_name in changes.remove_related:
+        for name in remove_related(card, said_name):
+            said.append(f"removed {name} from the people around them")
+    for one in changes.add_related:
+        name, label = str(one.get("name") or ""), str(one.get("label") or "")
+        if add_related(card, name, label):
+            said.append(f"added {' '.join(name.split())} as their {label or 'related name'}")
     return said
 
 
@@ -742,7 +803,7 @@ def new_card(uid: str, changes: Changes) -> tuple[Card, list[str]]:
                                birthday=changes.birthday or None, note=changes.note or None,
                                title=changes.title or None,
                                add_phones=changes.add_phones, add_emails=changes.add_emails,
-                               add_addresses=changes.add_addresses))
+                               add_addresses=changes.add_addresses, add_related=changes.add_related))
     card.props.append(Prop(name="UID", value=uid))
     return card, said
 

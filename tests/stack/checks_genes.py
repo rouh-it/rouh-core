@@ -3200,3 +3200,79 @@ print(json.dumps({"saved": bool(saved.get("directions")), "unsaved": bool(unsave
 """))
     expect('"saved": true' in out and '"unsaved": false' in out,
            f"a contact card was not marked for directions as it should be: {out[-500:]}")
+
+
+# --- Night 44 (15 November): their address saved with them; a new address in their signature; the people
+# around a contact; send their contact card
+
+@check("gene.address-saved")
+def address_saved(s: Stack) -> None:
+    """The postal address in a signature is read for a new contact, and a signature with none gives none."""
+    out = core_py(s, _owner_py("""
+from rouh import sig_address
+body = "Hi,\\n\\nKind regards,\\nLena Stack\\nHead of Sales, Harbourline\\n5 Harbour Road\\n20457 Hamburg\\nGermany\\n"
+got = sig_address.address_in(body, "Lena Stack") or {}
+print(json.dumps({"read": sig_address.line_of(got) if got else "",
+                  "none": sig_address.address_in("Hi,\\n\\nThanks,\\nLena Stack\\nSales, Harbourline\\n", "Lena Stack")}))
+"""))
+    expect('"read": "5 Harbour Road, 20457 Hamburg, Germany"' in out and '"none": null' in out,
+           f"the signature's postal address was not read as it should be: {out[-500:]}")
+
+
+@check("gene.sig-address")
+def sig_address(s: Stack) -> None:
+    """A signature's postal address is told only when the card has another one; the same address, a new
+    company or a card with no address is not."""
+    out = core_py(s, _owner_py("""
+from unittest import mock
+from rouh import new_company, sig_address
+card = {"id": "1", "name": "Nina Stack", "organisation": "Paywell",
+        "vcard": "BEGIN:VCARD\\r\\nVERSION:3.0\\r\\nFN:Nina Stack\\r\\nADR;TYPE=WORK:;;12 Old Road;Bristol;;BS2 0JA;United Kingdom\\r\\nEND:VCARD\\r\\n"}
+bare = dict(card, vcard="BEGIN:VCARD\\r\\nVERSION:3.0\\r\\nFN:Nina Stack\\r\\nEND:VCARD\\r\\n")
+def told(c, sig):
+    msg = {"from": "Nina Stack <nina@sa-stack.test>", "body": "Hi,\\n\\nBest,\\nNina Stack\\n" + sig + "\\n"}
+    with mock.patch.object(new_company, "_contact_of", return_value=c), \\
+         mock.patch("rouh.new_number.is_a_person", return_value=True):
+        got = sig_address.find(None, msg)
+    return sig_address.line_of(got[1]) if got[1] else ""
+new = "Partnerships Manager, Paywell\\n40 Market Street, Bristol BS1 4DJ, United Kingdom"
+print(json.dumps({"new": told(card, new), "same": told(card, "Paywell\\n12 Old Road, Bristol BS2 0JA"),
+                  "moved": told(card, "Head of Sales, Northwind\\n40 Market Street, Bristol BS1 4DJ"),
+                  "bare": told(bare, new)}))
+"""))
+    expect('"new": "40 Market Street, BS1 4DJ Bristol, United Kingdom"' in out and '"same": ""' in out
+           and '"moved": ""' in out and '"bare": ""' in out, f"a new address was not told as it should be: {out[-500:]}")
+
+
+@check("gene.related-people")
+def related_people(s: Stack) -> None:
+    """A related name is written to a card with Apple's label, read back with it, and taken off by name."""
+    out = core_py(s, _owner_py("""
+from rouh import vcard
+card = vcard.Card.parse("BEGIN:VCARD\\r\\nVERSION:3.0\\r\\nFN:Nina Stack\\r\\nEND:VCARD\\r\\n")
+vcard.apply(card, vcard.Changes(add_related=[{"name": "Tom Stack", "label": "assistant"}]))
+text = card.text()
+read = vcard.read(text).related
+vcard.apply(card, vcard.Changes(remove_related=["tom stack"]))
+print(json.dumps({"apple": "_$!<Assistant>!$_" in text, "read": read, "left": vcard.read(card.text()).related}))
+"""))
+    expect('"apple": true' in out and '"read": [{"name": "Tom Stack", "label": "assistant"}]' in out
+           and '"left": []' in out, f"the related name did not go on and off the card: {out[-500:]}")
+
+
+@check("gene.card-share")
+def card_share(s: Stack) -> None:
+    """A saved contact card is marked for Send their card, one not saved yet is not, and the card sent leaves
+    its photo out."""
+    out = core_py(s, _owner_py("""
+from unittest import mock
+from rouh import card_share
+with mock.patch.object(card_share, "on", return_value=True):
+    saved = card_share.mark({"state": "saved", "contact": "x"})
+    unsaved = card_share.mark({"state": "unsaved", "contact": "x"})
+text = card_share.without_photo("BEGIN:VCARD\\r\\nFN:Nina Stack\\r\\nPHOTO;ENCODING=b:AAAA\\r\\n BBBB\\r\\nEND:VCARD\\r\\n")
+print(json.dumps({"saved": bool(saved.get("share")), "unsaved": bool(unsaved.get("share")), "photo": "PHOTO" in text,
+                  "name": "FN:Nina Stack" in text}))
+"""))
+    expect('"saved": true' in out and '"unsaved": false' in out and '"photo": false' in out and '"name": true' in out,
+           f"a contact card was not marked for Send their card as it should be: {out[-500:]}")

@@ -3072,6 +3072,65 @@
     "rouh/card_directions.py",
     "rouh/web/card_directions.py"
    ]
+  },
+  "n44-address-saved": {
+   "name": "Their address saved with them",
+   "what": "When you save somebody to your contacts from their email, the postal address in their signature goes on the card with them, as their work address.",
+   "switch": "address_saved",
+   "signals": {
+    "events": {
+     "saved": "You pressed Save to contacts on an email, and the address in their signature was saved with them"
+    }
+   },
+   "files": [
+    "rouh/address_saved.py"
+   ]
+  },
+  "n44-sig-address": {
+   "name": "A new address in their signature",
+   "what": "When somebody in your contacts signs an email from a postal address their contact does not have, you are told at once, with Add it to their contact and Add it, take the old one off.",
+   "switch": "sig_address",
+   "signals": {
+    "events": {
+     "added": "You pressed Add it to their contact on a notice that a contact signs from a new address",
+     "replaced": "You pressed Add it, take the old one off on a notice that a contact signs from a new address"
+    },
+    "runs": {
+     "told": "A contact signed an email from a postal address their card does not have, and you were told in a notice"
+    }
+   },
+   "files": [
+    "rouh/sig_address.py",
+    "rouh/web/sig_address.py"
+   ]
+  },
+  "n44-related-people": {
+   "name": "The people around a contact",
+   "what": "Rouh reads, searches and writes the phone's Related name field: who is somebody's assistant, manager or partner is said and shown on their contact, a search by that person's name finds them, and you can have one added or taken off.",
+   "switch": "related_people",
+   "signals": {
+    "events": {
+     "found": "You searched your contacts by the name of somebody around a contact, such as their assistant, and found them",
+     "written": "You said yes to a related name being added to or taken off a contact"
+    }
+   },
+   "files": [
+    "rouh/related_people.py"
+   ]
+  },
+  "n44-card-share": {
+   "name": "Send their contact card",
+   "what": "A saved contact on a card in the chat has Send their card: on a phone it opens the share sheet with their contact card, so it goes into Telegram, Messages or Mail; at a desk it downloads the card.",
+   "switch": "card_share",
+   "signals": {
+    "events": {
+     "sent": "You pressed Send their card on a contact card in the chat"
+    }
+   },
+   "files": [
+    "rouh/card_share.py",
+    "rouh/web/card_share.py"
+   ]
   }
  }
 }

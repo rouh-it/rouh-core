@@ -107,8 +107,12 @@ def card_for(found: dict, cards: list[dict], own: list[str] = (), who=None) -> d
     from . import title_saved
 
     title = title_saved.for_new(who, body, name)
+    # Their address saved with them (night 44, `rouh/address_saved.py`): None while its switch is off.
+    from . import address_saved
+
+    place = address_saved.for_new(who, body, name)
     return {"name": name, "address": address, "company": org, "company_how": how, "phones": numbers,
-            "title": title}
+            "title": title, "place": place}
 
 
 def sentence(card: dict) -> str:
@@ -118,6 +122,10 @@ def sentence(card: dict) -> str:
     if card.get("title"):
         bits.append(f"job title {card['title']}")
     bits += [f"{p['label']} {p['number']}" for p in card.get("phones") or []]
+    if card.get("place"):
+        from .address_saved import line
+
+        bits.append(f"work address {line(card['place'])}")
     return f"{card['name']} is not in your contacts. Saving them adds: " + "; ".join(bits) + "."
 
 
@@ -172,6 +180,9 @@ async def save(who, found: dict, desk, own: list[str] = ()) -> tuple[bool, str]:
         args["organisation"] = card["company"]
     if card.get("title"):
         args["title"] = card["title"]
+    if card.get("place"):
+        # Their address saved with them (night 44, `rouh/address_saved.py`).
+        args["add_addresses"] = [dict(card["place"], label="work")]
     done = await desk.save(args, who)
     words = str(getattr(done, "text", "") or done)
     if not words.startswith("Added"):
@@ -183,6 +194,9 @@ async def save(who, found: dict, desk, own: list[str] = ()) -> tuple[bool, str]:
         # Their job title saved with them (night 43, `rouh/title_saved.py`).
         await asyncio.to_thread(evolution.used, "title_saved", "saved", who=who,
                                 detail=f"{card['name']}: their job title went with it")
+    if card.get("place"):
+        await asyncio.to_thread(evolution.used, "address_saved", "saved", who=who,
+                                detail=f"{card['name']}: their postal address went with it")
     company = f", {card['title']}" if card.get("title") else ""
     company += f", {card['company']}" if card["company"] else ""
     return True, (f"Saved {card['name']}{company} to your contacts. It reaches your phone when it next "

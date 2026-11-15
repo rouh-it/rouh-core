@@ -418,7 +418,11 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `gene.title-saved` | Their job title saved with them | untested | works | the job title under the sender's name in a signature is read for a new contact, and nothing while the switch is off | not checked |
 | `gene.new-title` | A new job title in their signature | untested | works | a signature's job title is told only when it differs from the card's at the same company; the same title, a new company or a card with no title is not | not checked |
 | `gene.postal-address` | A contact's postal address | untested | works | a postal address is written to a card, read back as one line with its label, matched by a part of it, and taken off | not checked |
-| `gene.card-directions` | Directions from their contact card | untested | works | a saved contact card with a postal address is marked for directions; one not saved yet is not | not checked |
+| `gene.card-directions` | Directions from their contact card | untested | works | a saved contact card with a postal address is marked for directions; one not saved yet is not |
+| `gene.address-saved` | Their address saved with them | untested | works | the postal address in a signature is read for a new contact, and a signature with none gives none |
+| `gene.sig-address` | A new address in their signature | untested | works | a signature's postal address is told only when the card has another one; the same address, a new company or a card with no address is not |
+| `gene.related-people` | The people around a contact | untested | works | a related name is written to a card with Apple's label, read back with it, and taken off by name |
+| `gene.card-share` | Send their contact card | untested | works | a saved contact card is marked for Send their card, one not saved yet is not, and the card sent leaves its photo out | not checked |
 | `core.commands-open-credentials` | A command run in the core beside Rouh (`docker compose exec core python manage.py ...`) opens what Rouh sealed | broken | works | with Google connected, Python in the core opens the sealed refresh token with the key from the keys volume (`ROUH_ENCRYPTION_KEY_FILE`), and Google is still connected after. It was broken: only the core's start put the key in Rouh's environment, so a command beside it made a key of its own in `/data`, could open no credential, and marked the owner's Google to be connected again | not checked |
 
 ## Rouh on Windows

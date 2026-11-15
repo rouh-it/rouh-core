@@ -966,6 +966,61 @@ function contactDirections(b, r) {
   return line;
 }
 
+/* ---------- Send their contact card (night 44, rouh/card_share.py) ----------
+
+   A card marked `share` has Send their card under its rows: it fetches the
+   contact's vCard (GET /api/contact-card/<id>) and hands it to the phone's
+   share sheet, or downloads it where there is none (a desk's browser). */
+
+function contactShare(b) {
+  var line = el('div', 'ct-share');
+  var button = el('button', 'ct-act', 'Send their card');
+  button.type = 'button';
+  button.setAttribute('aria-label', 'Send ' + (b.name || 'their') + '\u2019s contact card');
+  var said = el('span', 'ct-share-said');
+  said.setAttribute('role', 'status');
+  button.addEventListener('click', function () {
+    button.disabled = true;
+    said.textContent = '';
+    fetch('/api/contact-card/' + encodeURIComponent(String(b.contact)), { credentials: 'same-origin' })
+      .then(function (got) {
+        if (!got.ok) {
+          return got.json().catch(function () { return {}; }).then(function (body) {
+            throw new Error((body && (body.error || body.message)) || 'The card could not be fetched.');
+          });
+        }
+        return got.blob();
+      })
+      .then(function (blob) {
+        var name = String(b.name || 'contact').replace(/[^\p{L}\p{N} .'-]+/gu, '').trim() || 'contact';
+        var file = new File([blob], name + '.vcf', { type: 'text/vcard' });
+        var nav = /** @type {any} */ (navigator);
+        if (nav.canShare && nav.share && nav.canShare({ files: [file] })) {
+          return nav.share({ files: [file], title: b.name || 'Contact' }).then(function () {
+            said.textContent = 'Sent.';
+          }, function (e) {
+            if (e && e.name === 'AbortError') return;
+            throw e;
+          });
+        }
+        var url = URL.createObjectURL(file);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        said.textContent = 'Downloaded ' + file.name + ': open it or drop it into any chat or email.';
+      })
+      .catch(function (e) { said.textContent = (e && e.message) || 'The card could not be sent.'; })
+      .then(function () { button.disabled = false; });
+  });
+  line.appendChild(button);
+  line.appendChild(said);
+  return line;
+}
+
 function contactCalled(how) {
   try {
     fetch('/api/card-call', {
@@ -1039,6 +1094,7 @@ function contactBlock(b) {
     }
     node.appendChild(list);
   }
+  if (b.share && b.contact) node.appendChild(contactShare(b));
   if (listed) {
     var addresses = window.RouhAddresses.list({ data: b.addresses, ds: b.people_ds, editable: !!b.contact });
     addresses.classList.add('ct-own', 'is-addresses');

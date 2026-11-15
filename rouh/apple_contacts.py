@@ -658,6 +658,10 @@ class ContactDesk:
         from . import postal_address
 
         rows = rows + postal_address.found(who, query, {str(r.get("id")) for r in rows}, limit - len(rows))
+        # The people around a contact (night 44, `rouh/related_people.py`): their assistant's name finds them.
+        from . import related_people
+
+        rows = rows + related_people.found(who, query, {str(r.get("id")) for r in rows}, limit - len(rows))
         found = self.people.attach(who.user_id, who.org_id, rows)
         more = self.people.search(who.user_id, who.org_id, query,
                                   skip={one.id for one in found})
@@ -1136,6 +1140,10 @@ def _changes_from(args: dict) -> vcard.Changes:
     from . import postal_address
 
     changes.add_addresses, changes.remove_addresses = postal_address.to_changes(args)
+    # The people around a contact (night 44, `rouh/related_people.py`); taken out of the arguments while off.
+    from . import related_people
+
+    changes.add_related, changes.remove_related = related_people.to_changes(args)
     if changes.birthday:
         vcard.check_birthday(changes.birthday)            # said before anything is sent
     for phone in changes.add_phones:
@@ -1208,7 +1216,7 @@ def _fields(person) -> dict:
     def get(key: str):
         return person.get(key) if isinstance(person, dict) else getattr(person, key, None)
 
-    from . import job_title, postal_address
+    from . import job_title, postal_address, related_people
 
     return {"name": str(get("name") or ""), "organisation": str(get("organisation") or ""),
             "phones": list(get("phones") or []), "emails": list(get("emails") or []),
@@ -1216,7 +1224,9 @@ def _fields(person) -> dict:
             "title": job_title.of(person),
             # On the card an address says so, beside a work number and a work email: "work address".
             "addresses": [dict(a, label=a["label"] if "address" in a["label"].lower() else f"{a['label']} address")
-                          for a in postal_address.of(person)]}
+                          for a in postal_address.of(person)],
+            # The people around a contact (night 44, `rouh/related_people.py`): [] while its switch is off.
+            "related": related_people.of(person)}
 
 
 def _rows(after: dict, before: dict | None) -> list[dict]:
@@ -1268,6 +1278,7 @@ def _rows(after: dict, before: dict | None) -> list[dict]:
             lambda a, b: a.strip().lower() == b.strip().lower())
     # A contact's postal address (night 43, `rouh/postal_address.py`): [] while its switch is off.
     several("postal", "address", after.get("addresses") or [], had.get("addresses") or [], vcard.same_address)
+    several("related", "name", after.get("related") or [], had.get("related") or [], vcard.same_person_name)
     single("birthday", "birthday", vcard.birthday_words(after["birthday"]),
            vcard.birthday_words(had.get("birthday", "")))
     single("note", "note", after["note"], had.get("note", ""))
@@ -1421,6 +1432,10 @@ def profile_card(person, *, state: str = SHOWN, status: str = "") -> dict:
     card_call.mark(block)
     # Directions from their contact card (night 43, `rouh/card_directions.py`): each address one press from Maps.
     card_directions.mark(block)
+    # Send their contact card (night 44, `rouh/card_share.py`): the card itself one press from any app.
+    from . import card_share
+
+    card_share.mark(block, person)
     return {"title": f"{'You' if person.is_me else 'Contact'}: {name}",
             "description": (f"the contact {name}, with who they are to you and the online "
                             "research about them"),
@@ -1476,6 +1491,10 @@ def contact_card(after, before, state: str, *, remark: str = "", person=None) ->
     card_call.mark(block)
     # Directions from their contact card (night 43, `rouh/card_directions.py`): each address one press from Maps.
     card_directions.mark(block)
+    # Send their contact card (night 44, `rouh/card_share.py`): the card itself one press from any app.
+    from . import card_share
+
+    card_share.mark(block, person)
     return {"title": title, "description": description, "blocks": [block]}
 
 
@@ -1499,6 +1518,10 @@ def _person_said(row: dict) -> str:
 
     for one in postal_address.of(row):
         lines.append(f"  address{' (' + one['label'] + ')' if one.get('label') else ''}: {one['address']}")
+    from . import related_people
+
+    for one in related_people.of(row):
+        lines.append(f"  {one['label']}: {one['name']}")
     if row.get("birthday"):
         lines.append(f"  birthday {vcard.birthday_words(row['birthday'])}")
     if row.get("note"):
