@@ -31,7 +31,7 @@ sensitivity inconsistent inside a thread), and usage feedback had to be run by h
 each judged group's seed is marked read and its finds kept as it goes, a thread beats on its job's lock and its
 own row the whole night, and a night picked up again while marked running carries on from its plan (`run`),
 the same night, unless a live process still holds it; only after `TRIES` starts is it called failed, with the
-reason, and what it found is kept waiting. "Changed" is capped at `dream_changed_items` a night, oldest first,
+reason, and what it found is kept waiting. "Changed" is capped at `dream_changed_items` a night, newest first,
 so a backlog drains over nights (`scope_of`, `_since`).
 
 **The rules, in code (D88 to D92).** The model decides and code applies; the model never writes. Only Apply
@@ -290,7 +290,8 @@ def scope_of(ds: dict, s, since) -> dict:
     """What a night reads: what changed since the last one and since a night last read it, and the oldest items
     no night has read.
 
-    The changed are capped at `dream_changed_items`, oldest change first; `capped` says the night left some,
+    The changed are capped at `dream_changed_items`, newest change first (about as many change on Master in a
+    day as a night reads, so oldest first would only ever read old news); `capped` says the night left some,
     and then the next night keeps the same `since` (`_since`), so a backlog drains over several nights rather
     than making one night too long to finish."""
     changed, capped = [], False
@@ -299,7 +300,7 @@ def scope_of(ds: dict, s, since) -> dict:
         changed = [r["id"] for r in db.rows(
             f"SELECT i.id FROM synapse.item i WHERE i.dataset_id = %s AND {ELIGIBLE} AND {CHANGED_AT} > %s "
             f"AND (i.dreamed_at IS NULL OR i.dreamed_at < {CHANGED_AT}) "
-            f"ORDER BY {CHANGED_AT}, i.id LIMIT %s", (ds["id"], since, most + 1))]
+            f"ORDER BY {CHANGED_AT} DESC, i.id LIMIT %s", (ds["id"], since, most + 1))]
         capped = len(changed) > most
         changed = changed[:most]
     taken = set(changed)
