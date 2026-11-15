@@ -278,6 +278,24 @@
         ]
       }
     },
+    "general_summary": {
+      "tier": "cheaper",
+      "why": "A running summary of General's older turns, written in the background after a turn: never in front of an answer, and short work a cheaper model does well.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
     "picture_prompt": {
       "tier": "cheaper",
       "why": "One paragraph describing a picture from a short chat, wanted before the picture starts drawing: a small model writes it well and quickly.",

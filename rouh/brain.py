@@ -203,6 +203,14 @@ def _fork_task_block(chat_id: str = "") -> str:
     return forks.task_block(chat_id)
 
 
+def _general_summary_block(chat_id: str = "") -> str:
+    """General's running summary, in General only (`rouh/general_summary.py`)."""
+    from . import general_summary
+    from .conversations import GENERAL
+
+    return general_summary.block() if chat_id == GENERAL else ""
+
+
 def _task_files_block(chat_id: str = "") -> str:
     """The files uploaded to this chat's task, or ""."""
     if not chat_id:
@@ -885,6 +893,8 @@ class Brain:
                 # disconnects a mailbox in Settings at any time.
                 (30, "Which inbox is whose", "rouh/inboxes.py", _inboxes_line),
                 # The goals, and the whole of this chat's own: a step marked done changes it.
+                # General's running summary of what fell out of its window (`rouh/general_summary.py`).
+                (35, "What General said before", "rouh/general_summary.py", lambda: _general_summary_block(chat)),
                 (40, "The person's goals", "rouh/goals.py", lambda: _goals_block(chat)),
                 # A subtask's parent as background, or a task's notes from its subtasks.
                 (50, "The task's family", "rouh/subtasknotes.py", lambda: _subtask_block(chat)),

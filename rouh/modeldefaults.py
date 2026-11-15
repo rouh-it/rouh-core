@@ -274,6 +274,11 @@ USES: tuple[Use, ...] = (
         "otherwise, and whenever it is off, slow or fails, Smart answers.",
         can_be_off=True, off_said="Off: without OpenAI, Balanced answers every message on Smart.",
         purposes=("router_question",), effort="none"),
+    # Petar, 15 November 2026 (Chat Change Planning, point 3): General's older turns compacted into a running
+    # summary so it does not grow forever (`rouh/general_summary.py`).
+    Use("general_summary", "Chats", "General's running summary",
+        "Folds what fell out of General's window of newest messages into one running summary, told in every "
+        "General turn.", purposes=("general_summary",)),
     Use("chat_title", "Chats", "Chat titles",
         "Names a chat from its first exchange, in an emoji and a few words.",
         purposes=("chat_title",)),

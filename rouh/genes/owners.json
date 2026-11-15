@@ -490,6 +490,7 @@
    "what": "Rouh treats General and every other chat as two kinds, each with its own trimming rules and default model, and each chat can be set to Cheap, Smart or Auto beside the composer.",
    "files": [
     "rouh/chatkinds.py",
+    "rouh/general_summary.py",
     "rouh/static/app/composer_extras.js",
     "rouh/migrations/0245_chat_model_choice.py"
    ]

@@ -3796,6 +3796,13 @@ def after_a_turn(chat_id: str) -> None:
     Neither is worth an error and neither is waited for. Returns at once.
     """
     ChatNames.maybe_name(chat_id)
+    # General's running summary moves on, if enough fell out of its window (`rouh/general_summary.py`).
+    try:
+        from . import general_summary
+
+        general_summary.after_a_turn(chat_id)
+    except Exception:  # noqa: BLE001 - never worth the turn that finished
+        log.exception("General's summary could not be started")
     # The loop is looked for before the coroutine is made, not after: a
     # coroutine handed to `ensure_future` outside a loop is left never awaited,
     # which Python reports as a warning from wherever the garbage collector
