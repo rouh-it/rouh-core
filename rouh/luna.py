@@ -1029,7 +1029,11 @@ async def turn(brain, session_id: str, user_content, emit, on_sentence, model: s
             "stream": True,
         }
         if tools:
-            request.update(tools=tools, tool_choice="auto", parallel_tool_calls=True)
+            # Tools turned off for this chat (`rouh/reading.py`): declared for the history, never called.
+            from .brain import _reads
+
+            off = not _reads(session_id)["tools"]
+            request.update(tools=tools, tool_choice="none" if off else "auto", parallel_tool_calls=not off)
 
         attempt = 0
         final = None

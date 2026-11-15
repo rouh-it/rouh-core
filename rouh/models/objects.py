@@ -261,6 +261,12 @@ class Chat(models.Model):
     #: Cheap, Smart or Auto, set beside the composer, or "" for the Models page's default
     #: (`chatkinds.choice_of`, `0245_chat_model_choice`).
     model_choice = models.TextField(blank=True, default="", db_default="")
+    #: What Rouh reads in this chat, as the person set it in "What I'm reading" beside the composer
+    #: (`rouh/reading.py`, `0254_chat_reading`): memory, rules, tools, and for a task's chat its subtasks,
+    #: which kinds of file and the chat histories. {} is the defaults.
+    reading = models.JSONField(default=dict, blank=True, db_default={})
+    #: An incognito chat (`rouh/incognito.py`): nothing in it is kept, and it is deleted when it ends.
+    incognito = models.BooleanField(default=False, db_default=False)
 
     class Meta:
         db_table = "chat"

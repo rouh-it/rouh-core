@@ -146,6 +146,9 @@ def _rule(row: dict, ds: dict | None = None) -> dict:
             # Marked useful to others: kept for the person alone now, and good enough to be made standard
             # (`set_useful`, `make_standard`); set by the person, or by Rouh when it keeps the rule.
             "useful": bool(meta.get("useful")),
+            # Marked as a rule about permission, privacy or safety, which "Your rules" off never takes away
+            # (`reading.locked`), beside every rule of the group Asking and permissions.
+            "guard": bool(meta.get("guard")),
             # Where it came from in the defaults Rouh gives every Rouh, and newer words for it kept aside
             # because it was reworded here (`ruledefaults.ensure`).
             "upstream": meta.get("upstream") if isinstance(meta.get("upstream"), dict) else None,
@@ -1369,6 +1372,12 @@ def placed(ds: dict | None, part: str) -> list[dict]:
     return sorted(got, key=lambda r: (int(r["place"].get("position") or 0), r["made_at"], r["id"]))
 
 
+def _locked_only(got: list[dict]) -> list[dict]:
+    from . import reading
+
+    return [r for r in got if reading.locked(r)]
+
+
 def _chat_rules(ds: dict, situation=None) -> list[dict]:
     """The rules on that a conversation turn is told in the person's sections: no place of their own, and
     everything they say holding for this turn (`in_chat`). A rule told with its tools is not among them: its
@@ -1380,7 +1389,7 @@ def _chat_rules(ds: dict, situation=None) -> list[dict]:
             and (r["for"] or not tool_rules.told_with_tools(r))]
 
 
-def prompt_parts(chat_id: str = "", situation=None) -> list[tuple[str, dict]]:
+def prompt_parts(chat_id: str = "", situation=None, *, locked_only: bool = False) -> list[tuple[str, dict]]:
     """The rules, word for word, for the system prompt, each section with which rules it holds; and anything still waiting in the old memory, so nothing is lost before it is reviewed. The rules kept
     to written or spoken replies are not here but in `reply_parts`, and the rules with a place of their own are
     told there (`placed`). `situation` is the turn's (`prompting.Situation`): a rule with a condition is told
@@ -1398,6 +1407,9 @@ def prompt_parts(chat_id: str = "", situation=None) -> list[tuple[str, dict]]:
         # What is left of the person's old words moved first, by what each does, so none is lost on the way.
         vocabulary.settle(ds)
         everything = _chat_rules(ds, situation)
+        if locked_only:
+            # "Your rules" off for this chat (`rouh/reading.py`): permission, privacy and safety stay.
+            everything = _locked_only(everything)
         project = keeping.project_of_chat(chat_id) if chat_id else ""
         task = _task_of_chat(chat_id)
         people = involved_people(everything, vocabulary.entries(ds), chat_id)
@@ -1405,11 +1417,12 @@ def prompt_parts(chat_id: str = "", situation=None) -> list[tuple[str, dict]]:
                                              or (f["type"] == "project" and f["id"] == project and project)
                                              for f in r["for"])]
         parts += _told_sections(everything, people=people, here=here, about="this conversation")
-    parts += _old_told()
+    if not locked_only:
+        parts += _old_told()
     return parts
 
 
-def reply_parts(mode: str = "text", situation=None) -> list[tuple[str, dict]]:
+def reply_parts(mode: str = "text", situation=None, *, locked_only: bool = False) -> list[tuple[str, dict]]:
     """The person's rules for how this turn's reply is made, "text" written or "voice" spoken (`MODES`), for the
     end of the system prompt; nothing when Master cannot be read."""
     mode = mode if mode in MODES else "text"
@@ -1417,7 +1430,8 @@ def reply_parts(mode: str = "text", situation=None) -> list[tuple[str, dict]]:
         ds = master()
         if not ds:
             return []
-        return _mode_told([r for r in _chat_rules(ds, situation) if r.get("mode") == mode], mode)
+        got = [r for r in _chat_rules(ds, situation) if r.get("mode") == mode]
+        return _mode_told(_locked_only(got) if locked_only else got, mode)
     except Exception:  # noqa: BLE001 - the rest of the prompt is still told
         log.exception("the rules for a %s reply could not be read", mode)
         return []

@@ -491,6 +491,8 @@
    "files": [
     "rouh/chatkinds.py",
     "rouh/general_summary.py",
+    "rouh/reading.py",
+    "rouh/web/reading.py",
     "rouh/static/app/composer_extras.js",
     "rouh/migrations/0245_chat_model_choice.py"
    ]

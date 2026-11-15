@@ -54,7 +54,7 @@ from rouh.web import (apple, assets, auth, boxes, brief, changes as changes_web,
                       evolution as evolution_web, incubator as incubator_web, nightly_run as nightly_run_web, trials as trials_web, gene_therapy, genelog as genelog_web, genepool as genepool_web, genes as genes_web,
                       heartbeat, payments, quests, receipts, services, shipping, signups, stats, thoughts,
                       google,
-                      guests, highlights, location, mail_alerts, mailboxes, mycard, offline, people, profile, reset,
+                      guests, highlights, location, reading, mail_alerts, mailboxes, mycard, offline, people, profile, reset,
                       rules,
                       signatures, sources, vocabulary,
                       
@@ -456,6 +456,7 @@ urlpatterns = [
     )],
 
     # --- Google: the organisation's client, and each person's connection ----------------
+    path("api/reading", reading.reading_api),
     path("api/settings/location", location.settings_location),
     path("api/settings/location/forget", location.forget),
     path("api/settings/location/place", location.typed_place),

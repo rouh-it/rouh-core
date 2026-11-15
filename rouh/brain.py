@@ -203,6 +203,35 @@ def _fork_task_block(chat_id: str = "") -> str:
     return forks.task_block(chat_id)
 
 
+def _reads(chat_id: str) -> dict:
+    """What this chat may use, as the person set it (`reading.switches`); everything on if it cannot be read."""
+    try:
+        from . import reading
+
+        return reading.switches(chat_id)
+    except Exception:  # noqa: BLE001 - a turn is never lost to its settings
+        log.exception("what chat %s reads could not be read; everything is on", chat_id)
+        return {"memory": True, "rules": True, "tools": True}
+
+
+def _reads_off_line(reads: dict) -> str:
+    off = [w for k, w in (("memory", "background memory from Synapse"), ("rules", "the person's own rules, "
+           "except those about permission, privacy and safety"), ("tools", "tools: you cannot call any in "
+           "this chat, so answer from what you know and say so when a tool would be needed")) if not reads[k]]
+    if not off:
+        return ""
+    return "The person has turned these off for this chat in What I'm reading: " + "; ".join(off) + "."
+
+
+def _reading_block(chat_id: str = "") -> str:
+    """A task's chat: what it reads, as the person set it (`rouh/reading.py`)."""
+    if not chat_id:
+        return ""
+    from . import reading
+
+    return reading.block(chat_id)
+
+
 def _general_summary_block(chat_id: str = "") -> str:
     """General's running summary, in General only (`rouh/general_summary.py`)."""
     from . import general_summary
@@ -220,13 +249,13 @@ def _task_files_block(chat_id: str = "") -> str:
     return objectindex.files_block(chat_id)
 
 
-def _rules_parts(memory, situation=None) -> list[tuple[str, dict]]:
+def _rules_parts(memory, situation=None, *, locked_only: bool = False) -> list[tuple[str, dict]]:
     """The person's rules and words, each section with which rules it holds (`rules.prompt_parts`); the old
-    facts when that fails."""
+    facts when that fails. `locked_only`: only those about permission, privacy and safety (`reading.locked`)."""
     try:
         from . import rules
 
-        return rules.prompt_parts(memory.answering_chat() or "", situation)
+        return rules.prompt_parts(memory.answering_chat() or "", situation, locked_only=locked_only)
     except Exception:
         log.exception("the rules could not be read for the prompt; the old memory is said instead")
         old = memory.facts_block(keeping.project_names()).strip("\n")
@@ -234,11 +263,11 @@ def _rules_parts(memory, situation=None) -> list[tuple[str, dict]]:
                        "why": "the Rules page could not be read"})] if old else []
 
 
-def _reply_parts(mode: str, situation=None) -> list[tuple[str, dict]]:
+def _reply_parts(mode: str, situation=None, *, locked_only: bool = False) -> list[tuple[str, dict]]:
     """The person's rules for this turn's reply, written or spoken (`rules.reply_parts`)."""
     from . import rules
 
-    return rules.reply_parts(mode, situation)
+    return rules.reply_parts(mode, situation, locked_only=locked_only)
 
 
 def _master_now():
@@ -820,6 +849,10 @@ class Brain:
         # How this turn came and how its reply goes out, written or spoken (`rouh/replymode.py`).
         mode = replymode.NOW.get()
         chat = self.memory.answering_chat() or ""
+        # What the person set for this chat in What I'm reading (`rouh/reading.py`): memory, their rules, tools.
+        reads = _reads(chat)
+        if not reads["memory"]:
+            seeds = recall = ""
         org = org_now()
         mine = _own_mail()
         flags = {"own_mail" if mine else "no_own_mail"}
@@ -836,7 +869,7 @@ class Brain:
             flags.add("new_rouh")
         if untrusted.rule_needed(names):
             flags.add("untrusted")
-        if _recall_on() and not demo.on_stage():
+        if _recall_on() and not demo.on_stage() and reads["memory"]:
             flags.add("autorecall")
         situation = prompting.Situation(
             tools=frozenset(names), provider=kind, reply=mode.reply,
@@ -845,7 +878,7 @@ class Brain:
         # On the stage in demo mode none of the person's own rules or words is told: the answer is
         # drawn as it is in front of an audience (`rouh/demo.py`).
         ds = _master_now()
-        personal = [] if demo.on_stage() else _rules_parts(self.memory, situation)
+        personal = [] if demo.on_stage() else _rules_parts(self.memory, situation, locked_only=not reads["rules"])
         values = {"own_mail": mine, "rouh_name": born[0] if born else "", "born_day": born[1] if born else "",
                   "rouh_nickname": nick,
                   "app_dir": self.cfg.app_dir, "version": get_version()["human_readable"],
@@ -893,6 +926,10 @@ class Brain:
                 # disconnects a mailbox in Settings at any time.
                 (30, "Which inbox is whose", "rouh/inboxes.py", _inboxes_line),
                 # The goals, and the whole of this chat's own: a step marked done changes it.
+                # What the person turned off for this chat, so the model does not reach for it.
+                (32, "What is turned off in this chat", "rouh/reading.py", lambda: _reads_off_line(reads)),
+                # A task's chat: the task, its goal, AGENTS.md, notes and pages, as the person set it.
+                (45, "What this chat is reading", "rouh/reading.py", lambda: _reading_block(chat)),
                 # General's running summary of what fell out of its window (`rouh/general_summary.py`).
                 (35, "What General said before", "rouh/general_summary.py", lambda: _general_summary_block(chat)),
                 (40, "The person's goals", "rouh/goals.py", lambda: _goals_block(chat)),
@@ -942,7 +979,8 @@ class Brain:
         # of a system prompt best, which matters most for the mark on the very first character of a reply.
         turn.at(REPLY_RULES_AT)
         try:
-            for words, meta in ([] if demo.on_stage() else _reply_parts(mode.reply, situation)):
+            for words, meta in ([] if demo.on_stage() else _reply_parts(mode.reply, situation,
+                                                                        locked_only=not reads["rules"])):
                 turn.add(words, kind="personal", **meta)
         except Exception:  # noqa: BLE001 - the rest of the prompt is still told
             log.exception("the rules for this reply could not be put in the prompt")
@@ -1322,6 +1360,10 @@ class Brain:
                 messages=promptcache.marked(messages, anchor),
                 tools=plan.tools,
             )
+            # Tools turned off for this chat in What I'm reading: still declared, because the history may
+            # hold earlier calls and the API refuses those without their tools, but none may be called.
+            if not _reads(session_id)["tools"]:
+                request["tool_choice"] = {"type": "none"}
             # How deeply to think, but only to a model that takes the question.
             # Haiku 4.5 can be a tier's model, and an effort level is a 400
             # there, and a 400 is a turn that says nothing at all rather than a
