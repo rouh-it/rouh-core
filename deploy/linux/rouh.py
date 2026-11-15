@@ -195,6 +195,32 @@ def _verified_code_commit() -> tuple[str, int]:
     return commit, int(payload.get("version") or 0)
 
 
+#: The GitHub organisations rouh-core may be under: rouh-it, and rouh-land, the name it is being
+#: renamed to (task 187). GitHub sends the old name on after the rename only until an organisation
+#: of that name is made again, so the updater must find its code under either.
+ORGS = ("rouh-it", "rouh-land")
+
+
+def _fetch_commit(commit: str) -> None:
+    """commit into this checkout from origin; if origin is rouh-core on GitHub and cannot give it,
+    from rouh-core under the other name of its organisation, which then becomes origin. The commit
+    is the signed one (_verified_code_commit) and is checked out by its hash, so where it was
+    fetched from decides nothing."""
+    git = ["git", "-C", str(CORE)]
+    r = run([*git, "fetch", "-q", "--depth", "1", "origin", commit], timeout=600)
+    if r.returncode == 0:
+        return
+    origin = (run([*git, "config", "--get", "remote.origin.url"], timeout=30).stdout or b"").decode().strip()
+    found = re.match(r"^(https://github\.com/|git@github\.com:)(" + "|".join(ORGS) + r")/rouh-core(\.git)?$", origin)
+    for org in ([o for o in ORGS if o != found.group(2)] if found else []):
+        other = f"{found.group(1)}{org}/rouh-core.git"
+        if run([*git, "fetch", "-q", "--depth", "1", other, commit], timeout=600).returncode == 0:
+            run([*git, "remote", "set-url", "origin", other], timeout=30)
+            return
+    said = ((r.stderr or b"") + (r.stdout or b"")).decode(errors="replace").strip()
+    raise Stop("git fetch failed" + (f": {said[-400:]}" if said else ""))
+
+
 def update_updater() -> None:
     """The updater itself (this checkout) brought to rouh.land's newest tested, signed commit,
     forward only, before the update runs, so the nightly update is always the signed code's."""
@@ -206,7 +232,7 @@ def update_updater() -> None:
     before = json.loads(held.read_text()).get("version", 0) if held.is_file() else 0
     if here == commit or version < before:
         return
-    run(["git", "-C", str(CORE), "fetch", "-q", "--depth", "1", "origin", commit], timeout=600, check=True)
+    _fetch_commit(commit)
 
     def when(rev: str) -> int:
         out = run(["git", "-C", str(CORE), "log", "-1", "--format=%ct", rev], timeout=30).stdout or b"0"

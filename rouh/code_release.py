@@ -1,4 +1,4 @@
-"""Released changes of shared rouh-it/rouh-core main, after the early-test Rouhs' day with them.
+"""Released changes of shared rouh-core main (rouh-it, being renamed rouh-land: rouh/github_org.py), after the early-test Rouhs' day with them.
 
 Task 140, steps 140-18 and 140-19 (11 November 2026). The source is shared main, including changes
 published by collaborators. A release boundary has passed master's checks and has run on an
@@ -41,8 +41,9 @@ import re
 import subprocess
 import time
 import urllib.parse
-import urllib.request
 from pathlib import Path
+
+from . import github_org
 
 log = logging.getLogger("rouh.code_release")
 
@@ -55,6 +56,7 @@ EVERY = float(os.environ.get("ROUH_RELEASE_EVERY", str(20 * 3600)))
 UPSTREAM = "refs/upstream/heads/main"
 KEEP_SEEN = 10 * 86400
 MOST_NOTES = 12
+GITHUB_HEADERS = {"Accept": "application/vnd.github+json", "User-Agent": "Rouh releases"}
 
 
 def folder() -> Path:
@@ -147,11 +149,9 @@ def master_checked(commit: str) -> tuple[bool, str]:
     person's GitHub credential; a failed read keeps the release waiting.
     """
     query = urllib.parse.urlencode({"head_sha": commit, "status": "success", "per_page": 10})
-    url = "https://api.github.com/repos/rouh-it/rouh-core/actions/workflows/main-tests.yml/runs?" + query
+    url = "https://api.github.com/repos/{org}/rouh-core/actions/workflows/main-tests.yml/runs?" + query
     try:
-        req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "Rouh releases"})
-        with urllib.request.urlopen(req, timeout=30) as response:
-            doc = json.loads(response.read(2 * 1024 * 1024))
+        doc = github_org.read_json(url, headers=GITHUB_HEADERS, most=2 * 1024 * 1024)
         if any(r.get("head_sha") == commit and r.get("head_branch") == "main"
                and r.get("event") in ("push", "workflow_dispatch") and r.get("conclusion") == "success"
                for r in doc.get("workflow_runs", [])):
@@ -326,10 +326,8 @@ def public() -> dict:
 def _passed_on_main(most: int = 100) -> set[str]:
     """The commits of rouh-core's main whose Tests on main succeeded, in one read of GitHub."""
     query = urllib.parse.urlencode({"branch": "main", "status": "success", "per_page": most})
-    url = "https://api.github.com/repos/rouh-it/rouh-core/actions/workflows/main-tests.yml/runs?" + query
-    req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "Rouh releases"})
-    with urllib.request.urlopen(req, timeout=30) as response:
-        doc = json.loads(response.read(4 * 1024 * 1024))
+    url = "https://api.github.com/repos/{org}/rouh-core/actions/workflows/main-tests.yml/runs?" + query
+    doc = github_org.read_json(url, headers=GITHUB_HEADERS)
     return {str(r.get("head_sha")) for r in doc.get("workflow_runs", [])
             if r.get("head_branch") == "main" and r.get("event") in ("push", "workflow_dispatch")
             and r.get("conclusion") == "success"}

@@ -76,6 +76,8 @@ import subprocess
 import time
 from pathlib import Path
 
+from . import github_org
+
 log = logging.getLogger("rouh.base_patches")
 
 JOB = "base_patch"
@@ -84,7 +86,8 @@ WHAT = ("Look for patch-level fixes to what Rouh runs on, build and check a new 
         "and publish it only if every check passes")
 AT = "00:40"
 #: Rouh's release repository, as a git remote names it.
-RELEASE_REPO = re.compile(r"rouh-it/rouh-core(\.git)?$")
+#: Either name of its organisation (rouh/github_org.py, task 187).
+RELEASE_REPO = re.compile(rf"{github_org.ANY}/rouh-core(\.git)?$")
 #: The version list, in main.
 STATE = Path("deploy") / "container" / "base"
 #: The branch each level is pushed on; base.yml opens its pull request.
@@ -93,7 +96,7 @@ BRANCH = "base-patch/{level}"
 FAILED = "refs/base-failed/{level}"
 #: rouh-core's main, as the Creator Rouh's protected core keeps it fetched into /code.
 UPSTREAM = "refs/upstream/heads/main"
-GITHUB = "https://github.com/rouh-it/rouh-core"
+GITHUB = f"https://github.com/{github_org.org()}/rouh-core"
 #: How long a pushed level is watched for its result before the next night takes it up.
 WATCH_FOR = 3 * 3600
 WATCH_EVERY = 300

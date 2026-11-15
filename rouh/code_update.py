@@ -17,7 +17,7 @@ brought newer code to it after its first start. This is that, for whoever wants 
 A Rouh on its own (Independent, 140-13) asks nobody anything by itself, so it never rides along and
 never looks for a release until its person presses a button here.
 
-**A release** is a checked boundary on the shared main branch of rouh-it/rouh-core, after its
+**A release** is a checked boundary on the shared main branch of rouh-core (rouh/github_org.py), after its
 changes have run for a day on the early-test Rouhs. Collaborators publish on that branch too.
 
 **An update** takes each released change in order (``code_evolution.py``). Untouched files are
@@ -108,11 +108,6 @@ def site() -> str:
 
 def release_url() -> str:
     return os.environ.get("ROUH_CODE_RELEASE_URL") or f"{site()}/mac/code/release.json"
-
-
-def tarball_url(commit: str) -> str:
-    return (os.environ.get("ROUH_CODE_TARBALL")
-            or "https://codeload.github.com/rouh-it/rouh-core/tar.gz/{commit}").format(commit=commit)
 
 
 def _read(path: Path) -> dict:

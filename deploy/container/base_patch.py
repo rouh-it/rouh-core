@@ -82,7 +82,9 @@ DEBIAN_SECURITY = "https://security.debian.org/debian-security/dists/trixie-secu
 ARCHES = ("amd64", "arm64")
 #: Where the published base is, which anyone may pull (the look reads its Debian packages there).
 GHCR = os.environ.get("ROUH_BASE_REGISTRY", "https://ghcr.io")
-BASE_REPO = "rouh-it/rouh-base"
+#: rouh-base under either name of its organisation, tried in this order: rouh-it, and rouh-land, the
+#: name it is being renamed to (task 187; rouh/github_org.py, mac_release.py's ORGS).
+BASE_REPOS = ("rouh-it/rouh-base", "rouh-land/rouh-base")
 #: What the one program needs that Rouh's own lock does not have (one/requirements.txt, without
 #: its test-only pins).
 HEADER = """# Every Python library of Rouh and of the one program, pinned, for the base image
@@ -451,24 +453,31 @@ def _pypi_versions(name: str) -> list[str]:
 def published_contents(tag: str) -> dict[str, dict[str, str]]:
     """What the published base `tag` (a level, a line, or latest) holds, per platform, read out of
     the image itself with no sign-in: {arch: {"dpkg.txt": ..., "base.env": ...}}. Both files are
-    in the image's last layer (Dockerfile.base writes them last), a few kilobytes, so nothing
-    else is downloaded."""
-    token = _get(f"{GHCR}/token?scope=repository:{BASE_REPO}:pull")["token"]
+    in one of the image's last layers (Dockerfile.base writes them last; only layers that set
+    nothing but metadata come after), a few kilobytes, so nothing else is downloaded."""
+    for n, repo in enumerate(BASE_REPOS):
+        def fetch(path: str, accept: str, repo=repo) -> bytes:
+            req = urllib.request.Request(f"{GHCR}/v2/{repo}/{path}", headers={
+                "User-Agent": UA, "Authorization": f"Bearer {tokens[repo]}", "Accept": accept})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return r.read()
 
-    def fetch(path: str, accept: str) -> bytes:
-        req = urllib.request.Request(f"{GHCR}/v2/{BASE_REPO}/{path}", headers={
-            "User-Agent": UA, "Authorization": f"Bearer {token}", "Accept": accept})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            return r.read()
-
-    index = json.loads(fetch(f"manifests/{tag}", "application/vnd.oci.image.index.v1+json"))
+        try:
+            tokens = {repo: _get(f"{GHCR}/token?scope=repository:{repo}:pull")["token"]}
+            index = json.loads(fetch(f"manifests/{tag}", "application/vnd.oci.image.index.v1+json"))
+            break
+        except urllib.error.HTTPError as e:
+            # Not there under this name (ghcr refuses the token, or says 401 or 404, for a
+            # package it does not have): the next name, and the last one's answer is the answer.
+            if e.code not in (401, 403, 404) or n == len(BASE_REPOS) - 1:
+                raise
     out = {}
     for m in index.get("manifests", []):
         arch = (m.get("platform") or {}).get("architecture")
         if (m.get("platform") or {}).get("os") != "linux" or arch not in ARCHES:
             continue
         manifest = json.loads(fetch(f"manifests/{m['digest']}", m["mediaType"]))
-        for layer in reversed(manifest["layers"][-3:]):
+        for layer in reversed(manifest["layers"][-8:]):
             if layer.get("size", 0) > 4_000_000:
                 continue
             with tarfile.open(fileobj=io.BytesIO(fetch(f"blobs/{layer['digest']}", "*/*")), mode="r:*") as tar:

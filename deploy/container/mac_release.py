@@ -107,8 +107,22 @@ KEY_FILE = Path(os.environ.get("ROUH_MAC_STACK_SIGNING_KEY_FILE") or "/root/.con
 POSTGRES = "pgvector/pgvector:0.8.2-pg18-trixie"
 #: The first version of Rouh for Mac that reads base releases and checks them before switching.
 MIN_APP_BASE = "0.3.3"
-BASE_KINDS = {"ghcr.io/rouh-it/rouh-base": "base", "ghcr.io/rouh-it/rouh-code": "code",
-              "pgvector/pgvector": "postgres"}
+#: The GitHub organisations whose images a release may name: rouh-it, and rouh-land, the name it is
+#: being renamed to (task 187). Both are accepted until every Rouh and every Mac reads both; then
+#: the organisation is renamed, and only after that is rouh-it taken out (stage 4 of task 187).
+#: Change it together with Rouh for Mac's StackRelease (rouh-mac) and guard/bin/rouh-code-install.
+ORGS = ("rouh-it", "rouh-land")
+_ORG = "(?:" + "|".join(re.escape(o) for o in ORGS) + ")"
+
+
+def _ours(names: dict) -> dict:
+    """{"rouh-base": "base", ...} as {"ghcr.io/<org>/rouh-base": "base", ...} for every org of ORGS."""
+    return {f"ghcr.io/{org}/{name}": kind for org in ORGS for name, kind in names.items()}
+
+
+BASE_KINDS = {**_ours({"rouh-base": "base", "rouh-code": "code"}), "pgvector/pgvector": "postgres"}
+STACK_KINDS = {**_ours({"rouh-core": "core", "rouh-workers": "workers", "rouh-keyproxy": "keyproxy"}),
+               "pgvector/pgvector": "postgres"}
 DIGEST = re.compile(r"@sha256:[0-9a-f]{64}$")
 UA = "rouh-mac-release/1"
 
@@ -196,8 +210,7 @@ def images_in(compose: str) -> dict:
             continue
         ref = s.split(":", 1)[1].strip()
         name = ref.split("@", 1)[0].split(":", 1)[0] if "@" in ref else ref
-        kind = {"ghcr.io/rouh-it/rouh-core": "core", "ghcr.io/rouh-it/rouh-workers": "workers",
-                "ghcr.io/rouh-it/rouh-keyproxy": "keyproxy", "pgvector/pgvector": "postgres"}.get(name)
+        kind = STACK_KINDS.get(name)
         if not kind:
             die(f"an image the app does not know: {ref}")
         if found.get(kind, ref) != ref:
@@ -391,8 +404,8 @@ REPO = HERE.parents[1]
 #: The first version of Rouh for Mac that reads releases of format 2, applies a Rouh's own stack
 #: file after its check, and runs the protected core.
 MIN_APP_RELEASE = "0.3.4"
-RELEASE_IMAGES = {"base": re.compile(r"^ghcr\.io/rouh-it/rouh-base@sha256:[0-9a-f]{64}$"),
-                  "guard": re.compile(r"^ghcr\.io/rouh-it/rouh-guard@sha256:[0-9a-f]{64}$"),
+RELEASE_IMAGES = {"base": re.compile(rf"^ghcr\.io/{_ORG}/rouh-base@sha256:[0-9a-f]{{64}}$"),
+                  "guard": re.compile(rf"^ghcr\.io/{_ORG}/rouh-guard@sha256:[0-9a-f]{{64}}$"),
                   "postgres": re.compile(r"^pgvector/pgvector:[0-9a-z.\-]+@sha256:[0-9a-f]{64}$")}
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")

@@ -60,13 +60,18 @@ usage() { sed -n '4,17p' "$0" | sed 's/^# //'; exit 2; }
 word_ok() { [[ "$1" =~ ^[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || { echo "Not a group, a name or HOST:PORT: $1"; exit 2; }; }
 
 update() {
-  local dest=${ROUH_GRANTS_DIR:-$HOME/.rouh-grants} repo=${ROUH_GRANTS_REPO:-rouh-it/rouh-core} tmp
+  local dest=${ROUH_GRANTS_DIR:-$HOME/.rouh-grants} repo tmp
   command -v gh >/dev/null || { echo "gh is not installed here: brew install gh && gh auth login"; exit 1; }
-  local sha
+  local sha=""
   # main's commit first, then that very commit's files, so what is installed is exactly the commit
-  # named (a download of "main" can be a moment behind the commit just pushed).
-  sha=$(gh api "repos/$repo/commits/main" --jq .sha 2>/dev/null) && [[ "$sha" =~ ^[0-9a-f]{40}$ ]] \
-    || { echo "Could not ask GitHub for $repo's main (is gh signed in? gh auth status). Nothing was changed."; exit 1; }
+  # named (a download of "main" can be a moment behind the commit just pushed). rouh-core under
+  # either name of its organisation, rouh-it or rouh-land, the name it is being renamed to (task
+  # 187): GitHub's API answers the old name with 404 after a rename.
+  for repo in ${ROUH_GRANTS_REPO:-rouh-it/rouh-core rouh-land/rouh-core}; do
+    sha=$(gh api "repos/$repo/commits/main" --jq .sha 2>/dev/null) && [[ "$sha" =~ ^[0-9a-f]{40}$ ]] && break
+    sha=""
+  done
+  [ -n "$sha" ] || { echo "Could not ask GitHub for rouh-core's main (is gh signed in? gh auth status). Nothing was changed."; exit 1; }
   tmp=$(mktemp -d "$dest.new.XXXXXX")
   echo "Fetching $repo at ${sha:0:8} (its main now) into $dest ..."
   if ! gh api "repos/$repo/tarball/$sha" | tar -xz -C "$tmp" --strip-components=1 \

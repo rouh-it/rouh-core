@@ -159,3 +159,15 @@ None of it is urgent and none of it is a migration.
 3. **Delete the old names, a line at a time.** The `jarvis/requirements.txt` fallback and the `jarvis.server` branches (the `deploy/jarvis.sh` wrapper went first, on 29 October 2026) in `deploy/rouh.sh` and `run-server.sh` go together, once nothing on main has a `jarvis/` package to roll back to. Then `OLD_COOKIE`, `OLD_PREFIX`, the old-key read in `load()`, the `jarvis.sqlite3` fallback in `db_path`, the second `jarvis_version` on the socket, and the `/var/www/jarvis`, `/srv/jarvis-land` and `jarvis.service` symlinks.
 
 The workspace tasks stay as they are.
+
+## The GitHub organisation: rouh-it to rouh-land
+
+Petar asked on 15 November 2026 (task 187) that the GitHub organisation holding rouh-core, its images and the other repositories be renamed from rouh-it to rouh-land.
+It goes the same way as the rest of this file: **both names are read before the new one is written**, in four stages.
+
+1. **Everything accepts both names** (15 November 2026). `rouh/github_org.py` holds the two names for Rouh's code: the release check's GitHub API reads (`code_release.py`), the fetch of shared main (`code_evolution.py`) and the base patch job's remote (`base_patches.py`) try rouh-it first and rouh-land when GitHub says "not found". The release checker (`deploy/container/mac_release.py`, `ORGS`), which the Linux updater also runs, takes images pinned under `ghcr.io/rouh-it/` or `ghcr.io/rouh-land/` and no other organisation. The protected core's first install (`guard/bin/rouh-code-install`, `ORGS`) downloads the tarball under either name, still held to the commit it must be. The Linux updater (`deploy/linux/rouh.py`, `_fetch_commit`) fetches from the other name when its origin cannot give the commit, and moves origin there. The base patch job reads the published base under either name (`deploy/container/base_patch.py`, `BASE_REPOS`), and `rouh-proxy-grant update` on the owner's Mac finds rouh-core under either. Rouh for Mac (from 0.5.2, `ReleaseCheck.registries`) and rouh.land (`mac_stack_views.ORGS`, `windows_views`, `mac_app_gate`) do the same. The workflows already name the images by `github.repository_owner`, so they follow the rename by themselves.
+2. **Wait** until every Rouh, mozart's stack and every Mac runs code that has stage 1: a released commit of rouh-core, a base release carrying the new protected core, and Rouh for Mac 0.5.2.
+3. **The rename**, by an owner of the organisation in GitHub's settings (there is no API for it). GitHub's API answers the old name with 404 from then on, web and git addresses are sent on, and the images move to `ghcr.io/rouh-land/`. Then a base release is built and signed under the new name, and an empty rouh-it is made again to hold the old name. `ROUH_GITHUB_ORG=rouh-land` makes a machine try the new name first.
+4. **rouh-it is taken out** of the code, as the old jarvis names were.
+
+GitHub's own note: the old name of a public repository that was cloned more than 100 times in the week before is retired for good, so nobody can make rouh-it/rouh-core again.

@@ -2,8 +2,8 @@
 # tested on a pull request, merged into main only when every check passed, and built, signed and
 # published from that one tagged commit of main, in GitHub's container registry:
 #
-#   ghcr.io/rouh-it/rouh-base:<level>, :<line>, :latest     what every Rouh runs on, no Rouh code
-#   ghcr.io/rouh-it/rouh-guard:<level>, :latest             the protected core a Rouh uses and cannot edit
+#   ghcr.io/<owner>/rouh-base:<level>, :<line>, :latest     what every Rouh runs on, no Rouh code
+#   ghcr.io/<owner>/rouh-guard:<level>, :latest             the protected core a Rouh uses and cannot edit
 #
 # Both packages are public, so anyone may pull them with no sign-in.
 #

@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 
 from . import code_update as u
+from . import github_org
 
 USE = "code_adapt"
 TAKEN = ("copied", "adapted")
@@ -76,8 +77,21 @@ def master_repo() -> Path:
     return u.folder() / "master.git"
 
 
-def source() -> str:
-    return os.environ.get("ROUH_CODE_MASTER", "https://github.com/rouh-it/rouh-core.git")
+def sources() -> list[str]:
+    """Where shared main is fetched from, in the order to try: ROUH_CODE_MASTER, else rouh-core on
+    GitHub under either name of its organisation (rouh/github_org.py)."""
+    return github_org.every(os.environ.get("ROUH_CODE_MASTER") or "https://github.com/{org}/rouh-core.git")
+
+
+def _fetch_main(repo: Path) -> None:
+    """Shared main into repo, from the first of sources() that gives it."""
+    why = ""
+    for url in sources():
+        r = u._git("fetch", "-q", url, "+refs/heads/main:refs/heads/main", cwd=repo)
+        if r.returncode == 0:
+            return
+        why = (r.stderr or r.stdout).strip()[-300:]
+    raise u.Refused(f"git fetch failed: {why}")
 
 
 def _git(*args, **kw):
@@ -101,7 +115,7 @@ def scan(release: dict, b: dict, *, report: bool = True) -> dict:
             save(held)
             return held
     if release["commit"] not in (ledger().get("seen"), ledger().get("looked")):
-        u._git("fetch", "-q", source(), "+refs/heads/main:refs/heads/main", cwd=repo, check=True)
+        _fetch_main(repo)
     end = release["commit"]
     doc = ledger()
     if not doc.get("installed") and b.get("how") == "history":
