@@ -139,6 +139,8 @@ def lines(path: str = "") -> list[str]:
             tail += f", commit {gap['commit']}"
         if gap.get("deployed"):
             tail += f", deployed {gap['deployed']}"
+        if gap.get("note"):
+            tail += f". {gap['note']}"
         status = gap.get("status", "")
         shown = status.upper() if status == DONE else status
         out.append(f"{gap.get('number')}. {gap.get('name')}: {shown}{tail}")

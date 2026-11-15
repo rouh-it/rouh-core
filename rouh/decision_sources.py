@@ -29,6 +29,8 @@ The sources, in the order the Decisions page groups them:
 - **approval** - the heartbeat's and the quests' approval queue (`heartbeat.py`): yes runs
   exactly what was queued, no runs nothing; his own words are a no with his words passed on.
 - **run** - a run of the one program asking leave, or posing a choice (`one/questions.py`).
+- **gate** - a tool call held at its permission gate until he says yes (`permissions.py`,
+  `gates.py`): Allow runs it once, Not now does not, and no answer in time is a refusal.
 - **job** - a background job stopped at its prompt, or on a step it handed to the live
   browser (LIVE BROWSER NEEDED, `browser_handoff.py`): his words go to its prompt
   (`reply_to_task`).
@@ -107,6 +109,9 @@ class Hooks:
     #: () -> the mail cases' desk (`mail_cases.CaseDesk`), or None when new mail is not
     #: handled on this server.
     mail_desk = None
+    #: The tool registry's permission gate (`permissions.Gate`): the questions waiting at it,
+    #: and the way an answer reaches it.
+    gate = None
 
 
 hooks = Hooks()
@@ -1384,6 +1389,83 @@ class RunSource(Source):
         if (got or {}).get("said"):
             return Applied(True, f"Done: {got['said']}.")
         return Applied(True, "Allowed; the run carries on." if yes else "Refused; the run was told no.")
+
+
+# --- a tool held at its permission gate ------------------------------------------------------
+
+
+class GateSource(Source):
+    """A tool call held at its permission gate until the owner says yes (`rouh/permissions.py`,
+    `rouh/gates.py`, Anatomy, Behaviour, Permission gates).
+
+    The same question is drawn under the turn with Allow and Not now; here it is on the Decisions
+    list too, with its notice, so it reaches him wherever he is looking and is never a silent
+    failure. Whichever is pressed first answers it; the other closes. A call nobody answers is
+    refused when its time runs out, and its decision closes as expired with the reason."""
+
+    kind = "gate"
+    label = "Permission gate"
+    tag = "Gate"
+
+    def gate(self, who, ask):
+        from . import decision_gate as gate
+
+        return gate.let_through("A tool ‹he› gated is held until ‹he› says yes.")
+
+    def collect(self, who) -> list[Ask] | None:
+        if not _owner(who) or hooks.gate is None:
+            return None
+        out = []
+        for q in hooks.gate.asks():
+            name = str(q.get("name") or "")
+            what = str(q.get("what") or f"Run {name}").rstrip(".")
+            detail = str(q.get("detail") or "")
+            args = q.get("args") if isinstance(q.get("args"), dict) else {}
+            risk = risk_of_tool(name, args)
+            body = _args_text(args) if args else ""
+            out.append(Ask(
+                source_id=str(q["id"]), key=decisions.key_of("gate", q["id"]),
+                title=f"Permission gate: {what}",
+                question=str(q.get("question") or f"{what}. May I?"),
+                why=f"{name} is gated: it asks you first, on Anatomy, Behaviour, Permission gates.",
+                then="It runs once if you allow it; nothing is done if you do not.",
+                link="/anatomy/behaviour/gates", context=f"Gate · {name}", project="Rouh",
+                batch="gate",
+                options=[{"id": "yes", "label": "Allow", "detail": f"{what}, this once.", "go": True},
+                         {"id": "no", "label": "Not now", "detail": "It is not done."}],
+                allow_other=False, answer_type="yes_no", urgency="now", kind="decision",
+                due_at=_epoch(q.get("expires_at")), risk=risk,
+                risk_note=f"{what}{': ' + detail if detail else ''}"[:600],
+                prepared=[{"label": "What it would run", "text": f"{name}\n{body}"[:1500]}],
+                asked_at=_epoch(q.get("asked_at")),
+                yes_does=f"Runs {name} once: {what}.",
+                wait_cost="The conversation is held until you answer, and it is not done when "
+                          "its time runs out.",
+                blocks=True))
+        return out
+
+    def settled(self, who, row) -> Settled | None:
+        ended = hooks.gate.ended.get(row.source_id, "") if hooks.gate is not None else ""
+        from . import permissions
+
+        if ended == permissions.NO_ANSWER_AT_ALL or (not ended and row.due_at
+                                                      and row.due_at < time.time()):
+            return Settled(decisions.EXPIRED,
+                           result="Nobody answered in time, so it was not done.")
+        if ended == permissions.ALLOW:
+            return Settled(decisions.WITHDRAWN, said="Allow", channel="screen",
+                           result="Allowed under the conversation, and it ran once.")
+        return Settled(decisions.WITHDRAWN, said="Not now", channel="screen",
+                       result="Answered under the conversation: it was not done.")
+
+    async def apply(self, who, row, channel: str) -> Applied:
+        if hooks.gate is None:
+            return Applied(False, "Rouh's tools are not running in this process.")
+        yes = "yes" in ((row.answer or {}).get("choice") or [])
+        if not hooks.gate.answer(row.source_id, yes):
+            return Applied(True, "It had already been answered or had run out of time, so "
+                                 "nothing more was done.")
+        return Applied(True, "Allowed: it runs once." if yes else "Not now: it was not done.")
 
 
 def _epoch(value) -> float | None:
@@ -3536,7 +3618,7 @@ def clock_day(at: float, zone) -> str:
 
 
 _SOURCES: dict[str, Source] = {s.kind: s for s in (
-    TaskSource(), GoalSource(), ApprovalSource(), MailSource(), RunSource(), JobSource(),
+    TaskSource(), GoalSource(), ApprovalSource(), MailSource(), RunSource(), GateSource(), JobSource(),
     ConflictSource(), DreamSource(), NightlySource(), GeneSource(), MeetingSource(), ContactPicksSource(), AfterMeetingSource(),
     CaseFixSource(), DelegateSource(), OfflineSource(), PromiseSource())}
 

@@ -3155,6 +3155,16 @@
     "rouh/static/keepspage.*",
     "rouh/migrations/0251_lean_settings.py"
    ]
+  },
+  "permission-gates": {
+   "files": [
+    "rouh/gates.py",
+    "rouh/models/gates.py",
+    "rouh/web/gates.py",
+    "rouh/static/gatespage.*",
+    "rouh/migrations/0255_permission_gates.py",
+    "rouh/genes/manifests/permission-gates.json"
+   ]
   }
  }
 }

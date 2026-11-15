@@ -67,6 +67,7 @@ from .google_oauth import GoogleAuth
 from .google_store import GoogleStore
 from .mailboxes import MailboxAuth, MailboxStore
 from . import dbwork
+from . import gates
 from . import code_update
 from . import modelstandard, turntrace
 from . import settings as settings_mod
@@ -1043,6 +1044,13 @@ decision_sources.hooks.cfg = config
 decision_sources.hooks.reply_to_task = lambda run_id, words: tools._reply_to_task(
     {"id": run_id, "answer": words}, Hub.broadcast)
 decision_sources.hooks.mail_desk = lambda: mail_alerts.cases if mail_alerts is not None else None
+#: A tool held at its permission gate is a decision too (`decision_sources.GateSource`): the
+#: Decisions list reads the gate's waiting questions, is poked the moment one is asked or ends,
+#: and its answer goes back through the gate. Which tools are gated is the owner's, from Anatomy,
+#: Behaviour, Permission gates, with the server's ROUH_CONFIRM_TOOLS (`rouh/gates.py`).
+decision_sources.hooks.gate = tools.gate
+tools.gate.changed = desk.poke
+gates.hooks.owner = lambda: telegram.phone_owner(tenancy)
 
 
 async def _delegate_mail(who, address: str, subject: str, body: str):

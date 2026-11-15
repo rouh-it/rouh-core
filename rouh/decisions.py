@@ -1099,7 +1099,7 @@ def _arrangement_sections(rest: list[dict], order: list[str]) -> list[dict]:
 #: Petar pressed Approvals looking for the approvals his trusted contacts' emails wait on
 #: (fr_93833fb07db1): each name says where its decisions come from.
 SOURCE_PLURAL = {"task": "Tasks", "goal": "Goal steps", "approval": "Heartbeat and quests",
-                 "run": "Runs",
+                 "run": "Runs", "gate": "Permission gates",
                  "job": "Jobs", "conflict": "Conflicts", "dream": "Synapse",
                  "nightly": "Nightly feature", "meeting": "Meeting guests",
                  "contact_picks": "Contacts to pick on LinkedIn",

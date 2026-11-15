@@ -35,6 +35,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import secrets
+import time
 
 log = logging.getLogger("rouh.permissions")
 
@@ -111,9 +112,36 @@ class Gate:
     def __init__(self, timeout: float = TIMEOUT):
         self.timeout = timeout
         self._waiting: dict[str, asyncio.Future] = {}
+        #: What each waiting question asks, for the Decisions list (`decision_sources.GateSource`):
+        #: {"id", "name", "question", "what", "detail", "asked_at", "expires_at"}.
+        self._asked: dict[str, dict] = {}
+        #: How each of the last questions ended, by id, for the Decisions list to close its
+        #: decision with the right words: ALLOW, REFUSE or NO_ANSWER_AT_ALL.
+        self.ended: dict[str, str] = {}
+        #: Called with nothing whenever a question is asked or ends, so the Decisions list reads
+        #: it at once rather than at its next pass (`runtime`, `desk.poke`). None calls nothing.
+        self.changed = None
 
     def pending(self) -> list[str]:
         return list(self._waiting)
+
+    def asks(self) -> list[dict]:
+        """Every question still waiting on an answer, as it was asked."""
+        return [dict(a) for a in list(self._asked.values()) if a.get("id") in self._waiting]
+
+    def _moved(self) -> None:
+        if self.changed is not None:
+            try:
+                self.changed()
+            except Exception:  # noqa: BLE001 - the screen still has the question
+                log.exception("permissions: the Decisions list could not be told")
+
+    def _ended(self, ask_id: str, verdict: str) -> None:
+        self._asked.pop(ask_id, None)
+        self.ended[ask_id] = verdict
+        while len(self.ended) > 200:
+            self.ended.pop(next(iter(self.ended)))
+        self._moved()
 
     def answer(self, ask_id: str, allowed: bool) -> bool:
         """The person's answer. True if there was still a question to answer."""
@@ -123,7 +151,8 @@ class Gate:
         future.set_result(bool(allowed))
         return True
 
-    async def ask(self, name: str, said: dict, emit, *, call_id: str = "") -> str:
+    async def ask(self, name: str, said: dict, emit, *, call_id: str = "",
+                  args: dict | None = None) -> str:
         """Ask, wait, and say what came back: `ALLOW`, `REFUSE` or `NO_ANSWER_AT_ALL`.
 
         Three answers rather than a yes and a no, because "they said no" and
@@ -138,6 +167,12 @@ class Gate:
         loop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
         self._waiting[ask_id] = future
+        now = time.time()
+        self._asked[ask_id] = {"id": ask_id, "name": name, "question": question_for(name, said),
+                               "what": what, "detail": said.get("detail") or "",
+                               "args": dict(args) if isinstance(args, dict) else {},
+                               "asked_at": now, "expires_at": now + self.timeout}
+        self._moved()
 
         await emit({
             "type": "permission_ask",
@@ -159,6 +194,7 @@ class Gate:
             # The turn was abandoned, which a barge-in does routinely. The
             # question goes with it rather than being left on the screen.
             self._waiting.pop(ask_id, None)
+            self._ended(ask_id, REFUSE)
             await emit({"type": "permission_done", "id": ask_id, "answer": REFUSE,
                         "where": "rouh"})
             raise
@@ -167,6 +203,7 @@ class Gate:
 
         verdict = (NO_ANSWER_AT_ALL if allowed is None
                    else ALLOW if allowed else REFUSE)
+        self._ended(ask_id, verdict)
         await emit({"type": "permission_done", "id": ask_id,
                     # The page has one thing to draw either way: it was not
                     # allowed. Why is for the model and for the log.

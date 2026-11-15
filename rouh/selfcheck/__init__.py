@@ -57,8 +57,9 @@ KNOWN_GAPS = (
      "(rouh/objects.py), and /api/transcript reads any chat by its id for any signed-in user; "
      "an installation is one person's until they are, so nothing here is shared yet"),
     ("approval prompts are off unless an installation lists tools",
-     "the yes/no prompt before a tool runs covers only ROUH_CONFIRM_TOOLS, which is empty by "
-     "default; what is always refused without the person's own words is checked instead"),
+     "the yes/no prompt before a tool runs covers only the tools switched on in Anatomy, Behaviour, "
+     "Permission gates and ROUH_CONFIRM_TOOLS, both empty by default; what is always refused without "
+     "the person's own words is checked instead"),
 )
 
 

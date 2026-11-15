@@ -66,7 +66,7 @@ QA_MOST = 20
 STEPS_MOST = 12
 
 #: Sources whose questions are choices by what they are, never read by the model.
-CHOICES = frozenset({"conflict", "dream", "nightly", "genes", "meeting", "contact_picks",
+CHOICES = frozenset({"gate", "conflict", "dream", "nightly", "genes", "meeting", "contact_picks",
                      "after_meeting", "mail", "casefix", "delegate", "offline", "promise"})
 
 def _cut(value, most: int) -> str:

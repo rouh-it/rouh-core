@@ -21,7 +21,7 @@ The code is `rouh/decisions.py` (the record and the one way an answer goes), `ro
 | Old memory facts | `facts.proposal` | Rules page | Apply there | Never expire |
 | A job's email waiting for his yes | `worker_outbox` | Inside the job's report note | The model asks, then `send_mail` | Never expire |
 | A trusted contact's mail case | `mail_approvals` | `/mail/approvals`, `/mail/case/<key>` (inside Rouh since 15 October 2026, one page with its trace: MAIL.md D26), a Telegram link | The case page only | Expire after 48 hours |
-| Gated tools (`ROUH_CONFIRM_TOOLS`), ask cards | In memory / a signed card block | The transcript, a card | Allow / Not now, a spoken yes | 2 minutes / 24 hours |
+| Gated tools (`ROUH_CONFIRM_TOOLS`), ask cards | In memory / a signed card block | The transcript, a card (since 15 November 2026 a gated tool is on the Decisions list too, `GateSource`) | Allow / Not now, a spoken yes | 2 minutes / 24 hours |
 
 What was "preselected choices and something else" before: the task box offered its options as buttons (several, as toggles) and a field "Or answer in your own words"; a goal step's How to do it page had radios with the one he picked checked and an Other with a field.
 Nothing showed a recommendation, nothing said what an option would do beyond a line under it, and no two of these looked or answered alike.
@@ -299,7 +299,9 @@ What had already run out of time is not brought back. Petar, the same day: "No n
 Kept, each for a reason that is not the question going stale:
 
 - **A run of the one program asking leave** (`one/questions.py`, `RunSource`): told no after 9 minutes (`ONE_QUESTION_TIMEOUT`), and its decision closes as expired. The run is stopped inside a hook that Claude Code itself abandons at 10 minutes (`hook_timeout`), and no answer has to mean no rather than whatever Claude Code does with a hook that died. It is only asked at all when a run's access is guarded; the default, full, asks nothing. A choice a run poses (`pose`, `lasting`) has no limit.
-- **Gated tools** (`rouh/permissions.py`, `ROUH_CONFIRM_TOOLS`, off unless set): 2 minutes, because the model's turn is held open while it waits; the model is told it was not done and says it is waiting on him.
+- **Gated tools** (`rouh/permissions.py`, `rouh/gates.py`): 2 minutes, because the model's turn is held open while it waits; the model is told it was not done and says it is waiting on him.
+  Which tools are gated is the owner's, switched one by one on Anatomy, Behaviour, Permission gates, with the server's `ROUH_CONFIRM_TOOLS` shown there as locked on; none by default, and none on Petar's own Rouh by his choice of 15 November 2026.
+  Since that day a held call is also a decision of its own (`GateSource`, source `gate`), with its notice: Allow on the Decisions list runs it once, Not now refuses it, and whichever is pressed first, there or under the turn, answers it; one nobody answers closes as expired, "Nobody answered in time, so it was not done."
 - **Ask cards and draft cards** (`rouh/asking.py` 24 hours, `rouh/composing.py` 7 days): a button signed into a card in a chat, which shares a location, saves a contact or sends an email in one press. A press on last week's card does not quietly act today; it says to ask again, and Rouh shows it afresh. These are buttons in a transcript, not questions in this list.
 - **A meeting guest's LinkedIn pick** (`MeetingSource`): asked for the meeting's preparation and withdrawn when the meeting begins, an event rather than a clock. The guest stays unresolved on their contact card, where the question can still be answered.
 - **Codes and grants**: a trusted contact's Telegram link code (48 hours), a device pairing code (10 minutes) and a sign-up grant (24 hours) are one-time secrets or permissions he gave for a while, not questions waiting on him.

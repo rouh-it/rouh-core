@@ -27,6 +27,7 @@ from rouh import addressing, askai, filelinks, genes, onebridge, pages, picturel
 from rouh.web import agent_instructions as agent_instructions_web
 from rouh.web import anatomy as anatomy_web
 from rouh.web import lean as lean_web
+from rouh.web import gates as gates_web
 from rouh.web import silos as silos_web
 from rouh.web import demo as demo_web
 from rouh.web import dreame as dreame_web
@@ -630,6 +631,8 @@ urlpatterns = [
     path("api/anatomy/keeps/default", lean_web.default),
     path("api/anatomy/keeps/confirm", lean_web.confirm),
     path("api/anatomy/keeps/preset", lean_web.preset),
+    # Anatomy, Behaviour, Permission gates (`rouh/web/gates.py`, `rouh/gates.py`).
+    path("api/anatomy/gates", gates_web.page),
     path("api/settings/stats", stats.page),
     path("api/settings/stats/events", stats.event_log),
     path("api/nav/tap", stats.tap),

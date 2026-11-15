@@ -152,6 +152,7 @@ with {% asset %}, which gives it its hashed address.
 <link rel="stylesheet" href="{% asset "genespage.css" %}">
 <link rel="stylesheet" href="{% asset "servicespage.css" %}">
 <link rel="stylesheet" href="{% asset "keepspage.css" %}">
+<link rel="stylesheet" href="{% asset "gatespage.css" %}">
 <link rel="stylesheet" href="{% asset "birthpage.css" %}">
 <link rel="stylesheet" href="{% asset "landaccountpage.css" %}">
 <link rel="stylesheet" href="{% asset "statspage.css" %}">
@@ -3488,6 +3489,15 @@ with {% asset %}, which gives it its hashed address.
             <div id="yrToast" class="yr-toast" role="status" aria-live="polite" hidden></div>
           </div>
 
+          <div class="settings-section" data-section="gates" hidden>
+            {% comment %} Behaviour, Permission gates (15 November 2026): whether any tool must get the
+                 person's yes before it runs, what a gate is, and every tool by its area with an
+                 "Ask me first" switch, the expensive and irreversible ones marked as candidates and
+                 the server's ROUH_CONFIRM_TOOLS locked on. gatespage.js draws it from
+                 /api/anatomy/gates (`rouh/gates.py`). {% endcomment %}
+            <div id="gatesBody" class="hb-body" aria-busy="false"></div>
+          </div>
+
           <div class="settings-section" data-section="offline" hidden>
             {% comment %} Behaviour, Offline (Meta's until 4 November 2026): what this device
                  keeps for when there is no connection, and how, with Refresh: the
@@ -5276,6 +5286,7 @@ with {% asset %}, which gives it its hashed address.
 <script defer src="{% asset "genespage.js" %}"></script>
 <script defer src="{% asset "servicespage.js" %}"></script>
 <script defer src="{% asset "keepspage.js" %}"></script>
+<script defer src="{% asset "gatespage.js" %}"></script>
 <script defer src="{% asset "birthpage.js" %}"></script>
 <script defer src="{% asset "landaccountpage.js" %}"></script>
 <script defer src="{% asset "signinpage.js" %}"></script>

@@ -1377,7 +1377,7 @@ read out of `rouh/gaps.json`.
 | A helper with a window of its own, whose window is thrown away (`look_into`) | `subagent.py` | no, `ROUH_SUBAGENTS=0` turns it off |
 | Fetched text framed as somebody else's words | `untrusted.py` | no |
 | Retries and backoff, always on the same model (no fallback model since 18 October 2026) | `retrying.py` | no |
-| Tools that have to be asked about first | `permissions.py` | yes, `ROUH_CONFIRM_TOOLS` names them |
+| Tools that have to be asked about first | `permissions.py`, `gates.py` | yes: Anatomy, Behaviour, Permission gates switches them one by one, and `ROUH_CONFIRM_TOOLS` names more, locked on |
 | External MCP servers, namespaced into the tool list, connected on Anatomy, Connections, MCP servers | `mcp.py`, `mcp_servers.py` | yes, a server connected on the page or `ROUH_MCP_SERVERS` or `ROUH_MCP_CONFIG` |
 | Branching a chat, and a turn a restart killed saying so | `memory.py` | no |
 | Thinking that carries across tool calls, never spoken, its summary kept in the log of requests | `brain.py`, `config.thinking_for` | on for the 5 generation, which thinks either way; `ROUH_THINKING` asks any model |

@@ -46,11 +46,12 @@
       "id": "permission-gates",
       "number": 5,
       "name": "Permission gates",
-      "what": "A hook in the tool registry so a named tool can be marked as needing the person's confirmation before it runs.",
+      "what": "A hook in the tool registry so a named tool can be marked as needing the person's confirmation before it runs. The control is in Anatomy, Behaviour, Permission gates: every tool with an Ask me first switch, the expensive and irreversible ones marked as candidates, and the question reaches the person under the conversation and on the Decisions list.",
       "why": "There is no approval layer at all. Safety comes from the tools being narrow, which works until one of them is not. A gate makes it possible to add a tool that does something real without making it unaskable.",
       "status": "merged to main",
       "commit": "9c2aa43",
-      "deployed": ""
+      "deployed": "",
+      "note": "Off by choice, 15 Nov 2026: the code runs live, but no tool is gated (the page's list and ROUH_CONFIRM_TOOLS are both empty), because the owner does not want to deal with gates yet. Checked end to end in a test world: allowed from Decisions, refused under the turn, and refused when nobody answered in 2 minutes."
     },
     {
       "id": "mcp-client",

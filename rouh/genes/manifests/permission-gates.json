@@ -1,0 +1,40 @@
+{
+  "id": "permission-gates",
+  "name": "Permission gates",
+  "title": "Permission gates: the tools that must get your yes before they run, enforced by code. None is on until you switch it on",
+  "aliases": [
+    "permission gates",
+    "gates",
+    "gate",
+    "ask me first",
+    "confirm",
+    "confirmation",
+    "approve tools",
+    "tool approval",
+    "confirm tools",
+    "rouh_confirm_tools"
+  ],
+  "group": "machine",
+  "route": "/anatomy/behaviour/gates",
+  "anatomy": {
+    "order": 75
+  },
+  "icon": "<rect x=\"5\" y=\"10.5\" width=\"14\" height=\"9.5\" rx=\"2\"/><path d=\"M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3\"/><path d=\"M12 14v2.5\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "a tool switched to ask me first stops before it runs and waits for your yes, under the conversation and on the Decisions list; nothing is gated unless you switch it on"
+    ],
+    "accounts": [],
+    "tables": [
+      "permission_gates"
+    ],
+    "jobs": [],
+    "remove": "rouh/gates.py and its call in ToolRegistry.call (rouh/tools.py, which then reads ROUH_CONFIRM_TOOLS alone), GateSource in rouh/decision_sources.py and its hooks in rouh/runtime.py, rouh/web/gates.py and its address in urls.py, gatespage.js and gatespage.css, the gates section in rouh/templates/rouh/index.html and its entry in settingsPages (app/runs.js), rouh/models/gates.py and this manifest; drop permission_gates with a migration."
+  }
+}

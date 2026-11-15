@@ -1,0 +1,119 @@
+/* Anatomy, Behaviour, Permission gates (`gatespage.js`, `rouh/gates.py`).
+
+   The Heartbeat page's cards (`heartbeatpage.css`) and Rouh's own tokens, nothing new: a headline
+   that says whether anything is gated, what a gate is in three lines, then every tool by its area
+   with an "Ask me first" switch. A candidate carries the words of the mistake it could make, and a
+   gate is On in words beside the knob, so nothing is said by colour alone. */
+
+#gatesBody { padding: 0; overflow: visible; }
+.gp-page { gap: 12px; }
+.gp-headline { margin: 0; font-size: 15px; line-height: 1.45; color: var(--text); text-wrap: pretty; }
+.gp-state {
+  display: inline-flex; align-items: center; gap: 6px; margin-right: 6px; padding: 1px 9px;
+  border-radius: 999px; border: 1px solid var(--line); font-size: 12.5px; font-weight: 600;
+  color: var(--dim); vertical-align: 1px;
+}
+.gp-state::before { content: ""; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; }
+.gp-state.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.gp-state.on::before { background: currentColor; }
+
+/* What a gate is: three short lines, each with its own mark. */
+.gp-about { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.gp-about li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; align-items: start;
+  font-size: 13.5px; line-height: 1.45; color: var(--text); }
+.gp-about svg { width: 18px; height: 18px; margin-top: 1px; fill: none; stroke: var(--dim);
+  stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.gp-about a { color: var(--accent); }
+.gp-about a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+/* Finding a tool: only the candidates, and a search. */
+.gp-find { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 4px; }
+.gp-only {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.gp-only svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; color: var(--warn); }
+.gp-hide { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.gp-only[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.gp-only:hover { border-color: var(--dim); }
+.gp-only:focus-visible, .gp-search:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gp-count { font-variant-numeric: tabular-nums; color: var(--dim); }
+.gp-search-wrap { flex: 1 1 220px; min-width: 0; display: flex; }
+.gp-search {
+  flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 8px 12px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font: inherit; font-size: 13.5px;
+}
+.gp-search::placeholder { color: var(--dimmer); }
+
+/* One area of tools. */
+.gp-group { border-top: 1px solid var(--line-soft); padding-top: 12px; margin-top: 12px; min-width: 0; }
+.gp-group:first-of-type { border-top: 0; margin-top: 4px; padding-top: 0; }
+.gp-group-h { margin: 0 0 4px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px;
+  font-size: 13px; font-weight: 600; color: var(--text); }
+.gp-group-n { font-weight: 400; font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.gp-rows { margin: 0; padding: 0; list-style: none; }
+.gp-rows:empty { display: none; }
+.gp-more {
+  appearance: none; margin-top: 2px; min-height: 44px; padding: 0 2px; border: 0; background: none; cursor: pointer;
+  font: inherit; font-size: 13px; color: var(--accent); text-decoration: underline; text-underline-offset: 3px;
+}
+.gp-more:hover { text-decoration-thickness: 2px; }
+.gp-more:focus-visible, .gp-area:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.gp-quiet-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.gp-area {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: transparent; color: var(--text); font: inherit; font-size: 13px; cursor: pointer;
+}
+.gp-area:hover { border-color: var(--dim); }
+.gp-only-admin { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--text); }
+.gp-find + div > .gp-group:first-child { margin-top: 14px; }
+
+/* One tool: its name and line on the left, its switch on the right. */
+.gp-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 14px; align-items: center;
+  padding: 10px 0; border-top: 1px solid var(--line-soft); min-width: 0;
+}
+.gp-row:first-child { border-top: 0; }
+.gp-who { min-width: 0; display: grid; gap: 3px; }
+.gp-name-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.gp-name { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.gp-brief { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--dim); overflow-wrap: anywhere; }
+.gp-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600; white-space: nowrap;
+  color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line));
+}
+.gp-chip svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.2;
+  stroke-linecap: round; stroke-linejoin: round; }
+.gp-chip.lock { color: var(--text); border-color: var(--dim); }
+.gp-row-say { grid-column: 1 / -1; margin: 0; font-size: 12.5px; }
+.gp-row-say.bad { color: var(--bad); }
+.gp-row-say.good { color: var(--good); }
+
+/* The switch: the Shipping page's, with the words On or Off in it. */
+.gp-sw {
+  flex: none; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  min-height: 44px; padding: 3px 12px 3px 5px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--dim); font: inherit; font-size: 12.5px; white-space: nowrap;
+}
+.gp-knob { width: 24px; height: 24px; border-radius: 50%; background: var(--dim); transition: background-color 150ms ease; }
+.gp-sw-word { min-width: 2.2em; text-align: left; }
+.gp-sw[aria-checked="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.gp-sw[aria-checked="true"] .gp-knob { background: var(--accent); }
+/* Off is a hollow knob, so it never reads as the filled one of On. */
+.gp-sw[aria-checked="false"] .gp-knob { background: transparent; border: 2px solid var(--dim); }
+.gp-sw:hover:not(:disabled) { border-color: var(--dim); }
+.gp-sw:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gp-sw:disabled { cursor: not-allowed; opacity: 0.5; }
+.gp-sw[aria-checked="true"]:disabled { opacity: 0.8; }
+.gp-sw.busy { cursor: progress; }
+
+.gp-empty { margin: 8px 0 0; font-size: 13.5px; color: var(--dim); }
+.gp-fail { margin: 0; font-size: 13px; color: var(--bad); }
+.gp-fail .ctl.small { margin-left: 8px; min-height: 44px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gp-knob { transition: none; }
+}

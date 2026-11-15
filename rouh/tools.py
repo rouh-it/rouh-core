@@ -11443,6 +11443,14 @@ class ToolRegistry:
         return [toolsearch.tool_from(d, **self._meta.get(d.get("name", ""), {}))
                 for d in self.definitions()]
 
+    def all_entries(self) -> list:
+        """Every tool this Rouh has, as `toolsearch.Tool`s, whatever this turn may call: the
+        list Anatomy, Behaviour, Permission gates switches gates on (`rouh/gates.py`)."""
+        from . import toolsearch
+
+        return [toolsearch.tool_from(d, **self._meta.get(d.get("name", ""), {}))
+                for d in _unique_by_name(self._defs)]
+
     async def call(self, name: str, args, emit, *, call_id: str = ""):
         handler = self._handlers.get(name)
         if handler is None:
@@ -11483,13 +11491,18 @@ class ToolRegistry:
         if not synapse_chat.visible(name):
             return untrusted.ours(f"{name} works only in a Synapse dataset's own chat.")
         # Named tools stop here and ask. Nothing is asked about unless it is
-        # named, so with nothing configured this is one set lookup and the
-        # behaviour below is what it always was (rouh/permissions.py).
+        # named, so with nothing configured the behaviour below is what it
+        # always was (rouh/permissions.py). The names are the server's
+        # (ROUH_CONFIRM_TOOLS) and the owner's own, from Anatomy, Behaviour,
+        # Permission gates, read for every call so a switch there takes effect
+        # on the next one (rouh/gates.py).
         # And the tools of an MCP server a person connected with Ask first on, which is how
         # it starts (`rouh/mcp_servers.py`).
-        if name in self.gated or self._mcp_asks_first(name):
+        from . import gates
+        if name in await gates.live(self.gated) or self._mcp_asks_first(name):
             said = worklabel.describe_step(name, args)
-            verdict = await self.gate.ask(name, said, emit, call_id=call_id)
+            verdict = await self.gate.ask(name, said, emit, call_id=call_id,
+                                          args=args if isinstance(args, dict) else None)
             if verdict != permissions.ALLOW:
                 # An answer, not a failure. A tool that reports an error gets
                 # tried again; one that reports "they said no" gets talked

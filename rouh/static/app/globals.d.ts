@@ -52,6 +52,8 @@ interface Window {
   /** Settings, Stats, and the counting of presses in the navigation (statspage.js). */
   RouhStats?: any;
   RouhKeeps?: any;
+  /** Anatomy, Behaviour, Permission gates (gatespage.js). */
+  RouhGates?: any;
   RouhSignups?: any;
   RouhBirth?: any;
   /** Rouh Land Account, Your profile, and the Gene Pool's standing card (landaccountpage.js). */
