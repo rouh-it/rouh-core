@@ -1494,7 +1494,7 @@ def diary(ds: dict, night: dict, dropped: list[dict], guard: dict, stopped: str)
             + (f" and {sc.get('backfill', 0)} older ones no night had read" if sc.get("backfill") else "")
             + f", with {_plural(sc.get('neighbours', 0), 'neighbour')} (the same thread, person, task or topic, linked, "
               f"or close by words and meaning), in {_plural(sc.get('groups', 0), 'group')}."
-            + (" More had changed than one night reads, so it took the oldest changes and left the rest for the "
+            + (" More had changed than one night reads, so it took the newest changes and left the rest for the "
                "next nights." if sc.get("capped") else ""))}]
     cuts = (night.get("progress") or {}).get("cuts") or []
     if cuts:
