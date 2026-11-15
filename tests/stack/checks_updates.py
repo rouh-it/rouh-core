@@ -20,6 +20,7 @@ import os
 import shlex
 import shutil
 import time
+from pathlib import Path
 
 import smoke
 from smoke import Failed, Stack, check, expect
@@ -332,12 +333,18 @@ firstrun._save(relay.owner(), connected=False)
 """)
 
 
+#: The newest of Rouh's own migrations in the code under test. The two migrations below build on it, so
+#: one Rouh adds later never leaves them a second leaf beside it (the check failed from 12 November
+#: 2026, when 0249 came after the 0248 they used to name, task 187).
+_NEWEST_MIGRATION = sorted(p.stem for p in (Path(__file__).resolve().parents[2] / "rouh" / "migrations").glob("[0-9][0-9][0-9][0-9]_*.py"))[-1]
+
+
 # At the very end, before only import.existing (which stops this stack): these change the code that
 # runs, which the Creator's checks and Put back, among the last, read as theirs.
 def _local_sensitive(s: Stack) -> None:
     """Local code and schema, made as a normal gene through this Rouh's protected core."""
     migration = ("from django.db import migrations\nclass Migration(migrations.Migration):\n"
-                 " dependencies=[('rouh','0248_user_land_id')]\n"
+                 " dependencies=[('rouh'," + repr(_NEWEST_MIGRATION) + ")]\n"
                  " operations=[migrations.RunSQL('CREATE TABLE update_memory_local (id integer PRIMARY KEY, body text, local_word text)',"
                  "'DROP TABLE update_memory_local')]\n")
     files = {"rouh/stack_access.py": "GREETING='local greeting'\ndef allowed(name): return True\n",
@@ -380,7 +387,7 @@ def updates_sensitive(s: Stack) -> None:
              "modeldefaults.put(o,'code_adapt',lock=True,by='stack')")
     r3 = _release(s, 3, "printf \"GREETING='master greeting'\\ndef allowed(name): return name == 'owner'\\n\" > rouh/stack_access.py")
     migration = ("from django.db import migrations\nclass Migration(migrations.Migration):\n"
-                 " dependencies=[('rouh','0248_user_land_id')]\n"
+                 " dependencies=[('rouh'," + repr(_NEWEST_MIGRATION) + ")]\n"
                  " operations=[migrations.RunSQL('CREATE TABLE IF NOT EXISTS update_memory "
                  "(id integer PRIMARY KEY, body text); ALTER TABLE update_memory ADD COLUMN source text',"
                  "'ALTER TABLE update_memory DROP COLUMN source')]\n")

@@ -612,15 +612,18 @@ def server_health() -> dict:
     # reader that cuts a long answer short (the stand-in model's echo does) still reads it.
     for key, collect in (
         ("sandbox", _sandbox_section),
-        ("disk", _disk_section),
-        ("access", _access_section),
-        ("backups", _backups_section),
-        ("scheduled_jobs", _jobs_section),
-        ("keys", _keys_section),
+        # Then memory and the backups, the other two a cut-short reader must still get, ahead of
+        # the long sections (access, scheduled jobs and keys grew past the stand-in's 1,200
+        # characters and hid memory from 11 November 2026).
         ("memory", _memory_section),
+        ("backups", _backups_section),
+        ("disk", _disk_section),
         ("load", _load_section),
         ("uptime", _uptime_section),
         ("version", _version_section),
+        ("access", _access_section),
+        ("scheduled_jobs", _jobs_section),
+        ("keys", _keys_section),
     ):
         try:
             out[key] = collect()

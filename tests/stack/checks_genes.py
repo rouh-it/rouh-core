@@ -1361,10 +1361,13 @@ body = '''Stack test with Example Ltd
 Took part: Alex <alex@example.com>; Ana Petrova <ana@example.test> (outside)
 Summary:
 We agreed the quote and the next steps.
-Next meeting: 2026-11-12 10:00
+Next meeting: NEXT_DAY 10:00
 Action items:
 - Send the signed quote (Ana Petrova (outside), due 2026-10-25, open)
 '''
+# A week after today, so the meeting agreed is always still ahead (it was a fixed 12 November 2026,
+# which the brief rightly stopped showing once it had passed).
+body = body.replace('NEXT_DAY', (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d'))
 if not db.row("SELECT id FROM synapse.item WHERE dataset_id=%s AND source=%s AND source_key=%s",
               (ds["id"], library.SOURCE, "meeting:stack-test-1")):
     db.row("INSERT INTO synapse.item (dataset_id, kind, source, source_key, title, raw, body, said_at, tier, "
@@ -1379,7 +1382,7 @@ from rouh import owed_to_you
 print('owed', ' '.join(l.get('who', '') for l in owed_to_you.lines(who)))
 """))
 
-check("gene.next-meeting")(in_core("agreed 2026-", code=SEED_MEETING + """
+check("gene.next-meeting")(in_core("agreed 20", code=SEED_MEETING + """
 from rouh import next_meeting
 print('agreed', ' '.join(l.get('day', '') for l in next_meeting.lines(who)))
 """))
@@ -3090,7 +3093,9 @@ print(json.dumps({"mail": ids({"name": "N", "add_emails": [{"address": "NINA@kc-
 def told_address(s: Stack) -> None:
     """An address an email announces as the sender's new one is read; an address in a quoted reply or one
     merely mentioned is not."""
-    out = core_py(s, _owner_py("""
+    # Raw, so each \n reaches the core's Python as the two characters of an escape, not as a line break
+    # inside a string literal (a SyntaxError from 14 November 2026).
+    out = core_py(s, _owner_py(r"""
 from rouh import told_address
 print(json.dumps({
     "new": told_address.announced("Hi,\n\nPlease note my new email address is dana@ta-stack.test from Monday."),
