@@ -184,8 +184,19 @@ def _git(*args: str, cwd: Path, check: bool = False, timeout: float = 600) -> su
                                              "GIT_AUTHOR_NAME": "Rouh", "GIT_AUTHOR_EMAIL": "rouh@localhost",
                                              "GIT_COMMITTER_NAME": "Rouh", "GIT_COMMITTER_EMAIL": "rouh@localhost"})
     if check and r.returncode:
-        raise Refused(f"git {args[0]} failed: {(r.stderr or r.stdout).strip()[-300:]}")
+        raise Refused(f"git {args[0]} failed: {_git_said(r)}")
     return r
+
+
+def _git_said(r: subprocess.CompletedProcess) -> str:
+    """What git said when it failed: its own error and fatal lines first, then the end of the rest.
+    The end alone was git's hints ("Clone succeeded, but checkout failed ... retry with ..."), or
+    nothing at all, and never the cause (the stack test, 15 November 2026)."""
+    said = (r.stderr or r.stdout or "").strip()
+    cause = [l.strip() for l in said.splitlines() if l.startswith(("error:", "fatal:"))]
+    if cause:
+        return "; ".join(cause)[:500]
+    return said[-300:] or f"exit {r.returncode}, nothing said"
 
 
 def _out(*args: str, cwd: Path) -> str:
