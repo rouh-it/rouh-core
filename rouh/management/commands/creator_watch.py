@@ -7,7 +7,7 @@ counted before the move compare with days after it. The seven days ending that e
 compared with the seven before them, because one day alone swings too much: a sum that fell to
 less than half, where the week before had at least ``FLOOR`` of it, is a regression; the day's
 verdict is kept beside its counts, and the exit code is 3 when there is one, so the removal of the
-old way (remove_old.sh, in rouh-it-site ops/creator since 7 November 2026) reads it and does not go on.
+old way (remove_old.sh, in rouh-land ops/creator since 7 November 2026) reads it and does not go on.
 
     python manage.py creator_watch            # yesterday, if not counted yet, and today so far
     python manage.py creator_watch --day 2026-11-03

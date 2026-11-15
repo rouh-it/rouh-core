@@ -13,7 +13,7 @@ every release rouh.land hands out, mac_release.py), which names each file's addr
               "min_wsl": "2.0.0", "images": {"x64": {"file", "url", "size", "sha256"}, "arm64": {...}},
               "contents": {"x64": {"debian", "docker", "compose", ...}, "arm64": {...}}}
 
-rouh.land keeps the newest at /windows/wsl/stable.json (rouh-it-site, rouhit/windows_views.py), and
+rouh.land keeps the newest at /windows/wsl/stable.json (rouh-land, rouhit/windows_views.py), and
 install.ps1 and Rouh for Windows check the signature with the key written in them, then each byte
 of the file against its SHA-256, before WSL imports it.
 

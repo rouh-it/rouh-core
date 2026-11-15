@@ -21,7 +21,7 @@ rouh.land who they are instead:
    Notice, a box to tick, and their email confirmed by a link; a passkey after, optional), or sign
    in with the one-email sign-in, whose link never makes an account, and press Continue. rouh.land answers
    with a note of their email signed by its own key, the one this Rouh already pins for its birth
-   answers (`birth.defaults`), kind ``rouh-identity`` (rouh-it-site `birth/vouch.py`).
+   answers (`birth.defaults`), kind ``rouh-identity`` (rouh-land `birth/vouch.py`).
 4. **Back at `/shared/in/back`** this Rouh holds the note to everything (`check`): rouh.land's
    signature, the kind, that it is for this Rouh, on one of its own relay names, with the state this
    browser was given, and not past its `until`. Then the email is the person: the share lets them in
@@ -59,7 +59,7 @@ from urllib.parse import urlencode, urlsplit
 
 log = logging.getLogger("rouh.landshare")
 
-#: What rouh.land signs its note as (rouh-it-site `birth/vouch.py`).
+#: What rouh.land signs its note as (rouh-land `birth/vouch.py`).
 KIND = "rouh-identity"
 #: Where the person starts, and where rouh.land sends them back to.
 IN_PATH = "/shared/in"
@@ -149,7 +149,7 @@ def _then(value) -> str:
     return "/shared"
 
 
-#: The two doors on rouh.land (rouh-it-site `birth/vouch.py`, `WAYS`): create an account, or sign in.
+#: The two doors on rouh.land (rouh-land `birth/vouch.py`, `WAYS`): create an account, or sign in.
 WAYS = ("up", "in")
 
 

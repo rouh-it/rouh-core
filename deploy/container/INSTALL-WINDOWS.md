@@ -15,7 +15,7 @@ Windows has a real Linux built in, WSL2 (the Windows Subsystem for Linux: a smal
 What is new is only the Windows wrapper around it, in three parts:
 
 1. **Rouh's own WSL Linux**, a `.wsl` file (`deploy/windows/wsl/`): Debian 13 with Docker Engine (never Docker Desktop), systemd on, and `rouh-wsl`, the helper the Windows side talks to. Locked down: no Windows drive is mounted inside, nothing inside can start a Windows program, and the Linux user has no general sudo, only the commands Rouh's own `rouh` command runs with sudo on any Linux. Built at GitHub for x64 and Arm (`.github/workflows/wsl-image.yml`), and trusted only through rouh.land's record of it, signed with Rouh's release key, which names each file's SHA-256 (`deploy/windows/wsl_image.py`, `/windows/wsl/stable.json`).
-2. **The thin installer**, `install.ps1`, served by rouh.land (rouh-it-site, `rouhit/install/install.ps1`):
+2. **The thin installer**, `install.ps1`, served by rouh.land (rouh-land, `rouhit/install/install.ps1`):
 
    ```powershell
    irm https://rouh.land/install.ps1 | iex

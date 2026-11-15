@@ -18,18 +18,18 @@
 #      outside the code, one word a line: the owner's people, accounts, machines and places); each rule's
 #      version carried on from what rouh.land serves now; and rouh/rule_defaults_fallback.json written to hold
 #      the same rules;
-#   3. the site: rouh-it/rouh-it-site cloned, rouhit/rules/defaults.json replaced, committed, pushed to main
+#   3. the site: rouh-it/rouh-land cloned, rouhit/rules/defaults.json replaced, committed, pushed to main
 #      and deployed with the site's deploy.sh (its tests first; the release before kept for undo);
 #   4. the live address read back as every Rouh reads it (`manage.py rule_defaults read`): 200, JSON, the
 #      revision just published.
 # Then commit rouh/rule_defaults_fallback.json here and land it, so a new Rouh's code starts with the same.
 #
-# Needs a GitHub grant (rouh-it/rouh-it-site) and the rouh.land login (`ssh rouh-land`, with sudo).
+# Needs a GitHub grant (rouh-it/rouh-land) and the rouh.land login (`ssh rouh-land`, with sudo).
 set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")/../.." && pwd)
 URL=${ROUH_RULE_DEFAULTS_URL:-https://rouh.land/rules/defaults.json}
-SITE_REPO=${ROUH_SITE_REPO:-https://github.com/rouh-it/rouh-it-site.git}
+SITE_REPO=${ROUH_SITE_REPO:-https://github.com/rouh-it/rouh-land.git}
 WORDS=${ROUH_PRIVATE_WORDS:-$HOME/.config/rouh/private-words.txt}
 PY=${ROUH_PYTHON:-}
 if [ -z "$PY" ]; then

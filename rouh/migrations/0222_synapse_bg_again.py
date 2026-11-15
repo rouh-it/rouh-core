@@ -4,7 +4,7 @@ Petar, 31 October 2026 (fr_ff415b038226): "It seems synapse query fails". Every 
 search, and every write of a passage, runs `to_tsvector('synapse.bg', ...)`, and on the
 live database that morning it said: text search configuration "synapse.bg" does not
 exist. The database had just been copied back by the creator switch's way back
-(the Creator Rouh's switch, rouh-it-site ops/creator), and a restore leaves the configuration out whenever its
+(the Creator Rouh's switch, rouh-land ops/creator), and a restore leaves the configuration out whenever its
 dictionary could not be made, which is any PostgreSQL without Hunspell's Bulgarian files.
 
 Migration 0062 made both once; this makes whichever of the two is missing, the same way
