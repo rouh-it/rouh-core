@@ -40,4 +40,4 @@ async def reading_api(request: HttpRequest):
         chat = str(request.GET.get("chat") or "")
         if not await sync_to_async(_exists)(chat):
             return refuse("There is no such chat.", 404)
-    return answer(await sync_to_async(reading.view)(chat))
+    return answer(await sync_to_async(reading.view)(chat, me))

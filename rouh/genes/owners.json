@@ -494,6 +494,7 @@
     "rouh/reading.py",
     "rouh/web/reading.py",
     "rouh/static/app/composer_extras.js",
+    "rouh/static/app/reading.js",
     "rouh/migrations/0245_chat_model_choice.py"
    ]
   },

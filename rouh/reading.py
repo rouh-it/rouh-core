@@ -438,13 +438,19 @@ def switches(chat_id: str) -> dict:
     return {"memory": bool(s["memory"]), "rules": bool(s["rules"]), "tools": bool(s["tools"])}
 
 
-def rules_listing(chat_id: str) -> list[dict]:
+def rules_listing(chat_id: str, who=None) -> list[dict]:
     """The rules a turn of this chat is told, for the panel: each with its title, whether it is locked on,
-    and whether it is on in this chat now."""
+    and whether it is on in this chat now. `who` is the person asking, from a page; a turn knows its own."""
     from . import rules as rules_mod, tool_rules
 
     try:
-        ds = rules_mod.master()
+        uid, org = (str(getattr(who, "user_id", "") or ""), str(getattr(who, "org_id", "") or "")) if who else ("", "")
+        ds = rules_mod.master(uid, org) if uid and org else rules_mod.master()
+        if ds:
+            from . import ruledefaults
+
+            # The defaults every Rouh starts with, taken in as a turn or the Rules page would (`ensure`).
+            ruledefaults.ensure(ds)
         every = [r for r in rules_mod.rules(ds) if rules_mod.in_chat(r)] if ds else []
     except Exception:  # noqa: BLE001 - the panel says nothing rather than break
         log.exception("the rules could not be listed for the panel")
@@ -498,7 +504,9 @@ def strip(chat_id: str, s: dict | None = None, got: list[Item] | None = None, ta
         bits.append("Tools")
     if task is not None:
         bits.append(f"Task {_label(task).split(' · ')[0]}")
-        notes = sum(1 for i in got or [] if i.kind in ("md", "agents", "goal"))
+        if any(i.kind == "agents" for i in got or []):
+            bits.append("AGENTS.md")
+        notes = sum(1 for i in got or [] if i.kind == "md")
         pages = sum(1 for i in got or [] if i.kind == "html")
         subs = len({i.owner for i in got or [] if i.kind == "task"}) - 1
         hist = sum(1 for i in got or [] if i.kind == "history")
@@ -510,12 +518,13 @@ def strip(chat_id: str, s: dict | None = None, got: list[Item] | None = None, ta
             bits.append(f"{subs} subtask{'s' if subs != 1 else ''}")
         if hist:
             bits.append(f"{hist} chat histor{'ies' if hist != 1 else 'y'}")
-        if any(i.how == "outline" for i in got or []):
-            bits.append("some as outlines")
+        cut = sum(1 for i in got or [] if i.how == "outline")
+        if cut:
+            bits.append(f"{cut} as outlines")
     return " · ".join(bits)
 
 
-def view(chat_id: str) -> dict:
+def view(chat_id: str, who=None) -> dict:
     """Everything the panel draws for this chat."""
     from .models.objects import Chat
 
@@ -537,5 +546,5 @@ def view(chat_id: str) -> dict:
                             "on": s["subtasks"] == "all" or (s["subtasks"] == "some" and sub.id in picked)}
                            for sub in subs]
     # The rules this chat is told, readable in the panel, each locked or not.
-    out["rules"] = rules_listing(chat_id)
+    out["rules"] = rules_listing(chat_id, who)
     return out

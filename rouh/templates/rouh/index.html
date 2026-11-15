@@ -858,6 +858,14 @@ with {% asset %}, which gives it its hashed address.
              should be to the left and if it is too long to fit it is
              draggable. But the beginning of the title is the beginning of
              the chat." {% endcomment %}
+        {% comment %} An incognito chat's mark, in place of the chat's name and what it belongs to
+             (rouh/incognito.py): the eye struck through and the word. {% endcomment %}
+        <span class="incog-mark" id="incogMark" hidden>
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.1M6.6 6.6A13 13 0 0 0 2 12c1 2.5 5 7 10 7a10 10 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>
+          </svg>
+          Incognito
+        </span>
         <div class="crumb-line" id="crumbLine">
           {% comment %} In a fork, the fork glyph - the one on Fork beside Send - in
                front of the fork's own name, which is the head of the screen.
@@ -997,6 +1005,16 @@ with {% asset %}, which gives it its hashed address.
            card is a block list with several, so both are drawn by the same
            renderer and both are read here. The canvas is what a card is opened
            on when it wants the width. {% endcomment %}
+      {% comment %} What this chat reads, in plain words, under its head: "Reading Memory · Your rules ·
+           Tools · Task 62 · 1 note". Petar, 15 November 2026 (Chat Change Planning): "a thin strip under
+           the chat title saying in plain words what is loaded", and the same control everywhere. Pressing
+           it opens the same panel as the open book beside the model (app/reading.js, `rouh/reading.py`).
+           In an incognito chat it says what is kept instead. {% endcomment %}
+      <button id="readingStrip" class="reading-strip" type="button" aria-controls="readingPop"
+              aria-expanded="false" hidden>
+        <span class="reading-strip-mark" id="readingStripMark" aria-hidden="true"></span>
+        <span class="reading-strip-words" id="readingStripWords"></span>
+      </button>
       <div id="transcript" class="transcript" role="log" aria-live="polite" aria-relevant="additions text" tabindex="0">
         {% comment %} The chat's own name, at the very top of its own conversation and
              nowhere else. It used to be in the row above, beside the project,
@@ -1050,6 +1068,7 @@ with {% asset %}, which gives it its hashed address.
       <input type="file" id="fileInput" class="sr-only" multiple
              accept="{{ATTACH_ACCEPT}}" data-max="{{ATTACH_MAX}}" aria-hidden="true" tabindex="-1">
 
+      <div class="reading-pop" id="readingPop" role="dialog" aria-labelledby="readingHead" hidden></div>
       <div class="composer-box" id="composerBox">
         {% comment %} The picture settings, while the box is asking for a picture rather
              than a reply (the picture button below). Built from what the
@@ -1177,6 +1196,24 @@ with {% asset %}, which gives it its hashed address.
               <div class="model-opts" id="modelOpts" role="radiogroup" aria-labelledby="modelPopHead"></div>
               <p class="model-pop-foot" id="modelFoot"></p>
             </div>
+          </div>
+
+          {% comment %} What I'm reading: the one control, in every chat, for what Rouh reads here -
+               memory, the person's rules, tools, a task's notes, pages and subtasks - and for
+               incognito (Petar, 15 November 2026: "same icon, same location, same interface ...
+               a button next to the smart"). An open book; an eye struck through while the chat is
+               incognito. The panel opens above the box (app/reading.js). {% endcomment %}
+          <div class="reading-wrap" id="readingWrap">
+            <button id="readingBtn" class="tog reading-btn" type="button" aria-haspopup="dialog"
+                    aria-expanded="false" aria-controls="readingPop"
+                    aria-label="What I'm reading in this chat" title="What I'm reading in this chat">
+              <svg class="ico-book" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/>
+              </svg>
+              <svg class="ico-incog" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.1M6.6 6.6A13 13 0 0 0 2 12c1 2.5 5 7 10 7a10 10 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>
+              </svg>
+            </button>
           </div>
 
           {% comment %} Stop. On screen only while a turn is running, and the same
