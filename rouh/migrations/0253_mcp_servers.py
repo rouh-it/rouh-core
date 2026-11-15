@@ -5,7 +5,7 @@ class Migration(migrations.Migration):
     """The MCP servers a person connects on Anatomy, Connections, MCP servers (`rouh/mcp_servers.py`),
     each keyed by its organisation and person, its secrets sealed."""
 
-    dependencies = [("rouh", "0251_lean_settings")]
+    dependencies = [("rouh", "0252_every_chat_belongs")]
     operations = [
         migrations.CreateModel(
             name="McpServer",
