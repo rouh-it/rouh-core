@@ -356,7 +356,17 @@ def chat(chat_id: str) -> dict | None:
     # parent is the task (`forks.cut`).
     out["fork_of"] = (ChatFork.objects.filter(chat_id=chat_id, cut_at__isnull=True)
                       .values_list("parent_id", flat=True).first() or "")
+    out["of_general"] = task is None and chat_id in _of_general([chat_id])
     return out
+
+
+def _of_general(chat_ids=None) -> set[str]:
+    """The chats that belong to General as forks that started fresh (`forks.belong`): in the list of chats,
+    and General's all the same."""
+    rows = ChatFork.objects.filter(parent_id=GENERAL, at__isnull=True, cut_at__isnull=False)
+    if chat_ids is not None:
+        rows = rows.filter(chat_id__in=list(chat_ids))
+    return set(rows.values_list("chat_id", flat=True))
 
 
 def all_chats(*, limit: int = 300) -> list[dict]:
@@ -395,6 +405,7 @@ def all_chats(*, limit: int = 300) -> list[dict]:
     for link in links:
         if link.src_type == "task" and link.dst_type == "chat":
             threads.setdefault(link.src_id, link.dst_id)
+    general = _of_general([row.id for row in rows])
     out = []
     for row in rows:
         owner = owners.get(("chat", row.id))
@@ -409,6 +420,7 @@ def all_chats(*, limit: int = 300) -> list[dict]:
         out.append(_as_row(row, task=task, project=project,
                            said=int(said.get(row.id, 0)),
                            thread=task is not None and threads.get(task.id) == row.id))
+        out[-1]["of_general"] = task is None and row.id in general
     return out
 
 
@@ -428,12 +440,14 @@ def ensure_chat(chat_id: str, *, title: str | None = None,
     return chat(chat_id) or _as_row(row)
 
 
-def new_chat(title: str | None = None, project_id: str | None = None) -> str:
-    """An empty, loose conversation, and its id.
+def new_chat(title: str | None = None, project_id: str | None = None, *, fork: bool = False) -> str:
+    """An empty conversation, and its id.
 
-    Loose is the only thing a new chat can be: nothing has said it is a piece
-    of numbered work, so it takes no number and no folder. `promote` is what
-    changes that, and a run started here does it by itself.
+    Nothing has said it is a piece of numbered work, so it takes no number and
+    no folder; `promote` is what changes that. It is never loose: since
+    15 November 2026 it belongs to General as a fork that started fresh
+    (`forks.belong`), unless it is being made as a fork of another chat
+    (`fork`, `forks.make`), which writes its own row.
     """
     st = store()
     named = ("" if is_untitled(title)
@@ -441,6 +455,13 @@ def new_chat(title: str | None = None, project_id: str | None = None) -> str:
     row = st.create_chat(id="chat-" + uuid.uuid4().hex[:12], title=named or None)
     if project_id and st.get_project(project_id) is not None:
         st.attach("project", project_id, "chat", row.id)
+    if not fork:
+        from . import forks
+
+        try:
+            forks.belong(row.id)
+        except Exception:  # noqa: BLE001 - a new chat is never refused for its row
+            log.exception("chat %s could not be written down as General's", row.id)
     return row.id
 
 

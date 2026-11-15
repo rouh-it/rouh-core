@@ -130,10 +130,44 @@ def came_from(chat_id: str) -> list[str]:
     """`lineage` through cuts as well: every chat this one carries, which is
     where the files of a fork's first question are kept (`mailfiles.chats_of`)."""
     def up(chat: str) -> str:
-        return ChatFork.objects.filter(chat_id=chat).values_list(
+        # A chat that belongs to General and started fresh carries nothing of it (`belong`).
+        return ChatFork.objects.filter(chat_id=chat).exclude(at__isnull=True, cut_at__isnull=False).values_list(
             "parent_id", flat=True).first() or ""
 
     return _line(chat_id, up)
+
+
+def belong(chat_id: str) -> bool:
+    """Make a chat with no home a fork of General that started fresh. Whether it was one.
+
+    Petar, 15 November 2026 (Chat Change Planning, point 2): "A chat is exactly one of: General, a fork of
+    General, or a task's (or step's) chat. There are no loose chats." So a chat that is not General, not a
+    fork and not a task's is written down as a fork of General: one row of `chat_fork`, with `at` None,
+    because it carries nothing of General and the model reads in it exactly what it read before, and cut,
+    because it is laid out on its own and kept in the list of chats the way it always was (`cut`). It
+    answers on the tier it always did, since the tier follows forks still laid out (`chatkinds.of_general`).
+    Nothing is deleted or moved; a chat a task owns is left as it is."""
+    from .conversations import GENERAL
+
+    if not chat_id or chat_id == GENERAL:
+        return False
+    if ChatFork.objects.filter(chat_id=chat_id).exists():
+        return False
+    try:
+        if conversations.task_of(chat_id) is not None:
+            return False
+    except Exception:  # noqa: BLE001 - belonging is never worth a chat
+        log.debug("which task chat %s is could not be read", chat_id, exc_info=True)
+        return False
+    now = time.time()
+    ChatFork.objects.get_or_create(chat_id=chat_id, defaults={
+        "parent_id": GENERAL, "at": None, "created_at": now, "cut_at": now})
+    return True
+
+
+def fresh(row: dict) -> bool:
+    """Whether a fork row is a chat that belongs to General and started fresh (`belong`)."""
+    return row.get("at") is None and row.get("cut_at") is not None
 
 
 def _line(chat_id: str, up) -> list[str]:
@@ -360,7 +394,7 @@ def make(parent_id: str, before: int | None = None, *,
     # follows the Models page leaves the fork following it too.
     chosen = chatkinds.stored_choice(parent_id)
     with transaction.atomic():
-        chat_id = conversations.new_chat()
+        chat_id = conversations.new_chat(fork=True)
         ChatFork.objects.create(chat_id=chat_id, parent_id=parent_id, at=at,
                                 created_at=time.time())
         if chosen:
@@ -485,8 +519,10 @@ def children(chat_id: str) -> list[dict]:
     A handful of queries whatever the number of forks: the chats, their
     questions and their message counts are each read for all of them at once.
     """
-    rows = list(ChatFork.objects.filter(parent_id=chat_id)
-                .order_by("created_at").values("chat_id", "at", "cut_at"))
+    rows = [r for r in ChatFork.objects.filter(parent_id=chat_id)
+            .order_by("created_at").values("chat_id", "at", "cut_at")
+            # A chat that belongs to General and started fresh is in the list of chats, not marked in it.
+            if not fresh(r)]
     if not rows:
         return []
     from .memory import _exchange

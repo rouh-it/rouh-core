@@ -308,6 +308,10 @@ function showCrumb() {
   // so I know I am in that chat." So it has the same chip a task's chat has,
   // with the coral and its name in place of the task's mark.
   var main = !!chat && chat.id === CHATS.general && !forkOf && !ofTask && !project;
+  // A chat that belongs to General as a fork that started fresh (`forks.belong`): every chat is
+  // General, a fork of it, or a task's (Petar, 15 November 2026), so it says so, with the way to
+  // General in the chip the way up from a subtask uses.
+  showGeneralHome(!!chat && !!chat.of_general && !forkOf && !ofTask && !project);
   var show = !!(project || ofTask || main);
   crumb.hidden = !show;
   linkFresh(crumb);
@@ -362,7 +366,23 @@ function showCrumb() {
    which opens that task's page; and Send to the task, beside New chat and
    in the dots, sends a decision up to it (`note_to_parent`), where it is
    listed on the task's page under From its subtasks. */
-var PARENT = { up: null, chat: '' };
+var PARENT = { up: null, chat: '', general: false };
+
+/** @param {boolean} on */
+function showGeneralHome(on) {
+  PARENT.general = on;
+  var chip = $('crumbParent');
+  if (!chip || !on) return;
+  var home = chatById(CHATS.general);
+  var named = $('crumbParentName');
+  named.textContent = '';
+  // In the part of the chip a phone keeps (`crumb-parent-num`), since it is short.
+  named.appendChild(el('span', 'crumb-parent-num', '🪸' + (home ? threadName(home) : 'Rouh')));
+  chip.hidden = false;
+  linkFresh(chip);
+  chip.title = 'This chat belongs to the main chat. Press to go there.';
+  chip.setAttribute('aria-label', 'Up to the main chat, which this chat belongs to');
+}
 
 function showParent(up, chat) {
   PARENT.up = up;
@@ -403,6 +423,7 @@ function showParent(up, chat) {
 }
 
 function parentOpen() {
+  if (PARENT.general) { openChat(CHATS.general); sidebarDone(); return; }
   var up = PARENT.up;
   if (!up) return;
   var rel = up.folder || '';
@@ -2601,6 +2622,7 @@ if ($('crumbFork')) {
   });
 }
 linkTo($('crumbParent'), function () {
+  if (PARENT.general) return addrOf('chat', CHATS.general);
   var up = PARENT.up;
   return up && up.folder ? crumbBeside(addrOf('task', up.folder)) : '';
 });
