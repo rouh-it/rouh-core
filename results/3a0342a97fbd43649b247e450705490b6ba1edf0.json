@@ -1,0 +1,8 @@
+{
+  "commit": "3a0342a97fbd43649b247e450705490b6ba1edf0",
+  "ref": "main",
+  "ok": false,
+  "result": "failure",
+  "at": "2026-11-15T12:36:57Z",
+  "run": "https://github.com/rouh-it/rouh-core/actions/runs/43708974813"
+}
