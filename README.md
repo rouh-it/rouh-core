@@ -13,7 +13,7 @@ sign-in: a username and a password, on an account of your own.
   `ROUH_STT_SECONDARY`). Speech in over a websocket while you are
   still speaking; speech out sentence by sentence while the model is still
   writing the next one.
-- **Takes a typed message of any length.** Enter starts a new line, and Ctrl+Enter (Cmd+Enter on a Mac) or the arrow sends it.
+- **Takes a typed message of any length.** Enter or the arrow sends it, Shift+Enter starts a new line, and Cmd+Enter on a Mac (Ctrl+Enter elsewhere, or either with Shift) asks it in a fork. On a phone's own keyboard Return is a new line and the arrow sends; a phone or tablet with a keyboard attached keeps a desk's keys.
   On a phone the return key is a new line and the arrow sends.
   The box grows with the lines, up to fifteen, and then scrolls.
   Every box a message is written in has the same keys: editing a message, Ask AI, a task's question, a project's first message and a comment on a page.

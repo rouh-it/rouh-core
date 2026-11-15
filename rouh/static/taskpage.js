@@ -1923,12 +1923,19 @@
       // A wider or narrower page wraps the same words onto more or fewer lines.
       window.addEventListener('resize', grow);
       // Enter sends and Shift+Enter is a new line, as in Rouh's own box
-      // (`composerKey` in app/chats.js, and why); Ctrl+Enter, or Cmd+Enter,
-      // sends too. On a phone's own keyboard Return is a new line and the
-      // arrow sends.
+      // (`composerKey` in app/chats.js, and why). Nothing is forked from
+      // here, so Ctrl+Enter, or Cmd+Enter, sends too. On a phone's own
+      // keyboard Return is a new line and the arrow sends; a phone or a
+      // tablet with a keyboard attached (a press of Shift, Ctrl, Cmd, Alt,
+      // Tab or Escape, which an on-screen keyboard never sends) keeps a
+      // desk's keys.
+      var realKeys = false;
+      document.addEventListener('keydown', function (e) {
+        if (/^(Shift|Control|Meta|Alt|AltGraph|Tab|Escape)$/.test(e.key)) { realKeys = true; }
+      }, true);
       text.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229 || e.altKey) { return; }
-        var touch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+        var touch = !realKeys && !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches
           && !window.matchMedia('(any-pointer: fine)').matches);
         if (e.ctrlKey || e.metaKey || (!e.shiftKey && !touch)) {
           e.preventDefault();

@@ -1070,8 +1070,10 @@ with {% asset %}, which gives it its hashed address.
         </div>
         <label class="sr-only" for="input">Message</label>
         {% comment %} Enter sends, Shift+Enter is a new line and Cmd+Enter (Ctrl+Enter off
-             a Mac) forks; on a phone's own keyboard Return is a new line and
-             the arrow sends: `composerKey` in app/chats.js. {% endcomment %}
+             a Mac, or either with Shift) forks; Ctrl+Enter no longer sends.
+             On a phone's own keyboard Return is a new line and the arrow
+             sends; with a keyboard attached it has a desk's keys:
+             `composerKey` in app/chats.js. {% endcomment %}
         <textarea id="input" class="composer-input" rows="1" placeholder="Type to Rouh"
                   aria-describedby="composerKeys"
                   enterkeyhint="enter" autocomplete="off" spellcheck="true"></textarea>
@@ -1202,11 +1204,12 @@ with {% asset %}, which gives it its hashed address.
                is the answer to "I did not understand that", which is asked
                often and should cost one press: Send stays the filled one, the
                default, and this is the quiet one beside it. Cmd+Enter (Ctrl+Enter
-               off a Mac) is the same press from the keyboard. Not drawn in
+               off a Mac), or the same with Shift, is the same press from the
+               keyboard. Not drawn in
                a chat with nothing in it yet, where there is nothing to fork. {% endcomment %}
           <button id="forkBtn" class="tog fork-btn" type="button" hidden disabled
                   aria-label="Send as a fork"
-                  aria-keyshortcuts="Meta+Enter Control+Enter">
+                  aria-keyshortcuts="Meta+Enter Control+Enter Meta+Shift+Enter Control+Shift+Enter">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none"
                stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M6 20V4"/><path d="M6 15c0-4.5 3.5-7 12-7"/><path d="M15 5l3 3-3 3"/>

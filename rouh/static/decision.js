@@ -45,6 +45,19 @@
 (function () {
   'use strict';
 
+  /* A phone's own keyboard, where Return is a new line and the button sends:
+     a touch screen, nothing finer to point with, and no keyboard of its own
+     seen (a press of Shift, Ctrl, Cmd, Alt, Tab or Escape, which an
+     on-screen keyboard never sends). `composerKey` in app/chats.js. */
+  var realKeys = false;
+  document.addEventListener('keydown', function (e) {
+    if (/^(Shift|Control|Meta|Alt|AltGraph|Tab|Escape)$/.test(e.key)) { realKeys = true; }
+  }, true);
+  function touchOnly() {
+    return !realKeys && !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+      && !window.matchMedia('(any-pointer: fine)').matches);
+  }
+
   var SOURCE_ICON = {
     task: '<path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>',
     goal: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
@@ -767,7 +780,11 @@
         answer(d.answer_type === 'multi' ? state.picked.slice() : [], words);
       };
       t.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); sendIt(); }
+        // Enter sends and Shift+Enter is a new line, as in every message box
+        // in Rouh (`composerKey` in app/chats.js); Ctrl+Enter, or Cmd+Enter,
+        // sends too. On a phone's own keyboard Return is a new line.
+        if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229 && !e.altKey
+            && (e.ctrlKey || e.metaKey || (!e.shiftKey && !touchOnly()))) { e.preventDefault(); sendIt(); }
         if (e.key === 'Escape') { e.stopPropagation(); state.other = false; draw(); }
       });
       t.addEventListener('input', function () {
@@ -776,7 +793,8 @@
       });
       box.appendChild(t);
       var row = el('div', 'dq-other-row');
-      row.appendChild(el('span', 'dq-hint', 'Ctrl+Enter to send, Esc to close'));
+      row.appendChild(el('span', 'dq-hint', touchOnly() ? 'Esc to close'
+        : 'Enter to send, Shift+Enter new line, Esc to close'));
       var s = button('Send', 'primary', sendIt);
       s.disabled = state.busy;
       row.appendChild(s);

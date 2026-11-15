@@ -2463,11 +2463,37 @@ function forkKeys() {
   return onMac() ? '⌘↩' : 'Ctrl+Enter';
 }
 
+/* Whether a keyboard with keys of its own is in use on a touch screen: a
+   phone or an iPad with a keyboard attached. The on-screen keyboards send no
+   key of their own for Shift, Ctrl, Cmd, Alt, Tab or Escape (they change the
+   letters instead), so a press of one of those is a real keyboard, and from
+   then on the box keeps a desk's keys. When the on-screen keyboard comes up
+   again (the visible page shrinks by a third or more while a box has the
+   cursor), the real one has gone, and Return is a new line again. */
+var KEYBOARD = { real: false };
+document.addEventListener('keydown', function (e) {
+  if (KEYBOARD.real || !/^(Shift|Control|Meta|Alt|AltGraph|Tab|Escape)$/.test(e.key)) return;
+  KEYBOARD.real = true;
+  keysHintPaint();
+}, true);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', function () {
+    var vv = window.visualViewport;
+    var typing = document.activeElement && document.activeElement.tagName === 'TEXTAREA';
+    if (!KEYBOARD.real || !typing || !vv || vv.height > window.innerHeight * 0.67) return;
+    KEYBOARD.real = false;
+    keysHintPaint();
+  });
+}
+
 /* Whether the box is being typed on with a phone's own keyboard: a touch
-   screen and nothing finer to point with. A tablet with a keyboard and a
-   trackpad has a fine pointer as well, and types as a desk does. */
+   screen, nothing finer to point with, and no keyboard of its own seen
+   (`KEYBOARD`). A tablet with a keyboard and a trackpad has a fine pointer as
+   well, and types as a desk does. */
 function touchTyping() {
-  if (!window.matchMedia) return false;
+  // Asked by modules that run before this one has (runs.js, for Ask's
+  // tooltip), when `KEYBOARD` is not set yet.
+  if (!window.matchMedia || (KEYBOARD && KEYBOARD.real)) return false;
   return window.matchMedia('(pointer: coarse)').matches
     && !window.matchMedia('(any-pointer: fine)').matches;
 }
@@ -2477,15 +2503,19 @@ function touchTyping() {
    Petar, 15 November 2026: "can we make ENTER/RETURN submit the message and
    SHIFT+ENTER/RETURN make a new line? ... and make CMD+ENTER/RETURN fork and
    the windows equivalent." So Enter sends, Shift+Enter is a new line, and
-   Cmd+Enter on a Mac, Ctrl+Enter elsewhere, asks it in a fork (the old
-   Ctrl+Shift+Enter forks too). From 26 September 2026 (fr_06ec274f0b97)
-   until then Enter was the new line and Ctrl+Enter sent.
+   Cmd+Enter on a Mac, Ctrl+Enter elsewhere, asks it in a fork, and so does
+   Cmd/Ctrl+Shift+Enter, the fork's keys before. From 26 September 2026
+   (fr_06ec274f0b97) until then Enter was the new line and Ctrl+Enter sent;
+   Ctrl+Enter no longer sends anywhere there is a fork to make.
    - A composition in progress (an IME choosing a character, a dead key, the
      key code 229 a browser gives while one is open) owns the key.
    - On a phone's own keyboard Return stays a new line and the arrow sends,
-     because a message sent by accident there is the worse mistake.
-   - `canFork` false is a box with nothing to fork (Ask AI, a note): its
-     Cmd+Enter sends, as it did before. */
+     because a message sent by accident there is the worse mistake; Shift+
+     Return is a new line there too. A phone or an iPad with a keyboard
+     attached keeps a desk's keys (`KEYBOARD`).
+   - `canFork` false is a box with nothing to fork (Ask AI, a note to a
+     parent task): Cmd/Ctrl+Enter sends there, the same as Enter, rather
+     than doing nothing. */
 function composerKey(e, canFork) {
   if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229 || e.altKey) return '';
   if (e.ctrlKey || e.metaKey) return canFork === false ? 'send' : 'fork';
@@ -2493,8 +2523,7 @@ function composerKey(e, canFork) {
   return touchTyping() ? '' : 'send';
 }
 
-// Kept for the boxes that only send: Enter, or Ctrl/Cmd+Enter where there is
-// nothing to fork.
+// For the boxes with nothing to fork: Enter sends, and so does Cmd/Ctrl+Enter.
 function isSendKey(e) {
   return composerKey(e, false) === 'send';
 }
@@ -2511,8 +2540,9 @@ function withSendKeys(words, shorter) {
   return words;
 }
 
-/* The line of keys under the main box, at a desk only: what Enter, Shift+
-   Enter and Cmd+Enter do, with Ctrl in place of the Cmd sign off a Mac, and
+/* The line of keys under the main box, at a desk, or on a phone or a tablet
+   once a keyboard of its own is seen: what Enter, Shift+Enter and Cmd+Enter
+   do, with Ctrl in place of the Cmd sign off a Mac, and
    without the fork where there is nothing to fork. */
 function keysHintPaint() {
   var h = $('composerKeys');

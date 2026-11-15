@@ -1808,9 +1808,11 @@ if (input) {
   input.addEventListener('input', forkBtnPaint);
   input.addEventListener('keydown', function (e) {
     // Enter sends, Shift+Enter is the new line the box makes of it, and
-    // Cmd+Enter (Ctrl+Enter off a Mac) sends as a fork: the same as Fork
-    // beside Send (`composerKey`, `rouh/forks.py`). A phone's Return stays
-    // a new line and the arrow sends.
+    // Cmd+Enter (Ctrl+Enter off a Mac) sends as a fork, as Cmd/Ctrl+Shift+
+    // Enter still does: the same as Fork beside Send (`composerKey`,
+    // `rouh/forks.py`). Ctrl+Enter no longer sends. A phone's own keyboard
+    // keeps Return as a new line and the arrow sends; with a keyboard
+    // attached it has a desk's keys.
     var does = composerKey(e);
     if (!does) return;
     e.preventDefault();
@@ -1942,7 +1944,8 @@ if (window.MutationObserver) {
 }
 queueFold();
 
-/* `asFork` is Fork beside Send, or Cmd+Enter (Ctrl+Enter off a Mac): the same words, asked
+/* `asFork` is Fork beside Send, or Cmd+Enter (Ctrl+Enter off a Mac, and
+   Cmd/Ctrl+Shift+Enter as well): the same words, asked
    in a new fork of this chat instead of in it (`rouh/forks.py`). The fork
    opens in every tab, and this one draws the words there once it has
    (`forkTypedArrived`), the way it draws them here for Send. */

@@ -215,9 +215,16 @@
      in Rouh keeps, so the one on this page does not need learning
      separately (`composerKey` in app/chats.js, and why). Nothing is forked
      from here, so Ctrl+Enter, or Cmd+Enter, sends as well. On a phone's own
-     keyboard Return is a new line and the arrow sends. */
+     keyboard Return is a new line and the arrow sends; a phone or a tablet
+     with a keyboard attached (a press of Shift, Ctrl, Cmd, Alt, Tab or
+     Escape, which an on-screen keyboard never sends) keeps a desk's keys. */
+  var realKeys = false;
+  document.addEventListener('keydown', function (e) {
+    if (/^(Shift|Control|Meta|Alt|AltGraph|Tab|Escape)$/.test(e.key)) { realKeys = true; }
+  }, true);
+
   function touchTyping() {
-    return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+    return !realKeys && !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches
       && !window.matchMedia('(any-pointer: fine)').matches);
   }
 

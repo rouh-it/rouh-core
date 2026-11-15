@@ -845,8 +845,8 @@ function stepVersion(root, version) {
    them in a fork that comes off just above this message, as the chat stood
    when it was first asked (`rouh/forks.py`), and this message and its
    answer stay as they were. The keys are the main box's too: Enter sends,
-   Shift+Enter is a new line, Cmd+Enter (Ctrl+Enter off a Mac) forks
-   (`composerKey`), and Escape cancels, which is also a button, because this
+   Shift+Enter is a new line, Cmd+Enter (Ctrl+Enter off a Mac, or either
+   with Shift) forks rather than sends (`composerKey`), and Escape cancels, which is also a button, because this
    is used with a thumb as much as with a keyboard. */
 function editTurn(turn, words) {
   if (turn.__editing) { turn.__editing.focus(); return; }

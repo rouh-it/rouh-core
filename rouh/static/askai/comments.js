@@ -96,17 +96,28 @@ function esc(s) {
 }
 function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
 function words(s) { return String(s || "").replace(/\s+/g, " ").trim(); }
-/* Enter is a new line in a comment, and Ctrl+Enter, or Cmd+Enter on a Mac,
-   sends it: the rule every message box in Rouh keeps (`isSendKey` in Rouh's
-   app.js, and why). An empty box says so where there is a keyboard. */
+/* Enter sends and Shift+Enter is a new line: the rule every message box in
+ * Rouh keeps, a comment's too (`composerKey` in Rouh's app/chats.js, and why). Nothing is
+ * forked from this box, so Cmd+Enter, or Ctrl+Enter, sends as well. On a
+ * phone's own keyboard Return is a new line and the arrow sends; a phone or a
+ * tablet with a keyboard attached (a press of Shift, Ctrl, Cmd, Alt, Tab or
+ * Escape, which an on-screen keyboard never sends) keeps a desk's keys. An
+ * input method still choosing a character keeps Enter. */
+var REAL_KEYS = false;
+document.addEventListener("keydown", function (e) {
+  if (/^(Shift|Control|Meta|Alt|AltGraph|Tab|Escape)$/.test(e.key)) REAL_KEYS = true;
+}, true);
+function touchTyping() {
+  return !REAL_KEYS && !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches &&
+    !window.matchMedia("(any-pointer: fine)").matches);
+}
 function isSendKey(e) {
-  return e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey &&
-    !e.isComposing;
+  if (e.key !== "Enter" || e.isComposing || e.keyCode === 229 || e.altKey) return false;
+  if (e.ctrlKey || e.metaKey) return true;
+  return !e.shiftKey && !touchTyping();
 }
 function withSendKeys(said) {
-  if (!(window.matchMedia && window.matchMedia("(pointer: fine)").matches)) return said;
-  var mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || "");
-  return said + " (" + (mac ? "\u2318\u21a9" : "Ctrl+Enter") + " to send)";
+  return said;
 }
 function hashOf(s) {
   var h = 5381, i;
