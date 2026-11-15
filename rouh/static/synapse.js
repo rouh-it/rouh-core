@@ -1787,7 +1787,7 @@
     head.appendChild(top);
     var line = [];
     var st = d.settings || {};
-    if (d.schedule) line.push('Nightly at 04:00: ' + (d.schedule.state === 'on' ? 'on' + (d.schedule.when ? ', next ' + d.schedule.when : '') : d.schedule.state + ', until it is turned on'));
+    if (d.schedule) line.push('Nightly on Clockwork: ' + (d.schedule.state === 'on' ? 'on' + (d.schedule.when ? ', next ' + d.schedule.when : '') : d.schedule.state + ', until it is turned on'));
     line.push('spend cap $' + Number(st.dream_cap_usd || 0).toFixed(2) + ' a night');
     line.push('at most ' + Math.round(Number(st.dream_guard_share || 0) * 100) + '% of an area changed in one night');
     var autoOn = [['dream_auto_replaced', 'replaced'], ['dream_auto_closed', 'closed asks'], ['dream_auto_links', 'links'],
@@ -1973,7 +1973,7 @@
     var card = el('section', 'syn-card dr-night-card');
     var dd = shortDay(n.started_at);
     add(card, add(el('div', 'dr-night-head'), el('span', 'dr-night-n', 'Night ' + n.number),
-      el('span', 'syn-note', exactTime(n.started_at) + ' · by ' + ({ schedule: 'the 04:00 schedule', page: 'Dream now', chat: 'the chat', command: 'a command' }[n.by] || n.by))));
+      el('span', 'syn-note', exactTime(n.started_at) + ' · by ' + ({ schedule: 'the nightly schedule', page: 'Dream now', chat: 'the chat', command: 'a command' }[n.by] || n.by))));
     if (n.status === 'running' || n.status === 'queued') {
       card.appendChild(dreamProgress(n));
     } else if (n.summary) {

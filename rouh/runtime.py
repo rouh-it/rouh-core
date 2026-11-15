@@ -381,7 +381,7 @@ async def _synapse_nightly(who, trying: bool) -> str:
 
 
 async def _synapse_dream(who, trying: bool) -> str:
-    """The nightly dream on Synapse Master, at 04:00 on the Reminders page (`rouh/synapse/dreaming.py`): one
+    """The nightly dream on Synapse Master, at 01:00 on Clockwork (`rouh/synapse/dreaming.py`): one
     night queued on the backfill lane; the line it answers is what the Reminders page says it did."""
     from .synapse import dreaming
 
@@ -756,7 +756,7 @@ async def _synapse_nightly_ready() -> None:
             improvements.backfill(row["org_id"], row["user_id"])
             if nightly.ensure(who) is not None:
                 made += 1
-            # The nightly dream at 04:00, paused until the evaluation gate turns it on (D86).
+            # The nightly dream at 01:00, paused until the evaluation gate turns it on (D86).
             from .synapse import dreaming
             if dreaming.ensure(who) is not None:
                 made += 1

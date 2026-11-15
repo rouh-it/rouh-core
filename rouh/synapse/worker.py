@@ -362,7 +362,8 @@ def run_job(job: dict) -> None:
     elif kind == "dream":
         from . import dreaming
 
-        dreaming.run(ds, by=payload.get("by") or "page", dream_id=payload.get("dream"))
+        # A night given back after a restart, or taken again after its lock went stale, carries on (`run`).
+        dreaming.run(ds, by=payload.get("by") or "page", dream_id=payload.get("dream"), again=job.get("error") or "")
 
 
 def run_job_now(job_id: int) -> None:

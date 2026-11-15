@@ -27,7 +27,7 @@ on 1 November 2026 it moved off the machine Rouh runs on, and only the address c
 - A meeting ready for the first time is read at once. One Synapse already holds is read only after ten
   minutes with no further change, so ten name fixes in a row are one update. A withdrawal is at once.
 - Every ten minutes `/changes` is read from the last change seen, which catches a missed webhook.
-- Every night at 03:30 on the owner's clock, before the 04:00 dream, every meeting's
+- Every night at 03:30 on the owner's clock, after the 01:00 dream, every meeting's
   revision is compared with Synapse's, and any that differ are queued.
 - The first time, every meeting the library holds is read (the backfill), on the queue's backfill lane.
 
@@ -94,7 +94,7 @@ BEAT_SECONDS = float(os.environ.get("SYNAPSE_MEETINGS_BEAT_SECONDS") or 20)
 SKEW_SECONDS = 300
 #: The signatures of webhooks taken are kept this long, so one sent again is refused.
 HOOK_KEEP_DAYS = 30
-#: The nightly check, on the owner's clock, before the 04:00 dream (`dreaming.AT`).
+#: The nightly check, on the owner's clock, after the 01:00 dream (`dreaming.AT`).
 CHECK_AT = (3, 30)
 #: Meetings are said in their text on one clock, the installation's own (`clock.DEFAULT`,
 #: `ROUH_DEFAULT_ZONE`), which is also whose clock the nightly check is on when the owner's is not

@@ -7,7 +7,7 @@ old facts won over new ones (the oldest code given as the latest, a landing time
 open asks never closed, import mistakes piled up (a receipt stored four times, facts X-rayed as rules,
 sensitivity inconsistent inside a thread), and usage feedback had to be run by hand.
 
-**A night** (`run`), on Synapse Master at 04:00 on the backfill lane, or any dataset from the lab's Dream now:
+**A night** (`run`), on Synapse Master at 01:00 (Clockwork) on the backfill lane, or any dataset from the lab's Dream now:
 
 1. **Gather** (code): the items made or changed since the last night, the oldest items no night has read yet
    (`dream_backfill_items`), and each one's neighbours: the same thread, the same person, the same task, the
@@ -26,6 +26,13 @@ sensitivity inconsistent inside a thread), and usage feedback had to be run by h
    Reject; contradictions are only shown. Before anything is applied, the previous state of every touched
    claim, link and item field is saved on the change (`before`), so one change or a whole night is undone
    exactly. Nothing edits or deletes an item's text: a replaced or closed claim is a `claim_note` beside it.
+
+**A night survives a restart** (15 November 2026). Its gather is saved as its `plan` (the seeds and groups),
+each judged group's seed is marked read and its finds kept as it goes, a thread beats on its job's lock and its
+own row the whole night, and a night picked up again while marked running carries on from its plan (`run`),
+the same night, unless a live process still holds it; only after `TRIES` starts is it called failed, with the
+reason, and what it found is kept waiting. "Changed" is capped at `dream_changed_items` a night, oldest first,
+so a backlog drains over nights (`scope_of`, `_since`).
 
 **The rules, in code (D88 to D92).** The model decides and code applies; the model never writes. Only Apply
 writes. A night's spend stops at `dream_cap_usd`, cleanly. Dreaming never learns from its own output: the
@@ -73,7 +80,7 @@ STATES = ("applied", "waiting", "rejected", "undone", "shown")
 NOT_DREAMED = ("person", "topic", "layer", "rule")
 LEVEL = {"normal": 0, "private": 1, "special": 2}
 NEW_KINDS = ("fact", "decision", "caveat", "open")
-#: A run left `running` this long is a run a restart cut off.
+#: A night that has said nothing this long (no beat) and that nothing carried on is called failed.
 STALE_HOURS = 6
 #: The benchmark's frozen copy of Master (`snapshot.py`) is never dreamed over: nothing may change it.
 FROZEN = ("This dataset is the benchmark's frozen copy of Synapse Master: nothing changes it, so it is never "
@@ -202,11 +209,13 @@ def auto(s, kind: str) -> bool:
 
 
 def running(ds_id: str) -> dict | None:
-    """The night of this dataset still running or queued, or None (one that a restart cut off is called failed)."""
-    db.run("UPDATE synapse.dream SET status = 'failed', finished_at = now(), "
-           "stopped_why = 'Rouh stopped while it was running, so it never finished.' "
-           "WHERE dataset_id = %s AND status IN ('running', 'queued') AND started_at < now() - make_interval(hours => %s)",
-           (ds_id, STALE_HOURS))
+    """The night of this dataset still running or queued, or None. One that has said nothing for `STALE_HOURS`
+    (no beat, and nothing picked it up again to carry it on) is called failed, saying so."""
+    db.run("UPDATE synapse.dream SET status = 'failed', finished_at = now(), plan = '{}'::jsonb, "
+           "stopped_why = 'It stopped saying it was alive for ' || %s || ' hours and nothing carried it on, so it "
+           "never finished.' WHERE dataset_id = %s AND status IN ('running', 'queued') AND "
+           "coalesce((progress->>'beat')::timestamptz, started_at) < now() - make_interval(hours => %s)",
+           (str(STALE_HOURS), ds_id, STALE_HOURS))
     return db.row("SELECT * FROM synapse.dream WHERE dataset_id = %s AND status IN ('running', 'queued') "
                   "ORDER BY number DESC LIMIT 1", (ds_id,))
 
@@ -273,21 +282,49 @@ def _items(ds_id: str, ids) -> dict[str, dict]:
                                         "AND i.id = ANY(%s::uuid[])", (ds_id, ids))}
 
 
+#: When an item last changed in a way a night reads: stored, edited, or X-rayed again.
+CHANGED_AT = "greatest(i.stored_at, i.updated_at, coalesce((i.xray_by->>'at')::timestamptz, i.stored_at))"
+
+
 def scope_of(ds: dict, s, since) -> dict:
-    """What a night reads: what changed since the last one, and the oldest items no night has read."""
-    changed = []
+    """What a night reads: what changed since the last one and since a night last read it, and the oldest items
+    no night has read.
+
+    The changed are capped at `dream_changed_items`, oldest change first; `capped` says the night left some,
+    and then the next night keeps the same `since` (`_since`), so a backlog drains over several nights rather
+    than making one night too long to finish."""
+    changed, capped = [], False
     if since is not None:
+        most = int(s.get("dream_changed_items", 300))
         changed = [r["id"] for r in db.rows(
-            f"SELECT i.id FROM synapse.item i WHERE i.dataset_id = %s AND {ELIGIBLE} AND "
-            "(i.stored_at > %s OR i.updated_at > %s OR (i.xray_by->>'at')::timestamptz > %s) "
-            "ORDER BY coalesce(i.said_at, i.stored_at) LIMIT 5000", (ds["id"], since, since, since))]
+            f"SELECT i.id FROM synapse.item i WHERE i.dataset_id = %s AND {ELIGIBLE} AND {CHANGED_AT} > %s "
+            f"AND (i.dreamed_at IS NULL OR i.dreamed_at < {CHANGED_AT}) "
+            f"ORDER BY {CHANGED_AT}, i.id LIMIT %s", (ds["id"], since, most + 1))]
+        capped = len(changed) > most
+        changed = changed[:most]
     taken = set(changed)
     backfill = [r["id"] for r in db.rows(
         f"SELECT i.id FROM synapse.item i WHERE i.dataset_id = %s AND {ELIGIBLE} AND i.dreamed_at IS NULL "
         "AND (i.xray IS NOT NULL OR i.status = 'ready') ORDER BY coalesce(i.said_at, i.stored_at), i.id LIMIT %s",
         (ds["id"], int(s.dream_backfill_items) + len(taken)))]
     backfill = [i for i in backfill if i not in taken][:int(s.dream_backfill_items)]
-    return {"changed": changed, "backfill": backfill}
+    return {"changed": changed, "backfill": backfill, "capped": capped}
+
+
+def _since(ds_id: str, number: int):
+    """Where tonight's "changed" starts: the newest earlier night that got past judging (its seeds are read).
+
+    A night that finished and took everything changed moves it on to when it started; one that left some (it
+    was capped, or the spend cap stopped it, or it failed after judging) keeps its own `since`, so what it
+    left is still tonight's. None when no night has got past judging: the first night reads the backfill only."""
+    last = db.row("SELECT started_at, since, status, scope FROM synapse.dream WHERE dataset_id = %s AND number < %s "
+                  "AND (status IN ('done', 'stopped') OR stage IN ('learn', 'guard', 'apply')) "
+                  "ORDER BY number DESC LIMIT 1", (ds_id, number))
+    if last is None:
+        return None
+    if last["status"] == "done" and not (last.get("scope") or {}).get("capped"):
+        return last["started_at"]
+    return last["since"] if last["since"] is not None else (last["started_at"] if last["status"] == "done" else None)
 
 
 def _near(ds_id: str, ids: list[str], seed: dict, most: int) -> list[str]:
@@ -812,104 +849,325 @@ def forget_item(ds_id: str, item_id: str) -> dict:
 HOLD = {key: False for key in set(AUTO_SETTING.values())}
 
 
-def run(ds: dict, *, by: str = "page", dream_id: str | None = None, hold: bool = False) -> dict:
-    """One night, start to end. Returns its row. Never raises for a model's failure: the row says it."""
+#: How many times one night is started, counting the first, before a night Rouh keeps stopping under is called
+#: failed. A deploy restarts Rouh; a night carries on from its plan after one rather than dying with it.
+TRIES = 3
+#: How often a running night says it is alive, on its job's lock and on its own row, whatever stage it is in.
+BEAT_SECONDS = 60
+#: A night whose beat is older than this is no longer held by anybody (three beats missed).
+BEAT_LOST_SECONDS = 3 * BEAT_SECONDS
+#: How often, at most, the judge stage writes down what it has judged so far.
+SAVE_EVERY = 5
+#: The nights this process is running now, so a night it holds is never taken for one a dead process left.
+_here: set = set()
+_here_lock = threading.Lock()
+
+
+def _progress(dream_id: str, **fields) -> None:
+    """Merge into a night's progress (who holds it and how far it got), never replacing what is there."""
+    db.run("UPDATE synapse.dream SET progress = progress || %s::jsonb WHERE id = %s", (Json(fields), dream_id))
+
+
+class _Beat:
+    """A night's heartbeat, on a thread of its own for the night's whole length: the job's lock (so no other
+    worker takes a live night after ten minutes) and the night's own `progress.beat` (so a night picked up
+    again can tell a holder that is gone from one that is busy). It stops when the process does."""
+
+    def __init__(self, ds_id: str, dream_id: str):
+        self.ds_id, self.dream_id = ds_id, dream_id
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._loop, name="synapse-dream-beat", daemon=True)
+
+    def beat(self) -> None:
+        from . import worker
+
+        worker.heartbeat(self.ds_id, "dream")
+        db.run("UPDATE synapse.dream SET progress = progress || jsonb_build_object('beat', now()) "
+               "WHERE id = %s AND status = 'running'", (self.dream_id,))
+
+    def _loop(self) -> None:
+        from django.db import connection
+
+        try:
+            while not self._stop.wait(BEAT_SECONDS):
+                try:
+                    self.beat()
+                except Exception:  # noqa: BLE001 - the next beat tries again
+                    log.debug("a night's heartbeat failed", exc_info=True)
+        finally:
+            connection.close()
+
+    def __enter__(self):
+        self.beat()
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self._stop.set()
+        self._thread.join(timeout=5)
+        return False
+
+
+def _held_elsewhere(night: dict) -> bool:
+    """Whether a night marked running is still being run by a live process: its beat is fresh, and its holder
+    is not a process of this machine that is gone, nor this process's own earlier self."""
+    import os
+    import socket
+
+    from . import worker
+
+    with _here_lock:
+        if night["id"] in _here:
+            return True
+    pr = night.get("progress") or {}
+    fresh = db.value("SELECT (%s::timestamptz > now() - make_interval(secs => %s))",
+                     (pr.get("beat") or "epoch", BEAT_LOST_SECONDS))
+    if not fresh:
+        return False
+    holder = str(pr.get("holder") or "")
+    if holder == worker._me:
+        return False  # this process's own pid and host, and not in `_here`: a container restart reused the pid
+    host, _, pid = holder.partition(":")
+    if host == socket.gethostname():
+        try:
+            os.kill(int(pid.split(":")[0]), 0)
+        except (ValueError, ProcessLookupError):
+            return False
+        except PermissionError:
+            return True
+    return True
+
+
+def _cut_why(again: str) -> str:
+    if again.startswith("given back"):
+        return "Rouh restarted while it was running, and the worker that held it had stopped"
+    return "its worker stopped saying it was alive for ten minutes (most likely Rouh restarted), so it was taken again"
+
+
+def _plan_groups(ds_id: str, plan: dict) -> list[dict]:
+    """The groups a night's gather made, read back from its plan with their items as they are now (an item
+    deleted since is left out, and a group left with one item is no group)."""
+    got = _items(ds_id, {i for g in plan.get("groups") or [] for i in g["ids"]})
+    out = []
+    for g in plan.get("groups") or []:
+        members = [got[i] for i in g["ids"] if i in got]
+        why = [w for i, w in zip(g["ids"], g["why"]) if i in got]
+        if len(members) >= 2:
+            out.append({"seed": g["seed"], "members": members, "why": why})
+    return out
+
+
+def _key(c: dict) -> tuple:
+    """One change, as the same change a night already wrote down would be (so a resumed apply never writes
+    it twice)."""
+    p = c.get("payload") or {}
+    return (c["kind"], str(c.get("old_item") or ""), c.get("old_claim"), str(c.get("new_item") or ""),
+            c.get("new_claim"), str(p.get("link") or ""), str(p.get("thread") or ""))
+
+
+def _written(dream_id: str) -> set:
+    return {_key(r) for r in db.rows("SELECT kind, old_item, old_claim, new_item, new_claim, payload FROM "
+                                     "synapse.dream_change WHERE dream_id = %s", (dream_id,))}
+
+
+def _give_up(ds: dict, night: dict, cuts: list[dict]) -> dict:
+    """A night Rouh stopped under every time it was tried: failed, with the real reason, and what it had found
+    kept waiting for the owner (nothing of it applies), so its judging is not thrown away."""
+    plan = night.get("plan") or {}
+    written = _written(night["id"])
+    kept = 0
+    for ch in plan.get("kept") or []:
+        if _key(ch) not in written:
+            _insert(ds, night["id"], ch, "shown" if ch["kind"] == "contradiction" else "waiting")
+            kept += 1
+    last = cuts[-1] if cuts else {}
+    why = (f"It was started {len(cuts)} times and stopped every time before it finished, the last time in its "
+           f"{last.get('stage') or 'first'} stage because {last.get('why') or 'Rouh stopped'}.")
+    if kept:
+        why += f" The {_plural(kept, 'change')} it had found wait for you; none was applied."
+    _progress(night["id"], cuts=cuts)
+    _save(night["id"], status="failed", finished_at=_now(), stopped_why=why[:500], plan={},
+          ms=int((_now() - night["started_at"]).total_seconds() * 1000), counts=_counts(night["id"]))
+    if night.get("trace_id"):
+        try:
+            Trace(ds["id"], "dream", "", trace_id=night["trace_id"]).finish("failed", error=why[:300])
+        except Exception:  # noqa: BLE001
+            log.debug("could not close the trace of a night given up", exc_info=True)
+    log.warning("the night of dreaming %s was given up: %s", night["id"], why)
+    return db.row("SELECT * FROM synapse.dream WHERE id = %s", (night["id"],)) or {}
+
+
+def run(ds: dict, *, by: str = "page", dream_id: str | None = None, hold: bool = False, again: str = "") -> dict:
+    """One night, start to end. Returns its row. Never raises for a model's failure: the row says it.
+
+    A night picked up again while it is marked running (Rouh restarted under it, or its job's lock went stale)
+    carries on from its plan, the same night, unless a live process still holds it; after `TRIES` starts it
+    is called failed with the reason. `again` is the job's last error, which says how it came back."""
     from . import worker
 
     if ds.get("frozen"):
         log.warning("refused to dream over the frozen dataset %s", ds["id"])
         return {}
     s = datasets.settings(ds, HOLD if hold else None)
+    resumed = False
     if dream_id:
         night = db.row("SELECT * FROM synapse.dream WHERE dataset_id = %s AND id = %s", (ds["id"], dream_id))
         if night is None:
             return {}
-        if night["status"] != "queued":
-            if night["status"] == "running":
-                _save(night["id"], status="failed", finished_at=_now(),
-                      stopped_why="Rouh stopped while it was running, so it never finished.")
+        if night["status"] == "running":
+            if _held_elsewhere(night):
+                log.info("night %s of dreaming is still held by %s; left to it", night["number"],
+                         (night.get("progress") or {}).get("holder"))
+                return night
+            pr = night.get("progress") or {}
+            cuts = list(pr.get("cuts") or []) + [{"at": _now().isoformat(), "stage": night.get("stage") or "",
+                                                  "why": _cut_why(again)}]
+            if int(pr.get("tries") or 1) >= TRIES:
+                return _give_up(ds, night, cuts)
+            _progress(night["id"], tries=int(pr.get("tries") or 1) + 1, cuts=cuts)
+            log.info("night %s of dreaming carries on from %s (%s)", night["number"], night.get("stage"), cuts[-1]["why"])
+            resumed = True
+        elif night["status"] != "queued":
             return night
-        _save(night["id"], status="running", started_at=_now(), cap_usd=float(s.dream_cap_usd))
-        night = dict(night, status="running")
+        else:
+            _save(night["id"], status="running", started_at=_now(), cap_usd=float(s.dream_cap_usd))
+            _progress(night["id"], tries=1)
+        night = db.row("SELECT * FROM synapse.dream WHERE id = %s", (night["id"],))
     else:
         busy = running(ds["id"])
         if busy:
             return busy
         night = _new_row(ds, by, s)
+        _progress(night["id"], tries=1)
+    with _here_lock:
+        _here.add(night["id"])
+    try:
+        _progress(night["id"], holder=worker._me)
+        with _Beat(ds["id"], night["id"]):
+            return _night(ds, night, s, by=by, resumed=resumed)
+    finally:
+        with _here_lock:
+            _here.discard(night["id"])
+
+
+def _night(ds: dict, night: dict, s, *, by: str, resumed: bool) -> dict:
     me = datasets.me(ds)
     viewer = search.readers_for(me)
-    trace = Trace(ds["id"], "dream", f"Dream {night['number']}", by=by)
-    _save(night["id"], trace_id=trace.id)
-    began = time.time()
-    _orb("tool_start", night, ds, "gathering what changed")
-    spent = {"usd": 0.0, "calls": 0}
+    plan = dict(night.get("plan") or {}) if resumed else {}
+    if resumed and night.get("trace_id"):
+        trace = Trace(ds["id"], "dream", f"Dream {night['number']}", by=by, trace_id=night["trace_id"])
+    else:
+        trace = Trace(ds["id"], "dream", f"Dream {night['number']}", by=by)
+        _save(night["id"], trace_id=trace.id)
+    began = night["started_at"].timestamp() if night.get("started_at") else time.time()
+    _orb("tool_start", night, ds, "carrying on where it was cut off" if resumed else "gathering what changed")
+    spent = {"usd": float(night.get("cost_usd") or 0) if resumed else 0.0,
+             "calls": int((night.get("progress") or {}).get("calls") or 0) if resumed else 0}
     lock = threading.Lock()
-    stopped = ""
+    stopped = str(plan.get("stopped") or "")
     try:
-        last = db.row("SELECT started_at FROM synapse.dream WHERE dataset_id = %s AND number < %s AND status IN "
-                      "('done', 'stopped') ORDER BY number DESC LIMIT 1", (ds["id"], night["number"]))
-        since = last["started_at"] if last else None
-        # --- 1. gather
-        with trace.step("gather", "Gather: what changed since the last night, the oldest unread, and their neighbours") as st:
-            sc = scope_of(ds, s, since)
-            seeds = sc["changed"] + sc["backfill"]
-            _save(night["id"], stage="gather", since=since,
-                  progress={"stage": "gather", "seeds": len(seeds)})
-            groups = groups_of(ds, seeds, s, me, stop=lambda: worker.heartbeat(ds["id"], "dream") and False)
+        # --- 1. gather, or the groups the night already gathered
+        if plan.get("groups") is not None:
+            seeds = list(plan.get("seeds") or [])
+            since = night.get("since")
+            groups = _plan_groups(ds["id"], plan)
             scope_ids = sorted({m["id"] for g in groups for m in g["members"]} | set(seeds))
             sens = sensitivity_groups(ds, scope_ids)
-            scope = {"changed": len(sc["changed"]), "backfill": len(sc["backfill"]),
-                     "neighbours": len(set(scope_ids) - set(seeds)), "items": len(scope_ids), "groups": len(groups),
-                     "since": since.isoformat() if since else None}
-            st.data.update({**scope, "first_night": since is None, "example_groups": [
-                {"seed": g["members"][0]["title"], "with": [f"{m['title']} ({w})" for m, w in zip(g["members"][1:], g["why"][1:])]}
-                for g in groups[:12]],
-                "threads_with_mixed_sensitivity": [{"thread": g["thread"], "to": g["to"],
-                                                    "items": [m["title"] for m in g["members"]]} for g in sens]})
-            _save(night["id"], scope=scope)
-        # --- 2. judge
-        changes: list[dict] = []
-        dropped: list[dict] = []
+        else:
+            since = _since(ds["id"], night["number"])
+            with trace.step("gather", "Gather: what changed since the last night, the oldest unread, and their neighbours") as st:
+                sc = scope_of(ds, s, since)
+                seeds = sc["changed"] + sc["backfill"]
+                _save(night["id"], stage="gather", since=since)
+                _progress(night["id"], stage="gather", seeds=len(seeds))
+                groups = groups_of(ds, seeds, s, me)
+                scope_ids = sorted({m["id"] for g in groups for m in g["members"]} | set(seeds))
+                sens = sensitivity_groups(ds, scope_ids)
+                scope = {"changed": len(sc["changed"]), "backfill": len(sc["backfill"]), "capped": sc["capped"],
+                         "neighbours": len(set(scope_ids) - set(seeds)), "items": len(scope_ids), "groups": len(groups),
+                         "since": since.isoformat() if since else None}
+                st.data.update({**scope, "first_night": since is None, "example_groups": [
+                    {"seed": g["members"][0]["title"], "with": [f"{m['title']} ({w})" for m, w in zip(g["members"][1:], g["why"][1:])]}
+                    for g in groups[:12]],
+                    "threads_with_mixed_sensitivity": [{"thread": g["thread"], "to": g["to"],
+                                                        "items": [m["title"] for m in g["members"]]} for g in sens]})
+                plan = {"seeds": seeds, "groups": [{"seed": g["seed"], "ids": [m["id"] for m in g["members"]],
+                                                    "why": g["why"]} for g in groups],
+                        "judged": [], "kept": [], "dropped": [], "dropped_n": 0, "failed": 0}
+                _save(night["id"], scope=scope, plan=plan)
+        # --- 2. judge: the groups not judged yet, each one's seed read and its finds kept as soon as it is
+        judged_seeds: list = list(plan.get("judged") or [])
+        changes: list[dict] = list(plan.get("kept") or [])
+        dropped: list[dict] = list(plan.get("dropped") or [])
+        dropped_n = int(plan.get("dropped_n") or 0)
+        failed = int(plan.get("failed") or 0)
         cap = float(s.dream_cap_usd)
-        with trace.step("judge", f"Judge: {s.dream_model} proposes for each group, code checks every quote") as st:
-            _orb("tool_update", night, ds, f"comparing {len(groups)} groups")
-            _save(night["id"], stage="judge", progress={"stage": "judge", "groups": len(groups), "done": 0})
-            pool = concurrent.futures.ThreadPoolExecutor(max_workers=max(1, int(s.dream_concurrency)),
-                                                         thread_name_prefix="synapse-dream")
-            done, failed = 0, 0
-            try:
-                pending = list(groups)
-                running_now: set = set()
-                while pending or running_now:
-                    while pending and len(running_now) < max(1, int(s.dream_concurrency)):
-                        avg = spent["usd"] / spent["calls"] if spent["calls"] else 0.002
-                        if spent["usd"] + avg * (len(running_now) + 1) > cap:
-                            stopped = (f"The night's spend cap of ${cap:g} was reached after {spent['calls']} of "
-                                       f"{len(groups)} groups, so it stopped there and kept what it had judged.")
-                            pending = []
+        if night.get("stage") in (None, "", "gather", "judge"):
+            already = set(judged_seeds)
+            with trace.step("judge", f"Judge: {s.dream_model} proposes for each group, code checks every quote") as st:
+                todo = [g for g in groups if g["seed"] not in already]
+                _orb("tool_update", night, ds, f"comparing {len(todo)} groups")
+                _save(night["id"], stage="judge")
+                _progress(night["id"], stage="judge", groups=len(groups), done=len(judged_seeds), found=len(changes))
+                pool = concurrent.futures.ThreadPoolExecutor(max_workers=max(1, int(s.dream_concurrency)),
+                                                             thread_name_prefix="synapse-dream")
+                fresh: list = []   # seeds judged since the last save, their dreamed_at not written yet
+                saved_at = time.time()
+
+                def save_judged(force: bool = False):
+                    nonlocal fresh, saved_at
+                    if not fresh or (not force and time.time() - saved_at < SAVE_EVERY):
+                        return
+                    db.run("UPDATE synapse.item SET dreamed_at = now() WHERE dataset_id = %s AND id = ANY(%s::uuid[])",
+                           (ds["id"], sorted(set(fresh))))
+                    db.run("UPDATE synapse.dream SET plan = plan || %s::jsonb, cost_usd = %s WHERE id = %s",
+                           (Json({"judged": judged_seeds, "kept": changes, "dropped": dropped[:60],
+                                  "dropped_n": dropped_n, "failed": failed, "stopped": stopped}),
+                            round(spent["usd"], 6), night["id"]))
+                    fresh, saved_at = [], time.time()
+
+                try:
+                    pending = list(todo)
+                    running_now: dict = {}
+                    while pending or running_now:
+                        while pending and len(running_now) < max(1, int(s.dream_concurrency)):
+                            avg = spent["usd"] / spent["calls"] if spent["calls"] else 0.002
+                            if spent["usd"] + avg * (len(running_now) + 1) > cap:
+                                stopped = (f"The night's spend cap of ${cap:g} was reached after {len(judged_seeds) + len(running_now)} "
+                                           f"of {len(groups)} groups, so it stopped there and kept what it had judged.")
+                                pending = []
+                                break
+                            g = pending.pop(0)
+                            running_now[pool.submit(_judge_in_thread, ds, g, s, trace, lock, spent)] = g
+                        if not running_now:
                             break
-                        g = pending.pop(0)
-                        running_now.add(pool.submit(_judge_in_thread, ds, g, s, trace, lock, spent))
-                    if not running_now:
-                        break
-                    finished, running_now = concurrent.futures.wait(running_now, timeout=30,
-                                                                    return_when=concurrent.futures.FIRST_COMPLETED)
-                    worker.heartbeat(ds["id"], "dream")
-                    for f in finished:
-                        got = f.result()
-                        done += 1
-                        failed += 0 if got["ok"] else 1
-                        changes += got["kept"]
-                        dropped += got["dropped"]
-                    _save(night["id"], cost_usd=round(spent["usd"], 6),
-                          progress={"stage": "judge", "groups": len(groups), "done": done, "found": len(changes)})
-                    if done % 10 == 0:
-                        _orb("tool_update", night, ds, f"{done} of {len(groups)} groups compared")
-            finally:
-                pool.shutdown(wait=True)
-            st.data.update({"groups": len(groups), "judged": done, "calls_failed": failed, "proposed": len(changes) + len(dropped),
-                            "passed": len(changes), "dropped": dropped[:60], "spent": round(spent["usd"], 6),
-                            "cap": cap, "stopped": stopped})
+                        finished, _ = concurrent.futures.wait(set(running_now), timeout=30,
+                                                              return_when=concurrent.futures.FIRST_COMPLETED)
+                        for f in finished:
+                            g = running_now.pop(f)
+                            got = f.result()
+                            failed += 0 if got["ok"] else 1
+                            changes += got["kept"]
+                            dropped += got["dropped"]
+                            dropped_n += len(got["dropped"])
+                            if got["ok"]:
+                                # A group whose call failed is not read: the next night asks it again.
+                                judged_seeds.append(g["seed"])
+                                fresh.append(g["seed"])
+                        save_judged()
+                        _progress(night["id"], stage="judge", groups=len(groups), done=len(judged_seeds),
+                                  found=len(changes), calls=spent["calls"])
+                        _save(night["id"], cost_usd=round(spent["usd"], 6))
+                        if len(judged_seeds) % 10 == 0:
+                            _orb("tool_update", night, ds, f"{len(judged_seeds)} of {len(groups)} groups compared")
+                finally:
+                    pool.shutdown(wait=True)
+                    save_judged(force=True)
+                st.data.update({"groups": len(groups), "judged": len(judged_seeds), "calls_failed": failed,
+                                "proposed": len(changes) + dropped_n, "passed": len(changes), "dropped": dropped[:60],
+                                "spent": round(spent["usd"], 6), "cap": cap, "stopped": stopped, "resumed": resumed})
+            _save(night["id"], stage="learn", cost_usd=round(spent["usd"], 6))
+            _progress(night["id"], stage="learn")
         changes = _dedupe(ds, changes, viewer)
         for g in sens:
             changes.append({"kind": "sensitivity_mismatch", "items": [m["id"] for m in g["members"]],
@@ -921,7 +1179,9 @@ def run(ds: dict, *, by: str = "page", dream_id: str | None = None, hold: bool =
                                         "raise": [{"id": m["id"], "from": m["sensitivity"], "title": m["title"]} for m in g["raise"]],
                                         "levels": [{"id": m["id"], "level": m["sensitivity"], "title": m["title"]} for m in g["members"]]}})
         changes = _dedupe(ds, changes + duplicate_pairs(ds, scope_ids), viewer)
-        changes = [c for c in changes if not _settled_before(ds, c)]
+        written = _written(night["id"])
+        # What this night wrote down before it was cut off is its own, not "settled before".
+        changes = [c for c in changes if _key(c) in written or not _settled_before(ds, c)]
         # --- 3. usage feedback (D57) as a stage of the night
         with trace.step("learn", "Usage feedback: link strengths from what answers used (D57)") as st:
             got = learning.plan(ds, s)
@@ -933,15 +1193,20 @@ def run(ds: dict, *, by: str = "page", dream_id: str | None = None, hold: bool =
                                                               "to": m["to"], "link_words": m["link"]}})
             st.data.update({"questions": got["questions"], "moves": [m for m in got["moves"] if m["moved"]][:40]})
         # --- 4. the guard (D89)
+        _save(night["id"], stage="guard")
         with trace.step("guard", f"Guard: at most {float(s.dream_guard_share):.0%} of an area's claims or of the night's scope") as st:
             guard = guard_check(ds, changes, scope_ids, s)
             st.data.update(guard)
-        # --- 5. apply: the only stage that writes
-        _save(night["id"], stage="apply", progress={"stage": "apply", "changes": len(changes)})
+        # --- 5. apply: the only stage that writes; a change this night already wrote down is not written again
+        _save(night["id"], stage="apply")
+        _progress(night["id"], stage="apply", changes=len(changes))
         _orb("tool_update", night, ds, f"applying {len(changes)} changes")
         with trace.step("apply", "Apply: the only stage that writes; what waits for the owner waits") as st:
-            applied, waiting, shown = 0, 0, 0
+            applied, waiting, shown, before = 0, 0, 0, 0
             for ch in changes:
+                if _key(ch) in written:
+                    before += 1
+                    continue
                 if ch["kind"] == "contradiction":
                     _insert(ds, night["id"], ch, "shown")
                     shown += 1
@@ -955,12 +1220,13 @@ def run(ds: dict, *, by: str = "page", dream_id: str | None = None, hold: bool =
             if any(c["kind"] == "link_strength" for c in changes):
                 # The moves are changes now, waiting or applied: the next night does not plan them again.
                 learning.mark_learned(ds["id"])
-            st.data.update({"applied": applied, "waiting": waiting, "shown": shown,
+            st.data.update({"applied": applied, "waiting": waiting, "shown": shown, "written_before_the_cut": before,
                             "rule": "superseded, closed asks and promises and link moves apply by themselves; merges, "
                                     "kind changes and sensitivity wait; contradictions are only shown (D91)"})
         # Read: every seed a judged group started from, and every seed that made no group of its own (it was
-        # alone, or all in a group already taken). A night the cap stopped leaves the rest for the next.
-        judged = {g["seed"] for g in groups[:spent["calls"]]} | (set(seeds) - {g["seed"] for g in groups})
+        # alone, or all in a group already taken). A night the cap stopped leaves the rest for the next. Written
+        # again after apply, so an item a change touched is not counted as changed since it was read.
+        judged = set(judged_seeds) | (set(seeds) - {g["seed"] for g in groups})
         db.run("UPDATE synapse.item SET dreamed_at = now() WHERE dataset_id = %s AND id = ANY(%s::uuid[])",
                (ds["id"], sorted(judged)))
         status = "stopped" if stopped else "done"
@@ -1211,7 +1477,15 @@ def diary(ds: dict, night: dict, dropped: list[dict], guard: dict, stopped: str)
             f"It read {_plural(sc.get('changed', 0), 'item')} made or changed since the last night"
             + (f" and {sc.get('backfill', 0)} older ones no night had read" if sc.get("backfill") else "")
             + f", with {_plural(sc.get('neighbours', 0), 'neighbour')} (the same thread, person, task or topic, linked, "
-              f"or close by words and meaning), in {_plural(sc.get('groups', 0), 'group')}.")}]
+              f"or close by words and meaning), in {_plural(sc.get('groups', 0), 'group')}."
+            + (" More had changed than one night reads, so it took the oldest changes and left the rest for the "
+               "next nights." if sc.get("capped") else ""))}]
+    cuts = (night.get("progress") or {}).get("cuts") or []
+    if cuts:
+        out.append({"kind": "scope", "text": (
+            f"Rouh stopped under it {'once' if len(cuts) == 1 else _plural(len(cuts), 'time')} "
+            f"({cuts[-1].get('why') or 'a restart'}), and {'it' if len(cuts) == 1 else 'each time it'} carried on from "
+            "where it had got to, so what it had judged was kept.")})
     texts = {
         "superseded": "A newer item gave a new value, so the old claim is marked replaced and answers prefer the new one",
         "ask_closed": "A later item answered or did what was asked, so the ask is closed and no longer listed as open",
@@ -1252,7 +1526,7 @@ def diary(ds: dict, night: dict, dropped: list[dict], guard: dict, stopped: str)
         out.append({"kind": "guard", "text": guard["why"]})
     if stopped:
         out.append({"kind": "cap", "text": stopped})
-    if len(out) == 1:
+    if all(o["kind"] == "scope" for o in out):
         out.append({"kind": "nothing", "text": "Nothing in what it read needed a change."})
     return out
 
@@ -1260,10 +1534,12 @@ def diary(ds: dict, night: dict, dropped: list[dict], guard: dict, stopped: str)
 def _finish(ds, night, trace, began, spent, *, status, stopped, guard, dropped) -> None:
     ms = int((time.time() - began) * 1000)
     row = db.row("SELECT * FROM synapse.dream WHERE id = %s", (night["id"],))
+    pr = row.get("progress") or {}
     row.update({"counts": _counts(night["id"]), "ms": ms, "cost_usd": round(spent["usd"], 6), "status": status})
     _save(night["id"], status=status, stage="done", finished_at=_now(), ms=ms, cost_usd=round(spent["usd"], 6),
           counts=row["counts"], health=health(ds), guard=guard, stopped_why=stopped,
-          progress={"stage": "done"}, summary=summary_text(row), diary=diary(ds, row, dropped, guard, stopped))
+          progress={"stage": "done", **{k: pr[k] for k in ("tries", "cuts") if k in pr}}, plan={},
+          summary=summary_text(row), diary=diary(ds, row, dropped, guard, stopped))
     trace.finish("done", night=night["number"], changes=sum(_n(row["counts"], k) for k in row["counts"]),
                  cost=round(spent["usd"], 6), guard=guard.get("tripped"), stopped=bool(stopped))
 
@@ -1420,18 +1696,20 @@ def for_item(ds: dict, item_id: str, viewer: list[str]) -> list[dict]:
     return views
 
 
-# --- the schedule: a row of Rouh's own server work at 04:00 ----------------------------------------------
+# --- the schedule: a row of Rouh's own server work at 01:00 ----------------------------------------------
 
 JOB = "synapse_dream"
 WHAT = "Compare what changed in Synapse with what came before, and mark what is replaced or closed"
 #: Its line on the Reminders page and in the morning brief (`reminders.title_of`).
 TITLE = "Synapse nightly dreaming"
-AT = "04:00"
+#: 01:00, as Clockwork runs it: before the 02:00 feature run and the 03:00 refactoring run, which deploy and
+#: restart Rouh. A night that is cut off by one carries on after it (`run`).
+AT = "01:00"
 
 
 def ensure(who, *, on: bool = False):
-    """The person's row for the nightly dream on Synapse Master, made once (daily at 04:00 on their clock, after
-    the 02:00 improvement attempt), paused until the evaluation gate turns it on (D86). A row Petar paused,
+    """The person's row for the nightly dream on Synapse Master, made once (daily at 01:00 on their clock, before
+    the 02:00 feature run and the 03:00 refactoring run), paused until the evaluation gate turns it on (D86). A row Petar paused,
     resumed or moved stays as he left it."""
     from .. import clock, reminders
     from . import master
@@ -1464,7 +1742,7 @@ def schedule(who) -> dict | None:
 
 
 def start_scheduled(who) -> str:
-    """At 04:00: tonight's dream on the person's Synapse Master, queued on the backfill lane."""
+    """At 01:00 (Clockwork): tonight's dream on the person's Synapse Master, queued on the backfill lane."""
     from . import master
 
     ds = master.of(str(who.org_id), str(who.user_id))

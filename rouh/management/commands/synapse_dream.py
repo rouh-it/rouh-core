@@ -7,11 +7,11 @@
     python manage.py synapse_dream run --dataset <id>        # on another dataset of the same account
     python manage.py synapse_dream show 3                    # night 3 whole, as synapse_dream reads it
     python manage.py synapse_dream undo 3                    # every change night 3 applied, put back
-    python manage.py synapse_dream schedule on|off           # the 04:00 row on the Reminders page, resumed or
+    python manage.py synapse_dream schedule on|off           # the 01:00 row on Clockwork, resumed or
                                                              # paused (made paused first if there is none)
     python manage.py synapse_dream examples --dataset <id>   # an example set's dream examples, if it lacks them
 
-Rouh starts a night by itself at 04:00 on the person's clock once the schedule is on; this is for running one
+Rouh starts a night by itself at 01:00 on the person's clock once the schedule is on; this is for running one
 now, reading it, and turning the schedule on after the evaluation gate. On the server, with Rouh's environment:
 ``deploy/with-rouh-env.sh <checkout> /var/www/rouh/.venv/bin/python manage.py synapse_dream status``
 In the containers, from the machine: ``docker compose exec core python manage.py synapse_dream ...`` (a run in the

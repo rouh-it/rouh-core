@@ -942,7 +942,7 @@ def declare(registry) -> None:
         {"type": "object", "properties": {"trace": {"type": "string"}}}, trace_tool, area="synapse")
     own("synapse_learn", "Apply the usage feedback to the open Synapse dataset's link strengths (D57).",
         {"type": "object", "properties": {}}, learn, area="synapse")
-    own("synapse_dream", "Dreaming, Synapse's nightly pass that compares items over time (04:00 on Master): "
+    own("synapse_dream", "Dreaming, Synapse's nightly pass that compares items over time (01:00 on Master, on Clockwork): "
         "action read (the default) reads a night, night latest or a number: what it read, what it marked replaced or "
         "closed, the duplicates, rules that are facts and sensitivity it keeps waiting, the contradictions it found, "
         "the link moves, cost and time, and every change with its reason; action waiting lists what waits for the "

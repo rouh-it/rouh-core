@@ -562,6 +562,11 @@ NUMBERS: tuple[Number, ...] = (
       "int", 0, 20000, 50, "Nights to cover the whole memory against their time and cost",
       "Besides what changed since the last night: the oldest items no night has read yet, so the whole "
       "memory is compared over the first nights, within the spend cap.", starting=False),
+    N("dream_changed_items", "Dreaming", "Items made or changed since they were last read, at most, per night", 300,
+      "D87", "int", 0, 20000, 50, "A night that fits well inside an hour against a backlog drained over nights",
+      "The oldest changed first. What a night leaves is the next night's, so a backlog after nights that never "
+      "finished drains over several nights rather than making one night too long to survive a restart.",
+      starting=False),
     N("dream_neighbours", "Dreaming", "Neighbours of an item compared with it, at most", 9, "D87", "int", 2, 30, 1,
       "Changes found per call against tokens per call",
       "Same thread, same person, same task, same topic, links one hop out, then the closest by words and "
