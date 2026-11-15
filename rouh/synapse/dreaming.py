@@ -209,8 +209,23 @@ def auto(s, kind: str) -> bool:
 
 
 def running(ds_id: str) -> dict | None:
-    """The night of this dataset still running or queued, or None. One that has said nothing for `STALE_HOURS`
-    (no beat, and nothing picked it up again to carry it on) is called failed, saying so."""
+    """The night of this dataset still running or queued, or None.
+
+    A night marked running whose beat has stopped and that no job will pick up again (it was started by the
+    command or a job that ran out of tries, and Rouh stopped under it) is handed to the worker, which carries
+    it on (`run`). One that has said nothing for `STALE_HOURS` all the same is called failed, saying so."""
+    from . import ingest, worker
+
+    for n in db.rows("SELECT d.id FROM synapse.dream d WHERE d.dataset_id = %s AND d.status = 'running' AND "
+                     "coalesce((d.progress->>'beat')::timestamptz, d.started_at) < now() - make_interval(secs => %s) "
+                     "AND NOT EXISTS (SELECT 1 FROM synapse.job j WHERE j.dataset_id = d.dataset_id AND j.kind = 'dream' "
+                     "AND j.done_at IS NULL AND j.payload->>'dream' = d.id::text)", (ds_id, BEAT_LOST_SECONDS)):
+        with _here_lock:
+            if n["id"] in _here:
+                continue
+        ingest.enqueue(ds_id, "dream", payload={"dream": n["id"], "by": "carry-on"}, priority=1, lane="backfill")
+        worker.poke()
+        log.info("night %s of dreaming had stopped with nothing to carry it on; handed to the worker", n["id"])
     db.run("UPDATE synapse.dream SET status = 'failed', finished_at = now(), plan = '{}'::jsonb, "
            "stopped_why = 'It stopped saying it was alive for ' || %s || ' hours and nothing carried it on, so it "
            "never finished.' WHERE dataset_id = %s AND status IN ('running', 'queued') AND "
@@ -941,8 +956,8 @@ def _held_elsewhere(night: dict) -> bool:
 
 def _cut_why(again: str) -> str:
     if again.startswith("given back"):
-        return "Rouh restarted while it was running, and the worker that held it had stopped"
-    return "its worker stopped saying it was alive for ten minutes (most likely Rouh restarted), so it was taken again"
+        return "Rouh restarted while it was running"
+    return "it stopped saying it was alive, most likely because Rouh restarted under it"
 
 
 def _plan_groups(ds_id: str, plan: dict) -> list[dict]:
@@ -1484,9 +1499,9 @@ def diary(ds: dict, night: dict, dropped: list[dict], guard: dict, stopped: str)
     cuts = (night.get("progress") or {}).get("cuts") or []
     if cuts:
         out.append({"kind": "scope", "text": (
-            f"Rouh stopped under it {'once' if len(cuts) == 1 else _plural(len(cuts), 'time')} "
-            f"({cuts[-1].get('why') or 'a restart'}), and {'it' if len(cuts) == 1 else 'each time it'} carried on from "
-            "where it had got to, so what it had judged was kept.")})
+            f"It was cut off {'once' if len(cuts) == 1 else _plural(len(cuts), 'time')}: "
+            f"{cuts[-1].get('why') or 'Rouh restarted while it was running'}. {'It' if len(cuts) == 1 else 'Each time it'} "
+            "carried on from where it had got to, so what it had judged was kept.")})
     texts = {
         "superseded": "A newer item gave a new value, so the old claim is marked replaced and answers prefer the new one",
         "ask_closed": "A later item answered or did what was asked, so the ask is closed and no longer listed as open",
