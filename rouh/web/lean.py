@@ -130,6 +130,6 @@ async def preset(request: HttpRequest):
     def go(org, by, body):
         got = lean.set_preset(str(body.get("preset") or ""), by=by, org_id=org, confirm=bool(body.get("confirm")))
         if got.get("swept"):
-            got["sweep"] = [i.id for i in lean.ITEMS if i.kind == "record" and i.parts]
+            got["sweep"] = [i.id for i in lean.ITEMS if lean._removes(i)]
         return got
     return await _change(request, go)

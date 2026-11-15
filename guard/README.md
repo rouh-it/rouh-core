@@ -25,7 +25,7 @@ Petar's rule since this day: **a gene may change Rouh in any way except the prot
 | `bin/rouh-propose` | For a run in the worker: hands the commits of its clone of the code to the guard through Rouh, and waits for the answer. |
 | `bin/rouh-code-install` | A Rouh's first start: the newest tested Rouh into `/code`, free, with no account (the commit from rouh.land's signed record or the signed release, the code from the public GitHub repository), and the libraries it needs into `/extra`. |
 | `bin/rouh-keys`, `bin/rouh-extra-pip`, `bin/rouh-guard-install` | Keys into the keys volume; a library into `/extra`; these files into a volume. |
-| `bin/rouh-backup` | The stack's backup part, on PostgreSQL's own image: a copy of the database every night into the backups volume, kept a week, and a copy put back (`linux_stack.py restore`). The only part besides those above that mounts these files, read-only (`policy/stack-policy.json`). |
+| `bin/rouh-backup` | The stack's backup part, on PostgreSQL's own image: a copy of the database every night into the backups volume, keeping the number of copies the owner confirmed in Rouh (Anatomy, Meta, What Rouh keeps and runs; ROUH_BACKUP_KEEP until then), and a copy put back (`linux_stack.py restore`). The only part besides those above that mounts these files, read-only (`policy/stack-policy.json`). |
 
 ## How a Rouh reaches it
 

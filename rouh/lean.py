@@ -9,7 +9,9 @@ a keep forever behavior."
 **The items.** `ITEMS` is every job and step only the Creator Rouh or a developer needs, and every
 record Rouh used to keep forever (step 185-01), each with its modes. A job is off, on, or one of
 its own modes (only in the Synapse lab by hand, follows the nightly feature run, ...). A record is
-off, kept for a number of days, or kept forever; the nightly database copies are counted in copies.
+off, kept for a number of days, or kept forever; the nightly database copies are counted in copies,
+and the old versions of memory items, contacts, workspace pages, cards and files are kept for a number
+of days or as the newest number of versions, never off, since Undo reads them.
 
 **Where a value comes from.** A Rouh's own choice (`LeanChoice`, written on Anatomy, Meta, What
 Rouh keeps and runs) wins, then its preset (`PRESETS`, chosen on the same page), then the item's
@@ -27,8 +29,16 @@ cannot be undone. So the daily sweep (`sweep`) deletes only beyond `LeanApplied`
 confirmed: a raise is applied at once, a lowering only once the owner pressed to confirm on the
 page what would go (`preview`), or when nothing would go at all (a fresh install). An update that
 lowers a default therefore waits on the page too. Floors: at least one database copy, and the
-newest versions of every memory item and Ask AI page are always kept, whatever the limit, so Undo
-always has what it needs.
+newest versions of every memory item, contact, workspace page, card and file are always kept,
+whatever the limit, with a card's and a file's first version, so Undo always has what it needs.
+
+**Outside the database.** Two records are not rows Rouh deletes itself. The nightly copies are
+made and removed by the protected core's copy part (`guard/bin/rouh-backup`), which keeps the
+number confirmed here (`LeanApplied` for `nightly_copies`) and reads nothing else of Rouh's; the
+core only reads the copies, to say what a lower number would remove. The run logs are the one
+program's files: Rouh asks it over its socket (`run_logs`, `one/runs.py` `trim_logs`) to count them,
+and to remove them once the limit is confirmed. When the program does not answer, what would go
+cannot be counted, so nothing is confirmed and nothing is removed.
 """
 from __future__ import annotations
 
@@ -44,15 +54,19 @@ log = logging.getLogger("rouh.lean")
 PRESET_NAMES = ("installed", "developer", "creator")
 PRESET_SAID = {"installed": "Installed", "developer": "Developer", "creator": "Creator Rouh"}
 PRESET_ABOUT = {
-    "installed": "Every new install: the creator's night jobs and test tools off, records kept for a while.",
-    "developer": "Someone who builds Rouh: test tools on, the paid night runs off, records kept longer.",
+    "installed": "Every new install: the nightly feature run on, the creator's other night jobs and test tools off, "
+                 "records kept for a while.",
+    "developer": "Someone who builds Rouh: test tools, the nightly feature run and Synapse's nightly try on, "
+                 "records kept longer.",
     "creator": "The Rouh that makes Rouh's releases: everything on and every record kept.",
 }
 #: The days a kept record offers, besides its preset's own value.
 DAYS = (7, 14, 30, 90)
 #: The copies the nightly database copies offer; never fewer than one (the floor).
 COPIES = (1, 2, 3, 5, 7)
-#: The newest versions of each memory item and Ask AI page always kept, whatever the limit (Undo's floor).
+#: The newest versions a version record offers to keep of each thing; never fewer than UNDO_FLOOR.
+VERSIONS = (20, 50, 100, 200)
+#: The newest versions of each memory item, contact, page, card and file always kept, whatever the limit (Undo's floor).
 UNDO_FLOOR = 20
 #: How long a value read is kept before it is read again, in seconds.
 FRESH = 5.0
@@ -65,6 +79,7 @@ MODE_SAID = {
     "off": "Off", "on": "On", "lab": "Only in the Synapse lab, by hand", "later": "On once its test passes (D86)",
     "follow": "Follows the nightly feature run", "list": "Only the list of installed genes",
     "trigger": "On, as a trigger at landing", "forever": "Keep forever", "keep": "Keep",
+    "versions": "Keep the newest",
 }
 
 
@@ -76,8 +91,11 @@ class Part:
     when: str
     #: "epoch" (seconds since 1970) or "ts" (timestamptz).
     kind: str = "epoch"
-    #: "org" (an org_id column), "dataset" (a Synapse dataset_id) or "all".
+    #: "org" (an org_id column, `org_col`), "dataset" (a Synapse dataset_id), "file" (a file_id of the
+    #: organisation's files), "install" (no owner column: only the install's own organisation sweeps it)
+    #: or "all".
     scope: str = "org"
+    org_col: str = "org_id"
     #: More of the WHERE clause, already safe SQL.
     extra: str = ""
     #: Columns set to blank instead of deleting the row; empty means delete.
@@ -86,6 +104,8 @@ class Part:
     floor: tuple[str, str] | None = None
     #: For a part that blanks: the rows that still hold something, so a row already blank is never counted.
     full: str = ""
+    #: A column naming a file on disk that goes with the row (a file version's kept copy).
+    unlink: str = ""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -111,9 +131,15 @@ class Item:
     not_yet: str = ""
     #: The question and answer of the item's choice that a setting off loses.
     note: str = ""
+    #: Earlier versions, which Undo reads: never off, and kept by days or as the newest number of each.
+    versions: bool = False
+    #: Removed outside Rouh's database: "copies" (the protected core's copy part) or "run_logs" (the one program).
+    outside: str = ""
 
 
 _OLD_ROWS = "status <> 'running'"
+#: The memory items that are people: their versions are contacts' (`synapse/sources/contacts.write`).
+_PERSON = "item_id IN (SELECT id FROM synapse.item WHERE kind = 'person')"
 
 ITEMS: tuple[Item, ...] = (
     # ---- night and background jobs ----
@@ -176,9 +202,9 @@ ITEMS: tuple[Item, ...] = (
                 Part("synapse.call", "id", "at", kind="ts", scope="dataset"))),
     Item("nightly_copies", "record", "Nightly database copies",
          "A whole copy of the database each night, in case it is lost. Counted in copies.",
-         ("keep",), copies=True,
-         not_yet="Not yet in force: the copy part of the protected core keeps its own number, "
-                 "ROUH_BACKUP_KEEP in the machine's settings file. Rouh keeps this choice for when it reads it."),
+         ("keep",), copies=True, outside="copies",
+         note="The protected core's copy part keeps this many. A lower number removes the oldest copies "
+              "at the next night's copy, and only after you pressed to remove them here."),
     Item("turn_records", "record", "Turn records and recall timelines",
          "What happened in each turn of a conversation, and how memory and the model were picked for it.",
          ("off", "keep", "forever"), wave=2, rate=0.0002,
@@ -208,17 +234,43 @@ ITEMS: tuple[Item, ...] = (
          parts=(Part("mail_case_traces", "id", "at"),
                 Part("agent_instruction_issue", "id", "at"),
                 Part("heartbeat_beats", "id", "started_at", extra="finished_at IS NOT NULL"))),
-    Item("old_versions", "record", "Old versions of memory items and Ask AI pages",
-         f"Earlier versions. The newest {UNDO_FLOOR} of each are always kept, so Undo always works.",
-         ("off", "keep", "forever"), wave=2, rate=0.0087,
-         off_means=f"Off keeps the newest {UNDO_FLOOR} of each, for Undo.",
+    Item("old_versions", "record", "Old versions of memory items",
+         f"Earlier versions of what memory holds, besides contacts. The newest {UNDO_FLOOR} of each are "
+         "always kept, so Undo always works.",
+         ("keep", "versions", "forever"), wave=2, versions=True,
          parts=(Part("synapse.item_version", "id", "made_at", kind="ts", scope="dataset",
-                     extra="(keep_until IS NULL OR keep_until < now())", floor=("dataset_id, item_id", "version")),
-                Part("askai_edits", "id", "created_at", floor=("doc", "created_at")))),
+                     extra=f"(keep_until IS NULL OR keep_until < now()) AND NOT {_PERSON}",
+                     floor=("dataset_id, item_id", "version")),)),
+    Item("contact_versions", "record", "Old versions of contacts",
+         f"Each contact as it was before a change, which 'what changed on a contact' reads and puts back. "
+         f"The newest {UNDO_FLOOR} of each are always kept.",
+         ("keep", "versions", "forever"), wave=2, versions=True,
+         parts=(Part("synapse.item_version", "id", "made_at", kind="ts", scope="dataset",
+                     extra=f"(keep_until IS NULL OR keep_until < now()) AND {_PERSON}",
+                     floor=("dataset_id, item_id", "version")),)),
+    Item("page_versions", "record", "Old versions of workspace pages",
+         f"Each change Ask AI or a comment made to a page, whole, for its history and Undo. The newest "
+         f"{UNDO_FLOOR} of each page, and every version you kept as an option, are always kept.",
+         ("keep", "versions", "forever"), wave=2, versions=True,
+         parts=(Part("askai_edits", "id", "created_at", org_col="page_org_id", extra="keep = ''",
+                     floor=("page_org_id, doc", "id")),)),
+    Item("card_versions", "record", "Old versions of cards",
+         f"Each earlier version of a card, page or document on the canvas. Its first version, the one shown "
+         f"and the newest {UNDO_FLOOR} are always kept. Versions carry no date, so they are counted.",
+         ("versions", "forever"), wave=2, versions=True,
+         parts=(Part("artifact_version", "artifact_id, version", "", scope="install",
+                     extra="version > 1 AND (artifact_id, version) NOT IN (SELECT id, head_version FROM artifact)",
+                     floor=("artifact_id", "version")),)),
+    Item("file_versions", "record", "Old versions of files",
+         f"Each earlier state of a file on the list, with its copy on this disk. Its first state and the "
+         f"newest {UNDO_FLOOR} are always kept, and so is every version kept in the weekly copy's store.",
+         ("keep", "versions", "forever"), wave=2, versions=True,
+         parts=(Part("file_version", "id", "made_at", scope="file", extra="number > 1 AND r2_key = ''",
+                     floor=("file_id", "number"), unlink="kept_at"),)),
     Item("run_logs", "record", "Run logs on disk",
-         "The terminal log of each job and the update log.",
-         ("off", "keep", "forever"), wave=2,
-         not_yet="Not yet in force: the logs are the one program's files on disk, which this sweep does not reach yet."),
+         "The terminal log of each job, removed once the job ended that long ago. The job and its report stay.",
+         ("off", "keep", "forever"), wave=2, outside="run_logs",
+         off_means="Off keeps a day after a job ends."),
     Item("model_costs", "record", "Model calls: cost, tokens and time",
          "What each model call cost and how long it took. Rouh's budgets read it.",
          ("off", "keep", "forever"),
@@ -230,28 +282,38 @@ BY_ID: dict[str, Item] = {i.id: i for i in ITEMS}
 JOBS = tuple(i.id for i in ITEMS if i.kind == "job")
 RECORDS = tuple(i.id for i in ITEMS if i.kind == "record")
 
-#: Each preset's values: Rouh's suggestions in step 185-02 (`choices.json`, its `suggested` fields), with
-#: database copies at 3 on every preset. A record "on" there is "forever" here.
+#: Each preset's values: Petar's own picks in step 185-02 (`choices.json`, `by: "petar"`) where he made
+#: one, else Rouh's suggestions there; database copies at 3 on every preset he did not pick otherwise
+#: (Installed: 1, his pick, which is the floor). A record "on" there is "forever" here. The old versions
+#: of contacts, pages, cards and files came after 185-02 (step 185-04) and are Rouh's suggestions.
+#: Changed 15 November 2026 (185-04): Installed got the nightly feature run on, the gene log as a
+#: trigger, dreaming on, model-call words 14 days, Synapse searches 14 days and 1 copy; Developer got
+#: Synapse's 02:00 try on, the nightly feature run on, the gene log as a trigger, the gap tracker on,
+#: dreaming on and Synapse searches 30 days.
 PRESETS: dict[str, dict[str, tuple[str, int | None]]] = {
     "installed": {
         "synapse_nightly": ("off", None), "synapse_tests": ("off", None), "memory_judge": ("off", None),
-        "nightly_refactor": ("off", None), "nightly_feature": ("off", None), "gene_log": ("list", None),
+        "nightly_refactor": ("off", None), "nightly_feature": ("on", None), "gene_log": ("trigger", None),
         "trial_stage": ("off", None), "tester_problems": ("off", None), "gap_tracker": ("off", None),
-        "dreaming": ("later", None), "mutations": ("follow", None),
-        "model_words": ("keep", 7), "synapse_working": ("keep", 1), "synapse_steps": ("keep", 14),
-        "nightly_copies": ("keep", 3), "turn_records": ("keep", 30), "model_outcome": ("keep", 90),
+        "dreaming": ("on", None), "mutations": ("follow", None),
+        "model_words": ("keep", 14), "synapse_working": ("keep", 14), "synapse_steps": ("keep", 14),
+        "nightly_copies": ("keep", 1), "turn_records": ("keep", 30), "model_outcome": ("keep", 90),
         "usage_events": ("keep", 90), "synapse_jobs": ("keep", 30), "audit_trails": ("keep", 90),
-        "old_versions": ("keep", 90), "run_logs": ("keep", 30), "model_costs": ("keep", 400),
+        "old_versions": ("keep", 90), "contact_versions": ("keep", 90), "page_versions": ("keep", 90),
+        "card_versions": ("versions", 50), "file_versions": ("keep", 90),
+        "run_logs": ("keep", 30), "model_costs": ("keep", 400),
     },
     "developer": {
-        "synapse_nightly": ("off", None), "synapse_tests": ("lab", None), "memory_judge": ("lab", None),
-        "nightly_refactor": ("off", None), "nightly_feature": ("off", None), "gene_log": ("on", None),
-        "trial_stage": ("on", None), "tester_problems": ("on", None), "gap_tracker": ("off", None),
-        "dreaming": ("later", None), "mutations": ("follow", None),
-        "model_words": ("keep", 30), "synapse_working": ("keep", 7), "synapse_steps": ("keep", 30),
+        "synapse_nightly": ("on", None), "synapse_tests": ("lab", None), "memory_judge": ("lab", None),
+        "nightly_refactor": ("off", None), "nightly_feature": ("on", None), "gene_log": ("trigger", None),
+        "trial_stage": ("on", None), "tester_problems": ("on", None), "gap_tracker": ("on", None),
+        "dreaming": ("on", None), "mutations": ("follow", None),
+        "model_words": ("keep", 30), "synapse_working": ("keep", 30), "synapse_steps": ("keep", 30),
         "nightly_copies": ("keep", 3), "turn_records": ("keep", 90), "model_outcome": ("keep", 90),
         "usage_events": ("keep", 90), "synapse_jobs": ("keep", 30), "audit_trails": ("keep", 90),
-        "old_versions": ("keep", 90), "run_logs": ("keep", 30), "model_costs": ("keep", 400),
+        "old_versions": ("keep", 90), "contact_versions": ("keep", 90), "page_versions": ("keep", 90),
+        "card_versions": ("versions", 100), "file_versions": ("keep", 90),
+        "run_logs": ("keep", 30), "model_costs": ("keep", 400),
     },
     "creator": {
         **{j: ("on", None) for j in JOBS}, "dreaming": ("later", None),
@@ -512,9 +574,17 @@ def _span(mode_: str, days: int | None) -> float:
     return 0.0
 
 
+def _removes(item: Item) -> bool:
+    """Whether a record's value can remove anything: rows of Rouh's database, or what is outside it."""
+    return item.kind == "record" and bool(item.parts or item.outside)
+
+
 def cut_days(item: Item, mode_: str, days: int | None) -> float | None:
-    """The age in days beyond which a record's rows go, or None for never."""
-    if item.copies or not item.parts:
+    """The age in days beyond which a record's rows go, or None for never (or, for "versions", not by
+    age). For the nightly copies, the number of copies kept."""
+    if item.copies:
+        return float(days or 1) if mode_ == "keep" else None
+    if not _removes(item) or mode_ == "versions":
         return None
     span = _span(mode_, days)
     if span == float("inf"):
@@ -522,6 +592,21 @@ def cut_days(item: Item, mode_: str, days: int | None) -> float | None:
     if mode_ == "off":
         return 1.0
     return max(1.0, span)
+
+
+def _looser_or_same(item: Item, new_mode: str, new_days, old_mode: str, old_days) -> bool:
+    """Whether `new` never removes anything `old` keeps. Keeping by days and keeping the newest number
+    of versions cannot be compared, so between those two it is False and what would go is counted."""
+    if new_mode in ("forever", "on"):
+        return True
+    if old_mode in ("forever", "on"):
+        return False
+    if item.copies:
+        return int(new_days or 1) >= int(old_days or 1)
+    if new_mode == "versions" or old_mode == "versions":
+        return new_mode == old_mode and int(new_days or 0) >= int(old_days or 0)
+    new, old = cut_days(item, new_mode, new_days), cut_days(item, old_mode, old_days)
+    return new is None or (old is not None and new >= old)
 
 
 # --- sizes and previews ------------------------------------------------------------------------------
@@ -565,48 +650,76 @@ def _install_org() -> str:
     return str(org_now())
 
 
-def _where(part: Part, org: str, cut: float, since: float) -> tuple[str, list]:
-    """The rows of `part` this organisation's sweep removes: older than `cut`, not older than `since`
-    (already swept) when the part blanks columns rather than deleting rows."""
+def _bounds(item: Item, mode_: str, days: int | None) -> tuple[float | None, int] | None:
+    """What a value removes, as (rows older than this time or None for any age, beyond the newest this
+    many of each); None when it removes nothing."""
+    if mode_ == "versions":
+        return None, max(UNDO_FLOOR, int(days or UNDO_FLOOR))
+    cut = cut_days(item, mode_, days)
+    if cut is None:
+        return None
+    return _now() - cut * 86400, UNDO_FLOOR
+
+
+def _where(part: Part, org: str, cut: float | None, since: float) -> tuple[str, list]:
+    """The rows of `part` this organisation's sweep removes: older than `cut` (any age when None), not
+    older than `since` (already swept) when the part blanks columns rather than deleting rows."""
     clauses, params = [], []
-    if part.kind == "ts":
-        clauses.append(f"{part.when} < to_timestamp(%s)")
-        params.append(cut)
-        if part.blank and since:
-            clauses.append(f"{part.when} >= to_timestamp(%s)")
-            params.append(since)
-    else:
-        clauses.append(f"{part.when} < %s")
-        params.append(cut)
-        if part.blank and since:
-            clauses.append(f"{part.when} >= %s")
-            params.append(since)
+    if cut is not None:
+        if not part.when:
+            return "FALSE", []
+        if part.kind == "ts":
+            clauses.append(f"{part.when} < to_timestamp(%s)")
+            params.append(cut)
+            if part.blank and since:
+                clauses.append(f"{part.when} >= to_timestamp(%s)")
+                params.append(since)
+        else:
+            clauses.append(f"{part.when} < %s")
+            params.append(cut)
+            if part.blank and since:
+                clauses.append(f"{part.when} >= %s")
+                params.append(since)
+    elif not part.floor:
+        return "FALSE", []
     if part.scope == "org":
         if org == _install_org():
-            clauses.append("(org_id = %s OR org_id = '')")
+            clauses.append(f"({part.org_col} = %s OR {part.org_col} = '')")
         else:
-            clauses.append("org_id = %s")
+            clauses.append(f"{part.org_col} = %s")
         params.append(org)
     elif part.scope == "dataset":
         clauses.append("dataset_id IN (SELECT id FROM synapse.dataset WHERE org_id = %s)")
         params.append(org)
+    elif part.scope == "file":
+        clauses.append("file_id IN (SELECT id FROM file WHERE org_id = %s" +
+                       (" OR org_id = ''" if org == _install_org() else "") + ")")
+        params.append(org)
+    elif part.scope == "install" and org != _install_org():
+        return "FALSE", []
     if part.extra:
         clauses.append(part.extra)
     if part.full:
         clauses.append(part.full)
-    return " AND ".join(clauses), params
+    return " AND ".join(clauses) or "TRUE", params
 
 
-def _floored(part: Part, where: str) -> str:
-    """The rows of `where` that are past Undo's floor, as a sub-select of their keys."""
+def _floored(part: Part, where: str, newest: int = UNDO_FLOOR) -> str:
+    """The rows of `where` that are past the newest `newest` of each group (Undo's floor at least), as
+    a sub-select of their keys."""
     group, order = part.floor
+    newest = max(UNDO_FLOOR, int(newest))
     return (f"SELECT {part.pk} FROM (SELECT *, row_number() OVER (PARTITION BY {group} ORDER BY {order} DESC) "
-            f"AS lean_rank FROM {part.table}) v WHERE lean_rank > {UNDO_FLOOR} AND {where}")
+            f"AS lean_rank FROM {part.table}) v WHERE lean_rank > {newest} AND {where}")
 
 
-def _count(part: Part, where: str, params: list) -> tuple[int, bool]:
+def _picked(part: Part, where: str, newest: int) -> str:
+    return _floored(part, where, newest) if part.floor else f"SELECT {part.pk} FROM {part.table} WHERE {where}"
+
+
+def _count(part: Part, where: str, params: list, newest: int = UNDO_FLOOR) -> tuple[int, bool]:
     """How many rows, and whether that is exact (a count that takes too long is the planner's estimate)."""
-    inner = _floored(part, where) if part.floor else f"SELECT 1 FROM {part.table} WHERE {where}"
+    inner = _picked(part, where, newest)
     try:
         from django.db import transaction
 
@@ -628,33 +741,126 @@ def _count(part: Part, where: str, params: list) -> tuple[int, bool]:
             return 0, False
 
 
+# --- outside the database: the nightly copies and the run logs ---------------------------------------
+
+def copies_here() -> list[dict] | None:
+    """The nightly copies there are, oldest first, with their bytes; None when this Rouh has none of
+    its own here (no backups volume: a server's own backups are the server's)."""
+    from . import offsite
+
+    root = offsite.backup_dir()
+    if not root:
+        return None
+    daily = os.path.join(root, "daily")
+    try:
+        names = sorted(n for n in os.listdir(daily) if offsite.NIGHTLY.fullmatch(n))
+    except OSError:
+        return []
+    out = []
+    for n in names:
+        try:
+            out.append({"name": n, "bytes": os.path.getsize(os.path.join(daily, n))})
+        except OSError:
+            continue
+    return out
+
+
+#: How long an answer of the one program about its run logs is kept, in seconds.
+ONE_FRESH = 60.0
+
+
+def _one_logs(days: float, *, dry: bool) -> dict | None:
+    """The one program's answer about the logs of runs ended more than `days` ago (`one/runs.py`
+    `trim_logs`), or None when it does not answer. A count is kept a minute; a removal never is."""
+    key = ("one_logs", float(days))
+    if dry:
+        now = time.monotonic()
+        with _lock:
+            got = _seen.get(key)
+            if got is not None and now - got[0] < ONE_FRESH:
+                return got[1]
+    import asyncio
+
+    from .one_client import OneClient
+
+    async def ask():
+        return await OneClient(timeout=120).ask("run_logs", days=float(days), dry=bool(dry))
+
+    try:
+        got = asyncio.run(ask())
+    except Exception as exc:  # noqa: BLE001 - not there, not paired, or it said no: cannot be counted
+        log.info("lean: the one program did not answer about its run logs: %s", exc)
+        return None
+    if not dry:
+        with _lock:
+            for k in [k for k in _seen if k[0] == "one_logs"]:
+                _seen.pop(k, None)
+    else:
+        with _lock:
+            _seen[key] = (time.monotonic(), got)
+    return got
+
+
+def _preview_outside(item: Item, mode_: str, days: int | None) -> dict:
+    if item.outside == "copies":
+        have = copies_here()
+        if have is None:
+            return {"rows": 0, "bytes": 0, "exact": True, "cut_days": None,
+                    "said": "This Rouh keeps no nightly copies of its own here, so nothing would go."}
+        keep = max(1, int(days or 1))
+        gone = have[:-keep] if len(have) > keep else []
+        n, b = len(gone), sum(g["bytes"] for g in gone)
+        said = ("Nothing would go." if not n else
+                f"The oldest {n} of the {len(have)} nightly copies, about {said_bytes(b)}, would go at the next night's copy.")
+        return {"rows": n, "bytes": b, "exact": True, "said": said, "cut_days": float(keep)}
+    cut = cut_days(item, mode_, days)
+    if cut is None:
+        return {"rows": 0, "bytes": 0, "exact": True, "said": "Nothing would go.", "cut_days": None}
+    got = _one_logs(cut, dry=True)
+    if got is None:
+        return {"rows": 0, "bytes": 0, "exact": False, "unknown": True, "cut_days": cut,
+                "said": "The one program did not answer, so what would go cannot be counted; nothing is removed."}
+    n, b, jobs = int(got.get("files") or 0), int(got.get("bytes") or 0), int(got.get("runs") or 0)
+    said = ("Nothing would go." if not n else
+            f"{n:,} log {'file' if n == 1 else 'files'} of {jobs:,} {'job' if jobs == 1 else 'jobs'}, about {said_bytes(b)}, "
+            f"of jobs that ended more than {said_days(cut)} ago would go.")
+    return {"rows": n, "bytes": b, "exact": True, "said": said, "cut_days": cut}
+
+
 def preview(item_id: str, mode_: str, days: int | None, org_id=None) -> dict:
-    """What a value would remove that the confirmed limit keeps: rows, about how many bytes, and
-    the words to say it."""
+    """What a value would remove that the confirmed limit keeps: rows (or copies, or log files), about
+    how many bytes, and the words to say it. `unknown` when it cannot be counted now."""
     item = BY_ID[item_id]
     org = _org(org_id)
-    cut = cut_days(item, mode_, days)
     applied = applied_value(item_id, org)
-    if cut is None or not item.parts:
-        return {"rows": 0, "bytes": 0, "exact": True, "said": "Nothing would go.", "cut_days": None}
-    old = cut_days(item, applied["mode"], applied["days"])
-    if old is not None and old <= cut:
-        return {"rows": 0, "bytes": 0, "exact": True, "said": "Nothing more would go.", "cut_days": cut}
-    cutoff = _now() - cut * 86400
+    nothing = {"rows": 0, "bytes": 0, "exact": True, "said": "Nothing would go.", "cut_days": None}
+    if not _removes(item) or _bounds(item, mode_, days) is None and not item.copies:
+        return nothing
+    if _looser_or_same(item, mode_, days, applied["mode"], applied["days"]):
+        return {**nothing, "said": "Nothing more would go.", "cut_days": cut_days(item, mode_, days)}
+    if item.outside:
+        return _preview_outside(item, mode_, days)
+    cutoff, newest = _bounds(item, mode_, days)
     rows, nbytes, exact = 0, 0, True
     for part in item.parts:
         where, params = _where(part, org, cutoff, applied["done_before"])
-        n, sure = _count(part, where, params)
+        n, sure = _count(part, where, params, newest)
         exact = exact and sure
         rows += n
         total = _rows_estimate(part.table)
+        if n and total <= n:
+            total = _exact_rows(part.table)  # a table never analysed has no estimate yet
         size = _size(part.table)
         if n and size:
             nbytes += int(size * min(1.0, n / max(total, n)))
-    said = ("Nothing would go." if rows == 0 else
-            f"{'About ' if not exact else ''}{rows:,} {'row' if rows == 1 else 'rows'}, about {said_bytes(nbytes)}, "
-            f"everything older than {said_days(cut)}" + (" (blanked, the rows kept)" if all(p.blank for p in item.parts) else "")
-            + " would go.")
+    cut = cut_days(item, mode_, days)
+    if rows == 0:
+        said = "Nothing would go."
+    else:
+        which = (f"beyond the newest {newest} of each" if mode_ == "versions" else f"everything older than {said_days(cut)}"
+                 + (f" beyond the newest {UNDO_FLOOR} of each" if all(p.floor for p in item.parts) else ""))
+        said = (f"{'About ' if not exact else ''}{rows:,} {'row' if rows == 1 else 'rows'}, about {said_bytes(nbytes)}, "
+                f"{which}" + (" (blanked, the rows kept)" if all(p.blank for p in item.parts) else "") + " would go.")
     return {"rows": rows, "bytes": nbytes, "exact": exact, "said": said, "cut_days": cut}
 
 
@@ -677,7 +883,8 @@ def said_days(d: float) -> str:
 # --- the confirmed limit -----------------------------------------------------------------------------
 
 def applied_value(item_id: str, org_id=None) -> dict:
-    """The limit the sweep deletes beyond; forever (nothing deleted) when none was ever confirmed."""
+    """The limit the sweep deletes beyond; forever (nothing deleted) when none was ever confirmed. For
+    the nightly copies, forever means the copy part keeps its own number (ROUH_BACKUP_KEEP)."""
     org = _org(org_id)
     row = _m().LeanApplied.objects.filter(org_id=org, item=item_id).first()
     if row is None:
@@ -696,53 +903,62 @@ def _apply(item_id: str, org: str, mode_: str, days: int | None, by: str) -> Non
                                      updated_at=_now())
         return
     item = BY_ID[item_id]
-    old, new = cut_days(item, row.mode, row.days), cut_days(item, mode_, days)
-    raised = old is not None and (new is None or new > old)
+    raised = ((mode_, days) != (row.mode, row.days)
+              and _looser_or_same(item, mode_, days, row.mode, row.days))
     fields = {"mode": mode_, "days": days, "by": by[:120], "updated_at": _now()}
     if raised:
         fields["done_before"] = 0
     M.LeanApplied.objects.filter(org_id=org, item=item_id).update(**fields)
 
 
+def _instead(item: Item, now: dict) -> dict:
+    """What the page offers in place of removing: as many copies as there are, or keep forever."""
+    if item.copies:
+        n = max(int(now["days"] or 1), len(copies_here() or []))
+        return {"mode": "keep", "days": n, "label": f"Keep {n} {'copy' if n == 1 else 'copies'} instead"}
+    return {"mode": "forever", "days": None, "label": "Keep forever instead"}
+
+
 def waiting(item_id: str, org_id=None, *, look: bool = True) -> dict | None:
     """A lowering that waits for the owner's press: the value now is stricter than the confirmed limit
-    and would remove something. None when nothing waits."""
+    and would remove something. None when nothing waits, or when what would go cannot be counted now."""
     item = BY_ID[item_id]
-    if item.kind != "record" or not item.parts:
+    if not _removes(item):
         return None
     org = _org(org_id)
     now = choice(item_id, org)
     app = applied_value(item_id, org)
-    new, old = cut_days(item, now["mode"], now["days"]), cut_days(item, app["mode"], app["days"])
-    if new is None or (old is not None and old <= new):
+    if _looser_or_same(item, now["mode"], now["days"], app["mode"], app["days"]):
         return None
     if not look:
         return {"mode": now["mode"], "days": now["days"]}
     got = preview(item_id, now["mode"], now["days"], org)
-    return {"mode": now["mode"], "days": now["days"], **got} if got["rows"] else None
+    if got.get("unknown") or not got["rows"]:
+        return None
+    return {"mode": now["mode"], "days": now["days"], **got, "instead": _instead(item, now)}
 
 
 def settle(org_id=None, by: str = "the sweep") -> dict:
     """Every record's confirmed limit brought to its value where that removes nothing more: a raise at
     once, a lowering that would remove nothing (a fresh install). A lowering that would remove
-    something waits for the owner's press."""
+    something, or whose removal cannot be counted now, waits."""
     org = _org(org_id)
     if preset(org) is None:
         return {"waiting": [], "moved": []}
     moved, held = [], []
     for item in ITEMS:
-        if item.kind != "record" or not item.parts:
+        if not _removes(item):
             continue
         now = choice(item.id, org)
         app = applied_value(item.id, org)
-        new, old = cut_days(item, now["mode"], now["days"]), cut_days(item, app["mode"], app["days"])
         if (now["mode"], now["days"]) == (app["mode"], app["days"]):
             continue
-        if new is None or (old is not None and new >= old):
+        if _looser_or_same(item, now["mode"], now["days"], app["mode"], app["days"]):
             _apply(item.id, org, now["mode"], now["days"], by)
             moved.append(item.id)
             continue
-        if preview(item.id, now["mode"], now["days"], org)["rows"] == 0:
+        got = preview(item.id, now["mode"], now["days"], org)
+        if got["rows"] == 0 and not got.get("unknown"):
             _apply(item.id, org, now["mode"], now["days"], by + ", nothing to remove")
             moved.append(item.id)
         else:
@@ -756,18 +972,25 @@ def _clean_value(item: Item, mode_: str, days) -> tuple[str, int | None]:
     mode_ = str(mode_ or "").strip().lower()
     if mode_ == "on" and item.kind == "record":
         mode_ = "forever"
+    if mode_ == "off" and item.versions:
+        raise Refused(f"{item.name} cannot be off: Undo reads them. Keep the newest {UNDO_FLOOR} of each instead.")
     if mode_ not in item.modes:
         raise Refused(f"{item.name} cannot be {MODE_SAID.get(mode_, mode_)!r} here.")
-    if mode_ != "keep":
+    if mode_ not in ("keep", "versions"):
         return mode_, None
     try:
         n = int(days)
     except (TypeError, ValueError):
-        raise Refused("Say how many " + ("copies" if item.copies else "days") + " to keep.") from None
+        raise Refused("Say how many " + ("copies" if item.copies else "versions" if mode_ == "versions" else "days")
+                      + " to keep.") from None
     if item.copies:
         if n < 1:
             raise Refused("At least one nightly copy is always kept: without one a lost database cannot be brought back.")
         return mode_, min(n, 30)
+    if mode_ == "versions":
+        if n < UNDO_FLOOR:
+            raise Refused(f"At least the newest {UNDO_FLOOR} versions of each are always kept, so Undo always works.")
+        return mode_, min(n, 10000)
     if n < 1 or n > 3650:
         raise Refused("Keep between 1 and 3,650 days, or choose Keep forever.")
     return mode_, n
@@ -776,7 +999,8 @@ def _clean_value(item: Item, mode_: str, days) -> tuple[str, int | None]:
 def set_choice(item_id: str, mode_: str, days=None, *, by: str, org_id=None, confirm: bool = False) -> dict:
     """The owner's own value for one item. A value that would remove old rows is not saved until it is
     confirmed: the answer then says what would go (`needs_confirm`). A raise, keep forever or on is
-    saved and applied at once."""
+    saved and applied at once. A lowering whose removal cannot be counted now (the one program did not
+    answer) is saved and waits, removing nothing, until it can be counted and the owner presses."""
     if item_id not in BY_ID:
         raise Refused("There is no such item.")
     item = BY_ID[item_id]
@@ -784,14 +1008,20 @@ def set_choice(item_id: str, mode_: str, days=None, *, by: str, org_id=None, con
     if preset(org) is None:
         raise Refused("Rouh cannot tell yet which kind of Rouh this is, so nothing can be changed. Try again in a minute.")
     mode_, days = _clean_value(item, mode_, days)
-    if item.kind == "record" and item.parts:
+    held = ""
+    if _removes(item):
         would = preview(item_id, mode_, days, org)
         if would["rows"] and not confirm:
             return {"needs_confirm": True, "item": item_id, "mode": mode_, "days": days, "preview": would}
+        if would.get("unknown"):
+            held = would["said"]
     _write_choice(item, org, mode_, days, by)
-    if item.kind == "record" and item.parts:
+    if _removes(item) and not held:
         _apply(item_id, org, mode_, days, by + (", confirmed on the page" if confirm else ""))
-    return {"saved": True, "item": item_id, "mode": mode_, "days": days, "swept": bool(confirm)}
+    out = {"saved": True, "item": item_id, "mode": mode_, "days": days, "swept": bool(confirm) and not held}
+    if held:
+        out["held"] = held
+    return out
 
 
 def _write_choice(item: Item, org: str, mode_: str, days: int | None, by: str) -> None:
@@ -826,7 +1056,8 @@ def confirm_waiting(item_id: str, *, by: str, org_id=None) -> dict:
 
 def set_preset(name: str, *, by: str, org_id=None, confirm: bool = False) -> dict:
     """Another preset. The owner's own choices stay theirs. Records the new preset keeps for less
-    are listed first, with what would go, and wait for the press like a single row."""
+    are listed first, with what would go, and wait for the press like a single row. One whose removal
+    cannot be counted now waits on its own, with nothing removed."""
     name = str(name or "").strip().lower()
     if name not in PRESET_NAMES:
         raise Refused("There is no such preset.")
@@ -836,12 +1067,13 @@ def set_preset(name: str, *, by: str, org_id=None, confirm: bool = False) -> dic
         raise Refused("Rouh cannot tell yet which kind of Rouh this is, so nothing can be changed. Try again in a minute.")
     M = _m()
     mine = set(M.LeanChoice.objects.filter(org_id=org).values_list("item", flat=True))
-    would = []
+    would, counted = [], {}
     for item in ITEMS:
-        if item.kind != "record" or not item.parts or item.id in mine:
+        if not _removes(item) or item.id in mine:
             continue
         mode_, days = preset_value(item.id, name)
         got = preview(item.id, mode_, days, org)
+        counted[item.id] = got
         if got["rows"]:
             would.append({"item": item.id, "name": item.name, **got})
     if would and not confirm:
@@ -849,18 +1081,47 @@ def set_preset(name: str, *, by: str, org_id=None, confirm: bool = False) -> dic
     M.LeanState.objects.filter(org_id=org).update(preset=name, changed_by=by[:120], updated_at=_now())
     forget()
     for item in ITEMS:
-        if item.kind == "record" and item.parts and item.id not in mine:
+        if _removes(item) and item.id not in mine:
             mode_, days = preset_value(item.id, name)
-            if confirm or not preview(item.id, mode_, days, org)["rows"]:
+            got = counted.get(item.id) or preview(item.id, mode_, days, org)
+            if got.get("unknown"):
+                continue
+            if confirm or not got["rows"]:
                 _apply(item.id, org, mode_, days, by + (", confirmed on the page" if confirm else ""))
     return {"saved": True, "preset": name, "swept": bool(would)}
 
 
 # --- the sweep -----------------------------------------------------------------------------------------
 
-def _sweep_part(part: Part, org: str, cutoff: float, since: float, stop_at: float) -> int:
+def _unlink_kept(paths) -> None:
+    """The copies on disk of removed file versions, only inside the file store's version folder."""
+    from . import filestore
+
+    try:
+        inside = os.path.realpath(os.path.join(filestore.root(), filestore.VERSIONS)) + os.sep
+    except Exception:  # noqa: BLE001 - no file store here: nothing of it to remove
+        return
+    for p in paths:
+        if not p:
+            continue
+        real = os.path.realpath(p)
+        if not real.startswith(inside):
+            log.warning("lean: a removed file version named %s, outside the version folder; left alone", p)
+            continue
+        try:
+            os.unlink(real)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            log.exception("lean: the kept copy %s could not be removed", p)
+
+
+def _sweep_part(part: Part, org: str, cutoff: float | None, since: float, stop_at: float,
+                newest: int = UNDO_FLOOR) -> int:
     """One part's old rows removed (or blanked), a batch at a time. The rows touched."""
     where, params = _where(part, org, cutoff, since)
+    if where == "FALSE":
+        return 0
     touched = 0
     if part.blank:
         last = None
@@ -876,11 +1137,14 @@ def _sweep_part(part: Part, org: str, cutoff: float, since: float, stop_at: floa
             last = keys[-1]
             time.sleep(0.05)
         return touched
-    pick = _floored(part, where) if part.floor else f"SELECT {part.pk} FROM {part.table} WHERE {where}"
+    pick = _picked(part, where, newest)
+    back = part.unlink or "1"
     while _now() < stop_at:
-        got = _sql(f"WITH gone AS (DELETE FROM {part.table} WHERE ({part.pk}) IN ({pick} LIMIT {BATCH}) RETURNING 1) "
-                   "SELECT count(*) FROM gone", params)
-        n = int(got[0][0] or 0) if got else 0
+        got = _sql(f"WITH gone AS (DELETE FROM {part.table} WHERE ({part.pk}) IN ({pick} LIMIT {BATCH}) "
+                   f"RETURNING {back} AS back) SELECT back FROM gone", params)
+        n = len(got)
+        if part.unlink:
+            _unlink_kept(r[0] for r in got)
         touched += n
         if n < BATCH:
             break
@@ -915,28 +1179,42 @@ def _orphan_pieces(stop_at: float) -> int:
 
 
 def sweep_item(item_id: str, org_id=None, *, budget: float = 1800.0) -> dict:
-    """One record's rows removed beyond its confirmed limit. Never beyond it, never raises."""
+    """One record's rows removed beyond its confirmed limit. Never beyond it, never raises. The nightly
+    copies are the protected core's copy part's to remove, at its next copy; the run logs are the one
+    program's, asked here."""
     item = BY_ID[item_id]
     org = _org(org_id)
     app = applied_value(item_id, org)
-    cut = cut_days(item, app["mode"], app["days"])
-    if cut is None or not item.parts:
+    if not _removes(item) or item.copies:
         return {"item": item_id, "touched": 0}
-    cutoff = _now() - cut * 86400
+    if item.outside == "run_logs":
+        cut = cut_days(item, app["mode"], app["days"])
+        if cut is None or org != _install_org():
+            return {"item": item_id, "touched": 0}
+        got = _one_logs(cut, dry=False)
+        touched = int((got or {}).get("files") or 0)
+        if touched:
+            log.info("lean: %s removed %s run log files of jobs ended more than %s ago", org, touched, said_days(cut))
+        return {"item": item_id, "touched": touched}
+    bounds = _bounds(item, app["mode"], app["days"])
+    if bounds is None:
+        return {"item": item_id, "touched": 0}
+    cutoff, newest = bounds
     stop_at = _now() + budget
     touched = 0
     try:
         for part in item.parts:
-            touched += _sweep_part(part, org, cutoff, app["done_before"], stop_at)
+            touched += _sweep_part(part, org, cutoff, app["done_before"], stop_at, newest)
         if item_id == "model_words" and touched:
             touched += _orphan_pieces(stop_at)
-        if _now() < stop_at and any(p.blank for p in item.parts):
+        if _now() < stop_at and cutoff is not None and any(p.blank for p in item.parts):
             # A day's margin, so a row still running at this sweep is looked at again by the next.
             _m().LeanApplied.objects.filter(org_id=org, item=item_id).update(done_before=cutoff - 86400)
     except Exception:  # noqa: BLE001 - tried again on the next sweep
         log.exception("lean: the sweep of %s failed", item_id)
     if touched:
-        log.info("lean: %s removed %s old rows of %s, older than %s", org, touched, item_id, said_days(cut))
+        log.info("lean: %s removed %s old rows of %s (%s)", org, touched, item_id,
+                 _value_said(item, app["mode"], app["days"]))
     return {"item": item_id, "touched": touched}
 
 
@@ -954,7 +1232,7 @@ def sweep(org_id=None, *, force: bool = False) -> dict:
         return {"skipped": "swept already"}
     M.LeanState.objects.filter(org_id=org).update(swept_at=_now())
     settled = settle(org)
-    done = [sweep_item(i.id, org) for i in ITEMS if i.kind == "record" and i.parts]
+    done = [sweep_item(i.id, org) for i in ITEMS if _removes(i)]
     return {"settled": settled, "swept": [d for d in done if d["touched"]]}
 
 
@@ -982,21 +1260,90 @@ def _option_list(item: Item, value: dict, base: tuple[str, int | None]) -> list[
         return [{"mode": "keep", "days": n, "label": f"Keep {n} {'copy' if n == 1 else 'copies'}"} for n in counts]
     if "off" in item.modes:
         out.append({"mode": "off", "days": None, "label": "Off"})
-    days = set(DAYS)
-    if base[0] == "keep" and base[1]:
-        days.add(base[1])
-    if value["mode"] == "keep" and value["days"]:
-        days.add(value["days"])
-    for d in sorted(days):
-        out.append({"mode": "keep", "days": d, "label": f"Keep {said_days(d)}"})
+    if "keep" in item.modes:
+        days = set(DAYS)
+        if base[0] == "keep" and base[1]:
+            days.add(base[1])
+        if value["mode"] == "keep" and value["days"]:
+            days.add(value["days"])
+        for d in sorted(days):
+            out.append({"mode": "keep", "days": d, "label": f"Keep {said_days(d)}"})
+    if "versions" in item.modes:
+        counts = set(VERSIONS)
+        for m, n in ((base[0], base[1]), (value["mode"], value["days"])):
+            if m == "versions" and n:
+                counts.add(n)
+        for n in sorted(counts):
+            out.append({"mode": "versions", "days": n, "label": f"Keep the newest {n}"})
     out.append({"mode": "forever", "days": None, "label": "Keep forever"})
     return out
 
 
-def _disk_for(item: Item, mode_: str, days: int | None) -> str:
-    """Roughly the disk a value holds, at the Creator Rouh's measured growth."""
+def _exact_rows(table: str) -> int:
+    """A table's rows counted, for the small version tables; the planner's estimate when that is slow."""
+    try:
+        from django.db import transaction
+
+        with transaction.atomic():
+            got = _sql(f"SELECT count(*) FROM {table}", timeout_ms=4000)
+        return int(got[0][0] or 0)
+    except Exception:  # noqa: BLE001
+        return _rows_estimate(table)
+
+
+def _kept_bytes(item: Item, org: str, mode_: str, days: int | None) -> int | None:
+    """Roughly the bytes a version record would hold at this value, counted on this Rouh's own rows
+    (they are small tables); None when it could not be counted."""
+    key = ("kept", org, item.id, mode_, days)
+    got = _cached(key)
+    if got is not _MISS:
+        return got
+    total = 0
+    try:
+        bounds = _bounds(item, mode_, days)
+        for part in item.parts:
+            size = _size(part.table)
+            if bounds is None or not size:
+                total += size
+                continue
+            rows = _exact_rows(part.table)
+            where, params = _where(part, org, bounds[0], 0)
+            n, _ = _count(part, where, params, bounds[1])
+            total += int(size * max(0.0, 1 - n / max(rows, n, 1)))
+    except Exception:  # noqa: BLE001 - said as not measured
+        log.exception("lean: could not size %s", item.id)
+        total = None
+    with _lock:
+        _seen[key] = (time.monotonic() + 55, total)  # kept a minute: a page draws every option
+    return total
+
+
+def _disk_for(item: Item, mode_: str, days: int | None, org: str = "") -> str:
+    """Roughly the disk a value holds: measured on this Rouh where it can be, else at the Creator
+    Rouh's measured growth."""
     if item.copies:
-        return f"about {10.9 * (days or 0):.0f} GB" if days else ""
+        have = copies_here()
+        if have is None:
+            return ""
+        one = (have[-1]["bytes"] if have else 0)
+        if one:
+            return f"about {said_bytes(one * (days or 0))}"
+        return f"about {10.9 * (days or 0):.0f} GB, as on the Creator Rouh" if days else ""
+    if item.outside == "run_logs":
+        if mode_ == "off":
+            return "about a day's worth"
+        got = _one_logs(cut_days(item, mode_, days) or 36500, dry=True)
+        if got is None:
+            return "not measured"
+        total = int(got.get("total_bytes") or 0)
+        if mode_ == "forever":
+            return f"about {said_bytes(total)} now, growing"
+        return f"about {said_bytes(max(0, total - int(got.get('bytes') or 0)))}"
+    if item.versions:
+        got = _kept_bytes(item, org or _install_org(), mode_, days)
+        if got is None:
+            return "not measured"
+        return f"about {said_bytes(got)}" + (", growing" if mode_ == "forever" else "")
     if item.rate is None:
         return "small" if item.id == "model_costs" else "not measured"
     if mode_ == "off":
@@ -1004,6 +1351,36 @@ def _disk_for(item: Item, mode_: str, days: int | None) -> str:
     if mode_ == "forever":
         return f"+{said_bytes(item.rate * 30e9)} a month"
     return f"about {said_bytes(item.rate * (days or 0) * 1e9)}"
+
+
+def _size_of(item: Item, sizes: dict[str, int]) -> tuple[int | None, str, str]:
+    """What a record holds now: (bytes counted in the page's total, the words to say it, or the words
+    for a table it shares with a row above)."""
+    if item.copies:
+        have = copies_here()
+        if not have:
+            return None, "", ""
+        b = sum(h["bytes"] for h in have)
+        return None, f"{said_bytes(b)} in {len(have)} {'copy' if len(have) == 1 else 'copies'}", ""
+    if item.outside == "run_logs":
+        got = _one_logs(36500, dry=True)
+        if got is None:
+            return None, "", ""
+        b = int(got.get("total_bytes") or 0)
+        return b, said_bytes(b), ""
+    tables = tuple(t for t in (item.sized or tuple(dict.fromkeys(p.table for p in item.parts))) if t != "-")
+    if not tables:
+        return None, "", ""
+    size = 0
+    for t in tables:
+        if t not in sizes:
+            sizes[t] = _size(t)
+        size += sizes[t]
+    # Two rows on one table (memory items and contacts) would count it twice: said, counted once.
+    shared = [i for i in ITEMS if i is not item and i.kind == "record" and set(p.table for p in i.parts) == set(tables)]
+    if shared and ITEMS.index(shared[0]) < ITEMS.index(item):
+        return None, "", f"Shares its table, {said_bytes(size)} now, with {shared[0].name.lower()}"
+    return size, said_bytes(size), ""
 
 
 def page(org_id=None, *, look: bool = True) -> dict:
@@ -1015,17 +1392,12 @@ def page(org_id=None, *, look: bool = True) -> dict:
     for item in ITEMS:
         value = choice(item.id, org)
         base = preset_value(item.id, name)
-        tables = tuple(t for t in (item.sized or tuple(dict.fromkeys(p.table for p in item.parts))) if t != "-")
-        size = 0
-        for t in tables:
-            if t not in sizes:
-                sizes[t] = _size(t)
-            size += sizes[t]
+        size, size_said, shares = _size_of(item, sizes) if item.kind == "record" else (None, "", "")
         options = []
         for o in _option_list(item, value, base):
             o = dict(o)
             if item.kind == "record":
-                o["disk"] = _disk_for(item, o["mode"], o["days"])
+                o["disk"] = _disk_for(item, o["mode"], o["days"], org)
             o["chosen"] = (o["mode"], o["days"]) == (value["mode"], value["days"])
             o["preset"] = (o["mode"], o["days"]) == base
             options.append(o)
@@ -1036,10 +1408,11 @@ def page(org_id=None, *, look: bool = True) -> dict:
             "changed": value["from"] == "yours", "preset_mode": base[0], "preset_days": base[1],
             "said": _value_said(item, value["mode"], value["days"]),
             "preset_said": _value_said(item, base[0], base[1]),
-            "money": _money(item) if item.kind == "job" else "", "size_bytes": size if tables else None,
-            "size_said": said_bytes(size) if tables else "", "off_means": item.off_means, "not_yet": item.not_yet,
-            "note": item.note, "copies": item.copies,
-            "shares": "Shares the model calls' table with the row above" if item.id == "model_costs" else "", "options": options, "runs": runs(item.id, org)
+            "money": _money(item) if item.kind == "job" else "", "size_bytes": size,
+            "size_said": size_said, "off_means": item.off_means, "not_yet": item.not_yet,
+            "note": item.note, "copies": item.copies, "versions": item.versions,
+            "shares": "Shares the model calls' table with the row above" if item.id == "model_costs" else shares,
+            "options": options, "runs": runs(item.id, org)
             if item.kind == "job" else None, "waiting": wait,
         })
     state = _m().LeanState.objects.filter(org_id=org).first()
@@ -1056,4 +1429,6 @@ def _value_said(item: Item, mode_: str, days: int | None) -> str:
         if item.copies:
             return f"Keep {days} {'copy' if days == 1 else 'copies'}"
         return f"Keep {said_days(days or 0)}"
+    if mode_ == "versions":
+        return f"Keep the newest {days} of each"
     return MODE_SAID.get(mode_, mode_)

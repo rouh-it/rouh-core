@@ -115,10 +115,14 @@ ALLOWED: dict[str, frozenset[str]] = {
     # "shell" is Rouh's read-only shell, run here in the containers, where the
     # program holds no key and Rouh's core holds them all (one/shell.py, 29
     # October 2026): only stages Rouh's own read-only rules allowed.
+    # "run_logs" is Rouh's setting for how long the terminal logs of ended runs are kept
+    # (task 185, `rouh/lean.py`, Anatomy, Meta, What Rouh keeps and runs): it counts them, and
+    # removes them only when Rouh says the owner confirmed it (`Runs.trim_logs`). Only Rouh's own
+    # connection may, because it deletes; it never touches a run that has not ended.
     "voice": frozenset({
         "hello", "ping", "runs", "run", "tree", "tail", "questions", "start", "stop", "say",
         "answer", "take", "give", "spaces", "codex_key", "archive", "calls", "claude_signin",
-        "codex_signin", "shell",
+        "codex_signin", "shell", "run_logs",
     }),
     "phone": frozenset({"hello", "ping", "answer"}),
 }

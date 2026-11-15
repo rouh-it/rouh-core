@@ -38,7 +38,9 @@
       "lean_applied"
     ],
     "jobs": [
-      "the daily sweep of old records (rouh/runtime.py, _lean_loop)"
+      "the daily sweep of old records (rouh/runtime.py, _lean_loop)",
+      "the protected core's copy part keeps the confirmed number of nightly copies (guard/bin/rouh-backup reads lean_applied)",
+      "the one program counts and removes the terminal logs of ended runs when asked (one/runs.py trim_logs, message run_logs)"
     ],
     "remove": "rouh/lean.py and its calls in each job and record it gates (each returns to on and kept forever), rouh/web/lean.py, rouh/static/keepspage.*, its section in rouh/templates/rouh/index.html, its models and this manifest."
   }

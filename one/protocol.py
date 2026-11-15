@@ -57,7 +57,7 @@ QUEUE_LIMIT = 20_000
 #: the connection's next message is not held up behind them. A browser's
 #: messages arrive one after another, and the first read of a long transcript
 #: would otherwise hold up the keys typed into a run's terminal on the same page.
-IN_ITS_OWN_TIME = frozenset({"transcript", "calls"})
+IN_ITS_OWN_TIME = frozenset({"transcript", "calls", "run_logs"})
 
 CONSOLE = {"id": "console", "name": "the server's own terminal", "surface": "terminal"}
 
@@ -417,6 +417,16 @@ class Client:
             return {"later": True}
         dropped = await self.p.runs.forget(self._run_id(m), by=self.device_id)
         return {"dropped": dropped}
+
+    async def _do_run_logs(self, m):
+        """The terminal logs of runs that ended more than `days` days ago: counted, and removed
+        unless `dry` (`Runs.trim_logs`): only from Rouh's own connection, which sends it once the
+        owner confirmed the limit on Rouh's page (task 185)."""
+        try:
+            days = float(m.get("days"))
+        except (TypeError, ValueError):
+            raise ValueError("say after how many days") from None
+        return await self.p.runs.trim_logs(days, dry=bool(m.get("dry", True)), by=self.device_id)
 
     async def _do_retitle(self, m):
         """Give a run another title, and another brief when one is sent: only from a terminal."""

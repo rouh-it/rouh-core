@@ -95,7 +95,7 @@
       }
       if (j.saved) {
         S.ask = null;
-        S.said[about] = j.swept ? 'Saved. The old rows are being removed now.' : 'Saved.';
+        S.said[about] = j.held ? 'Saved. ' + j.held : j.swept ? 'Saved. The old rows are being removed now.' : 'Saved.';
         if (S.fromWaiting === about) {
           S.said.waiting = (nameOf(about) + ': ' + (j.swept ? 'saved, and its old rows are being removed now.' : 'saved.'));
           S.fromWaiting = '';
@@ -232,8 +232,10 @@
       if (it.changed) {
         acts.appendChild(button('Back to default', '', function () { S.fromWaiting = it.id; send('/api/anatomy/keeps/default', { item: it.id }, it.id); }));
       }
-      var keep = 'forever';
-      acts.appendChild(button('Keep forever instead', '', function () { S.fromWaiting = it.id; choose(it, keep); }));
+      // Copies cannot be kept forever: the alternative is to keep as many as there are (`lean._instead`).
+      var instead = it.waiting.instead || { mode: 'forever', days: null, label: 'Keep forever instead' };
+      var keep = instead.mode + (instead.days != null ? ':' + instead.days : '');
+      acts.appendChild(button(instead.label, '', function () { S.fromWaiting = it.id; choose(it, keep); }));
       row.appendChild(acts);
       if (S.error[it.id]) row.appendChild(el('p', 'kp-error', S.error[it.id]));
       sec.appendChild(row);

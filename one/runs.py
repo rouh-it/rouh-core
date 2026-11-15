@@ -1718,6 +1718,61 @@ class Runs(_RunInteraction):
         log.info("run %s forgotten by %s: %d list entries and its folder deleted", run_id, by, dropped)
         return dropped
 
+    #: A run's own logs in its folder: what it printed, its holder's own lines, Claude Code's debug log.
+    LOG_FILES = ("tty.log", "holder.log", "claude-debug.log")
+
+    async def trim_logs(self, days: float, *, dry: bool, by: str) -> dict[str, Any]:
+        """The logs of every run that ended more than `days` days ago (at least one): counted, and
+        deleted unless `dry`. Only the log files go: the run stays on every list with its report,
+        and one carried on later starts a new log. A run that has not ended, or whose terminal is
+        still connected, is never touched (Rouh's Anatomy, Meta, What Rouh keeps and runs, task 185)."""
+        from .listfile import epoch
+
+        if days != days or days < 1:
+            raise ValueError("logs are kept at least a day after a run ends")
+        cutoff = time.time() - days * 86400
+        old = [run["id"] for run in list(self.p.views.runs.values())
+               if run["state"] in ENDED and run.get("ended_at") and epoch(run["ended_at"]) < cutoff]
+        every = list(self.p.views.runs)
+
+        def go() -> dict[str, Any]:
+            files = nbytes = runs = 0
+            for run_id in old:
+                if self.p.terminals.alive(run_id):
+                    continue
+                folder = self.p.terminals.folder(run_id)
+                touched = False
+                for name in self.LOG_FILES:
+                    path = folder / name
+                    try:
+                        size = path.stat().st_size
+                    except OSError:
+                        continue
+                    if not dry:
+                        try:
+                            path.unlink()
+                        except OSError:
+                            log.warning("run %s: its %s could not be removed", run_id, name)
+                            continue
+                    files += 1
+                    nbytes += size
+                    touched = True
+                runs += touched
+            total = 0
+            for run_id in every:
+                folder = self.p.terminals.folder(run_id)
+                for name in self.LOG_FILES:
+                    with contextlib.suppress(OSError):
+                        total += (folder / name).stat().st_size
+            return {"runs": runs, "files": files, "bytes": nbytes, "dry": dry, "days": days,
+                    "total_bytes": total}
+
+        got = await asyncio.to_thread(go)
+        if not dry and got["files"]:
+            log.info("the logs of %d runs ended more than %g days ago removed by %s: %d files, %d bytes",
+                     got["runs"], days, by, got["files"], got["bytes"])
+        return got
+
     def retitle(self, run_id: str, title: str, *, by: str, brief: str | None = None) -> None:
         """Give a run another title, and another brief when one is given (`run.retitled`)."""
         self._run(run_id)

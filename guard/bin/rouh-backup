@@ -11,11 +11,17 @@
 #
 #   rouh-backup serve          what the part runs: a copy every day at ROUH_BACKUP_AT (UTC, 03:40 as
 #                              on the server), or at the first minute after it the machine is awake,
-#                              the newest ROUH_BACKUP_KEEP (7) kept
+#                              the newest KEEP kept (below)
 #   rouh-backup now            a copy now
 #   rouh-backup list           the copies there are, newest last
 #   rouh-backup restore NAME   the database put back as it was in that copy (or "newest"); the core
 #                              must be stopped first, and this refuses while it is connected
+#
+# How many are kept: the number the owner confirmed in Rouh, Anatomy, Meta, What Rouh keeps and runs
+# (task 185), which Rouh writes as its confirmed limit for nightly_copies in lean_applied; while Rouh
+# has none, or it cannot be read, ROUH_BACKUP_KEEP (7). Never fewer than one. Rouh confirms a lower
+# number only after the owner pressed to remove the copies its page showed would go, or when none
+# would; so a copy is never removed for the setting without that press.
 #
 # As root only long enough to give the volume to rouh (10001); every copy is rouh's alone (0600).
 #   docker compose exec backup rouh-backup now
@@ -44,9 +50,29 @@ export HOME=/tmp
 mkdir -p "$DIR"
 case "$KEEP" in ''|*[!0-9]*) KEEP=7 ;; esac
 [ "$KEEP" -ge 1 ] || KEEP=1
+ENV_KEEP="$KEEP" EXTRA=0 WHY=ROUH_BACKUP_KEEP
 
 stamp_iso() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 json_text() { printf '%s' "$1" | tr '\n\r\t' '   ' | sed 's/\\/\\\\/g; s/"/\\"/g' | cut -c1-400; }
+
+# The number of copies the owner confirmed in Rouh, or nothing: the largest any organisation of this
+# database confirmed (one stack is one install), only a whole number from 1 to 30.
+confirmed_keep() {
+  got="$(psql -Atqc "select case when to_regclass('public.lean_applied') is null then null else (select max(days) from lean_applied where item = 'nightly_copies' and mode = 'keep' and days between 1 and 30) end" 2>/dev/null || true)"
+  case "$got" in ''|*[!0-9]*) return 0 ;; esac
+  echo "$got"
+}
+
+# KEEP as it is now: Rouh's confirmed number, else ROUH_BACKUP_KEEP; WHY says which.
+keep_now() {
+  got="$(confirmed_keep)"
+  if [ -n "$got" ] && [ "$got" -ge 1 ]; then
+    KEEP="$got"; WHY="as confirmed in Rouh"
+  else
+    KEEP="$ENV_KEEP"; WHY="ROUH_BACKUP_KEEP"
+  fi
+  KEEP=$((KEEP + EXTRA))
+}
 
 status() {                       # status OK FILE BYTES ERROR
   tmp="$DIR/.last.json"
@@ -67,10 +93,11 @@ now() {
   if pg_dump -Fc -f "$part" 2>"$DIR/.error"; then
     mv -f "$part" "$DIR/$name"
     bytes="$(wc -c < "$DIR/$name" | tr -d ' ')"
+    keep_now
     prune
     status true "$name" "$bytes" ""
     rm -f "$DIR/.error"
-    echo "rouh-backup: copied the database into $name, $bytes bytes; the newest $KEEP are kept"
+    echo "rouh-backup: copied the database into $name, $bytes bytes; the newest $KEEP are kept ($WHY)"
   else
     why="$(tail -c 400 "$DIR/.error" 2>/dev/null || true)"
     rm -f "$part" "$DIR/.error"
@@ -91,7 +118,8 @@ migrated() {                     # whether the database holds a Rouh yet (the co
 
 serve() {
   case "$AT" in [0-2][0-9]:[0-5][0-9]) ;; *) echo "rouh-backup: ROUH_BACKUP_AT is $AT, not HH:MM; 03:40 is used" >&2; AT=03:40 ;; esac
-  echo "rouh-backup: a copy of the database every day at $AT UTC into the backups volume, the newest $KEEP kept"
+  keep_now
+  echo "rouh-backup: a copy of the database every day at $AT UTC into the backups volume, the newest $KEEP kept ($WHY)"
   # The part runs this as its first process, with no init: a stop is answered here, at once.
   trap 'exit 0' TERM INT
   tried=0
@@ -129,7 +157,7 @@ restore() {                      # (its own variable: now() sets $name)
   # own, by renaming the two: a restore that fails leaves Rouh's database exactly as it was.
   # (pg_restore --clean over the live one cannot drop a partitioned table's constraints.)
   db="${PGDATABASE:-rouh}" new="${PGDATABASE:-rouh}_restoring" old="${PGDATABASE:-rouh}_before_restore"
-  KEEP=$((KEEP + 1))             # so the copy made now never pushes out the one being restored
+  EXTRA=1                        # so the copy made now never pushes out the one being restored
   now >/dev/null || { echo "rouh-backup: the database as it is now could not be copied first; nothing restored" >&2; exit 1; }
   echo "rouh-backup: the database as it was just now is kept as $(ls -1 "$DIR" | grep '^rouh-[0-9]\{8\}-[0-9]\{6\}\.dump$' | sort | tail -n 1)"
   psql -d postgres -Atqc "drop database if exists \"$new\"" >/dev/null

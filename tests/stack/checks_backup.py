@@ -153,6 +153,44 @@ def backup_daily(s: Stack) -> None:
     expect(_token(s) == "same", "the database restored from the copy does not hold the saved login as it was")
 
 
+@check("keeps.copies")
+def keeps_copies(s: Stack) -> None:
+    """What Rouh keeps (rouh/lean.py, task 185): the preset is set up, nothing says "Not yet in force",
+    and the copy part keeps the number of copies the owner confirmed in Rouh, and only that."""
+    got = _core(s, _shell("""
+from rouh import lean
+from rouh.modeldefaults import org_now
+org = str(org_now())
+page = lean.page(org)
+print("preset", page["preset"])
+print("not_yet", sum(1 for r in page["items"] if r["not_yet"]))
+print("rows", " ".join(r["id"] for r in page["items"] if r["id"].endswith("_versions")))
+"""))
+    expect("preset installed" in got, f"the Rouh did not set itself up as Installed: {got[-400:]}")
+    expect("not_yet 0" in got, f"a row still says Not yet in force: {got[-400:]}")
+    expect("card_versions" in got and "file_versions" in got and "contact_versions" in got and "page_versions" in got,
+           f"the rows for old versions are missing: {got[-400:]}")
+    # Two copies confirmed, as the page confirms a press: the next copies leave two, and say why.
+    _core(s, _shell("""
+from rouh import lean
+from rouh.modeldefaults import org_now
+lean._apply("nightly_copies", str(org_now()), "keep", 2, "the stack test")
+"""))
+    try:
+        for _ in range(3):
+            r = s.run("backup", f"{BACKUP} now")
+            expect(r.returncode == 0 and "the newest 2 are kept (as confirmed in Rouh)" in r.stdout,
+                   f"the copy part did not keep the confirmed number: {(r.stdout + r.stderr)[-500:]}")
+            time.sleep(1.2)
+        n = s.run("backup", "ls /backups/daily | grep -c '^rouh-.*\\.dump$'").stdout.strip()
+        expect(n == "2", f"the backups volume holds {n} copies, not the 2 confirmed")
+    finally:
+        _core(s, _shell("""
+from rouh.models import LeanApplied
+LeanApplied.objects.filter(item="nightly_copies").delete()
+"""))
+
+
 @check("backup.offsite")
 def backup_offsite(s: Stack) -> None:
     _mark(s)
