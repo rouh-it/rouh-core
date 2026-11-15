@@ -12,11 +12,16 @@ log, and it is filled from four places, none of which a person has to remember:
 * **Mutations** (`rouh/evolution.py`): every gene the nightly run built is a gene of the
   log, pending while it is on trial in Mutations, kept once he keeps it, off or rejected as he
   answers it (`follow_mutations`, called by every answer).
-* **Every change that lands** in Rouh's code, read from the deployed checkout's history
-  (`scan`): put to a gene by its `Gene: <key>` line, by the manifest it changes, by the night that
-  built it, by the name before the colon of its subject, and otherwise by the gene writer, a model
-  call (`write`, the use `gene_writer` on the Models page). A change whose commit names the owner's
-  own request is kept at once: he keeps everything he asks for.
+* **Every change that lands** in Rouh's code, written when it lands (`landed`, the trigger, called
+  by the protected core's landing once the change is live) and by a cheap catch-up at Rouh's start
+  and once a day (`catch_up`), both through `fill`, which writes each commit once: put to a gene by
+  its `Gene: <key>` line, its files' genes in the gene map, the manifest it changes, the night that
+  built it, the name before the colon of its subject, and only when none of those says, by the gene
+  writer, a model call (`write`, the use `gene_writer` on the Models page). A change whose commit
+  names the owner's own request is kept at once: he keeps everything he asks for. A change a Rouh
+  release brought (a `Rouh-master-change:` or `Rouh-release:` line, or the release a Rouh was
+  installed from) keeps the genes the code commits it to and is never a new gene of this owner. There
+  is no beat reading the history any more (task 185, step 185-02).
 * **Genes on the fly and the Pool** (`rouh/genedraft.py`, `rouh/genepool.py`) make their own.
 
 **A revision or a sub-gene.** Continued building on a gene is a revision of the node it lands on,
@@ -39,6 +44,7 @@ import hashlib
 import json
 import logging
 import re
+import threading
 import time
 
 from . import gitutil, owner
@@ -46,8 +52,8 @@ from pathlib import Path
 
 log = logging.getLogger("rouh.genelog")
 
-#: Its feature switch: off, the log stops reading changes and asking the gene writer, and its view
-#: says so. What is already in the log stays.
+#: Its feature switch: off, neither the trigger at landing nor the catch-up runs, the gene writer is
+#: never asked, and its view says so. What is already in the log stays.
 SWITCH = "gene_log"
 #: The model use that puts a landed change to a gene when nothing else could (`modeldefaults`).
 WRITER = "gene_writer"
@@ -482,16 +488,31 @@ SEP_COMMIT = "\x1e"
 SEP_FIELD = "\x1f"
 
 
+FORMAT = f"--format={SEP_COMMIT}%H{SEP_FIELD}%ct{SEP_FIELD}%s{SEP_FIELD}%b{SEP_FIELD}"
+
+
 def history(since: str = "", limit: int = 0) -> list[dict]:
     """Every commit in the deployed code that changed Rouh, oldest first."""
-    args = ["log", "--reverse", "--no-merges", f"--format={SEP_COMMIT}%H{SEP_FIELD}%ct{SEP_FIELD}%s{SEP_FIELD}%b{SEP_FIELD}",
-            "--name-status"]
+    args = ["log", "--reverse", "--no-merges", FORMAT, "--name-status"]
     if limit:
         args.append(f"-n{limit}")
     # Every file of Rouh belongs to a gene since 19 October 2026 (rouh/genes/owners.json), so every
     # path but the person's own workspace is read: land.sh, the deploy, the docs.
     args += [f"{since}..HEAD" if since else "HEAD", "--", ".", ":(exclude)workspace"]
-    out = _git(*args, timeout=120)
+    return _parse(_git(*args, timeout=120))
+
+
+def commits_of(shas: list[str]) -> list[dict]:
+    """Just these commits, read the same way, in the order given; one missing is left out."""
+    shas = [s for s in shas if SHA.match(s or "")]
+    if not shas:
+        return []
+    got = {c["sha"]: c for c in _parse(_git("log", "--no-walk=unsorted", FORMAT, "--name-status", *shas,
+                                                 "--", ".", ":(exclude)workspace", timeout=120))}
+    return [got[s] for s in shas if s in got]
+
+
+def _parse(out: str) -> list[dict]:
     commits = []
     for chunk in out.split(SEP_COMMIT):
         if not chunk.strip():
@@ -541,27 +562,147 @@ def _owner_id(org: str) -> str:
     return str(u.pk) if u is not None else ""
 
 
-def scan(org: str, *, limit: int = 2000) -> dict:
-    """Read every landed change not read yet and put it to its gene when that can be told without a
-    model; the rest wait for the gene writer. Returns counts."""
-    m = _m()
-    C = m.GeneLogCommit
-    seen = set(C.objects.filter(org_id=org).values_list("sha", flat=True))
-    got = {"read": 0, "put": 0, "waiting": 0}
-    for c in history():
-        if c["sha"] in seen:
-            continue
-        if got["read"] >= limit:
-            break
+# --- when a change lands: the trigger and the catch-up ----------------------------------------------
+#
+# Petar, 15 November 2026 (task 185, step 185-02): "make it a trigger at landing, not a 15-minute
+# scan; the model only for unlabelled changes". Until then a beat read the whole of Rouh's history
+# every 15 minutes in every Rouh. Now a change is written into the log when it lands (`landed`, called
+# by the protected core's landing as soon as the change is live, `codechanges.Watch`), and a cheap
+# catch-up (`catch_up`) at Rouh's start and once a day fills whatever no trigger wrote: a deploy by
+# land.sh on a server (which starts Rouh again on the new code, so its start is that landing's
+# trigger), a commit made by hand, a trigger cut off by the restart its own change caused, a gene
+# writer that could not answer. Both go through `fill`, which writes each commit once: a commit
+# already in the log is never written again (`gene_log_commit_one`).
+
+#: Where the log keeps the last commit it was filled up to, so a catch-up with nothing new to read
+#: answers from one `git rev-parse` and one row.
+HEAD_KEY = "gene_log_head:"
+#: The trailers a Rouh update writes on the commits it brings (`code_evolution._propose`,
+#: `code_update.TRAILER`): a release's changes, never this owner's.
+RELEASE_TRAILER = re.compile(r"^(Rouh-master-change|Rouh-release):\s*\S+", re.M)
+
+#: One fill at a time in this process: a trigger and a catch-up asking together write each commit once.
+_FILLING = threading.Lock()
+
+
+def _head() -> str:
+    return _git("rev-parse", "--verify", "-q", "HEAD^{commit}", timeout=20).strip()
+
+
+def _filled_to(org: str) -> str:
+    return _m().AppState.objects.filter(key=HEAD_KEY + org).values_list("value", flat=True).first() or ""
+
+
+def _set_filled_to(org: str, sha: str) -> None:
+    _m().AppState.objects.update_or_create(key=HEAD_KEY + org, defaults={"value": sha})
+
+
+def release_marks() -> set[str]:
+    """Commits here that came from a Rouh release rather than from this owner (task 141-14, step
+    185-02): the first commit of a Rouh installed from a release (`code_update.base`, "install"), and
+    the master changes an update copied in exactly. Those with a release trailer are told by their
+    message (`is_release`). The Creator Rouh makes the releases, so nothing of its is a release's."""
+    try:
+        from . import code_update
+
+        if code_update.makes_releases():
+            return set()
+        marks: set[str] = set()
+        b = code_update.base(_app_dir())
+        if b.get("how") == "install" and b.get("local"):
+            marks.add(b["local"])
+        try:
+            from . import code_evolution
+
+            marks |= {row["master"] for row in code_evolution.ledger().get("changes", [])
+                      if row.get("status") in code_evolution.TAKEN and row.get("local") == row.get("master")}
+        except Exception:  # noqa: BLE001 - no ledger is no copied change
+            pass
+        return marks
+    except Exception:  # noqa: BLE001 - nothing known is nothing marked
+        log.exception("which commits came from a Rouh release could not be told")
+        return set()
+
+
+def is_release(c: dict, marks: set[str]) -> bool:
+    return c["sha"] in marks or bool(RELEASE_TRAILER.search(c.get("body") or ""))
+
+
+def missing(org: str) -> tuple[list[dict], str]:
+    """(the landed commits the log has not written yet, oldest first; the commit the code is at)."""
+    head = _head()
+    if not head:
+        return [], ""
+    since = _filled_to(org)
+    if since == head:
+        return [], head
+    if since and not gitutil_ancestor(since, head):
+        # The code was put back (an undo, the doctor) or moved onto other history: read it all once.
+        since = ""
+    commits = history(since)
+    if not commits:
+        return [], head
+    C = _m().GeneLogCommit
+    shas = [c["sha"] for c in commits]
+    seen: set[str] = set()
+    for i in range(0, len(shas), 2000):
+        seen |= set(C.objects.filter(org_id=org, sha__in=shas[i:i + 2000]).values_list("sha", flat=True))
+    return [c for c in commits if c["sha"] not in seen], head
+
+
+def gitutil_ancestor(a: str, b: str) -> bool:
+    try:
+        done = gitutil.run(_app_dir(), "merge-base", "--is-ancestor", a, b, timeout=30, safe_directory=False)
+    except Exception:  # noqa: BLE001 - not known is not an ancestor
+        return False
+    return done.returncode == 0
+
+
+def fill(org: str) -> dict:
+    """Write every landed commit the log does not have yet, each to its gene by its own label - its
+    `Gene:` line, the manifest it changes, the night that built it, its files' genes in the gene map -
+    and leave only a change with none of those for the gene writer (`write`). Once per commit, however
+    many triggers and catch-ups ask at the same time. Returns counts."""
+    with _FILLING:
+        commits, head = missing(org)
+        got = record(org, commits)
+        if head:
+            _set_filled_to(org, head)
+        got["head"] = head
+        return got
+
+
+def record(org: str, commits: list[dict]) -> dict:
+    """Put each commit to its gene when that can be told without a model; the rest wait for the gene
+    writer. A commit a Rouh release brought keeps the gene its code commits it to and is never a new
+    gene of this owner. Returns counts."""
+    from django.db import IntegrityError
+
+    C = _m().GeneLogCommit
+    got = {"read": 0, "put": 0, "waiting": 0, "release": 0}
+    marks = release_marks() if commits else set()
+    for c in commits:
+        try:
+            row = C.objects.create(org_id=org, sha=c["sha"], at=c["at"], subject=_cut(c["subject"], 300))
+        except IntegrityError:
+            continue   # written already, by a trigger or a catch-up at the same moment
         got["read"] += 1
-        row = C.objects.create(org_id=org, sha=c["sha"], at=c["at"], subject=_cut(c["subject"], 300))
+        release = is_release(c, marks)
+        if release:
+            got["release"] += 1
         owners = _map_at(c["sha"])
         if owners is not None:
-            how, n, did, said = _attribute_by_map(org, c, owners)
+            how, n, did, said = _attribute_by_map(org, c, owners, release=release)
             C.objects.filter(id=row.id).update(gene_id=n.id if n is not None else None, how=how, did=did,
                                               said=said[:TEXT_MOST])
             got["put" if n is not None else "none"] = got.get("put" if n is not None else "none", 0) + 1
-            _removed(org, c)
+            if not release:
+                _removed(org, c)
+            continue
+        if release:
+            # A release's change from before the map: its genes are its manifests' (`seed`), never asked
+            # of a model and never this owner's.
+            C.objects.filter(id=row.id).update(how="release", said="From a Rouh release: its genes are the release's own.")
             continue
         if not any(p.startswith(CODE) for _, p in c["files"]):
             # From before the map, and none of Rouh's code: the gene log never read these.
@@ -577,6 +718,32 @@ def scan(org: str, *, limit: int = 2000) -> dict:
             got["waiting"] += 1
         _removed(org, c)
     return got
+
+
+def waiting(org: str) -> bool:
+    return _m().GeneLogCommit.objects.filter(org_id=org, how="").exists()
+
+
+async def landed(who, commits=()) -> dict:
+    """The trigger: a change has landed and is live, so it is written into the log now, and the gene
+    writer asked only when one of its commits has no label. `commits` are the landing's own, for the
+    log line; whatever else the log was missing up to the code that runs is written with them. Never
+    raises: what it could not do, the next catch-up does."""
+    import asyncio
+
+    org = str(getattr(who, "org_id", "") or "")
+    try:
+        if not org or not await asyncio.to_thread(on, org):
+            return {"off": True}
+        got = await asyncio.to_thread(fill, org)
+        await asyncio.to_thread(seed_map, org)
+        if got.get("waiting") or await asyncio.to_thread(waiting, org):
+            got["writer"] = await write(who)
+        log.info("gene log: landing of %s written (%s)", " ".join(str(s)[:7] for s in commits) or "?", got)
+        return got
+    except Exception:  # noqa: BLE001 - the catch-up fills it
+        log.exception("gene log: the landing could not be written; the catch-up will")
+        return {"failed": True}
 
 
 def _removed(org: str, c: dict) -> None:
@@ -704,7 +871,9 @@ def _land(org: str, n, c: dict, *, contract: dict | None, sub_name: str = "", by
 SOURCES = {"chat": "You asked, in a chat or by voice", "feedback": "Your feedback",
            "mutation": "Your mutation request in Mutations", "night": "The nightly feature run",
            "refactor": "The nightly refactoring run", "process": "Rouh's own work, nobody asked",
-           "hand": "Landed by hand", "unknown": "Not written down"}
+           "hand": "Landed by hand", "release": "A Rouh update", "unknown": "Not written down"}
+#: Where a change a Rouh release brought was asked for: the release, not this owner.
+RELEASE_SOURCE = {"from": "release", "said": "A Rouh update"}
 UNASKED = ("night", "refactor", "process")
 FEEDBACK_BRIEF = "## How the solution should work"
 
@@ -851,14 +1020,20 @@ def _make_from_map(org: str, owners, key: str, *, at: float, origin: str = "rouh
     return n
 
 
-def _attribute_by_map(org: str, c: dict, owners) -> tuple[str, object, str, str]:
-    """(how, first node, did, said) for one commit, put to every gene whose files it touched."""
-    src = source_of(c)
+def _attribute_by_map(org: str, c: dict, owners, *, release: bool = False) -> tuple[str, object, str, str]:
+    """(how, first node, did, said) for one commit, put to every gene whose files it touched, the
+    genes its own `Gene:` line names first. A change a Rouh release brought (`release`) is a version of
+    the genes it touches, and a gene it brings is Rouh's own, never one this owner asked for."""
+    src = RELEASE_SOURCE if release else source_of(c)
     files = c["files"]
     map_path = _owners().MAP_PATH
     touched_map = any(p == map_path for _, p in files)
     before = _map_at(c["sha"] + "^") if touched_map or any(k == "D" for k, _ in files) else None
     keys: list[str] = []
+    # Label first: a gene the change names itself (`Gene: <key>`) is the one it is put under.
+    for k in (now_called(k) for k in TRAILER.findall(c["body"])):
+        if k not in keys and (k in owners.genes or _node_for(org, k) is not None):
+            keys.append(k)
     for kind, path in files:
         got = owners.owners_of(path)
         if got == [] and before is not None:
@@ -866,10 +1041,6 @@ def _attribute_by_map(org: str, c: dict, owners) -> tuple[str, object, str, str]
         for k in got or []:
             if k not in keys:
                 keys.append(k)
-    # A gene installed or grown into Rouh names itself on its build (`Gene: <key>`).
-    for k in (now_called(k) for k in TRAILER.findall(c["body"])):
-        if k not in keys and _node_for(org, k) is not None:
-            keys.append(k)
     if not keys:
         return "none", None, "", "None of Rouh: only the person's own work."
     made_now: set[str] = set()
@@ -877,7 +1048,7 @@ def _attribute_by_map(org: str, c: dict, owners) -> tuple[str, object, str, str]
         old = before.genes if before is not None else None
         for k in sorted(set(owners.genes) - set(old or {})):
             if _node_for(org, k) is None:
-                origin = "rouh" if old is None else ("night" if src["from"] in UNASKED else "request")
+                origin = "rouh" if old is None or release else ("night" if src["from"] in UNASKED else "request")
                 _make_from_map(org, owners, k, at=c["at"], origin=origin, commit=c["sha"], source=src)
                 made_now.add(k)
     first, did_first, names = None, "", []
@@ -1056,8 +1227,8 @@ async def write(who, *, most: int = WRITER_BEAT) -> dict:
     got = {"read": 0, "put": 0, "new": 0, "none": 0, "failed": 0}
     if not waiting:
         return got
-    shas = {w.sha for w in waiting}
-    known = {c["sha"]: c for c in await asyncio.to_thread(history) if c["sha"] in shas}
+    # Only the commits that wait are read, never the whole history (step 185-02).
+    known = {c["sha"]: c for c in await asyncio.to_thread(commits_of, [w.sha for w in waiting])}
     for i in range(0, len(waiting), WRITER_BATCH):
         rows = [w for w in waiting[i:i + WRITER_BATCH]]
         batch = [known[w.sha] for w in rows if w.sha in known]
@@ -1184,6 +1355,7 @@ def rebuild(org: str) -> bool:
             m.GeneLogEvent.objects.filter(org_id=org).exclude(gene_id__in=drafts).delete()
             m.GeneLogGene.objects.filter(org_id=org).exclude(id__in=drafts).delete()
             m.GeneLogCommit.objects.filter(org_id=org).delete()
+            m.AppState.objects.filter(key=HEAD_KEY + org).delete()
             log.info("gene log for %s written again under rule %s", org, LOG_VERSION)
         m.AppState.objects.update_or_create(key=key, defaults={"value": str(LOG_VERSION)})
     return written and not pooled
@@ -1206,22 +1378,45 @@ def retry_unread(org: str) -> int:
     return rows.update(how="", tries=0, said="")
 
 
-def tick(who) -> dict:
-    """The log kept true without anybody asking: manifests in, Mutations followed, every landed
-    change read. The gene writer is `write`'s, asked on the beat after (it needs a model)."""
+#: How often the catch-up looks, besides at Rouh's start (`runtime._gene_log_catch_up_loop`).
+CATCH_UP_EVERY = 24 * 60 * 60
+
+
+def tick(who, *, whole: bool = True) -> dict:
+    """The catch-up's part with no model: the log made true without anybody asking - manifests in,
+    Mutations followed, every landed commit not yet written (`fill`). `whole` False (the daily look)
+    answers at once, from one `git rev-parse` and one row, when the code has not moved since the log
+    was last filled and nothing waits for the gene writer."""
     org = str(who.org_id)
     if not on(org):
         return {"off": True}
+    if not whole:
+        head = _head()
+        if head and head == _filled_to(org) and not waiting(org):
+            return {"nothing": True, "head": head}
     out = {"rebuilt": rebuild(org), "retried": retry_unread(org)}
     # The history is read before a manifest's drift is looked at, so a changed contract is put to the
     # change that made it, and the drift check only catches what no change read could explain.
     for name, step in (("seeded", lambda: seed(org)), ("mutations", lambda: follow_mutations(org)),
-                       ("scan", lambda: scan(org)), ("map", lambda: seed_map(org)),
+                       ("scan", lambda: fill(org)), ("map", lambda: seed_map(org)),
                        ("drift", lambda: seed(org, drift=True))):
         try:
             out[name] = step()
         except Exception:  # noqa: BLE001 - one step failing leaves the others to run
             log.exception("gene log: %s failed for %s", name, org)
+    return out
+
+
+async def catch_up(who, *, whole: bool = True) -> dict:
+    """The catch-up: `tick`, then the gene writer only for a change that waits for it. At Rouh's start
+    `whole`; once a day not, so a day with nothing new costs no git log and no model call."""
+    import asyncio
+
+    out = await asyncio.to_thread(tick, who, whole=whole)
+    if out.get("off") or out.get("nothing"):
+        return out
+    if await asyncio.to_thread(waiting, str(who.org_id)):
+        out["writer"] = await write(who)
     return out
 
 

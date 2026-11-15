@@ -70,8 +70,11 @@ async def read(request: HttpRequest):
             raise genelog.Refused("Only an administrator of this Rouh reads its changes into the log.")
         if not await sync_to_async(genelog.on)(str(me.org_id)):
             raise genelog.Refused("The gene log is switched off (gene_log, under Other switches in Evolution, Mutations).")
-        got = await sync_to_async(genelog.tick)(me)
-        wrote = await genelog.write(me)
+        # The catch-up by hand: every landed commit the log has not written yet, the gene writer only
+        # for one with no label (`genelog.catch_up`). A landing writes its own change at once
+        # (`genelog.landed`), so this mostly finds nothing new.
+        got = await genelog.catch_up(me)
+        wrote = got.get("writer") or {}
         if await sync_to_async(geneuse.on)(str(me.org_id)):
             await sync_to_async(geneuse.rollup)(str(me.org_id))
         # And the genes chosen for the Gene Pool sent, where this Rouh has joined it.
@@ -88,6 +91,9 @@ async def read(request: HttpRequest):
             parts.append(f"sent {sent['sent']} to the {genepool.NAME}")
         if sent.get("held"):
             parts.append(f"{sent['held']} node{'s wait' if sent['held'] != 1 else ' waits'} for your review in Your genes for the {genepool.NAME}")
+        head = str(scan.get("head") or "")
+        if head:
+            parts.append(f"the log is up to date through {head[:12]}")
         return {"ok": True, "said": ", ".join(parts) + "."}
     return await _post(request, act)
 

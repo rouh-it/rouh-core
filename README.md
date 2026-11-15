@@ -1802,6 +1802,19 @@ rather than starting both. A collision prevented costs the minutes the job ahead
 was taking anyway; a collision resolved costs a whole turn of a model, or a
 person.
 
+**What landed is written into the gene log at landing** (task 185, step 185-02,
+15 November 2026). A change that goes live through the protected core is put to
+its genes at once (`genelog.landed`, from `codechanges.Watch`): by its own
+`Gene:` line, its files' genes in the gene map, the manifest it changes or the
+night that built it, and only a change with none of those asks the gene writer,
+a model call. A deploy by `land.sh` on a server ends in a restart of Rouh, and
+the gene log's catch-up soon after every start (and once a day) writes whatever
+no landing wrote: hand edits, a trigger the restart cut off, a gene writer that
+failed. A Rouh update's changes keep the genes their code commits them to and
+are never this owner's new genes. There is no 15-minute read of the history any
+more; the switch `gene_log` stops the trigger and the catch-up alike.
+GENES.md, "The gene log", has the whole of it.
+
 ## The one program
 
 `one/` is a separate program, from task 30's step 07, running beside Rouh on

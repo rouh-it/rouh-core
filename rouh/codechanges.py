@@ -147,9 +147,10 @@ def take(bundle: Path) -> dict:
         return {"ok": False, "commit": commit, "refused": str(exc)}
     except guardface.Unavailable as exc:
         return {"ok": False, "commit": commit, "error": str(exc)}
-    _keep_landing(str(meta.get("by") or ""),
-                  (_git("rev-list", "--reverse", f"{base}..{commit}").stdout.split() if base else []) or [commit])
-    return {"ok": True, "commit": commit, "point": answer.get("point"), "said": answer.get("said", "")}
+    commits = (_git("rev-list", "--reverse", f"{base}..{commit}").stdout.split() if base else []) or [commit]
+    _keep_landing(str(meta.get("by") or ""), commits)
+    return {"ok": True, "commit": commit, "commits": commits, "point": answer.get("point"),
+            "said": answer.get("said", "")}
 
 
 def _keep_landing(by: str, commits: list[str]) -> None:
@@ -201,9 +202,13 @@ def quiet(got: dict) -> tuple[str, str] | None:
 class Watch:
     """Picks up proposals and the doctor's notice, every few seconds, where there is a core."""
 
-    def __init__(self, every: float = 10.0) -> None:
+    def __init__(self, every: float = 10.0, on_live=None) -> None:
         self.every = every
         self.task: asyncio.Task | None = None
+        #: Called with a change's commits as soon as it is live: the gene log's trigger
+        #: (`genelog.landed`, task 185, step 185-02). Whatever it misses - cut off by the restart the
+        #: change itself causes - the gene log's catch-up at the next start writes.
+        self.on_live = on_live
 
     def start(self) -> None:
         if not guardface.here():
@@ -242,6 +247,11 @@ class Watch:
             got = await asyncio.to_thread(take, bundle)
             got.update(state="done", at=time.time())
             _write(result, got)
+            if got.get("ok") and got.get("commits") and self.on_live is not None:
+                try:
+                    await self.on_live(list(got["commits"]))
+                except Exception:  # noqa: BLE001 - the gene log's catch-up writes it instead
+                    log.exception("what a live change landed on could not be written down at once")
             await self._tell(got)
 
     async def _tell(self, got: dict) -> None:

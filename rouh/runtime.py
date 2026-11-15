@@ -471,17 +471,18 @@ async def _nightly_watch_loop() -> None:
         await asyncio.sleep(NIGHTLY_WATCH_EVERY)
 
 
-#: How often the gene log reads what landed and counts each gene's use (`rouh/genelog.py`).
+#: How often each gene's use is counted, the Gene Pool kept in sync and the birth looked after
+#: (`rouh/geneuse.py`, `rouh/genepool.py`, `rouh/birth.py`). The gene log itself is no longer read
+#: on a beat: a change is written into it when it lands (`genelog.landed`), and the catch-up below
+#: fills what no landing wrote (task 185, step 185-02).
 GENE_LOG_EVERY = 15 * 60
 
 
 async def _gene_log_loop() -> None:
-    """The gene log kept true by itself (task 98, step 98-16): Rouh's manifests and Mutations
-    followed, every change that landed read and put to its gene (the gene writer for the rest), each
-    gene's use counted a day at a time, and, from the 25th of a month, the model's evaluation of the
-    genes used that month; and, once this Rouh has joined the Gene Pool, the genes chosen for it kept in
-    sync. Each part stops with its switch (`gene_log`, `gene_usage`, `gene_pool`)."""
-    from . import birth, genelog, genepool, geneuse
+    """Each gene's use counted a day at a time, and, from the 25th of a month, the model's evaluation
+    of the genes used that month; and, once this Rouh has joined the Gene Pool, the genes chosen for it
+    kept in sync. Each part stops with its switch (`gene_usage`, `gene_pool`)."""
+    from . import birth, genepool, geneuse
 
     await asyncio.sleep(60)
     while True:
@@ -489,9 +490,6 @@ async def _gene_log_loop() -> None:
             owner = await asyncio.to_thread(telegram.phone_owner, tenancy)
             if owner is not None:
                 org = str(owner.org_id)
-                await asyncio.to_thread(genelog.tick, owner)
-                if await asyncio.to_thread(genelog.on, org):
-                    await genelog.write(owner)
                 if await asyncio.to_thread(geneuse.on, org):
                     await asyncio.to_thread(geneuse.rollup, org)
                     if time.localtime().tm_mday >= 25:
@@ -502,8 +500,39 @@ async def _gene_log_loop() -> None:
                 # once due; nothing at all for a Rouh not born (`birth.tick`).
                 await birth.tick(owner)
         except Exception:  # noqa: BLE001 - tried again on the next beat
-            log.exception("the gene log's beat failed")
+            log.exception("the gene use and Pool beat failed")
         await asyncio.sleep(GENE_LOG_EVERY)
+
+
+async def _gene_log_catch_up_loop() -> None:
+    """The gene log's catch-up (task 185, step 185-02): soon after every start of Rouh - which is
+    also what every deploy by land.sh, every change through the protected core and every Rouh update
+    ends in - every landed commit the log has not written is written, and then once a day the same,
+    which answers from one `git rev-parse` when nothing moved. Off with the switch `gene_log`."""
+    from . import genelog
+
+    await asyncio.sleep(60)
+    whole = True
+    while True:
+        try:
+            owner = await asyncio.to_thread(telegram.phone_owner, tenancy)
+            if owner is not None:
+                got = await genelog.catch_up(owner, whole=whole)
+                if not got.get("nothing") and not got.get("off"):
+                    log.info("gene log catch-up: %s", got)
+                whole = False
+        except Exception:  # noqa: BLE001 - tried again on the next look
+            log.exception("the gene log's catch-up failed")
+        await asyncio.sleep(genelog.CATCH_UP_EVERY)
+
+
+async def _gene_log_landed(commits: list[str]) -> None:
+    """The gene log's trigger: a change of Rouh's code went live through the protected core."""
+    from . import genelog
+
+    owner = await asyncio.to_thread(telegram.phone_owner, tenancy)
+    if owner is not None:
+        await genelog.landed(owner, commits)
 
 
 #: How often the model standard and the outcome counts are looked at (`rouh/modeloutcomes.py`);
@@ -963,7 +992,7 @@ notice_sweeper = notices.Sweeper()
 gene_watch = genelab.Watch()
 #: Changes a run proposes for this Rouh's own code, and the doctor's word, picked up where a
 #: protected core is beside it (`rouh/codechanges.py`, guard/README.md). Asks nothing elsewhere.
-code_changes = codechanges.Watch()
+code_changes = codechanges.Watch(on_live=lambda commits: _gene_log_landed(commits))
 #: Rouh's updates: the ride along to the newest release, the note in General after an update's
 #: restart, and on the Creator Rouh the releases themselves (`rouh/code_update.py`,
 #: `rouh/code_release.py`). `_say_in_chat` is defined further up and is how the note is said.
@@ -7834,6 +7863,8 @@ async def startup() -> None:
     asyncio.ensure_future(_nightly_watch_loop())
     # The gene log: every gene in Rouh, filled by itself, with each gene's use (`rouh/genelog.py`).
     asyncio.ensure_future(_gene_log_loop())
+    # Its catch-up, at the start and once a day; the trigger is the landing (`codechanges.Watch`).
+    asyncio.ensure_future(_gene_log_catch_up_loop())
     asyncio.ensure_future(_model_standard_loop())
     # The defaults every Rouh starts with, from rouh.land soon after a start and once a day (`rouh/ruledefaults.py`).
     asyncio.ensure_future(_rule_defaults_loop())

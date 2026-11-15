@@ -126,12 +126,15 @@ smoke.LIMIT.update({"workspace.one": 900, "workspace.github": 420,
 
 @check("self.gene-log")
 def gene_log(s: Stack) -> None:
-    """The change a run made of Rouh's own code is read into the gene log (Read now, on the page)."""
+    """The change a run made of Rouh's own code is in the gene log: written when it went live
+    (`genelog.landed`), else by the catch-up that Read now, on the page, runs. Either way the log is
+    up to date through the code that runs (task 185, step 185-02)."""
     from checks_nightly import _post
 
     self_improve(s)
+    head = s.run("core", "git -c safe.directory='*' -C /code rev-parse HEAD").stdout.strip()
     got = _post(s, "/api/genes/log/read", {})
-    expect(got.get("ok") and "Read 0 new" not in str(got.get("said")), f"the gene log's Read now: {got}")
+    expect(got.get("ok") and head[:12] in str(got.get("said")), f"the gene log's Read now (code at {head[:12]}): {got}")
 
 
 smoke.LAST.add("self.gene-log")

@@ -573,7 +573,7 @@ Two things are not on the Models page, and say so: Synapse's embeddings, which b
 ## Every change names its gene
 
 Petar, 13 October 2026 (task 98, step 98-16): "Everything that remains in my Rouh needs to be formulated as a gene in a list ... automatically populated by anything I build."
-So Rouh keeps a gene log (`rouh/genelog.py`, GENES.md "The gene log"), and it reads every commit that lands.
+So Rouh keeps a gene log (`rouh/genelog.py`, GENES.md "The gene log"), and it writes every commit down as it lands, with a catch-up at Rouh's start and once a day for anything no landing wrote.
 
 **Every file belongs to a gene.** Petar, 19 October 2026: "there is no plumbing that is not gene".
 `rouh/genes/owners.json` maps every file of this repository but `workspace/` to the gene or genes it is part of, the shared parts underneath included (the turn loop, Synapse, mail, the screen, model calls, the one program, landing).
