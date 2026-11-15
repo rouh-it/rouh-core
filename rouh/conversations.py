@@ -389,6 +389,10 @@ def all_chats(*, limit: int = 300) -> list[dict]:
     # 27 September 2026, before a goal had exactly one chat
     # (`goals.retire_stream_chats`). Nothing archives a chat on a clock.
     forked |= {row.id for row in st.list_chats(state="archived", limit=None)}
+    # And an incognito chat, which no list shows and which goes when it ends (`rouh/incognito.py`).
+    from . import incognito
+
+    forked |= incognito.ids()
     counted = bool(limit) and limit > 0
     wanted = limit + len(forked) if counted else limit
     rows = [row for row in st.list_chats(limit=wanted) if row.id not in forked]

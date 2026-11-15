@@ -188,6 +188,20 @@ class RouhSocket(AsyncWebsocketConsumer):
             session.live = None
         runtime.Hub.sockets.discard(session)
         log.info("tab gone (%d open)", len(runtime.Hub.sockets))
+        # A tab closed in an incognito chat ends it, unless a tab is in it again within half a minute: a
+        # phone that drops its socket for a moment, or a reload, comes back to it (`rouh/incognito.py`).
+        left = session.session_id
+
+        async def later() -> None:
+            await asyncio.sleep(30)
+            with contextlib.suppress(Exception):
+                await runtime.incognito_left([left])
+
+        with contextlib.suppress(Exception):
+            from rouh import incognito
+
+            if incognito.quiet(left):
+                asyncio.ensure_future(later())
 
 
 class NoSuchSocket(AsyncWebsocketConsumer):

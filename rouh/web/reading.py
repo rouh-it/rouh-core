@@ -41,3 +41,24 @@ async def reading_api(request: HttpRequest):
         if not await sync_to_async(_exists)(chat):
             return refuse("There is no such chat.", 404)
     return answer(await sync_to_async(reading.view)(chat, me))
+
+
+@only("POST")
+async def incognito_api(request: HttpRequest):
+    """POST /api/incognito {"start": true}: a new incognito chat, as {"chat": id}; {"end": "<id>"} ends one
+    nobody is in (`rouh/incognito.py`). The page opens the new chat itself, and leaving it ends it."""
+    from rouh import incognito, runtime
+
+    me = await sync_to_async(who)(request)
+    if me is None:
+        return refuse("sign in", 401)
+    sent = body_of(request)
+    if sent.get("start"):
+        # Any other incognito chat nobody is in goes first: one started and never opened is not left behind.
+        await runtime.incognito_left(incognito.ids())
+        chat = await sync_to_async(incognito.start)()
+        return answer({"chat": chat})
+    if sent.get("end"):
+        await runtime.incognito_left([str(sent.get("end"))])
+        return answer({"ended": True})
+    return refuse("Say start or end.", 400)

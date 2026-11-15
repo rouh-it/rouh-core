@@ -11467,6 +11467,13 @@ class ToolRegistry:
                     "In demo mode only the tasks approved for the demo can be read or shown: "
                     "give the path of a file inside one of them. Searching the whole workspace "
                     "is not available while it is on.")
+        # An incognito chat writes nothing to the person's memory, thoughts or tasks (`rouh/incognito.py`).
+        from . import incognito
+
+        quiet = "" if name not in incognito.WRITES else await asyncio.to_thread(
+            lambda: incognito.refuses(name, self.memory.answering_chat() if self.memory is not None else ""))
+        if quiet:
+            return untrusted.ours(quiet)
         turn = mail_turn.now()
         if turn is not None and not turn.may_use(name):
             return untrusted.ours(mail_turn.refused(name))

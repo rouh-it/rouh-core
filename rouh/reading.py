@@ -545,6 +545,10 @@ def view(chat_id: str, who=None) -> dict:
         out["subtasks"] = [{"id": sub.id, "label": subtasknotes.label(sub),
                             "on": s["subtasks"] == "all" or (s["subtasks"] == "some" and sub.id in picked)}
                            for sub in subs]
+    if is_incognito:
+        from . import incognito
+
+        out["kept"] = incognito.KEPT
     # The rules this chat is told, readable in the panel, each locked or not.
     out["rules"] = rules_listing(chat_id, who)
     return out

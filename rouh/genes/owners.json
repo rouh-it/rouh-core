@@ -492,6 +492,7 @@
     "rouh/chatkinds.py",
     "rouh/general_summary.py",
     "rouh/reading.py",
+    "rouh/incognito.py",
     "rouh/web/reading.py",
     "rouh/static/app/composer_extras.js",
     "rouh/static/app/reading.js",

@@ -458,6 +458,7 @@ urlpatterns = [
 
     # --- Google: the organisation's client, and each person's connection ----------------
     path("api/reading", reading.reading_api),
+    path("api/incognito", reading.incognito_api),
     path("api/settings/location", location.settings_location),
     path("api/settings/location/forget", location.forget),
     path("api/settings/location/place", location.typed_place),

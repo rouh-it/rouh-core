@@ -3317,6 +3317,23 @@ def tip_after(tab: "Session", chat_id: str, tip: str | None) -> str:
     return chat_id
 
 
+async def incognito_left(chat_ids) -> None:
+    """End each incognito chat among these that no open tab is in any more (`rouh/incognito.py`): it is
+    deleted with everything in it."""
+    from rouh import incognito
+
+    # No list shows an incognito chat (`conversations.all_chats`), so ending one tells no tab anything.
+    for chat_id in set(chat_ids or ()):
+        if not incognito.quiet(chat_id):
+            continue
+        if any(tab.session_id == chat_id for tab in open_tabs()):
+            continue
+        try:
+            await asyncio.to_thread(incognito.end, chat_id)
+        except Exception:  # noqa: BLE001 - the next start sweeps it
+            log.exception("an incognito chat could not be ended")
+
+
 async def switch_chat(chat_id: str, tabs, tip: str | None = None, *,
                       redraw: bool = False, focus: int | None = None) -> str:
     """Put one chat on the screen of the tabs that asked for it, and no other.
@@ -3355,6 +3372,8 @@ async def switch_chat(chat_id: str, tabs, tip: str | None = None, *,
     if isinstance(tabs, Session):
         tabs = [tabs]
     tabs = [tab for tab in (tabs or []) if not tab.closed]
+    # The chats these tabs are leaving: an incognito one ends when nobody is in it any more.
+    leaving = {tab.session_id for tab in tabs if tab.session_id and tab.session_id != chat_id}
 
     # The reading, on a thread: on the loop it held every socket still for as
     # long as General's forks took to read (23 October 2026). Whether it had
@@ -3407,6 +3426,8 @@ async def switch_chat(chat_id: str, tabs, tip: str | None = None, *,
     # chats to every tab, and each tab drew it all again.
     if was_unread:
         await announce_chats()
+    if leaving:
+        await incognito_left(leaving)
     return active
 
 
@@ -3518,6 +3539,10 @@ class ChatNames:
             return
         row = memory.chat(chat_id)
         if row is None or row["titled"] or row["messages"] < 2:
+            return
+        from . import incognito
+
+        if incognito.quiet(chat_id):   # its words go to no model but the one answering in it
             return
         cls.working.add(chat_id)
         try:
@@ -7527,6 +7552,13 @@ async def startup() -> None:
     # The event log's writer, from the start, so its rollups are filled in every
     # minute whether or not anything has happened yet (`rouh/events.py`).
     events.start()
+    # Incognito chats left from before this start: no tab is in any of them now (`rouh/incognito.py`).
+    try:
+        from rouh import incognito
+
+        await asyncio.to_thread(incognito.sweep)
+    except Exception:  # noqa: BLE001 - the next start tries again
+        log.exception("the incognito chats left from before could not be deleted")
     # Every task made for somebody outside, shared with them to edit once: the ones made
     # before this at the first pass, each new one as it is taken in (`rouh/requester_share.py`),
     # and every task under what is ticked on a contact's page, to read (`rouh/task_access.py`).

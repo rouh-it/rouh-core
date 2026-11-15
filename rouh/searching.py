@@ -219,6 +219,12 @@ def search(query: str, *, kind: str = ALL, limit: int = LIMIT, places=None, shar
         except Exception:
             # The words were still found; only the order is what it was.
             log.exception("the task numbered %r could not be put first", query)
+    # An incognito chat is never found (`rouh/incognito.py`).
+    from . import incognito
+
+    secret = incognito.ids()
+    if secret:
+        found = [hit for hit in found if not (hit.get("type") == "chat" and hit.get("id") in secret)]
     try:
         found = _fold_forks(store, found)
     except Exception:

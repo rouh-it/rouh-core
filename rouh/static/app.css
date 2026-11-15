@@ -11165,7 +11165,7 @@ html:not(.demo) .demo-dot:not(.keep) { display: none; }
 .reading-strip-words b { color: var(--text); font-weight: 600; margin-right: 4px; }
 .reading-strip-bit { white-space: nowrap; }
 .reading-pop {
-  position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 41;
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 50;
   max-height: min(62vh, 580px); overflow: auto; overscroll-behavior: contain;
   background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-s);
   box-shadow: var(--shadow); padding: 6px 6px 8px; box-sizing: border-box;
@@ -11248,7 +11248,12 @@ html:not(.demo) .demo-dot:not(.keep) { display: none; }
    chat that is kept. A darker ground, a violet edge, the eye struck through in place of the book and of
    the chat's name. Violet is used for this and nothing else. */
 :root { --incog: #b58cff; --incog-soft: rgba(181, 140, 255, 0.14); --incog-bg: #050608; }
-body.chat-incognito .panel-transcript { background: var(--incog-bg); box-shadow: inset 0 0 0 2px var(--incog); }
+body.chat-incognito .col-chat {
+  box-shadow: 0 0 0 2px var(--incog); border-radius: var(--radius); background: var(--incog-bg);
+  /* Every surface in the column darker, the empty chat's welcome included. */
+  --panel: var(--incog-bg);
+}
+body.chat-incognito .panel-transcript { background: var(--incog-bg); }
 body.chat-incognito .composer-box { border-color: var(--incog); background: var(--incog-bg); }
 body.chat-incognito .send-btn { background: var(--incog); }
 body.chat-incognito .reading-btn .ico-book { display: none; }

@@ -638,6 +638,12 @@ class Entry:
         from . import lean
 
         self.words = lean.keeps("model_words", org_id or None)
+        # An incognito chat's requests keep their tokens, cost and time, and never their words.
+        if self.words:
+            from . import incognito
+
+            if incognito.quiet(str(self.about.get("session_id") or "")):
+                self.words = False
         if not self.words:
             pieces.clear()
             system = tools = ""

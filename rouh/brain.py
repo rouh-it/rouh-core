@@ -389,9 +389,13 @@ def start_recall(session_id: str, user_content, emit, *, note: bool = False, see
     and not the note's. Never a job's report, the heartbeat or anybody else's email, and never in Synapse's
     own chats. Its look-ups are twigs on the turn's line on the orb (`orb_only`) and bars on the message's
     timeline in the chat (`recall` on the socket); `keep` keeps that timeline with the message."""
-    from . import mail_turn, recalling, signups
+    from . import incognito, mail_turn, recalling, signups
     from .synapse import autorecall
 
+    # Memory off for this chat, or an incognito chat, whose words automatic recall would write into its trace
+    # (`rouh/reading.py`, `rouh/incognito.py`).
+    if incognito.quiet(session_id) or not _reads(session_id)["memory"]:
+        return None
     words, source = "", "message"
     if not note:
         if signups.PERSON_TURN.get():

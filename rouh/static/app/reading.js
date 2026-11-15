@@ -18,7 +18,7 @@
  * after each change is what is drawn: the panel never guesses a count. Outside the chain, like
  * app/composer_extras.js, and imported by app.js after it.
  */
-import { CHATS } from 'app/chats.js';
+import { CHATS, openChat } from 'app/chats.js';
 import { composerPopsClose } from 'app/composer_extras.js';
 import { $, el } from 'app/helpers.js';
 import { notify } from 'app/notices.js';
@@ -34,7 +34,7 @@ import { notify } from 'app/notices.js';
 var btn = /** @type {HTMLButtonElement | null} */ ($('readingBtn'));
 var pop = $('readingPop');
 var strip = /** @type {HTMLButtonElement | null} */ ($('readingStrip'));
-var READ = { chat: '', data: /** @type {ReadView | null} */ (null), more: false, busy: false, asked: 0, focus: '' };
+var READ = { chat: '', data: /** @type {ReadView | null} */ (null), more: false, busy: false, asked: 0, focus: '', painted: '', openAfter: false };
 
 var LOCK = 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z';
 
@@ -192,6 +192,7 @@ function paintPop(d) {
   if (incognitoTo || d.incognito) top.appendChild(row('incognito', d.incognito, 'Incognito',
     d.incognito ? 'On: nothing here is kept, and the chat is deleted when you leave it'
                 : 'A new chat where nothing is kept, deleted when you leave it', 'incog'));
+  if (d.incognito && d.kept) top.appendChild(el('p', 'reading-verdict', d.kept));
   if (top.childNodes.length) pop.appendChild(top);
 
   var every = sec('In every chat');
@@ -240,11 +241,37 @@ function paint(d) {
   READ.data = d;
   paintStrip(d);
   if (d && pop && !pop.hidden) {
+    var moved = READ.painted !== d.chat;
     paintPop(d);
+    place();
+    // Another chat in the same open panel starts at its top: what it is, before its rules.
+    if (moved) pop.scrollTop = 0;
+    READ.painted = d.chat;
     var again = READ.focus ? /** @type {HTMLElement | null} */ (pop.querySelector(READ.focus)) : null;
     if (again) again.focus();
   }
   READ.focus = '';
+}
+
+/** Over the box, sized to the room there is: the box moves (the welcome holds it in the middle of an
+    empty chat, a phone's keyboard comes up), so this is done every time the panel is drawn. */
+function place() {
+  if (!pop || pop.hidden) return;
+  // Over the box itself, whatever the composer around it is: the welcome holds the box in the
+  // middle of a wide column.
+  var box = $('composerBox'), comp = $('composer');
+  if (box && comp) {
+    var b = box.getBoundingClientRect(), c = comp.getBoundingClientRect();
+    pop.style.left = Math.max(0, Math.round(b.left - c.left)) + 'px';
+    pop.style.right = Math.max(0, Math.round(c.right - b.right)) + 'px';
+    // Above the box when there is room there, as on a conversation; below it when the box is high
+    // up, as on an empty chat on a phone, where the panel would otherwise run off the top.
+    var above = Math.round(b.top - 16), below = Math.round(window.innerHeight - b.bottom - 16);
+    var up = above >= 280 || above >= below;
+    pop.style.top = up ? '' : 'calc(100% + 8px)';
+    pop.style.bottom = up ? '' : 'auto';
+    pop.style.maxHeight = Math.max(160, Math.min(580, up ? above : below)) + 'px';
+  }
 }
 
 /** @param {boolean} on */
@@ -254,15 +281,10 @@ function openPop(on) {
   pop.hidden = !on;
   btn.setAttribute('aria-expanded', on ? 'true' : 'false');
   if (strip) strip.setAttribute('aria-expanded', on ? 'true' : 'false');
-  if (on) {
-    // Over the box itself, whatever the composer around it is: the welcome holds the box in the
-    // middle of a wide column.
-    var box = $('composerBox'), comp = $('composer');
-    if (box && comp) {
-      var b = box.getBoundingClientRect(), c = comp.getBoundingClientRect();
-      pop.style.left = Math.max(0, Math.round(b.left - c.left)) + 'px';
-      pop.style.right = Math.max(0, Math.round(c.right - b.right)) + 'px';
-    }
+  if (on) place();
+  if (on && !READ.data) {
+    pop.textContent = '';
+    pop.appendChild(el('p', 'reading-verdict', 'Finding what this chat reads…'));
   }
   if (on && READ.data) {
     paintPop(READ.data);
@@ -278,7 +300,12 @@ function load(chat) {
   var asked = ++READ.asked;
   fetch('/api/reading?chat=' + encodeURIComponent(chat), { credentials: 'same-origin' })
     .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (d) { if (asked === READ.asked && READ.chat === chat) paint(d); })
+    .then(function (d) {
+      if (asked !== READ.asked || READ.chat !== chat) return;
+      paint(d);
+      // Just turned incognito: the panel shows the rules that will apply in it.
+      if (READ.openAfter && d && d.incognito) { READ.openAfter = false; openPop(true); }
+    })
     .catch(function () { /* the next look asks again */ READ.chat = ''; });
 }
 
@@ -314,6 +341,23 @@ var incognitoTo = null;
 
 /** @param {(on: boolean) => void} fn */
 function onIncognito(fn) { incognitoTo = fn; }
+
+/* Incognito on opens a new incognito chat and keeps the panel open on it, so the rules that will apply
+   are in front of the person; off goes back to the main chat, and leaving the incognito chat ends it
+   (rouh/incognito.py). */
+onIncognito(function (on) {
+  if (!on) { openChat(CHATS.general); return; }
+  // The look changes at once; the chat follows a moment later.
+  document.body.classList.add('chat-incognito');
+  fetch('/api/incognito', { method: 'POST', credentials: 'same-origin',
+                            headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ start: true }) })
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('refused')); })
+    .then(function (d) { if (d && d.chat) { READ.chat = ''; READ.openAfter = true; openChat(d.chat); } })
+    .catch(function () {
+      document.body.classList.remove('chat-incognito');
+      notify('An incognito chat could not be started. Try again in a moment.', { tone: 'error' });
+    });
+});
 
 if (btn && pop) {
   btn.addEventListener('click', function (e) {
@@ -372,6 +416,7 @@ if (btn && pop) {
   }, 400);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) READ.chat = ''; });
   window.addEventListener('rouh:reading-again', function () { READ.chat = ''; });
+  window.addEventListener('resize', place);
 }
 
 export { onIncognito, openPop as readingOpen, READ };
