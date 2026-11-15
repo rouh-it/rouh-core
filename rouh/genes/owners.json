@@ -1044,6 +1044,7 @@
   "rules": {
    "files": [
     "rouh/rules.py",
+    "rouh/tool_rules.py",
     "rouh/rule_groups.py",
     "rouh/web/rules.py",
     "rouh/management/commands/rules.py",

@@ -761,6 +761,14 @@ class Brain:
         """
         return "\n\n".join(block["text"] for block in self._system(openai=openai))
 
+    def tool_entries(self, provider: str = "claude") -> list:
+        """This turn's tools, each carrying the person's rules told with it (`rouh/tool_rules.py`)."""
+        from . import prompting, tool_rules
+
+        entries = self.tools.entries()
+        situation = prompting.Situation(tools=frozenset(t.name for t in entries), provider=provider)
+        return tool_rules.attach(entries, situation)
+
     def _tool_plan(self, entries, model: str) -> toolsearch.Plan:
         """What a request to this model declares: the tools and their catalogue."""
         return toolsearch.anthropic_plan(
@@ -1183,7 +1191,7 @@ class Brain:
         # one is deferred: the model is handed a search tool and a catalogue,
         # and loads what it needs (`rouh/toolsearch.py`). Which mode depends on
         # the model, so a fallback to one that cannot defer gets its own plan.
-        entries = self.tools.entries()
+        entries = self.tool_entries("claude")
         plan = self._tool_plan(entries, model)
         # A search in the history names the tools it loaded, and a name this
         # request does not declare is a 400 on this turn and every one after.

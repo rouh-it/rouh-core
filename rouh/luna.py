@@ -968,7 +968,7 @@ async def turn(brain, session_id: str, user_content, emit, on_sentence, model: s
     messages = attachments.hydrate(messages, brain.files)
     # Every tool declared, and none loaded until a search asks for it, as
     # for Claude (`plan_for`).
-    entries = brain.tools.entries()
+    entries = brain.tool_entries("luna")
     plan = plan_for(entries, cfg)
     tools = plan.tools
     spaces = namespaces_of(entries, plan)

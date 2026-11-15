@@ -189,7 +189,8 @@ REACH = ("chats", "runs", "synapse")
 
 def when_of(r: dict) -> dict:
     """A rule's conditions for a conversation turn, with which replies it is kept to as one of them."""
-    when = {k: v for k, v in (r.get("when") or {}).items() if k != "in" and v}
+    # `with` is not a condition of the turn but where in it the rule is told (`rouh/tool_rules.py`).
+    when = {k: v for k, v in (r.get("when") or {}).items() if k not in ("in", "with") and v}
     if r.get("mode") and not when.get("reply"):
         when["reply"] = r["mode"]
     return when
@@ -303,7 +304,7 @@ def condition_lines(r: dict) -> list[str]:
     `reach`, `in_chat`, `prompt_parts` and `run_block` decide from, so the lines cannot say other than what
     happens. Petar, 30 October 2026: "conditions- make it in bullet points, each condition on new line", so the
     page draws each line as a bullet of its own."""
-    from . import prompting
+    from . import prompting, tool_rules
 
     where = reach(r)
     situ = prompting.situation_words(when_of(r))
@@ -328,6 +329,10 @@ def condition_lines(r: dict) -> list[str]:
         lines += [("Only when " if i == 0 else "Or when ") + b for i, b in enumerate(bits)]
         if "synapse" in where:
             lines.append("And in Synapse's answers that find " + ("them" if people and len(people) > 1 else "it"))
+    elif tool_rules.told_with_tools(r) and "chats" in where:
+        lines.append(tool_rules.for_page(r))
+        lines += [("Only when " if i == 0 else "And when ") + w for i, w in enumerate(situ)]
+        lines += [f"Every turn, in {said[w]}" for w in ("runs", "synapse") if w in where]
     elif situ:
         lines.append(f"In {_CHATS}")
         lines += [("Only when " if i == 0 else "And when ") + w for i, w in enumerate(situ)]
@@ -638,6 +643,26 @@ def set_on(ds: dict, org_id: str, ref: str, on: bool, *, by: str) -> bool:
     permission is code, and stays whether the rule about it is on or off."""
     _, ident = _ref(ref)
     return _merge_rule(ds, ident, {"off": not on}, _event("on" if on else "off", by))
+
+
+def set_with(ds: dict, rule_id: str, targets: list[str] | None, *, by: str) -> bool:
+    """Tell a rule with these tools (areas of the catalogue, or tools by name) rather than in every chat turn,
+    or, with none, in every turn again (`rouh/tool_rules.py`). Its words, its other conditions and everything
+    agents and Synapse are told are unchanged."""
+    from .synapse import db
+    from .synapse.db import Json
+
+    row = _rule_meta(ds, rule_id)
+    if row is None:
+        return False
+    when = dict((row.get("meta") or {}).get("when") or {})
+    wanted = [str(t) for t in targets or [] if str(t).strip()]
+    if wanted:
+        when["with"] = wanted
+    else:
+        when.pop("with", None)
+    return _merge_rule(ds, rule_id, {"when": when},
+                       _event("told with tools" if wanted else "told every turn", by, tools=wanted))
 
 
 def set_group(ds: dict, org_id: str, ref: str, group: str, *, by: str) -> bool:
@@ -1336,14 +1361,23 @@ def placed(ds: dict | None, part: str) -> list[dict]:
     """The rules on with a place in this part of a conversation's prompt (`prompting.Prompt`), in their order."""
     if not ds:
         return []
-    got = [r for r in rules(ds) if r["place"] and r["place"].get("part", "cached") == part]
+    from . import tool_rules
+
+    # A rule told with its tools is in those tools' descriptions instead (`rouh/tool_rules.py`).
+    got = [r for r in rules(ds) if r["place"] and r["place"].get("part", "cached") == part
+           and not tool_rules.told_with_tools(r)]
     return sorted(got, key=lambda r: (int(r["place"].get("position") or 0), r["made_at"], r["id"]))
 
 
 def _chat_rules(ds: dict, situation=None) -> list[dict]:
     """The rules on that a conversation turn is told in the person's sections: no place of their own, and
-    everything they say holding for this turn (`in_chat`)."""
-    return [r for r in rules(ds) if not r["place"] and in_chat(r, situation)]
+    everything they say holding for this turn (`in_chat`). A rule told with its tools is not among them: its
+    words go with those tools' definitions (`rouh/tool_rules.py`), unless it is for a person, task or project,
+    which is told by who or what it is for as always."""
+    from . import tool_rules
+
+    return [r for r in rules(ds) if not r["place"] and in_chat(r, situation)
+            and (r["for"] or not tool_rules.told_with_tools(r))]
 
 
 def prompt_parts(chat_id: str = "", situation=None) -> list[tuple[str, dict]]:
@@ -1519,7 +1553,10 @@ def listing(ds: dict) -> dict:
     followed, so its words are not handed to the model. A rule with a place in the prompt or a condition of its
     own is listed by its name and its conditions, since a turn it applies to has its words already."""
     everything = rules(ds)
-    plain = [r for r in everything if not r["place"] and not when_of(r) and reach(r) >= {"chats", "runs"}]
+    from . import tool_rules
+
+    plain = [r for r in everything if not r["place"] and not when_of(r) and reach(r) >= {"chats", "runs"}
+             and not tool_rules.told_with_tools(r)]
     rest = [r for r in everything if r not in plain and not r["for"] and not r["mode"]]
     from . import vocabulary
 

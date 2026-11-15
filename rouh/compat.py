@@ -256,7 +256,7 @@ async def turn(brain, session_id: str, user_content, emit, on_sentence, model: s
         messages = messages + [{"role": "user", "content": turnmarks.ANSWER_NOW}]
     messages = attachments.hydrate(messages, brain.files)
     # Only Rouh's own tools: the web tools are Anthropic's and OpenAI's, run on their side.
-    entries = [t for t in brain.tools.entries() if t.portable]
+    entries = [t for t in brain.tool_entries("other") if t.portable]
     always = {n for n in getattr(cfg, "tools_always_loaded", ()) if n in {t.name for t in entries}}
     catalogue = toolsearch.catalogue(entries, mode="client", always=sorted(always))
     plan = toolsearch.Plan(mode="client", tools=[], catalogue=catalogue,

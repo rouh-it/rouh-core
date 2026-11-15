@@ -69,7 +69,7 @@ MOST_TEXT = 100_000
 #: Who a rule taken in from the defaults was made or changed by, in its history.
 BY = "Rouh's defaults"
 
-_WHEN_LISTS = ("tools_all", "tools_any", "tools_none", "flags", "in")
+_WHEN_LISTS = ("tools_all", "tools_any", "tools_none", "flags", "in", "with")
 _WHEN_WORDS = ("provider", "reply", "channel")
 
 
@@ -345,6 +345,10 @@ def take(ds: dict, doc: dict) -> dict:
             if raw != u["text"]:
                 rules.edit_rule(ds, str(row["id"]), u["text"], by=BY)
             change = {**_extras(u), "upstream": {"key": u["key"], "version": u["version"], "digest": digest(u["text"])}}
+            # Told with its tools here (`rouh/tool_rules.py`): newer words do not move it back into every turn.
+            mine = (meta.get("when") or {}).get("with") if isinstance(meta.get("when"), dict) else None
+            if mine and not (change.get("when") or {}).get("with"):
+                change["when"] = {**(change.get("when") or {}), "with": mine}
             db.run("UPDATE synapse.item SET meta = (meta - 'newer') || %s::jsonb, updated_at = now() WHERE id = %s",
                    (Json(change), row["id"]))
             updated += 1
