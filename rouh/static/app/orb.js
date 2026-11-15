@@ -15,7 +15,7 @@ import { taskRecs } from 'app/tasks.js';
 import 'app/attachments.js';
 import { sbSet } from 'app/controls.js';
 import { ORB_SOUND, orbSoundArrived, orbSoundSync, wireOrbSound } from 'app/orb_sound.js';
-import { orbUsageOpen, orbUsageShow, wireOrbUsage } from 'app/orb_costs.js';
+import { orbUsageOpen, orbUsageShow, orbUsageUp, wireOrbUsage } from 'app/orb_costs.js';
 import { orbPanelOpen, orbPanelPaint, orbPanelShow, wireOrbPanel } from 'app/orb_panel.js';
 import { O3, orb3dFrame, orb3dKeeps, orb3dPick, orb3dPoints, orb3dRecenter, orb3dStart } from 'app/orb3d.js';
 
@@ -3202,8 +3202,9 @@ wireOrbPanel();
     // The settings panel is a thing too, and it is the nearer one: one press
     // shuts the panel and leaves the orb open behind it.
     if (orbPanelOpen()) { orbPanelShow(false); return; }
-    // So is the usage screen: one press brings the orb back behind it.
-    if (orbUsageOpen()) { orbUsageShow(false); return; }
+    // So is the usage screen: one press goes up one level of its drill-down,
+    // and at its top brings the orb back behind it.
+    if (orbUsageOpen()) { if (!orbUsageUp()) orbUsageShow(false); return; }
     orbExpand(false);
   });
   // The box follows whatever it is placed against: the bottom-left of the

@@ -4627,7 +4627,7 @@ with {% asset %}, which gives it its hashed address.
            again, or Back to the orb, or Escape, and the orb is back. {% endcomment %}
       <button id="orbUsage" class="orb-usage" type="button" hidden
               aria-pressed="false" aria-controls="orbUsageView"
-              aria-label="LLM cost and calls" title="LLM cost and calls">
+              aria-label="What the models cost" title="What the models cost">
         {# Three bars of different heights on a baseline. #}
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor"
              stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
@@ -4635,38 +4635,21 @@ with {% asset %}, which gives it its hashed address.
           <path d="M4.2 11V7.5M8 11V3.5M11.8 11V6"></path>
         </svg>
       </button>
+      {% comment %} Petar, 12 and 15 November 2026 (task 182): every chart and row can be
+           pressed, one level down at a time, with the trail of where he is at the top
+           and Up one level (or Escape) at every level. Everything inside it is drawn by
+           app/orb_costs.js from rouh/usage_drill.py. {% endcomment %}
       <section id="orbUsageView" class="orb-usage-view" hidden aria-labelledby="orbUsageTitle">
         <div class="ou-inner">
           <header class="ou-head">
-            <div>
-              <div class="ou-k" id="orbUsageTitle">LLM cost and calls</div>
-              <div class="ou-total" id="orbUsageTotal">--</div>
-              <div class="ou-sub" id="orbUsageSub"></div>
-            </div>
-            <button id="orbUsageBack" class="ou-back" type="button" title="Back to the orb (Esc)">Back to the orb</button>
+            <h2 class="ou-k" id="orbUsageTitle">What the models cost</h2>
+            <button id="orbUsageBack" class="ou-back" type="button" title="Back to the orb">Back to the orb</button>
           </header>
-          <p class="ou-note" id="orbUsageNote" hidden></p>
-          {% comment %} Petar, 4 October 2026 (fr_892e1b24297d): the day by day chart
-               first, "on the very top, above the model breakdown chart". {% endcomment %}
-          <section class="ou-part" id="orbUsageByDay" hidden aria-labelledby="orbUsageDaysK">
-            <h3 class="ou-h" id="orbUsageDaysK">Day by day</h3>
-            <div class="ou-days" id="orbUsageDays"></div>
-          </section>
-          {% comment %} Petar, 3 October 2026 (fr_f318d715a378): every model as a bar,
-               with its calls beside its cost and what one call costs, and a
-               table of what the calls were for, by the log's own purpose. {% endcomment %}
-          <section class="ou-part" id="orbUsageByModel" hidden aria-labelledby="orbUsageModelsK">
-            <h3 class="ou-h" id="orbUsageModelsK">By model</h3>
-            <div class="ou-models" id="orbUsageModels" role="table" aria-labelledby="orbUsageModelsK"></div>
-          </section>
-          <section class="ou-part" id="orbUsageByType" hidden aria-labelledby="orbUsageTypesK">
-            <h3 class="ou-h" id="orbUsageTypesK">By type of call</h3>
-            <table class="ou-types">
-              <thead><tr><th scope="col">What it was for</th><th scope="col">Calls</th>
-                <th scope="col">Cost</th><th scope="col">Per call</th></tr></thead>
-              <tbody id="orbUsageTypes"></tbody>
-            </table>
-          </section>
+          <nav class="ou-trail" id="orbUsageTrail" aria-label="Where you are"></nav>
+          <div class="ou-period" id="orbUsagePeriod"></div>
+          <div class="ou-body" id="orbUsageBody" aria-live="polite"></div>
+        </div>
+      </section>
         </div>
       </section>
       <button id="orbCog" class="orb-cog" type="button" hidden

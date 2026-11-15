@@ -150,6 +150,61 @@ async def machine_load_now(request: HttpRequest):
     return answer(snapshot)
 
 
+#: What the drill-down may be asked, beside the period: the choices made on the way down.
+_DRILL_ASKS = ("provider", "model", "purpose", "day", "hour", "origin")
+
+
+def _drill_args(request: HttpRequest) -> dict:
+    got = request.GET
+    out = {k: got.get(k) for k in ("period", "at", "start", "end") if got.get(k)}
+    # In the order the address gives them, which is the order they were chosen in.
+    out.update({k: v for k, v in got.items() if k in _DRILL_ASKS})
+    return out
+
+
+async def _drill(request: HttpRequest, work):
+    """One question of the orb's stats screen to the log (`rouh/usage_drill.py`), answered as JSON."""
+    from rouh import usage_drill
+
+    identity = who(request)
+    if identity is None:
+        return refuse("sign in first", 401)
+    try:
+        return answer(await asyncio.to_thread(work, usage_drill, identity), headers=NO_STORE)
+    except usage_drill.Refused as exc:
+        return refuse(str(exc), 400)
+    except Exception as exc:
+        log.exception("the drill-down could not be read")
+        return refuse(f"the log could not be read: {exc}", 500)
+
+
+@only("GET")
+async def usage_level(request: HttpRequest):
+    """One level of the drill-down: a period, the choices made, split by one more thing."""
+    asked = _drill_args(request)
+    by = request.GET.get("by") or None
+    return await _drill(request, lambda m, who_: m.level(who_, by=by, **asked))
+
+
+@only("GET")
+async def usage_calls(request: HttpRequest):
+    """The calls of a level of the drill-down, dearest or newest first, fifty at a time."""
+    asked = _drill_args(request)
+    order = request.GET.get("order") or "cost"
+    try:
+        offset = int(request.GET.get("offset") or 0)
+    except ValueError:
+        return refuse("offset is a number", 400)
+    return await _drill(request, lambda m, who_: m.calls(who_, order=order, offset=offset, **asked))
+
+
+@only("GET")
+async def usage_call(request: HttpRequest):
+    """One call, and why it cost what it did."""
+    call = request.GET.get("id") or ""
+    return await _drill(request, lambda m, who_: m.one_call(who_, call))
+
+
 @only("GET")
 async def spend_record(request: HttpRequest):
     """What Rouh has spent, for the status page at /gaps."""

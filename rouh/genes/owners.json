@@ -221,7 +221,8 @@
     "rouh/llmguard.py",
     "rouh/promptcache.py",
     "rouh/costs.py",
-    "rouh/usage.py"
+    "rouh/usage.py",
+    "rouh/usage_drill.py"
    ],
    "needed_by": [
     "answered-in-chat",

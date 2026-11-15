@@ -833,118 +833,154 @@ button { font: inherit; color: inherit; }
    behind the numbers. The controls in the top-right corner stay over it, so
    the button that opened it is where it was, pressed.
 
-   Every day is one row: its date, a bar as long as the day's cost against the
-   dearest day in the stretch, split into one piece per model in that model's
-   colour, and the day's total. Under the bar every model's own amount is
-   written out, so nothing needs a pointer to be read. */
+   Since 15 November 2026 (task 182) it is a drill-down: the trail of where
+   he is, the period, a headline, the day by day chart and a row for each
+   thing the level splits into, every bar and row a button one level down,
+   then the calls and one call (app/orb_costs.js). */
 .orb-usage-view {
   position: absolute; inset: 0; z-index: 1;
-  overflow-y: auto; overscroll-behavior: contain;
+  overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
   background: var(--bg); color: var(--text);
   font-family: var(--sans);
 }
 .orb-usage-view[hidden] { display: none; }
-.ou-inner { max-width: 820px; margin: 0 auto; padding: 54px 20px 40px; }
-.ou-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.ou-inner { max-width: 880px; margin: 0 auto; padding: 54px 20px 48px; }
+.ou-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 .ou-k {
-  font: 500 10px/1 var(--mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim);
+  margin: 0; font: 500 11px/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim);
 }
-.ou-total {
-  margin-top: 8px; font: 600 30px/1.1 var(--sans); font-variant-numeric: tabular-nums;
-}
-.ou-sub { margin-top: 6px; font-size: 12.5px; line-height: 1.45; color: var(--dim); }
-.ou-back {
+.ou-back, .ou-btn, .ou-up {
   appearance: none; cursor: pointer; flex: none;
-  padding: 7px 12px; border-radius: var(--radius-s);
-  font: 500 12.5px/1 var(--sans); color: var(--text);
-  background: var(--panel-2); border: 1px solid var(--line);
+  min-height: 36px; padding: 8px 14px; border-radius: var(--radius-s);
+  font: 500 13px/1.2 var(--sans); color: var(--text);
+  background: var(--panel-2, var(--panel)); border: 1px solid var(--line);
 }
-.ou-back:hover { border-color: var(--dim); }
-.ou-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-/* The parts under the total: by model, by type of call, day by day. Each
-   model is a row of a bar graph with two bars, its cost in its colour over
-   its calls in grey, and its figures beside them. */
-.ou-part { margin-top: 26px; }
-.ou-part[hidden] { display: none; }
+.ou-back:hover, .ou-btn:hover, .ou-up:hover { border-color: var(--dim); }
+.ou-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.ou-primary:hover { border-color: var(--text); }
+.orb-usage-view button:focus-visible, .orb-usage-view a:focus-visible, .orb-usage-view input:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.orb-usage-view button:disabled { cursor: default; }
+/* The trail: where he is, every step a button, and Up one level before it. */
+.ou-trail { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; }
+.ou-up[hidden] { display: none; }
+.ou-up { padding: 8px 12px; }
+.ou-up::before { content: "\2191\00a0"; color: var(--dim); }
+.ou-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 0; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.ou-crumbs li { display: inline-flex; align-items: center; min-width: 0; }
+.ou-crumbs li:not(:last-child)::after { content: "\203a"; padding: 0 6px; color: var(--dim); }
+.ou-crumb {
+  appearance: none; border: 0; background: none; padding: 9px 4px; min-height: 36px;
+  display: inline-flex; align-items: center; box-sizing: border-box;
+  font: 500 14px/1.3 var(--sans); color: var(--accent); cursor: pointer; text-align: left;
+  overflow-wrap: anywhere;
+}
+.ou-crumb:hover { text-decoration: underline; }
+.ou-crumb.ou-here { color: var(--text); cursor: default; font-weight: 600; }
+.ou-crumb.ou-here:hover { text-decoration: none; }
+/* The period: Day, Week, Month or a range, and the period before and after. */
+.ou-period { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 10px; }
+.ou-period:empty { display: none; }
+.ou-kinds, .ou-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.ou-kind, .ou-chip {
+  appearance: none; cursor: pointer; min-height: 36px; padding: 7px 12px; border-radius: 999px;
+  font: 500 12.5px/1.2 var(--sans); color: var(--dim); background: none; border: 1px solid var(--line);
+}
+.ou-kind:hover, .ou-chip:hover { color: var(--text); border-color: var(--dim); }
+.ou-kind[aria-pressed="true"], .ou-chip[aria-pressed="true"] {
+  color: var(--accent-ink); background: var(--text); border-color: var(--text);
+}
+.ou-step { display: inline-flex; align-items: center; gap: 6px; }
+.ou-arrow {
+  appearance: none; cursor: pointer; width: 36px; height: 36px; border-radius: 999px;
+  font: 400 20px/1 var(--sans); color: var(--text); background: none; border: 1px solid var(--line);
+}
+.ou-arrow:disabled { color: var(--dim); border-color: var(--line-soft); }
+.ou-when { font-size: 13.5px; color: var(--text); font-variant-numeric: tabular-nums; }
+.ou-range { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
+.ou-range label { font-size: 12.5px; color: var(--dim); }
+.ou-range input {
+  min-height: 36px; padding: 6px 8px; border-radius: var(--radius-s); color-scheme: dark;
+  font: 13px var(--sans); color: var(--text); background: var(--panel); border: 1px solid var(--line);
+}
+/* The headline and the figures under it. */
+.ou-body { margin-top: 22px; }
+/* While the next level is read, the one on the screen is dimmed and cannot be
+   pressed, and the title says what is happening. */
+.ou-body[aria-busy="true"] { opacity: 0.45; pointer-events: none; }
+.ou-inner:has(.ou-body[aria-busy="true"]) .ou-k::after { content: "  \2013  reading the log\2026"; color: var(--accent); letter-spacing: 0.04em; text-transform: none; }
+.ou-wait { color: var(--dim); font-size: 13px; }
+.ou-headline {
+  margin: 0; font: 600 19px/1.35 var(--sans); color: var(--text); text-wrap: pretty; outline: none;
+  overflow-wrap: anywhere;
+}
+.ou-sub { margin: 6px 0 0; font-size: 13px; color: var(--dim); }
+.ou-open { display: inline-block; margin-top: 8px; padding: 6px 0; font-size: 13.5px; }
+.ou-body > .ou-chips { margin: 12px 0 2px; }
+.ou-figs { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 28px; margin-top: 14px; }
+.ou-total { font: 600 34px/1.05 var(--sans); font-variant-numeric: tabular-nums; }
+.ou-facts { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; }
+.ou-facts dt { font-size: 11.5px; color: var(--dim); }
+.ou-facts dd { margin: 2px 0 0; font-size: 14px; color: var(--text); font-variant-numeric: tabular-nums; }
+.ou-facts dd small { color: var(--dim); font-size: 12px; }
+.ou-chg { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ou-chg.ou-d-up { color: var(--warn); }
+.ou-chg.ou-d-down { color: var(--dim); }
+.ou-chg.ou-d-same, .ou-chg.ou-d-none { color: var(--dim); }
+.ou-plans {
+  margin-top: 16px; padding: 10px 12px; border-radius: var(--radius-s);
+  background: var(--panel); border: 1px solid var(--line-soft);
+  font-size: 13px; line-height: 1.5; color: var(--dim);
+}
+.ou-plans b { color: var(--text); font-weight: 600; }
+.ou-note { margin: 12px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--dim); max-width: 72ch; }
+.ou-fail { color: var(--bad); }
+.ou-hint { margin: 4px 0 0; font-size: 12px; line-height: 1.45; color: var(--dim); }
+.ou-grew { margin: 2px 0 8px; font-size: 13px; color: var(--warn); }
+.ou-empty { margin-top: 20px; padding: 22px; border: 1px dashed var(--line); border-radius: var(--radius-s); color: var(--dim); }
+.ou-empty p { margin: 0 0 12px; }
+.ou-part { margin-top: 28px; }
 .ou-h {
-  margin: 0 0 6px; font: 500 10px/1 var(--mono); letter-spacing: 0.16em;
+  margin: 0 0 4px; font: 500 11px/1.2 var(--mono); letter-spacing: 0.12em;
   text-transform: uppercase; color: var(--dim);
 }
-.ou-mrow {
-  display: grid; grid-template-columns: 170px minmax(0, 1fr) 76px 72px 70px; gap: 4px 14px;
-  align-items: center; padding: 8px 0; border-top: 1px solid var(--line-soft);
-}
-.ou-mhead { padding: 4px 0 6px; border-top: 0; font-size: 11px; color: var(--dimmer); }
-.ou-mname {
-  display: flex; align-items: center; gap: 8px; min-width: 0;
-  font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.ou-mhead .ou-mname { font-size: 11px; color: var(--dimmer); }
-.ou-mbars { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.ou-mcost { height: 10px; border-radius: 2px; }
-.ou-mcalls { height: 4px; border-radius: 2px; background: var(--dimmer); }
-.ou-mfig {
-  text-align: right; font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap;
-}
-.ou-mhead .ou-mfig { font-size: 11px; color: var(--dimmer); }
-.ou-mfig.ou-mcostn { font-weight: 600; color: var(--text); }
-.ou-mhead .ou-mfig.ou-mcostn { font-weight: 400; }
-.ou-mfig small, .ou-types td small {
-  display: block; margin-top: 2px; font-size: 10.5px; color: var(--dimmer);
-}
-.ou-mkey { margin: 8px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--dimmer); }
-.ou-types { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.ou-types th, .ou-types td {
-  padding: 8px 0 8px 14px; border-top: 1px solid var(--line-soft);
-  font-size: 12.5px; text-align: right; color: var(--dim); white-space: nowrap; font-weight: 400;
-}
-.ou-types th:first-child { padding-left: 0; }
-.ou-types thead th { border-top: 0; padding-top: 4px; font-size: 11px; color: var(--dimmer); }
-.ou-types tbody th { text-align: left; color: var(--text); white-space: normal; font-size: 13px; }
-.ou-types thead th:first-child { text-align: left; }
-.ou-types tbody td:nth-child(3) { color: var(--text); font-weight: 600; }
-.ou-types code {
-  display: block; margin-top: 2px; font: 400 10.5px/1.3 var(--mono); color: var(--dimmer);
-}
-.ou-sw { width: 10px; height: 10px; border-radius: 2px; flex: none; }
-.ou-note { margin: 14px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--dim); }
-.ou-note[hidden] { display: none; }
-/* Day by day: one upright bar to a day, oldest on the left, stacked by
-   model, against a dollar scale on the left; one key under it. */
+/* Day by day: one upright bar to a day, each a button, stacked by the level's
+   largest rows; one key under it. */
 .ou-chart {
   display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: 220px auto;
-  column-gap: 8px; margin-top: 10px; font-variant-numeric: tabular-nums;
+  column-gap: 8px; margin-top: 12px; font-variant-numeric: tabular-nums;
 }
 .ou-yaxis { position: relative; min-width: 34px; }
 .ou-ytick {
   position: absolute; right: 0; transform: translateY(50%);
-  font-size: 10.5px; line-height: 1; color: var(--dimmer); white-space: nowrap;
+  font-size: 10.5px; line-height: 1; color: var(--dim); white-space: nowrap;
 }
 .ou-plot { position: relative; display: flex; align-items: flex-end; gap: 2px; padding: 0 1px; }
 .ou-grid { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--line-soft); pointer-events: none; }
 .ou-grid.ou-base { border-top-color: var(--line); }
 .ou-col {
+  appearance: none; border: 0; background: none; padding: 0; margin: 0; font: inherit;
   position: relative; flex: 1 1 0; min-width: 0; height: 100%;
   display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
-  cursor: default; outline: none; border-radius: 3px;
+  cursor: pointer; border-radius: 3px;
 }
-.ou-col.on { background: color-mix(in srgb, var(--text) 6%, transparent); }
-.ou-col:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
-.ou-stack {
-  width: 100%; max-width: 28px; display: flex; flex-direction: column-reverse; gap: 2px;
-}
-.ou-seg { flex-basis: 0; min-height: 2px; border-radius: 0; }
+.ou-col:disabled { cursor: default; }
+.ou-col.on { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.ou-stack { width: 100%; max-width: 30px; display: flex; flex-direction: column-reverse; gap: 2px; }
+.ou-seg { flex-basis: 0; min-height: 2px; }
+.ou-col:not(:disabled):hover .ou-seg { filter: brightness(1.15); }
 .ou-stack .ou-seg:last-child { border-radius: 4px 4px 0 0; }
 .ou-xaxis { position: relative; height: 22px; }
 .ou-xtick {
   position: absolute; top: 6px; transform: translateX(-50%);
-  font-size: 10.5px; line-height: 1; color: var(--dimmer); white-space: nowrap;
+  font-size: 10.5px; line-height: 1; color: var(--dim); white-space: nowrap;
 }
 .ou-xtick[hidden] { display: none; }
 .ou-tip {
-  position: absolute; top: 0; z-index: 2; min-width: 180px; max-width: 260px;
+  position: absolute; top: 0; z-index: 2; min-width: 190px; max-width: 280px;
   padding: 8px 10px; border-radius: var(--radius-s);
-  background: var(--panel-2); border: 1px solid var(--line);
+  background: var(--panel-2, var(--panel)); border: 1px solid var(--line);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); pointer-events: none;
   font-size: 12px; color: var(--dim);
 }
@@ -954,22 +990,105 @@ button { font: inherit; color: inherit; }
 .ou-tiprow span:first-child { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .ou-tiprow .ou-sw { width: 8px; height: 8px; }
 .ou-tiprow span:last-child { white-space: nowrap; }
-.ou-tipnone { color: var(--dimmer); }
+.ou-tipnone { color: var(--dim); margin-top: 3px; }
 .ou-legend {
   display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin-top: 8px;
   font-size: 12px; color: var(--dim);
 }
-.ou-legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ou-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .ou-legend .ou-sw { width: 8px; height: 8px; }
+.ou-sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex: none; }
+/* The split: a row for each, a button that opens it. */
+.ou-splithead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 10px; }
+.ou-splithead .ou-h { margin: 0; }
+.ou-rows, .ou-calls, .ou-pieces { margin: 0; padding: 0; list-style: none; }
+.ou-row {
+  appearance: none; width: 100%; cursor: pointer; text-align: left; font: inherit; color: inherit;
+  display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(60px, 1fr) 86px 104px 132px; gap: 4px 14px;
+  align-items: center; min-height: 48px; padding: 8px 6px; margin: 0;
+  background: none; border: 0; border-top: 1px solid var(--line-soft); border-radius: 0;
+}
+.ou-row:not(.ou-rowhead):hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.ou-rowhead { min-height: 0; padding: 2px 6px 6px; border-top: 0; cursor: default; font-size: 11.5px; color: var(--dim); }
+.ou-rowhead span { font-size: 11.5px; color: var(--dim); font-weight: 400; }
+.ou-rname { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13.5px; }
+.ou-rtext { min-width: 0; overflow-wrap: anywhere; }
+.ou-rbar { display: block; height: 10px; border-radius: 2px; background: var(--line-soft); overflow: hidden; }
+.ou-rbarhead { background: none; height: auto; }
+.ou-rbar i { display: block; height: 100%; border-radius: 2px; background: var(--accent); }
+.ou-rfig { text-align: right; font-size: 13px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.ou-rfig small { display: block; font-size: 11px; color: var(--dim); }
+.ou-rcost { color: var(--text); font-weight: 600; }
+.ou-callsbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 26px; }
+.ou-callsbar .ou-hint { margin: 0; }
+/* The calls: one button each, a table on a desk and a card on a phone. */
+.ou-call {
+  appearance: none; width: 100%; cursor: pointer; text-align: left; font: inherit; color: inherit; margin: 0;
+  display: grid; grid-template-columns: 128px minmax(0, 1fr) repeat(4, 62px) 70px 64px; gap: 4px 12px;
+  align-items: center; min-height: 48px; padding: 8px 6px;
+  background: none; border: 0; border-top: 1px solid var(--line-soft); border-radius: 0;
+}
+.ou-call:not(.ou-callhead):hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.ou-callhead { min-height: 0; padding: 2px 6px 6px; border-top: 0; cursor: default; }
+.ou-callhead span { font-size: 11.5px; color: var(--dim); }
+.ou-cw { min-width: 0; font-size: 12.5px; color: var(--dim); }
+.ou-cwhat b { display: block; font-weight: 500; font-size: 13px; color: var(--text); overflow-wrap: anywhere; }
+.ou-cwhat small { display: block; font-size: 11.5px; color: var(--dim); overflow-wrap: anywhere; }
+.ou-cwhat small.ou-bad { color: var(--bad); }
+.ou-cn { text-align: right; font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ou-ccost { color: var(--text); font-weight: 600; }
+.ou-clab { display: none; font-style: normal; color: var(--dim); }
+.ou-pages { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; }
+.ou-pages .ou-hint { margin: 0; }
+/* One call: what its cost is made of, and what it sent. */
+.ou-split { display: flex; gap: 2px; height: 14px; margin: 8px 0 12px; border-radius: 3px; overflow: hidden; }
+.ou-split i { min-width: 2px; }
+.ou-ptable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.ou-ptable th, .ou-ptable td {
+  padding: 8px 0 8px 14px; border-top: 1px solid var(--line-soft);
+  font-size: 13px; text-align: right; color: var(--dim); font-weight: 400; vertical-align: top;
+}
+.ou-ptable thead th { border-top: 0; font-size: 11.5px; color: var(--dim); padding-top: 2px; }
+.ou-ptable th:first-child { padding-left: 0; text-align: left; }
+.ou-ptable tbody th { color: var(--text); }
+.ou-ptable tbody th .ou-sw { margin-right: 8px; vertical-align: -1px; }
+.ou-ptable tbody th small { display: block; margin: 2px 0 0 18px; font-size: 11.5px; color: var(--dim); }
+.ou-pcost { color: var(--text) !important; font-weight: 600 !important; }
+.ou-pieces li {
+  display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(60px, 2fr) 90px; gap: 12px; align-items: center;
+  padding: 7px 0; border-top: 1px solid var(--line-soft); font-size: 13px;
+}
+.ou-callfacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 12px 24px; margin-top: 8px; }
+.ou-callfacts dd { overflow-wrap: anywhere; }
+.ou-link { color: var(--accent); }
 @media (max-width: 599px) {
   .ou-inner { padding: 50px 16px 32px; }
-  .ou-total { font-size: 26px; }
-  .ou-mrow { grid-template-columns: minmax(0, 1fr) 62px 62px 52px; gap: 5px 10px; }
-  .ou-mbars { grid-column: 1 / 5; grid-row: 2; }
-  .ou-mhead .ou-mbars { display: none; }
-  .ou-mname { white-space: normal; overflow-wrap: anywhere; }
-  .ou-types th, .ou-types td { padding-left: 10px; }
+  .ou-total { font-size: 28px; }
+  .ou-trail { flex-direction: column; gap: 4px; }
+  .ou-headline { font-size: 17px; }
+  .ou-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; }
+  .ou-row .ou-rname { grid-column: 1; grid-row: 1; }
+  .ou-row .ou-rcost { grid-column: 2; grid-row: 1; }
+  .ou-row .ou-rbar { grid-column: 1 / 3; grid-row: 2; }
+  .ou-row .ou-rfig:nth-child(4) { grid-column: 1; grid-row: 3; text-align: left; }
+  .ou-row .ou-rfig:nth-child(5) { grid-column: 2; grid-row: 3; }
+  .ou-row .ou-rfig:nth-child(4) .ou-n::after { content: attr(data-unit); }
+  .ou-row .ou-rfig small { display: inline; margin-left: 6px; }
+  .ou-rowhead { display: none; }
+  .ou-call { grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4px 10px; }
+  .ou-call .ou-cwhen { grid-column: 1 / 4; }
+  .ou-call .ou-ccost { grid-column: 4; grid-row: 1; }
+  .ou-call .ou-cwhat { grid-column: 1 / 5; }
+  .ou-call .ou-cn:last-child { grid-column: 1 / 5; text-align: left; }
+  .ou-call .ou-cn { text-align: left; font-size: 12px; }
+  .ou-call .ou-ccost { text-align: right; font-size: 14px; }
+  .ou-clab { display: inline; }
+  .ou-ccost .ou-clab { display: none; }
+  .ou-callhead { display: none; }
   .ou-chart { grid-template-rows: 180px auto; }
+  .ou-pieces li { grid-template-columns: minmax(0, 1fr) 80px; }
+  .ou-pieces li .ou-rbar { grid-column: 1 / 3; grid-row: 2; }
+  .ou-ptable th, .ou-ptable td { padding-left: 8px; font-size: 12.5px; }
 }
 
 .orb-panel {
