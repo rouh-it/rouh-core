@@ -1,13 +1,13 @@
 {
  "line": "1.0",
- "patch": 14,
- "level": "1.0.14",
+ "patch": 15,
+ "level": "1.0.15",
  "cut_commit": "d6abf3de4a1f568995c10535dcf096843ed6dc6c",
  "cut_at": "2026-10-23T07:58:20Z",
  "python_image": "python:3.12.16-slim-trixie",
- "node_image": "node:24.22.2-trixie-slim",
+ "node_image": "node:24.22.3-trixie-slim",
  "codex": "0.163.0",
  "playwright_mcp": "0.0.83",
- "postgres_image": "pgvector/pgvector:0.8.7-pg18-trixie@sha256:5895949dfcdf308eb0cd31c950c93c14895c77f33fbedfecf1fa511ab1d4bcd2",
- "postgres_version": "18.6"
+ "postgres_image": "pgvector/pgvector:0.8.7-pg18-trixie@sha256:ab49524d18df7200b74ac9a475e1db6297fc1eb57da4c214c63d10ecc4b754fa",
+ "postgres_version": "18.7"
 }
