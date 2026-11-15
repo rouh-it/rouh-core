@@ -299,6 +299,32 @@ def hue(s: Stack) -> None:
     expect("not connected" not in got.lower() and "light" in got.lower(), f"hue list: {got[:400]}")
 
 
+@check("mcp.servers")
+def mcp_servers(s: Stack) -> None:
+    """Anatomy, Connections, MCP servers: the stand-in MCP server tested, saved and opened with no
+    restart; its tool called once Ask first is off, its answer framed as somebody else's words; then
+    removed, and its tool gone. A bad address is refused in plain words and not kept."""
+    code, got = post(s, "/api/settings/mcp/test", {"name": "nowhere", "kind": "http", "url": "http://standins:1/mcp"})
+    expect(code == 200 and not got.get("ok") and "Nothing answered" in str(got.get("error")), f"a bad address: {code} {got}")
+    code, got = post(s, "/api/settings/mcp/save", {"name": "stack", "kind": "http", "url": "http://standins:9021/mcp",
+                                                   "headers": [{"name": "Authorization", "value": "Bearer stack-test-token-9876"}]})
+    expect(code == 200 and "with no restart" in str(got.get("said")), f"Save refused the stand-in: {code} {got}")
+    expect("stack-test-token-9876" not in json.dumps(got), "the token came back in full")
+    row = [r for r in got.get("servers") or [] if r.get("name") == "stack"]
+    expect(row and row[0]["state"] == "connected" and len(row[0]["tools"]) == 4
+           and row[0]["secrets"] == [{"name": "Authorization", "hint": "…9876"}], f"the saved server: {row}")
+    post(s, "/api/settings/mcp/ask-first", {"id": row[0]["id"], "on": False})
+    said = s.tool("mcp__stack__forecast", {"city": "Sofia"})
+    expect("21 degrees" in said and "untrusted-content" in said, f"mcp__stack__forecast: {said[:400]}")
+    code, got = post(s, "/api/settings/mcp/remove", {"id": row[0]["id"]})
+    expect(code == 200 and not [r for r in got.get("servers") or [] if r.get("name") == "stack"], f"Remove: {code} {got}")
+    try:
+        s.tool("mcp__stack__forecast", {"city": "Sofia"}, limit=60)
+    except Failed:
+        return
+    raise Failed("mcp__stack__forecast was still offered after Remove")
+
+
 @check("vacuum")
 def vacuum(s: Stack) -> None:
     """Settings, Dreame: the Dreamehome account typed in and checked with the cloud's stand-in."""

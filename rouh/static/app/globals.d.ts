@@ -67,6 +67,7 @@ interface Window {
   RouhSlack?: any;
   RouhHue?: any;
   RouhDreame?: any;
+  RouhMcp?: any;
   /** Anatomy, Behaviour, Draft edits (draftedits.js). */
   RouhDraftEdits?: any;
   RouhSilos?: any;

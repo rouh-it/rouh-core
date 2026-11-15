@@ -1,0 +1,46 @@
+{
+  "id": "mcp-servers",
+  "name": "MCP servers",
+  "title": "MCP servers: another program's tools plugged into Rouh, such as GitHub, Notion or Linear, connected and tested on one page",
+  "aliases": [
+    "mcp",
+    "mcp server",
+    "mcp servers",
+    "model context protocol",
+    "connect an mcp server",
+    "connectors",
+    "tool servers",
+    "plugins"
+  ],
+  "group": "machine",
+  "route": "/anatomy/connections/mcp",
+  "anatomy": {
+    "order": 42
+  },
+  "icon": "<path d=\"M9 3v5M15 3v5\"/><path d=\"M6.5 8h11v3a5.5 5.5 0 0 1-11 0z\"/><path d=\"M12 16.5V21\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [
+      "opens the MCP servers the person connects - an address with the header or token they type, or, for an administrator, a command run on this machine with the values they type - and offers that server's tools in the person's own turns, each asking first unless they turn Ask first off; the header and environment values are sealed and only their last four are shown",
+      "opens the MCP servers named in the installation's setting (ROUH_MCP_SERVERS, ROUH_MCP_CONFIG) and shows them read-only"
+    ],
+    "accounts": [
+      "whatever service each connected MCP server reaches with the person's token"
+    ],
+    "tables": [
+      "mcp_servers"
+    ],
+    "jobs": [],
+    "remove": "the Anatomy section in rouh/templates/rouh/index.html, mcppage.js/.css and their entry in settingsPages (app/runs.js), rouh/mcp_servers.py, rouh/web/mcp.py and its routes, the mcp_servers tool in rouh/tools.py and its area in rouh/toolsearch.py, _mcp in rouh/anatomy.py, mcp_attach and the saved servers in ToolRegistry.add_mcp_servers (rouh/tools.py), rouh/models/mcp.py, and this manifest; drop mcp_servers with a migration. The MCP client itself (rouh/mcp.py) and the setting stay, as they were before."
+  },
+  "uses": {
+    "tools": [
+      "mcp_servers"
+    ]
+  }
+}

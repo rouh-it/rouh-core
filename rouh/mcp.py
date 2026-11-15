@@ -119,6 +119,11 @@ class Server:
     env: dict = field(default_factory=dict)
     url: str = ""
     headers: dict = field(default_factory=dict)
+    #: Whether a command it runs is handed this process's whole environment. True for a server
+    #: in the installation's own setting, as it always was; False for one a person connected on
+    #: the page (`rouh/mcp_servers.py`), which gets only what a program needs to start
+    #: (`PLAIN_ENV`) and its own values, never Rouh's keys.
+    inherit_env: bool = True
 
     @property
     def kind(self) -> str:
@@ -214,6 +219,23 @@ class Transport:
         raise NotImplementedError
 
 
+#: The only parts of this process's environment a server a person connected is handed: enough
+#: to find a program, write its cache and reach the network, and nothing that is a secret.
+PLAIN_ENV = ("PATH", "HOME", "USER", "LANG", "LC_ALL", "TZ", "TMPDIR", "SSL_CERT_FILE",
+             "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS", "npm_config_cache", "NPM_CONFIG_CACHE",
+             "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy")
+
+
+def environment_for(server: "Server") -> dict:
+    """What a command a server runs is started with."""
+    if server.inherit_env:
+        env = dict(os.environ)
+    else:
+        env = {k: os.environ[k] for k in PLAIN_ENV if k in os.environ}
+    env.update(server.env)
+    return env
+
+
 class Stdio(Transport):
     """A server running here, spoken to in JSON-RPC, one object per line."""
 
@@ -224,8 +246,7 @@ class Stdio(Transport):
         self._lock = asyncio.Lock()
 
     async def start(self) -> None:
-        env = dict(os.environ)
-        env.update(self.server.env)
+        env = environment_for(self.server)
         self.proc = await asyncio.create_subprocess_exec(
             *self.server.command,
             limit=LINE_LIMIT,

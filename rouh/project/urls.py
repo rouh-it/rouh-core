@@ -30,6 +30,7 @@ from rouh.web import lean as lean_web
 from rouh.web import silos as silos_web
 from rouh.web import demo as demo_web
 from rouh.web import dreame as dreame_web
+from rouh.web import mcp as mcp_web
 from rouh.web import claude_signin as claude_signin_web
 from rouh.web import codex_signin as codex_signin_web
 from rouh.web import subscriptions as subscriptions_web
@@ -706,6 +707,14 @@ urlpatterns = [
     path("api/settings/dreame/cancel", dreame_web.cancel),
     path("api/settings/dreame/disconnect", dreame_web.disconnect),
     path("api/home/vacuum", dreame_web.vacuum),
+    # MCP servers: each person's own, tested, kept sealed and opened live (`rouh/web/mcp.py`).
+    path("api/settings/mcp", mcp_web.page),
+    path("api/settings/mcp/test", mcp_web.test),
+    path("api/settings/mcp/save", mcp_web.save),
+    path("api/settings/mcp/check", mcp_web.check),
+    path("api/settings/mcp/enabled", mcp_web.enabled),
+    path("api/settings/mcp/ask-first", mcp_web.ask_first),
+    path("api/settings/mcp/remove", mcp_web.remove),
     # The Home page's lights: the whole home, and one press (`rouh/web/home.py`).
     path("api/home/lights", home_web.lights),
     # The account's silos and the source rules that label things with them (`rouh/web/silos.py`).

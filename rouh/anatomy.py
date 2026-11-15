@@ -172,6 +172,13 @@ def _dreame(me) -> list[tuple[str, str]]:
     return [("dreame", "The Dreame robot needs signing in again")]
 
 
+def _mcp(me) -> list[tuple[str, str]]:
+    """An MCP server that is on and failing (`rouh/mcp_servers.py`)."""
+    from . import mcp_servers, runtime
+
+    return [("mcp", said) for said in mcp_servers.attention(me, runtime.tools)]
+
+
 # --- Behaviour, Models ---------------------------------------------------------------
 
 def _models(me) -> list[tuple[str, str]]:
@@ -315,6 +322,7 @@ CHECKS = {
     "slack": _slack,
     "hue": _hue,
     "dreame": _dreame,
+    "mcp": _mcp,
     "models": _models,
     "heartbeat": _heartbeat,
     "payments": _payments,

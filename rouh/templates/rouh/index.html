@@ -146,6 +146,7 @@ with {% asset %}, which gives it its hashed address.
 <link rel="stylesheet" href="{% asset "slackpage.css" %}">
 <link rel="stylesheet" href="{% asset "huepage.css" %}">
 <link rel="stylesheet" href="{% asset "dreamepage.css" %}">
+<link rel="stylesheet" href="{% asset "mcppage.css" %}">
 <link rel="stylesheet" href="{% asset "draftedits.css" %}">
 <link rel="stylesheet" href="{% asset "silospage.css" %}">
 <link rel="stylesheet" href="{% asset "genespage.css" %}">
@@ -3419,6 +3420,14 @@ with {% asset %}, which gives it its hashed address.
                  dreamepage.js draws it from /api/settings/dreame. {% endcomment %}
             <div id="dreameBody" class="hb-body" aria-busy="false"></div>
           </div>
+          <div class="settings-section" data-section="mcp" hidden>
+            {% comment %} MCP servers (`rouh/mcp_servers.py`). Petar, 15 November 2026: "somewhere in
+                 anatomy we should have mcps and ability to easily connect one." What MCP is, the
+                 servers with their state and tools, and Connect a server, tested before it is
+                 kept; tokens are sealed and only their last four come back. mcppage.js draws it
+                 from /api/settings/mcp. {% endcomment %}
+            <div id="mcpBody" class="hb-body" aria-busy="false"></div>
+          </div>
           <div class="settings-section" data-section="silos" hidden>
             {% comment %} Silos (`rouh/silos.py`). Petar, 12 October 2026: "Make a silo setting
                  in settings. This will control how many silos you have and what they are
@@ -5261,6 +5270,7 @@ with {% asset %}, which gives it its hashed address.
 <script defer src="{% asset "slackpage.js" %}"></script>
 <script defer src="{% asset "huepage.js" %}"></script>
 <script defer src="{% asset "dreamepage.js" %}"></script>
+<script defer src="{% asset "mcppage.js" %}"></script>
 <script defer src="{% asset "draftedits.js" %}"></script>
 <script defer src="{% asset "silospage.js" %}"></script>
 <script defer src="{% asset "genespage.js" %}"></script>

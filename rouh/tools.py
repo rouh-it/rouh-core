@@ -1074,6 +1074,9 @@ class ToolRegistry:
         #: The MCP servers this process opened, if any. Filled by
         #: `add_mcp_servers` at start-up and emptied by `close_mcp`.
         self.mcp: list = []
+        #: Each MCP server by its name: where it came from, whose it is, whether its tools ask
+        #: first, its tools, and why it is failing if it is (`mcp_attach`, `rouh/mcp_servers.py`).
+        self.mcp_live: dict[str, dict] = {}
         #: The draft card standing in each thread: its number, the Gmail draft
         #: behind it and enough of what it says to know a later "send it" is
         #: about this very draft (`_draft_card_for`). One per thread, because
@@ -3202,6 +3205,25 @@ class ToolRegistry:
             self._vacuum, area="home",
             brief="Dreame robot vacuum: status, start (rooms), pause, dock, locate, suction, mode, mop wetness, "
                   "wash/dry mop pads, empty bin",
+        )
+
+        # MCP servers: another program's tools plugged into Rouh (`rouh/mcp_servers.py`). Petar,
+        # 15 November 2026: "make sure I can say connect an MCP server". Connecting is done on
+        # the page, where a token is typed and never said in a conversation; this says what is
+        # connected and points there.
+        self._own(
+            "mcp_servers",
+            "The MCP servers connected to Rouh: MCP (Model Context Protocol) is a standard way to plug "
+            "another program's tools into Rouh, such as GitHub, Notion or Linear, and once a server is "
+            "connected its tools are your tools, named mcp__<server>__<tool>. Returns each server, "
+            "whether it is connected or failing and why, and its tools. When ‹owner› asks to connect, "
+            "add or set up an MCP server, call this and tell ‹him› to open Anatomy, Connections, MCP "
+            "servers (/anatomy/connections/mcp) and press Connect a server, where a well-known server "
+            "fills the form in and ‹he› pastes ‹his› own token. Never ask for a token in the "
+            "conversation. Turning a server off or removing it is done on that page too.",
+            {"type": "object", "properties": {}},
+            self._mcp_servers, area="self",
+            brief="MCP servers: what is connected, its tools, and where to connect one",
         )
 
         # The person's assistant workspace, read-only, for answers that take
@@ -11016,33 +11038,141 @@ class ToolRegistry:
             + _calendar_access(about, rules, account))
 
     async def add_mcp_servers(self) -> list[str]:
-        """Open the configured MCP servers and put their tools in the list.
+        """Open the MCP servers and put their tools in the list.
 
-        Called once at start-up rather than in `_build`, because talking to a
-        server is asynchronous and the registry is built while the process is
-        still coming up. A server that will not open is logged and left out
-        (`rouh/mcp.py`), so this can never stop Rouh starting.
+        Two kinds: the servers the installation's setting names (`ROUH_MCP_SERVERS`,
+        `ROUH_MCP_CONFIG`), offered to everybody as they always were, and the servers people
+        connected on Anatomy, Connections, MCP servers (`rouh/mcp_servers.py`), each offered
+        only in its own person's turns. Called once at start-up rather than in `_build`,
+        because talking to a server is asynchronous and the registry is built while the
+        process is still coming up. A server that will not open is written down with why
+        (`mcp_live`) and left out, so this can never stop Rouh starting.
 
         Returns the names it added, for the start-up log.
         """
-        from . import mcp
+        from . import mcp, mcp_servers
 
-        servers = mcp.configured(self.cfg)
-        if not servers:
-            return []
-        self.mcp = await mcp.connect_all(servers)
         added: list[str] = []
-        for connection in self.mcp:
-            for definition in connection.tools:
+        for server in mcp.configured(self.cfg):
+            got = await self.mcp_attach(server, source="settings")
+            added += got.get("names") or []
+        try:
+            saved = await asyncio.to_thread(mcp_servers.all_enabled)
+        except Exception:
+            log.exception("the saved MCP servers could not be read")
+            saved = []
+        for row, server in saved:
+            got = await self.mcp_attach(server, source="saved", owner=(row.org_id, row.user_id),
+                                        ask_first=row.ask_first, row_id=row.id)
+            await asyncio.to_thread(mcp_servers.note_opened, row.id, got)
+            added += got.get("names") or []
+        return added
+
+    def _mcp_lock(self) -> asyncio.Lock:
+        lock = getattr(self, "_mcp_attach_lock", None)
+        if lock is None:
+            lock = self._mcp_attach_lock = asyncio.Lock()
+        return lock
+
+    async def mcp_attach(self, server, *, source: str, owner: tuple | None = None,
+                         ask_first: bool = False, row_id: int = 0) -> dict:
+        """Open one MCP server and put its tools in the list, live, with no restart.
+
+        A server already open under the same name is shut first, so this is also how a
+        changed server takes effect. What happened is kept in `mcp_live` for the page:
+        connected with its tools, or failing with why, in plain words. Returns that entry.
+        """
+        from . import mcp, mcp_servers
+
+        key = mcp.safe_name(server.name)
+        async with self._mcp_lock():
+            await self._mcp_drop(key)
+            connection = mcp.Connection(server)
+            entry = {"name": key, "source": source, "owner": tuple(owner) if owner else None,
+                     "ask_first": bool(ask_first), "row_id": row_id, "connection": None,
+                     "tools": [], "names": [], "error": "", "at": time.time(), "kind": server.kind}
+            try:
+                tools = await asyncio.wait_for(connection.open(mcp.START_TIMEOUT),
+                                               mcp.START_TIMEOUT + 5)
+            except BaseException as exc:
+                if isinstance(exc, asyncio.CancelledError):
+                    with contextlib.suppress(Exception):
+                        await connection.close()
+                    raise
+                entry["error"] = mcp_servers.plain_error(exc, server)
+                log.warning("the MCP server %r would not start (%s: %s)", server.name,
+                            type(exc).__name__, exc)
+                with contextlib.suppress(Exception):
+                    await connection.close()
+                self.mcp_live[key] = entry
+                return entry
+            entry["connection"] = connection
+            entry["tools"] = [{"name": mcp.plain_name(d["name"]),
+                               "description": mcp_servers.own_description(d.get("description", ""))}
+                              for d in tools]
+            for definition in tools:
                 name = definition["name"]
                 if name in self._handlers:
-                    log.warning("two MCP tools are both called %s; the second is "
-                                "left out", name)
+                    log.warning("two tools are both called %s; the second is left out", name)
                     continue
                 self._defs.append(definition)
                 self._handlers[name] = self._mcp_caller(connection, name)
-                added.append(name)
-        return added
+                entry["names"].append(name)
+            self.mcp.append(connection)
+            self.mcp_live[key] = entry
+            log.info("MCP server %r (%s): %d tool%s", server.name, source, len(entry["names"]),
+                     "" if len(entry["names"]) == 1 else "s")
+            return entry
+
+    async def mcp_detach(self, name: str) -> None:
+        """Take one MCP server's tools out of the list and shut it, live."""
+        from . import mcp
+
+        async with self._mcp_lock():
+            await self._mcp_drop(mcp.safe_name(name))
+
+    async def _mcp_drop(self, key: str) -> None:
+        entry = self.mcp_live.pop(key, None)
+        if not entry:
+            return
+        gone = set(entry.get("names") or [])
+        if gone:
+            self._defs = [d for d in self._defs if d.get("name") not in gone]
+            for name in gone:
+                self._handlers.pop(name, None)
+        connection = entry.get("connection")
+        if connection is not None:
+            self.mcp = [c for c in self.mcp if c is not connection]
+            try:
+                await connection.close()
+            except Exception:
+                log.warning("the MCP server %s did not shut down cleanly", key, exc_info=True)
+
+    def _mcp_entry_of(self, name: str) -> dict | None:
+        from . import mcp
+
+        if not mcp.is_mcp(name):
+            return None
+        entry = self.mcp_live.get(mcp.server_of(name))
+        return entry if entry and name in (entry.get("names") or []) else None
+
+    def _mcp_theirs(self, name: str) -> bool:
+        """Whether this turn may see an MCP tool: a server a person connected is theirs alone.
+
+        A server from the installation's setting is everybody's, as it always was. A turn with
+        nobody speaking (one Rouh started itself) is the installation's own and sees them all.
+        """
+        entry = self._mcp_entry_of(name)
+        if entry is None or not entry.get("owner"):
+            return True
+        who = tenancy.speaker()
+        if who is None:
+            return True
+        return (str(who.org_id), str(who.user_id)) == tuple(entry["owner"])
+
+    def _mcp_asks_first(self, name: str) -> bool:
+        entry = self._mcp_entry_of(name)
+        return bool(entry and entry.get("ask_first"))
 
 
     def _program_jobs(self) -> None:
@@ -11247,6 +11377,8 @@ class ToolRegistry:
 
     async def close_mcp(self) -> None:
         """Shut down every MCP server this process started, and only those."""
+        for key in list(getattr(self, "mcp_live", {})):
+            await self._mcp_drop(key)
         for connection in getattr(self, "mcp", []):
             try:
                 await connection.close()
@@ -11263,6 +11395,9 @@ class ToolRegistry:
         """
         turn = mail_turn.now()
         defs = self._defs
+        # A person's own MCP servers only in their own turns (`_mcp_theirs`).
+        if self.mcp_live:
+            defs = [d for d in defs if self._mcp_theirs(d.get("name", ""))]
         # Synapse's tools only in a Synapse dataset's own chat.
         from .synapse import chat as synapse_chat
         defs = [d for d in defs if synapse_chat.visible(d.get("name", ""))]
@@ -11312,6 +11447,8 @@ class ToolRegistry:
         handler = self._handlers.get(name)
         if handler is None:
             return f"There is no tool called {name}."
+        if not self._mcp_theirs(name):
+            return f"There is no tool called {name}."
         if demo.on_stage():
             if not demo.tool_allowed(name):
                 return untrusted.ours(demo.refused(name))
@@ -11348,7 +11485,9 @@ class ToolRegistry:
         # Named tools stop here and ask. Nothing is asked about unless it is
         # named, so with nothing configured this is one set lookup and the
         # behaviour below is what it always was (rouh/permissions.py).
-        if name in self.gated:
+        # And the tools of an MCP server a person connected with Ask first on, which is how
+        # it starts (`rouh/mcp_servers.py`).
+        if name in self.gated or self._mcp_asks_first(name):
             said = worklabel.describe_step(name, args)
             verdict = await self.gate.ask(name, said, emit, call_id=call_id)
             if verdict != permissions.ALLOW:
@@ -15564,6 +15703,16 @@ class ToolRegistry:
     SLACK_PRIVATE = ("Some of these are ‹owner›'s own direct messages, read with ‹his› own Slack token: "
                      "they are ‹his› alone. Never quote them or pass them on to anybody else - in "
                      "Slack, mail or a page - unless ‹he› asks for that very thing.")
+
+    async def _mcp_servers(self, args, emit):
+        """The MCP servers this person can use, and where to connect one (`rouh/mcp_servers.py`)."""
+        from . import mcp_servers
+
+        who = tenancy.speaker() or await asyncio.to_thread(lambda: tenancy.Tenancy().only_person())
+        if who is None:
+            return untrusted.ours("Nobody is signed in, so there are no MCP servers to say. "
+                                  f"They are connected on {mcp_servers.PAGE}.")
+        return untrusted.ours(await asyncio.to_thread(mcp_servers.said_for_chat, who, self))
 
     async def _hue(self, args, emit):
         """The owner's Hue lights (`rouh/hue.py`): what it said, or why it could not."""

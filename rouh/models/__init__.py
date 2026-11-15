@@ -50,6 +50,7 @@ from .dreame import DreameConnection
 from .servicekeys import ServiceCheck, ServiceKey
 from .lean import LeanApplied, LeanChoice, LeanState
 from .hue import HueApp, HueConnection
+from .mcp import McpServer
 from .youtube import YouTubeTranscript
 from .slack import (SlackConnection, SlackConversation, SlackMessage, SlackPerson, SlackPromise,
                     SlackTaskDecision, SlackTaskLink)
@@ -96,7 +97,7 @@ __all__ = [
     "UserSetting", "WorkerNote",
     "Silo", "SiloRule",
     "DreameConnection",
-    "HueApp", "HueConnection",
+    "HueApp", "HueConnection", "McpServer",
     "YouTubeTranscript",
     "SlackConnection", "SlackConversation", "SlackMessage", "SlackPerson", "SlackPromise",
     "SlackTaskDecision", "SlackTaskLink",

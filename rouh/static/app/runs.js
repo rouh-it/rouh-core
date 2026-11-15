@@ -8603,7 +8603,7 @@ function settingsShowGroup(where, item, query) {
 function settingsPages(section) {
   var pages = { heartbeat: window.RouhHeartbeat, beats: window.RouhBeats, payments: window.RouhPayments,
                 shipping: window.RouhShipping, services: window.RouhServices, signups: window.RouhSignups,
-                cloudflare: window.RouhCloudflare, keys: window.RouhKeys, slack: window.RouhSlack, hue: window.RouhHue, dreame: window.RouhDreame,
+                cloudflare: window.RouhCloudflare, keys: window.RouhKeys, slack: window.RouhSlack, hue: window.RouhHue, dreame: window.RouhDreame, mcp: window.RouhMcp,
                 'draft-edits': window.RouhDraftEdits,
                 'gene-pool': window.RouhGenes, changes: window.RouhChanges, silos: window.RouhSilos,
                 stats: window.RouhStats, keeps: window.RouhKeeps, offline: window.RouhOfflinePanel, 'this-rouh': window.RouhBirth,

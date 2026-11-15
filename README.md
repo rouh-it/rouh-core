@@ -1378,7 +1378,7 @@ read out of `rouh/gaps.json`.
 | Fetched text framed as somebody else's words | `untrusted.py` | no |
 | Retries and backoff, always on the same model (no fallback model since 18 October 2026) | `retrying.py` | no |
 | Tools that have to be asked about first | `permissions.py` | yes, `ROUH_CONFIRM_TOOLS` names them |
-| External MCP servers, namespaced into the tool list | `mcp.py` | yes, `ROUH_MCP_SERVERS` or `ROUH_MCP_CONFIG` |
+| External MCP servers, namespaced into the tool list, connected on Anatomy, Connections, MCP servers | `mcp.py`, `mcp_servers.py` | yes, a server connected on the page or `ROUH_MCP_SERVERS` or `ROUH_MCP_CONFIG` |
 | Branching a chat, and a turn a restart killed saying so | `memory.py` | no |
 | Thinking that carries across tool calls, never spoken, its summary kept in the log of requests | `brain.py`, `config.thinking_for` | on for the 5 generation, which thinks either way; `ROUH_THINKING` asks any model |
 | run_command inside a sandbox the kernel holds shut | `sandbox.py` | no, needs the `bubblewrap` package or Linux 6.7's Landlock |
@@ -1405,6 +1405,12 @@ In the containers every Rouh instance runs, commands run in the worker under
 Landlock, with `ROUH_SANDBOX=required`, so with no box nothing runs.
 An MCP server is whatever its configuration says it is, and one that will not
 start costs its own tools and nothing else.
+Since 15 November 2026 a person connects one on Anatomy, Connections, MCP servers (`/anatomy/connections/mcp`, `rouh/mcp_servers.py`): one of a few well-known servers (GitHub, Linear, Notion, Stripe, Context7) that fills the form in, an address with an optional header, or, for an administrator, a command run on this machine with its arguments and environment values.
+It is tested before it is kept (opened, its tools listed and shown, closed), its header and environment values are sealed with the instance's key and shown again only as their last four, and saving opens it in the running Rouh (`ToolRegistry.mcp_attach`), so its tools are Rouh's with no restart; Turn off and Remove take them out the same way.
+A command a person connected is started with only what a program needs from Rouh's environment (`mcp.PLAIN_ENV`), never its keys.
+Each server has Ask first, on by default, which sends its tools through the permission gate, and a person's servers are offered only in that person's own turns.
+The servers in the setting are listed there too, read-only, "from settings", and a server that is on and failing is a line on Anatomy's status board.
+In a conversation the `mcp_servers` tool says what is connected and points to the page.
 
 ## The nightly code refactoring run
 

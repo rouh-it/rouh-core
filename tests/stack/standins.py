@@ -24,7 +24,7 @@ PORTS = {
     "model": 9001, "openai": 9002, "compat": 9003, "carddav": 9004, "brevo": 9005,
     "apify": 9006, "voyage": 9007, "stripe": 9008, "cloudflare": 9009, "slack": 9010,
     "hue": 9011, "dreame": 9012, "voice": 9013, "telegram": 9014, "google": 9015,
-    "meetings": 9016, "shop": 9017, "youtube": 9018, "s3": 9019,
+    "meetings": 9016, "shop": 9017, "youtube": 9018, "s3": 9019, "mcp": 9021,
 }
 
 #: The address the browser on the test machine comes back to after Google's consent page.
@@ -33,7 +33,7 @@ PUBLIC = os.environ.get("STANDINS_ROUH_URL", "http://127.0.0.1:8420")
 
 def apps(record: str) -> dict:
     from rouh.testing import (fake_apify, fake_brevo, fake_carddav, fake_cloudflare, fake_compat,
-                              fake_dreame, fake_google, fake_hue, fake_meeting_library,
+                              fake_dreame, fake_google, fake_hue, fake_mcp, fake_meeting_library,
                               fake_model, fake_openai, fake_s3, fake_shop, fake_slack, fake_stripe,
                               fake_telegram, fake_voice, fake_voyage, fake_youtube)
 
@@ -63,6 +63,7 @@ def apps(record: str) -> dict:
         "shop": fake_shop.build_app(),
         "youtube": fake_youtube.build_app(),
         "s3": fake_s3.build_app(),
+        "mcp": fake_mcp.app(),
     }
 
 

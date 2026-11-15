@@ -1253,6 +1253,15 @@
     "rouh/static/homevacuum.*"
    ]
   },
+  "mcp-servers": {
+   "files": [
+    "rouh/mcp_servers.py",
+    "rouh/models/mcp.py",
+    "rouh/web/mcp.py",
+    "rouh/static/mcppage.*",
+    "rouh/migrations/0252_mcp_servers.py"
+   ]
+  },
   "home": {
    "files": [
     "rouh/web/home.py",

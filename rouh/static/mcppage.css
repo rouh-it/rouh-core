@@ -1,0 +1,81 @@
+/* Anatomy, Connections, MCP servers (`mcppage.js`, `rouh/mcp_servers.py`).
+
+   Anatomy's cards and controls (`heartbeatpage.css`: hb-card, hb-pill, hb-field, hb-say, hb-actions) and
+   Rouh's tokens (`app.css`). Its own: the opening sentence and verdict, the server card's top line, the
+   reason a server is failing, the Ask first switch, the scrolling tool list, the presets to start from,
+   the address-or-command choice, and the test's result. Every control here is at least 44 px tall, as
+   the design standard asks (task 169). */
+
+.mcp-page { display: grid; gap: 10px; min-width: 0; }
+.mcp-head { display: grid; gap: 6px; }
+.mcp-lede { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text); max-width: 68ch; }
+.mcp-acts { margin: 0; font-size: 13px; line-height: 1.45; color: var(--dim); }
+.mcp-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 6px; }
+.mcp-verdict strong { font-size: 15px; font-weight: 600; }
+
+.mcp-page .ctl.small { min-height: 44px; padding: 0 16px; font-size: 13px; border-radius: 999px; }
+.mcp-page .ctl.small:not(.primary):not(.danger) { color: var(--text); background: var(--panel-2); }
+.mcp-page .ctl.small:disabled { opacity: 0.45; cursor: not-allowed; }
+.mcp-page .ctl.small:focus-visible, .mcp-chip:focus-visible, .mcp-seg button:focus-visible,
+.mcp-add:focus-visible, .mcp-tools:focus-visible, .mcp-result:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* One server. */
+.mcp-card { gap: 6px; }
+.mcp-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.mcp-name { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.mcp-state::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%;
+  background: currentColor; vertical-align: 1px; }
+.mcp-ro::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 1px;
+  background: currentColor; vertical-align: 1px; }
+.mcp-count { margin-left: auto; font-size: 13px; color: var(--dim); }
+.mcp-where { margin: 0; font-family: var(--mono); font-size: 12.5px; color: var(--dim); overflow-wrap: anywhere; }
+.mcp-why { margin: 2px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--bad); }
+.mcp-why b { color: var(--text); font-weight: 600; }
+.mcp-secrets { margin: 0; font-size: 12.5px; color: var(--dim); overflow-wrap: anywhere; }
+.mcp-card > .hb-note { margin: 0; }
+.mcp-acts-row { margin-top: 4px; }
+
+/* Ask first is Rouh's own switch (`.gt-switch`, app.css), made a 44 px target, its words free to wrap. */
+.gt-switch.mcp-ask { justify-self: start; min-height: 44px; padding: 4px 14px 4px 6px; margin-top: 4px; font-size: 13px;
+  white-space: normal; text-align: left; max-width: 100%; }
+.gt-switch.mcp-ask:disabled { cursor: progress; opacity: 0.6; }
+
+.mcp-tools-note { margin: 6px 0 0; font-size: 12.5px; color: var(--dim); }
+.mcp-tools { margin: 6px 0 0; padding: 0; list-style: none; max-height: 260px; overflow: auto; overscroll-behavior: contain;
+  border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
+.mcp-tools li { padding: 7px 0; border-bottom: 1px solid var(--line-soft); min-width: 0; }
+.mcp-tools li:last-child { border-bottom: 0; }
+.mcp-tools code { font-family: var(--mono); font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
+.mcp-tools span { display: block; font-size: 12.5px; line-height: 1.4; color: var(--dim); }
+
+/* Connect a server. */
+.mcp-connect .hb-h { margin: 0; font-size: 15px; }
+.mcp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.mcp-chip { font: inherit; font-size: 13.5px; min-height: 44px; padding: 0 14px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--text); }
+.mcp-chip:hover { border-color: var(--dim); }
+.mcp-chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.mcp-empty { gap: 12px; }
+.mcp-form { gap: 12px; }
+.mcp-form .hb-field input { min-height: 44px; font-size: 14px; }
+.mcp-about { margin: 0; font-size: 13px; color: var(--dim); }
+.mcp-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px; }
+.mcp-seg { display: inline-flex; gap: 3px; padding: 3px; width: max-content; max-width: 100%;
+  border: 1px solid var(--line); border-radius: 999px; }
+.mcp-seg button { font: inherit; font-size: 13.5px; min-height: 38px; padding: 0 14px; border: 0; border-radius: 999px;
+  background: transparent; color: var(--dim); cursor: pointer; }
+.mcp-seg button[aria-pressed="true"] { background: var(--panel-2); color: var(--text); }
+.mcp-help { font-size: 12.5px; line-height: 1.45; color: var(--dim); }
+.mcp-help a { color: var(--accent); }
+.mcp-add { justify-self: start; min-height: 36px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px;
+  color: var(--accent); cursor: pointer; }
+.mcp-result { display: grid; gap: 4px; padding-top: 10px; border-top: 1px solid var(--line-soft); font-size: 13.5px; }
+.mcp-result p { margin: 0; }
+.mcp-result.ok > strong { color: var(--good); }
+.mcp-result.bad > strong { color: var(--bad); }
+
+@media (max-width: 520px) {
+  .mcp-pair { grid-template-columns: minmax(0, 1fr); }
+  .mcp-count { margin-left: 0; width: 100%; }
+}
