@@ -429,9 +429,14 @@ async def _dataset(request: HttpRequest, ds: dict, parts: list[str]):
                 facts=got.get("facts") or [], asker=got.get("asker") or "", context=got.get("context") or "",
                 forbidden=bool(got.get("forbidden")), group=got.get("group") or ""))
         if sub == "run" and method == "POST":
+            from rouh import lean
+
             got = body_of(request)
-            return answer(await asyncio.to_thread(evaluate.start, ds, got.get("presets") or ["without", "with"],
-                                                  by="page", only=got.get("only") or None))
+            try:
+                return answer(await asyncio.to_thread(evaluate.start, ds, got.get("presets") or ["without", "with"],
+                                                      by="page", only=got.get("only") or None))
+            except lean.Off as exc:
+                return refuse(str(exc), 409)
         if sub == "run" and len(parts) == 3:
             return answer(await asyncio.to_thread(db.row, "SELECT * FROM synapse.eval_run WHERE dataset_id = %s AND id = %s",
                                                   (ds["id"], parts[2])) or {}, headers=NO_STORE)

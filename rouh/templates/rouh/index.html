@@ -150,6 +150,7 @@ with {% asset %}, which gives it its hashed address.
 <link rel="stylesheet" href="{% asset "silospage.css" %}">
 <link rel="stylesheet" href="{% asset "genespage.css" %}">
 <link rel="stylesheet" href="{% asset "servicespage.css" %}">
+<link rel="stylesheet" href="{% asset "keepspage.css" %}">
 <link rel="stylesheet" href="{% asset "birthpage.css" %}">
 <link rel="stylesheet" href="{% asset "landaccountpage.css" %}">
 <link rel="stylesheet" href="{% asset "statspage.css" %}">
@@ -3493,6 +3494,15 @@ with {% asset %}, which gives it its hashed address.
             <div id="statsBody" class="hb-body" aria-busy="false"></div>
           </div>
 
+          <div class="settings-section" data-section="keeps" hidden>
+            {% comment %} Meta, What Rouh keeps and runs (task 185): the preset, every night job and
+                 test tool with whether it runs here, and every record with how long it is kept,
+                 each with its own choice and roughly the disk or money beside it. A lower limit
+                 removes old rows and waits for a press first. keepspage.js draws it from
+                 /api/anatomy/keeps (`rouh/lean.py`). {% endcomment %}
+            <div id="keepsBody" class="hb-body" aria-busy="false"></div>
+          </div>
+
           <div class="settings-section" data-section="build" hidden>
             {% comment %} Meta, This build: which conversation this is and which build is
                  answering it. Both are looked up when something has gone wrong, so
@@ -5266,6 +5276,7 @@ with {% asset %}, which gives it its hashed address.
 <script defer src="{% asset "silospage.js" %}"></script>
 <script defer src="{% asset "genespage.js" %}"></script>
 <script defer src="{% asset "servicespage.js" %}"></script>
+<script defer src="{% asset "keepspage.js" %}"></script>
 <script defer src="{% asset "birthpage.js" %}"></script>
 <script defer src="{% asset "landaccountpage.js" %}"></script>
 <script defer src="{% asset "signinpage.js" %}"></script>

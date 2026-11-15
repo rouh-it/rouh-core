@@ -1,0 +1,45 @@
+{
+  "id": "lean",
+  "name": "What Rouh keeps and runs",
+  "title": "What Rouh keeps and runs: the night jobs and test tools this Rouh runs, how long it keeps each record, and its preset",
+  "aliases": [
+    "lean",
+    "what rouh keeps",
+    "keeps",
+    "retention",
+    "keep forever",
+    "records",
+    "night jobs",
+    "preset",
+    "creator",
+    "developer",
+    "disk",
+    "storage",
+    "history"
+  ],
+  "group": "machine",
+  "route": "/anatomy/meta/keeps",
+  "anatomy": {
+    "order": 25
+  },
+  "icon": "<path d=\"M4 7h16M4 12h16M4 17h10\"/><circle cx=\"18\" cy=\"17\" r=\"2.2\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "none",
+    "opens": "address"
+  },
+  "touches": {
+    "permissions": [],
+    "accounts": [],
+    "tables": [
+      "lean_state",
+      "lean_choice",
+      "lean_applied"
+    ],
+    "jobs": [
+      "the daily sweep of old records (rouh/runtime.py, _lean_loop)"
+    ],
+    "remove": "rouh/lean.py and its calls in each job and record it gates (each returns to on and kept forever), rouh/web/lean.py, rouh/static/keepspage.*, its section in rouh/templates/rouh/index.html, its models and this manifest."
+  }
+}

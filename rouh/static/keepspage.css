@@ -1,0 +1,96 @@
+/* Anatomy, Meta, What Rouh keeps and runs (`keepspage.js`, `rouh/lean.py`).
+
+   The Heartbeat page's cards (`heartbeatpage.css`) and Rouh's own tokens, nothing new: a headline,
+   the preset as three pressable cards, one row for each job and record with its own choice, and a
+   removal that waits for a press in the warning colour with the words "cannot be undone". A row
+   the person changed carries the word "changed", never a colour alone. */
+
+#keepsBody { padding: 0; overflow: visible; }
+.kp-page { gap: 12px; }
+.kp-headline { margin: 0; font-size: 15px; line-height: 1.45; color: var(--text); text-wrap: pretty; }
+.kp-headline-wait { color: var(--warn); font-weight: 600; }
+
+/* The preset: three cards that press, the one in force marked with the accent and the word "now". */
+.kp-preset-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 8px; }
+.kp-preset-btn {
+  appearance: none; cursor: pointer; text-align: left; font: inherit; color: var(--text);
+  display: grid; gap: 4px; align-content: start; min-height: 44px; min-width: 0;
+  padding: 10px 12px; border-radius: var(--radius-s);
+  border: 1px solid var(--line); background: var(--panel-2);
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.kp-preset-btn:hover:not(:disabled) { border-color: var(--dim); }
+.kp-preset-btn:active:not(:disabled) { background: var(--line-soft); }
+.kp-preset-btn.on { border-color: var(--accent); background: var(--accent-soft); cursor: default; }
+.kp-preset-btn:disabled:not(.on) { opacity: 0.6; cursor: default; }
+.kp-preset-name { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; }
+.kp-preset-about { font-size: 12.5px; line-height: 1.4; color: var(--dim); }
+
+.kp-tag {
+  display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.02em; border: 1px solid var(--line); color: var(--dim); white-space: nowrap;
+}
+.kp-tag.now { border-color: var(--accent); color: var(--accent); }
+.kp-tag.wait { border-color: var(--warn); color: var(--warn); }
+.kp-group > .hb-h { margin-bottom: 12px; }
+
+/* One row a job or a record. */
+.kp-row { border-top: 1px solid var(--line-soft); padding: 12px 0; min-width: 0; display: grid; gap: 6px; }
+.kp-row:first-of-type { border-top: 0; padding-top: 2px; }
+.kp-row-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.kp-name { font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
+.kp-row.changed .kp-tag { color: var(--text); border-color: var(--dim); }
+.kp-what { margin: 0; font-size: 13px; line-height: 1.45; color: var(--dim); overflow-wrap: anywhere; }
+.kp-choose { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
+.kp-select {
+  min-height: 44px; max-width: 100%; flex: 0 0 auto; width: auto; min-width: 0;
+  padding: 8px 10px; border-radius: var(--radius-s); border: 1px solid var(--line);
+  background: var(--panel-2); color: var(--text); font: inherit; font-size: 13.5px;
+}
+.kp-select:hover:not(:disabled) { border-color: var(--dim); }
+.kp-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.kp-facts { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--dim); font-variant-numeric: tabular-nums; flex: 1 1 200px; min-width: 0; }
+.kp-note { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--dim); overflow-wrap: anywhere; }
+/* Whether a job runs here: a dot and the words, so it reads without the colour. */
+.kp-run { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--dim); white-space: nowrap; }
+.kp-run::before { content: ""; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; }
+.kp-run.on { color: var(--good); }
+.kp-run.on::before { background: currentColor; }
+.kp-presets .hb-note { color: var(--dim); }
+.kp-jump { display: flex; flex-wrap: wrap; gap: 8px; }
+.kp-jump-a {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--text); text-decoration: none; font-size: 13px;
+}
+.kp-jump-a:hover { border-color: var(--dim); }
+.kp-jump-a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.kp-group .hb-h { scroll-margin-top: 12px; }
+.kp-back { margin-top: 2px; }
+.kp-row .ctl.small, .kp-ask .ctl.small, .kp-waiting .ctl.small { min-height: 44px; padding: 6px 14px; font-size: 12.5px; }
+.kp-said { margin: 0; font-size: 12.5px; color: var(--good); }
+.kp-error { margin: 0; font-size: 12.5px; color: var(--bad); overflow-wrap: anywhere; }
+
+/* What would go, before it goes: the warning colour and the words, never the colour alone. */
+.kp-ask {
+  display: grid; gap: 8px; margin-top: 4px; padding: 10px 12px; border-radius: var(--radius-s);
+  border: 1px solid color-mix(in srgb, var(--warn) 50%, var(--line));
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+}
+.kp-ask-say { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--text); font-weight: 600; }
+.kp-ask-list { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--text); }
+.ctl.small.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+
+.kp-waiting { border-color: color-mix(in srgb, var(--warn) 50%, var(--line)); }
+.kp-wait-why { margin: 0 0 6px; font-size: 13px; line-height: 1.45; color: var(--dim); }
+.kp-wait-row { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.kp-wait-row:first-of-type { border-top: 0; }
+.kp-wait-name { margin: 0; font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
+.kp-wait-what { margin: 0; font-size: 13px; line-height: 1.45; color: var(--text); }
+
+@media (max-width: 480px) {
+  .kp-select { flex: 1 1 100%; }
+  .kp-facts { flex-basis: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kp-preset-btn { transition: none; }
+}

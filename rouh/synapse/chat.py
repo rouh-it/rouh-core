@@ -742,7 +742,12 @@ def eval_tool(args, emit=None):
                                     context=args.get("context_item") or "", forbidden=bool(args.get("forbidden")))
         return f"Added question {got['id']}."
     if action == "run":
-        got = evaluate.start(ds, args.get("presets") or ["without", "with"], by="chat")
+        from rouh import lean
+
+        try:
+            got = evaluate.start(ds, args.get("presets") or ["without", "with"], by="chat")
+        except lean.Off as exc:
+            return str(exc)
         return (f"Started evaluation run {str(got['run'])[:8]}: {' vs '.join(got['configs'])}. It runs every question "
                 "under each and shows the table on the Evaluate tab as it goes.")
     if action == "results":

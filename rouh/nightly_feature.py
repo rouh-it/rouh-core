@@ -247,10 +247,13 @@ def signup_address_in(user_id: str, org_id: str, to: str, cc: str = "") -> str:
 def ensure(who) -> Any | None:
     """The person's row for the nightly run: the first night's reminder taken over, or made
     daily at 04:30 on their clock once the task exists. A row the owner paused or moved stays as
-    they left it."""
-    from . import clock, reminders
+    they left it. Not made while the run is off here (`rouh/lean.py`); a row already there stays,
+    and skips when it comes due."""
+    from . import clock, lean, reminders
 
     got = reminders.server_row(who, JOB)
+    if got is None and not lean.runs("nightly_feature", str(who.org_id)):
+        return None
     if got is not None:
         if got.what == WHAT_BEFORE:
             reminders._model().objects.filter(id=got.id, user_id=str(who.user_id),

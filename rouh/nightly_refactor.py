@@ -183,11 +183,12 @@ def task_folder(root: str | None = None) -> str:
 def ensure(who) -> Any | None:
     """The person's row for the nightly refactoring run, made daily at 03:00 on their clock the
     first time. It is made whether or not the home task is there yet: a night waits for it. A
-    row the owner paused or moved stays as they left it."""
-    from . import clock, reminders
+    row the owner paused or moved stays as they left it. Not made while the run is off here
+    (`rouh/lean.py`); a row already there stays, and skips when it comes due."""
+    from . import clock, lean, reminders
 
     got = reminders.server_row(who, JOB)
-    if got is not None:
+    if got is not None or not lean.runs("nightly_refactor", str(who.org_id)):
         return got
     with clock.person(who):
         when = reminders.moment_of(AT)

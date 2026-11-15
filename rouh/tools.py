@@ -11279,6 +11279,10 @@ class ToolRegistry:
         # itself is offered, and `call` refuses the rest (`rouh/heartbeat.py`). Outside
         # one, its own tools are not offered at all.
         defs = [d for d in defs if heartbeat.offered(d.get("name", ""))]
+        # The gap tracker only where it runs (`rouh/lean.py`), read without the database.
+        from . import lean
+        if not lean.peek_runs("gap_tracker"):
+            defs = [d for d in defs if d.get("name") != "show_the_gaps"]
         # A turn on the stage in demo mode: only the tools that see nothing of the person's but
         # what was approved, and `call` refuses the rest (`rouh/demo.py`).
         if demo.on_stage():
@@ -15409,7 +15413,11 @@ class ToolRegistry:
         tells the turn what is on it.
         """
         from . import gaps as gaps_record
+        from . import lean
 
+        if not await asyncio.to_thread(lean.runs, "gap_tracker"):
+            return ("The gap tracker is off on this Rouh. It is turned on in Anatomy, Meta, What Rouh "
+                    "keeps and runs.")
         try:
             rows = gaps_record.gaps()
             tally = gaps_record.summary()

@@ -26,6 +26,7 @@ from django.urls import path, re_path
 from rouh import addressing, askai, filelinks, genes, onebridge, pages, picturelinks, sharing
 from rouh.web import agent_instructions as agent_instructions_web
 from rouh.web import anatomy as anatomy_web
+from rouh.web import lean as lean_web
 from rouh.web import silos as silos_web
 from rouh.web import demo as demo_web
 from rouh.web import dreame as dreame_web
@@ -619,6 +620,11 @@ urlpatterns = [
     path("api/settings/services/delete", services.delete),
     # Anatomy's status board: what needs attention in each of its groups (`rouh/web/anatomy.py`).
     path("api/anatomy", anatomy_web.board),
+    # Anatomy, Meta, What Rouh keeps and runs (`rouh/web/lean.py`, `rouh/lean.py`).
+    path("api/anatomy/keeps", lean_web.page),
+    path("api/anatomy/keeps/default", lean_web.default),
+    path("api/anatomy/keeps/confirm", lean_web.confirm),
+    path("api/anatomy/keeps/preset", lean_web.preset),
     path("api/settings/stats", stats.page),
     path("api/settings/stats/events", stats.event_log),
     path("api/nav/tap", stats.tap),

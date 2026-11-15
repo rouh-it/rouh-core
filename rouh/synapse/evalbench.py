@@ -179,7 +179,12 @@ def _summary(rows: list[dict], s) -> dict:
 
 def run(org_id: str, user_id: str, *, judge: bool = True, sets: tuple[str, ...] = SETS, only: list[int] | None = None,
         log=None) -> dict:
-    """One pass of the benchmark on the frozen dataset, with this checkout's code. Returns the whole result."""
+    """One pass of the benchmark on the frozen dataset, with this checkout's code. Returns the whole result.
+    Refused (`lean.Off`) while Synapse's test runs are off here, and unjudged while the memory judge is."""
+    from rouh import lean
+
+    lean.require("synapse_tests", org_id)
+    judge = judge and lean.runs("memory_judge", org_id)
     began = time.time()
     ds = frozen(org_id, user_id)
     bench = load()

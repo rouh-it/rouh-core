@@ -633,6 +633,15 @@ class Entry:
             output = body.get("reasoning") if isinstance(body.get("reasoning"), dict) else {}
             thought = "reasoning" if output.get("effort") not in (None, "none") else ""
         user_id, org_id = self._whose()
+        # The words only where they are kept (`rouh/lean.py`, Anatomy's "Model calls: their full words");
+        # cost, tokens and time are written either way, for the budgets.
+        from . import lean
+
+        self.words = lean.keeps("model_words", org_id or None)
+        if not self.words:
+            pieces.clear()
+            system = tools = ""
+            message_pieces = []
         purpose = str(self.about.get("purpose") or "")
         if not purpose and self.caller:
             purpose = os.path.splitext(os.path.basename(self.caller.split(":")[0]))[0]
@@ -664,6 +673,8 @@ class Entry:
             request_bytes=len(self.body),
             attempt=_number(self.about.get("attempt"), 1) + self.sdk_retry,
         )
+        if not self.words:
+            self.fields["settings"] = {}
         _keep(pieces)
         self.row = LLMRequest.objects.create(status="sent", **self.fields).pk
 
@@ -740,6 +751,8 @@ class Entry:
             first_token_ms=self.first_ms,
             duration_ms=self.duration_ms,
         )
+        if not getattr(self, "words", True):
+            done.update(text="", reasoning="", response=None)
         if self.trace_lane:
             self.trace.request_counted(self.trace_lane, tokens_in=took["input"] + took["cache_write"],
                                        tokens_out=took["output"], cache_read=took["cache_read"],

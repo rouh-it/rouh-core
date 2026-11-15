@@ -373,8 +373,11 @@ async def _synapse_nightly(who, trying: bool) -> str:
 
     Its attempt row first, then one worker of the kind improve_myself starts, which lands through land.sh;
     the line it answers is what the Reminders page says it did."""
+    from . import lean
     from .synapse import nightly
 
+    if not await asyncio.to_thread(lean.runs, "synapse_nightly", str(who.org_id)):
+        return lean.skipped_line("synapse_nightly")
     got = await nightly.start(who, mode="full", cfg=config, crew=crew, one=one, emit=Hub.broadcast,
                               run_state=nightly.run_state)
     return nightly.said_line(got)
@@ -383,16 +386,21 @@ async def _synapse_nightly(who, trying: bool) -> str:
 async def _synapse_dream(who, trying: bool) -> str:
     """The nightly dream on Synapse Master, at 01:00 on Clockwork (`rouh/synapse/dreaming.py`): one
     night queued on the backfill lane; the line it answers is what the Reminders page says it did."""
+    from . import lean
     from .synapse import dreaming
 
+    if not await asyncio.to_thread(lean.runs, "dreaming", str(who.org_id)):
+        return lean.skipped_line("dreaming")
     return await asyncio.to_thread(dreaming.start_scheduled, who)
 
 
 async def _nightly_refactor(who, trying: bool) -> str:
     """The nightly code refactoring run, at its time on Clockwork (`rouh/nightly_refactor.py`): the
     night's row, then its run, or a wait while the feature run's night is still going or landing."""
-    from . import nightly_refactor
+    from . import lean, nightly_refactor
 
+    if not await asyncio.to_thread(lean.runs, "nightly_refactor", str(who.org_id)):
+        return lean.skipped_line("nightly_refactor")
     return await nightly_refactor.start(who, trying=trying)
 
 
@@ -400,8 +408,10 @@ async def _nightly_feature(who, trying: bool) -> str:
     """The nightly Rouh feature run, at its time on the Reminders page (`rouh/nightly_feature.py`):
     the night's row, then its run (Claude Code on Opus 5.5 unless the Models page picks
     otherwise); the line it answers is what the Reminders page says."""
-    from . import nightly_feature
+    from . import lean, nightly_feature
 
+    if not await asyncio.to_thread(lean.runs, "nightly_feature", str(who.org_id)):
+        return lean.skipped_line("nightly_feature")
     return await nightly_feature.start(who, trying=trying)
 
 
@@ -412,15 +422,16 @@ EVOLUTION_EVERY = 15 * 60
 async def _evolution_loop() -> None:
     """The install owner's Mutations kept true by itself (`rouh/evolution.py`): the nights
     brought in, the shelf released into the morning's deck, trial weeks judged by use, and
-    mutation requests and removals settled, every quarter of an hour."""
-    from . import evolution
+    mutation requests and removals settled, every quarter of an hour, while Mutations upkeep runs
+    here (`rouh/lean.py`)."""
+    from . import evolution, lean
 
     await asyncio.sleep(30)
     while True:
         owner = None
         try:
             owner = await asyncio.to_thread(telegram.phone_owner, tenancy)
-            if owner is not None:
+            if owner is not None and await asyncio.to_thread(lean.runs, "mutations", str(owner.org_id)):
                 await asyncio.to_thread(evolution.tick, owner)
         except Exception:  # noqa: BLE001 - tried again on the next beat
             log.exception("Mutations' beat failed")
@@ -524,6 +535,30 @@ async def _gene_log_catch_up_loop() -> None:
         except Exception:  # noqa: BLE001 - tried again on the next look
             log.exception("the gene log's catch-up failed")
         await asyncio.sleep(genelog.CATCH_UP_EVERY)
+
+
+#: How often what Rouh keeps and runs is read again for the event loop's own readers, in seconds.
+LEAN_EVERY = 60
+
+
+async def _lean_loop() -> None:
+    """What this Rouh keeps and runs (`rouh/lean.py`, task 185): its preset set up at the start (Creator
+    on the Rouh that makes releases, with Petar's picks; Installed on every other), every value read
+    again each minute for the readers that may not ask the database, and once a day the sweep, which
+    removes old records only beyond the limits already confirmed."""
+    from . import lean
+
+    await asyncio.sleep(20)
+    while True:
+        try:
+            for org in await asyncio.to_thread(lean.orgs):
+                await asyncio.to_thread(lean.refresh, org)
+                got = await asyncio.to_thread(lean.sweep, org)
+                if got.get("swept") or (got.get("settled") or {}).get("moved"):
+                    log.info("what Rouh keeps, swept for %s: %s", org, got)
+        except Exception:  # noqa: BLE001 - tried again on the next look
+            log.exception("what Rouh keeps could not be looked after")
+        await asyncio.sleep(LEAN_EVERY)
 
 
 async def _gene_log_landed(commits: list[str]) -> None:
@@ -7865,6 +7900,8 @@ async def startup() -> None:
     asyncio.ensure_future(_gene_log_loop())
     # Its catch-up, at the start and once a day; the trigger is the landing (`codechanges.Watch`).
     asyncio.ensure_future(_gene_log_catch_up_loop())
+    # What this Rouh keeps and runs: its preset set up, its values kept fresh, the daily sweep (`rouh/lean.py`).
+    asyncio.ensure_future(_lean_loop())
     asyncio.ensure_future(_model_standard_loop())
     # The defaults every Rouh starts with, from rouh.land soon after a start and once a day (`rouh/ruledefaults.py`).
     asyncio.ensure_future(_rule_defaults_loop())

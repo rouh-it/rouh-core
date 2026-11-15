@@ -8605,7 +8605,7 @@ function settingsPages(section) {
                 cloudflare: window.RouhCloudflare, keys: window.RouhKeys, slack: window.RouhSlack, hue: window.RouhHue, dreame: window.RouhDreame,
                 'draft-edits': window.RouhDraftEdits,
                 'gene-pool': window.RouhGenes, changes: window.RouhChanges, silos: window.RouhSilos,
-                stats: window.RouhStats, offline: window.RouhOfflinePanel, 'this-rouh': window.RouhBirth,
+                stats: window.RouhStats, keeps: window.RouhKeeps, offline: window.RouhOfflinePanel, 'this-rouh': window.RouhBirth,
                 account: window.RouhSignIn };
   for (var name in pages) {
     var drawn = pages[name];

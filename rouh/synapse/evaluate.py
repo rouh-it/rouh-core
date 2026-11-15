@@ -129,8 +129,13 @@ def start(ds: dict, presets: list[str], *, by: str = "page", only: list[int] | N
           configs: list[dict] | None = None) -> dict:
     """A run of the set under presets, or under named configurations of any numbers
     (`{"label": ..., "override": {...}}`), each a pass of its own. Every improvement is
-    measured that way: a baseline, each change alone, then all together (Petar, 4 October 2026)."""
+    measured that way: a baseline, each change alone, then all together (Petar, 4 October 2026).
+    Refused (`lean.Off`) while Synapse's test runs are off here (`rouh/lean.py`)."""
+    from rouh import lean
+
     from .ingest import enqueue
+
+    lean.require("synapse_tests", ds.get("org_id"))
 
     chosen = [dict(PRESETS[p], key=p) for p in presets if p in PRESETS]
     for i, c in enumerate(configs or []):
@@ -328,8 +333,12 @@ def ask_one(ds: dict, s, q: dict, config: dict, trace, *, judge_it: bool = True)
     answered_by = [r["model"] for r in db.rows(
         "SELECT DISTINCT model FROM synapse.call WHERE trace_id = %s AND kind = 'generate' "
         "AND purpose IN ('understand', 'answer') AND ok", (query["trace_id"],))] or [str(s.answer_model)]
+    # The memory judge only where it runs here (`rouh/lean.py`): off, a run is measured unjudged.
+    from rouh import lean
+
     j = judge(ds, s, q, answer, answer.get("pack_items") or [], ranked_by, trace, shown, answered_by) \
-        if (judge_it and answer.get("text") and not q.get("forbidden")) else {}
+        if (judge_it and answer.get("text") and not q.get("forbidden")
+            and lean.runs("memory_judge", ds.get("org_id"))) else {}
     hosted_bad = db.value(
         "SELECT count(*) FROM synapse.call c WHERE c.trace_id = %s AND c.kind = 'decide' AND "
         "c.backend = 'openai_decisions' AND EXISTS (SELECT 1 FROM synapse.item i WHERE i.dataset_id = c.dataset_id "

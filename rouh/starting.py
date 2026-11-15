@@ -435,7 +435,9 @@ async def start(*, brief: str, title: str = "", preset: str = "",
         if model not in known:
             raise CannotStart(f"Unknown model for {agent or 'claude'}: {model}. Nothing was started.")
     brief = with_its_task(brief, chat)
-    if preset == "improve_myself":
+    from . import lean
+
+    if preset == "improve_myself" and await asyncio.to_thread(lean.runs, "trial_stage", org_id or None):
         # Every run of gene therapy changes Rouh's code, and what it changes that a person sees goes
         # through a trial after its Playwright proof (`rouh/trials/`, Petar, 4 November 2026). While the
         # person has paused testing it is built as before trials existed, told only to say so (6 November).

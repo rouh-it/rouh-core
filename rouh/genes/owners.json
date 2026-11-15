@@ -3132,6 +3132,15 @@
     "rouh/card_share.py",
     "rouh/web/card_share.py"
    ]
+  },
+  "lean": {
+   "files": [
+    "rouh/lean.py",
+    "rouh/models/lean.py",
+    "rouh/web/lean.py",
+    "rouh/static/keepspage.*",
+    "rouh/migrations/0251_lean_settings.py"
+   ]
   }
  }
 }

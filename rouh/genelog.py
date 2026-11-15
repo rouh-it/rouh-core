@@ -1321,9 +1321,11 @@ def _apply_writer(org: str, c: dict, a: dict | None, model: str) -> str:
 
 
 def on(org: str) -> bool:
-    from . import switches
+    """Whether the log is written here: its switch, and Anatomy's gene log item (`rouh/lean.py`), off
+    or "only the list of installed genes" writing nothing."""
+    from . import lean, switches
 
-    return switches.on(SWITCH, org)
+    return switches.on(SWITCH, org) and lean.runs("gene_log", org)
 
 
 #: The rule the log is written under. When it changes, a log nobody has shared from is written again

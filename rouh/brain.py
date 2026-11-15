@@ -522,7 +522,9 @@ def _plain_words_block(chat: str, user_content, note: bool = False) -> str:
             # The owner's own confusions go on Trials' list of problems, from the same reading.
             from . import trials
 
-            if getattr(who, "is_admin", False):
+            from . import lean
+
+            if getattr(who, "is_admin", False) and lean.runs("tester_problems", str(getattr(who, "org_id", "") or "") or None):
                 trials.owner_said(who, _plain(user_content), chat=chat)
         return plain_words.block(who)
     except Exception:  # noqa: BLE001 - a line of context is never worth a turn

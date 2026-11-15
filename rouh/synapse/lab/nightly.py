@@ -48,14 +48,15 @@ def ensure(who) -> Any | None:
     """The person's row for the nightly run, made once (daily at 02:00 on their clock) and never again.
 
     A row the owner paused or moved stays as they left it; a deleted one is made again, since it is Rouh's own job
-    and pausing is how it is stopped. Only for a person with a Synapse Master."""
-    from ... import clock, reminders
+    and pausing is how it is stopped. Only for a person with a Synapse Master, and not made while
+    the nightly try is off here (`rouh/lean.py`): a row already there stays, and skips when due."""
+    from ... import clock, lean, reminders
     from .. import db, master
 
     if not db.ready() or not master.of(str(who.org_id), str(who.user_id)):
         return None
     got = reminders.server_row(who, JOB)
-    if got is not None:
+    if got is not None or not lean.runs("synapse_nightly", str(who.org_id)):
         return got
     with clock.person(who):
         first = reminders.moment_of(AT)
