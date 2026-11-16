@@ -1,0 +1,44 @@
+name: Proof, catch-up of a 10 November Rouh
+on:
+  push:
+    branches: ["proof/catch-up-**"]
+permissions:
+  contents: write
+  packages: read
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Browser
+        run: |
+          python3 -m pip install --quiet --break-system-packages -r tests/stack/requirements.txt
+          python3 -m playwright install chromium
+          npm install --prefix "$RUNNER_TEMP/b" @playwright/mcp@0.0.83
+          echo "STACK_PLAYWRIGHT_MCP=$RUNNER_TEMP/b/node_modules/.bin/playwright-mcp" >> "$GITHUB_ENV"
+      - name: The proof
+        env:
+          OUT: ${{ github.workspace }}/.proof
+        run: |
+          set -o pipefail
+          bash .github/proof/catch-up.sh 2>&1 | tee proof.log
+      - name: Results onto a branch
+        if: always()
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p r/${{ matrix.arch }} && cp -r proof.log .proof/* r/${{ matrix.arch }}/ 2>/dev/null || true
+          rm -f r/${{ matrix.arch }}/settings.env
+          cd r && git init -q && git checkout -q -b x && git add -A
+          git -c user.name=proof -c user.email=proof@localhost commit -qm "proof ${{ matrix.arch }}"
+          git push -q -f "https://x-access-token:$TOKEN@github.com/$GITHUB_REPOSITORY.git" HEAD:refs/heads/proof-results/catch-up-221fc2f4-${{ matrix.arch }}
