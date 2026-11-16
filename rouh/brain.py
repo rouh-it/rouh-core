@@ -2388,7 +2388,7 @@ def _serialisable(blocks) -> list[dict]:
     out = []
     for b in blocks:
         if hasattr(b, "model_dump"):
-            out.append(b.model_dump(exclude_none=True))
+            out.append(citing.whole_citations(b.model_dump(exclude_none=True)))
         elif isinstance(b, dict):
             out.append(b)
     return out

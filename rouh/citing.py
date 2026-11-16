@@ -156,13 +156,48 @@ class Numbering:
 LUNA_CITATION = "url_citation"
 
 
+#: The fields of Anthropic's own citations that must be there even when they
+#: are empty: a page fetched with no title of its own comes back with
+#: `document_title: null`, and the API refuses that citation sent back without
+#: the key ("messages.99.content.3.text.citations.0.char_location.
+#: document_title: Field required", a chat of 16 November 2026). An answer
+#: kept with `exclude_none` loses exactly those keys, so they are put back.
+NULLABLE_REQUIRED = {
+    "char_location": ("document_title",),
+    "page_location": ("document_title",),
+    "content_block_location": ("document_title",),
+    "web_search_result_location": ("title",),
+    "search_result_location": ("title",),
+}
+
+
+def whole_citations(block):
+    """A block whose citations have every field Anthropic wants back, even null.
+
+    The very same block comes back when nothing was missing.
+    """
+    cites = block.get("citations") if isinstance(block, dict) else None
+    if not isinstance(cites, list):
+        return block
+    mended = None
+    for j, cite in enumerate(cites):
+        keys = NULLABLE_REQUIRED.get(cite.get("type")) if isinstance(cite, dict) else None
+        missing = [k for k in keys or () if k not in cite]
+        if missing:
+            if mended is None:
+                mended = list(cites)
+            mended[j] = {**cite, **{k: None for k in missing}}
+    return block if mended is None else {**block, "citations": mended}
+
+
 def for_anthropic(messages: list) -> list:
     """A window with Luna's citations taken off, for a request to Anthropic.
 
     Only the citations: the words stay, and so do their footnotes, which are
-    worked out again from the stored message whenever it is drawn. The very
-    same list comes back when there are none, which is every chat Claude alone
-    has answered, so for those this is a walk over the list and nothing else.
+    worked out again from the stored message whenever it is drawn. Claude's
+    own citations get back any required field that was kept as missing
+    (`whole_citations`). The very same list comes back when nothing needed
+    either, so for those this is a walk over the list and nothing else.
     """
     out = None
     for i, message in enumerate(messages):
@@ -180,6 +215,10 @@ def for_anthropic(messages: list) -> list:
                 block = {k: v for k, v in block.items() if k != "citations"}
                 if theirs:
                     block["citations"] = theirs
+                changed = True
+            whole = whole_citations(block)
+            if whole is not block:
+                block = whole
                 changed = True
             kept.append(block)
         if changed:

@@ -31,7 +31,7 @@ import json
 import logging
 import secrets
 
-from . import costs, fetchfallback, llmlog, modeldefaults, promptcache, servercalls
+from . import citing, costs, fetchfallback, llmlog, modeldefaults, promptcache, servercalls
 
 from .config import effort_for, thinking_for
 
@@ -133,7 +133,7 @@ def _serialisable(blocks) -> list:
     out = []
     for block in blocks or []:
         if hasattr(block, "model_dump"):
-            out.append(block.model_dump(exclude_none=True))
+            out.append(citing.whole_citations(block.model_dump(exclude_none=True)))
         elif isinstance(block, dict):
             out.append(block)
     return out

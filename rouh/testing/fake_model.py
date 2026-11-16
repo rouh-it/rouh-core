@@ -723,6 +723,36 @@ def _positions(body: dict) -> list[tuple[str, int, int]]:
     return out
 
 
+#: The fields of a citation the real API wants back even when they are null,
+#: by the citation's type (the SDK's `Required[Optional[str]]`).
+CITATION_NULLABLE = {
+    "char_location": "document_title", "page_location": "document_title",
+    "content_block_location": "document_title",
+    "web_search_result_location": "title", "search_result_location": "title",
+}
+
+
+def citation_refusal(body: dict) -> str:
+    """The real API's 400 about a citation sent back without a field it needs, or "".
+
+    Learned from the real API on 16 November 2026 (`llm_requests` 766893): a
+    page fetched with no title of its own is cited with `document_title:
+    null`, and the citation sent back in a later turn without that key is
+    refused, in these very words.
+    """
+    for n, message in enumerate(body.get("messages") or []):
+        content = message.get("content")
+        for b, block in enumerate(content if isinstance(content, list) else []):
+            cites = block.get("citations") if isinstance(block, dict) else None
+            for c, cite in enumerate(cites if isinstance(cites, list) else []):
+                kind = cite.get("type") if isinstance(cite, dict) else None
+                need = CITATION_NULLABLE.get(kind)
+                if need and need not in cite:
+                    return (f"messages.{n}.content.{b}.text.citations.{c}."
+                            f"{kind}.{need}: Field required")
+    return ""
+
+
 def server_call_refusal(body: dict) -> str:
     """The real API's 400 about a call of its own that lost its result, or "".
 
@@ -2904,9 +2934,11 @@ def web_blocks(body: dict, first: int = 0):
         yield from _text(index, f"{title} says: ")
         index += 1
         quoted = page[:600]
+        # A page with no title of its own is cited with a null title, as the
+        # real API cites one (the appcast of 16 November 2026).
         yield from _text(index, quoted, {
             "type": "char_location", "cited_text": quoted, "document_index": 0,
-            "document_title": title, "start_char_index": 0,
+            "document_title": None if title == url else title, "start_char_index": 0,
             "end_char_index": len(quoted)})
         return
 
@@ -3063,7 +3095,7 @@ def build_app(record_dir: str) -> FastAPI:
         # was refused is the one somebody will have to read. That is true of
         # both kinds of refusal below.
         why = (refuses(body) or too_long(raw, body) or cache_refusal(body)
-               or server_call_refusal(body))
+               or server_call_refusal(body) or citation_refusal(body))
         if why:
             return JSONResponse(status_code=400, content={
                 "type": "error",
