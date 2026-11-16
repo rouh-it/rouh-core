@@ -1,0 +1,317 @@
+#!/usr/bin/env python3
+"""rouh-catch-up: once, bring a Rouh whose code is older than Rouh's updates up to the newest release.
+
+Task 187, 16 November 2026. A Rouh installed before 11 November 2026 (task 140, step 140-18) has no
+"Update to the newest Rouh" on Meta, Changes and never rides along, because the code that does it is
+not in its code, and a base update never changes /code. Its built-in source, rouh-it/rouh-core, is
+also gone since the organisation became rouh-land. This does, once, what an update of 140-18 does,
+from outside that code: in the Rouh's protected core, which has /code, the internet through the key
+proxy, and the change step with its undo points.
+
+    docker exec -i rouh-guard-1 python3 -I - < rouh-catch-up        (bin/rouh-catch-up-mac does it)
+
+  1. Refuses, changing nothing, unless /code is a clean git repository whose code has no
+     rouh/code_update.py (a Rouh that has it updates itself from Meta, Changes) and that says which
+     release it came from: its first install (.git/rouh-installed.json and one first commit, as
+     rouh-code-install writes them) or an earlier update (a Rouh-release: line).
+  2. The newest release, as rouh.land's /mac/code/release.json names it; its tarball from the public
+     rouh-core on GitHub, under rouh-land and then rouh-it, which must say it is that very commit.
+  3. In a clone, the release's files are committed on top of the release this Rouh came from, with a
+     Rouh-release: line (so from then on its own updates know where it stands), and this Rouh's own
+     commits are merged on top; a file where its own change and the release changed the same lines
+     is kept as this Rouh had it, and named (140-18's rule).
+  4. The merge is fetched into /code under refs/rouh/update/<time> and handed to the protected core
+     (rouh-guard propose): its frozen security checks and the new code's own checks, then an undo
+     point, main moved, and the core and the worker started again on it. Refused: nothing runs.
+
+It never touches the database, the keys, the settings or anything outside /code's refs; the core's
+start migrates the database as on every update. Take a copy of the database first (rouh-backup now in
+the backup part; bin/rouh-catch-up-mac does). Undo: Meta, Changes, Put back on the point before, or
+rouh-guard undo N; then, if the database must go back too, rouh-backup restore <the copy>.
+
+    --check   say what it would do, and change nothing
+Settings: ROUH_SITE_URL (https://rouh.land), ROUH_CODE_RELEASE_URL (its /mac/code/release.json),
+ROUH_CODE_TARBALL ({org} and {commit} filled in), ROUH_APP_DIR (/code), ROUH_GUARD_BIN
+(/opt/rouh-guard/bin).
+"""
+from __future__ import annotations
+
+import io
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+CODE = Path(os.environ.get("ROUH_APP_DIR", "/code"))
+SITE = (os.environ.get("ROUH_SITE_URL") or "https://rouh.land").strip().rstrip("/")
+RELEASE_URL = os.environ.get("ROUH_CODE_RELEASE_URL") or f"{SITE}/mac/code/release.json"
+ORGS = ("rouh-land", "rouh-it")
+TARBALL = os.environ.get("ROUH_CODE_TARBALL") or "https://codeload.github.com/{org}/rouh-core/tar.gz/{commit}"
+GUARD = Path(os.environ.get("ROUH_GUARD_BIN", "/opt/rouh-guard/bin")) / "rouh-guard"
+#: As rouh-code-install and rouh/code_update.py: release tools a Rouh never runs.
+LEFT_OUT = ("guard", "mac", ".github", "deploy/container")
+TRAILER = "Rouh-release"
+MOST = 400 * 1024 * 1024
+UA = "rouh-catch-up/1"
+ROUH = ["setpriv", "--reuid=10001", "--regid=10001", "--init-groups", "--"]
+SHA = re.compile(r"[0-9a-f]{40}")
+
+
+class Refused(Exception):
+    pass
+
+
+def say(text: str) -> None:
+    print(f"rouh-catch-up: {text}", flush=True)
+
+
+def git(*args: str, cwd: Path, check: bool = False) -> subprocess.CompletedProcess:
+    pre = ROUH if os.getuid() == 0 else []
+    r = subprocess.run([*pre, "git", "-c", "safe.directory=*", "-c", "user.name=Rouh",
+                        "-c", "user.email=rouh@localhost", *args],
+                       cwd=cwd, capture_output=True, text=True, env={**os.environ, "HOME": "/tmp"})
+    if check and r.returncode:
+        raise Refused(f"git {args[0]} failed: {(r.stderr or r.stdout).strip()[-400:]}")
+    return r
+
+
+def out(*args: str, cwd: Path) -> str:
+    return git(*args, cwd=cwd, check=True).stdout.strip()
+
+
+def came_from(code: Path) -> dict:
+    """As rouh/code_update.py's base(): {"release", "local"} of the release this code holds, or Refused."""
+    log = git("log", "--format=%H%x1f%(trailers:key=" + TRAILER + ",valueonly,separator=)%x1e", "HEAD", cwd=code)
+    for rec in log.stdout.split("\x1e"):
+        sha, _, said = rec.strip().partition("\x1f")
+        if sha and SHA.fullmatch(said.strip()):
+            return {"release": said.strip(), "local": sha, "how": "an earlier update"}
+    roots = git("rev-list", "--max-parents=0", "HEAD", cwd=code).stdout.split()
+    if len(roots) != 1:
+        raise Refused("its code is not one install with changes on top (it has "
+                      f"{len(roots)} first commits), so it cannot say which release it came from.")
+    try:
+        installed = json.loads((code / ".git" / "rouh-installed.json").read_text())
+    except (OSError, ValueError):
+        installed = {}
+    commit = str(installed.get("commit") or "")
+    if not SHA.fullmatch(commit):
+        # An install whose record is missing: its first commit says the commit in its words.
+        m = re.search(r"Commit ([0-9a-f]{40}) of Rouh's main", out("log", "-1", "--format=%B", roots[0], cwd=code))
+        commit = m.group(1) if m else ""
+    if not SHA.fullmatch(commit):
+        raise Refused("its code does not say which release it was installed from.")
+    return {"release": commit, "local": roots[0], "how": "its first install"}
+
+
+def fetch(url: str, most: int) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
+    with urllib.request.urlopen(req, timeout=300) as r:
+        data = r.read(most + 1)
+    if len(data) > most:
+        raise Refused(f"{url.split('?')[0]} is larger than a release can be.")
+    return data
+
+
+def newest() -> dict:
+    try:
+        got = json.loads(fetch(RELEASE_URL, 512 * 1024))
+    except urllib.error.HTTPError as e:
+        raise Refused(f"rouh.land answered {e.code} for the newest release.") from None
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        raise Refused(f"rouh.land could not be reached ({getattr(e, 'reason', e)}).") from None
+    if not isinstance(got, dict) or not SHA.fullmatch(str(got.get("commit") or "")):
+        raise Refused("rouh.land's answer named no release.")
+    return got
+
+
+def download(commit: str) -> bytes:
+    said = []
+    for org in ORGS if "{org}" in TARBALL else ("",):
+        url = TARBALL.format(org=org, commit=commit)
+        try:
+            return fetch(url, MOST)
+        except urllib.error.HTTPError as e:
+            said.append(f"{org or url}: {e.code}")
+            if e.code != 404:
+                break
+        except (urllib.error.URLError, OSError) as e:
+            said.append(f"{org or url}: {getattr(e, 'reason', e)}")
+            break
+    raise Refused("the release could not be downloaded (" + "; ".join(said) + ").")
+
+
+def unpack(data: bytes, into: Path, commit: str) -> None:
+    """GitHub's tarball of one commit, which must say it is that commit; nothing outside `into`."""
+    try:
+        tar = tarfile.open(fileobj=io.BytesIO(data), mode="r:*")
+    except tarfile.TarError:
+        raise Refused("the download is not a release of Rouh.") from None
+    with tar:
+        said = (tar.pax_headers or {}).get("comment", "")
+        if said != commit:
+            raise Refused(f"the download is not commit {commit[:12]} (it says {said[:12] or 'nothing'}).")
+        members = []
+        for m in tar.getmembers():
+            parts = m.name.split("/", 1)
+            if len(parts) < 2 or not parts[1]:
+                continue
+            rel = parts[1]
+            if rel.startswith("/") or ".." in rel.split("/"):
+                raise Refused(f"the download holds a path that climbs out ({rel[:80]}).")
+            if m.issym() or m.islnk():
+                target = os.path.normpath(os.path.join(os.path.dirname(rel), m.linkname))
+                if m.linkname.startswith("/") or target.startswith(".."):
+                    raise Refused(f"the download holds a link that points out ({rel[:80]}).")
+            elif not (m.isfile() or m.isdir()):
+                continue
+            m.name = rel
+            members.append(m)
+        tar.extractall(into, members=members, filter="tar")
+
+
+def guard(*args: str) -> dict:
+    r = subprocess.run(["python3", "-I", str(GUARD), *args], capture_output=True, text=True, timeout=3900)
+    try:
+        return json.loads(r.stdout)
+    except ValueError:
+        raise Refused(f"the protected core did not answer ({(r.stderr or r.stdout).strip()[-300:]}).") from None
+
+
+def day(iso: str) -> str:
+    m = re.match(r"(\d{4})-(\d\d)-(\d\d)T", str(iso or ""))
+    if not m:
+        return "today"
+    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+              "October", "November", "December"]
+    return f"{int(m.group(3))} {months[int(m.group(2)) - 1]} {m.group(1)}"
+
+
+def catch_up(dry: bool) -> int:
+    if not (CODE / ".git").exists():
+        raise Refused(f"{CODE} is not a Rouh's code (no git repository).")
+    if git("cat-file", "-e", "HEAD:rouh/code_update.py", cwd=CODE).returncode == 0:
+        raise Refused("this Rouh already has Rouh's updates: press Update to the newest Rouh in Anatomy, "
+                      "Meta, Changes instead. Nothing was changed.")
+    if out("status", "--porcelain", "--untracked-files=normal", cwd=CODE):
+        raise Refused("its code has work in it that is not committed; nothing was changed.")
+    b = came_from(CODE)
+    head = out("rev-parse", "HEAD", cwd=CODE)
+    own = int(out("rev-list", "--count", "--no-merges", f"{b['local']}..{head}", cwd=CODE) or 0)
+    rel = newest()
+    commit = rel["commit"]
+    say(f"this Rouh came from Rouh {b['release'][:12]} ({b['how']}), with {own} change"
+        f"{'' if own == 1 else 's'} of its own; the newest release is {commit[:12]} of {day(rel.get('released_at'))}.")
+    if commit == b["release"]:
+        say("it already has that release; nothing to do.")
+        return 0
+    status = guard("status")
+    point = ((status.get("code") or {}).get("point") or {})
+    if point and point.get("commit") != head:
+        raise Refused(f"the code that runs ({str(point.get('commit'))[:12]}) is not /code's main ({head[:12]}); "
+                      "start Rouh again first. Nothing was changed.")
+    if dry:
+        say("--check: nothing was changed.")
+        return 0
+
+    say("downloading the release")
+    data = download(commit)
+    tmp = Path(tempfile.mkdtemp(prefix="rouh-catch-up-"))
+    os.chown(tmp, 10001, 10001) if os.getuid() == 0 else None
+    work = tmp / "work"
+    try:
+        git("clone", "-q", "--no-hardlinks", str(CODE), str(work), cwd=tmp, check=True)
+        git("checkout", "-q", "-b", "rouh-release", b["local"], cwd=work, check=True)
+        say("laying the release over the one this Rouh came from")
+        for p in work.iterdir():
+            if p.name != ".git":
+                shutil.rmtree(p) if p.is_dir() and not p.is_symlink() else p.unlink()
+        unpack(data, work, commit)
+        if not (work / "manage.py").is_file() or not (work / "rouh").is_dir():
+            raise Refused("the download holds no Rouh code.")
+        for left in LEFT_OUT:
+            if git("cat-file", "-e", f"{b['local']}:{left}", cwd=work).returncode == 0:
+                continue
+            p = work / left
+            shutil.rmtree(p) if p.is_dir() else (p.unlink() if p.exists() else None)
+        if os.getuid() == 0:
+            subprocess.run(["chown", "-R", "10001:10001", str(work)], check=True)
+        git("add", "-A", cwd=work, check=True)
+        when = day(rel.get("released_at"))
+        git("commit", "-q", "--allow-empty", "-m", f"Rouh {commit[:12]}, the release of {when}, as released",
+            "-m", f"Commit {commit} of rouh-core's main, a release of Rouh's code (rouh.land, /mac/code/release.json), "
+                  "exactly as a fresh install of it would have it, brought in once by rouh-catch-up because this "
+                  "Rouh's code was older than Rouh's updates. This Rouh's own changes are merged on top of it.",
+            "-m", f"{TRAILER}: {commit}", cwd=work, check=True)
+        local_release = out("rev-parse", "HEAD", cwd=work)
+        git("checkout", "-q", "-B", "catch-up", head, cwd=work, check=True)
+        kept = []
+        if head == b["local"]:
+            merged = local_release
+        else:
+            say("keeping this Rouh's own changes")
+            r = git("merge", "--no-ff", "--no-commit", "rouh-release", cwd=work)
+            clashes = [f for f in out("diff", "--name-only", "--diff-filter=U", cwd=work).splitlines() if f]
+            if r.returncode and not clashes:
+                raise Refused("its own changes could not be laid over the release: " + (r.stderr or r.stdout).strip()[-300:])
+            for f in clashes:
+                if git("cat-file", "-e", f":2:{f}", cwd=work).returncode == 0:
+                    git("checkout", "-q", "--ours", "--", f, cwd=work, check=True)
+                    git("add", "--", f, cwd=work, check=True)
+                else:
+                    git("rm", "-q", "--", f, cwd=work, check=True)
+                kept.append(f)
+            msg = [f"Rouh {commit[:12]}, the release of {when}, with this Rouh's own changes kept",
+                   f"The release's files merged with this Rouh's own {own} change{'s' if own != 1 else ''}, once, by rouh-catch-up."]
+            if kept:
+                msg.append("Kept as they were, because the release changed the same lines:\n" + "\n".join(f"- {f}" for f in kept))
+            git("commit", "-q", "--no-edit", "-m", msg[0], "-m", "\n\n".join(msg[1:]), cwd=work, check=True)
+            merged = out("rev-parse", "HEAD", cwd=work)
+        name = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+        git("fetch", "-q", str(work), f"+{merged}:refs/rouh/update/{name}", f"+{local_release}:refs/rouh/release/{name}",
+            cwd=CODE, check=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    if kept:
+        say("kept as this Rouh had them, because the release changed the same lines: " + ", ".join(kept[:20]))
+    before = point.get("n")
+    say(f"handing {merged[:12]} to the protected core; its checks take a minute or a few")
+    why = f"Rouh's update to Rouh {commit[:8]} of {when}, once, by rouh-catch-up" + (
+        f", {own} own change{'s' if own != 1 else ''} kept" if own else "")
+    answer = guard("propose", merged, why)
+    if not answer.get("ok"):
+        raise Refused("the protected core did not make it live, so the code is as it was: "
+                      + str(answer.get("refused") or answer.get("error") or "it did not say why")[:1500])
+    n = (answer.get("point") or {}).get("n")
+    say(f"done: undo point {n} is Rouh {commit[:12]} of {when}"
+        + (f" with this Rouh's {own} own change{'s' if own != 1 else ''}" if own else "")
+        + f"; {', '.join(answer.get('restarts') or ['core'])} start again on it.")
+    if before:
+        say(f"to undo: Anatomy, Meta, Changes, Put back on undo point {before}; or rouh-guard undo {before} here.")
+    print("ROUH-CATCH-UP " + json.dumps({"ok": True, "release": commit, "commit": merged, "point": n,
+                                         "before": before, "own": own, "kept": kept}), flush=True)
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    if any(a not in ("--check",) for a in argv):
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    try:
+        return catch_up("--check" in argv)
+    except Refused as exc:
+        say(str(exc))
+        print("ROUH-CATCH-UP " + json.dumps({"ok": False, "said": str(exc)}), flush=True)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

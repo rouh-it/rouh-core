@@ -1,0 +1,82 @@
+#!/bin/bash
+#
+# rouh-catch-up-mac: on a Mac that runs Rouh with Rouh for Mac, once, bring a Rouh whose code is
+# older than Rouh's updates (installed before 11 November 2026) up to the newest release, keeping
+# its name, keys, data, database and its own changes (bin/rouh-catch-up, task 187). Paste in Terminal:
+#
+#   curl -fsSL https://raw.githubusercontent.com/rouh-land/rouh-core/main/bin/rouh-catch-up-mac | bash
+#
+# It uses only what Rouh for Mac installed (its own Docker client and Colima machine, never the
+# person's), and in this order:
+#   1. a copy of the database now, in the backup part (rouh-backup now);
+#   2. rouh-catch-up in the protected core's part, which hands the update to the protected core: its
+#      checks, then an undo point, and Rouh starts again on it. Refused: nothing changes.
+# At the end it prints the one line that undoes it:
+#
+#   curl -fsSL .../bin/rouh-catch-up-mac | bash -s undo POINT COPY
+#
+# which puts the code back to undo point POINT (rouh-guard undo), stops the core, puts the database
+# back as it was in COPY (rouh-backup restore), and starts the core again.
+#
+#   ... | bash -s check        say what it would do, and change nothing
+set -euo pipefail
+say() { printf 'rouh-catch-up: %s\n' "$*"; }
+SRC="${ROUH_CATCH_UP_FROM:-https://raw.githubusercontent.com/rouh-land/rouh-core/main/bin}"
+D="$HOME/Library/Application Support/Rouh"
+if [ -z "${DOCKER_HOST:-}" ]; then
+  export DOCKER_HOST="unix://$HOME/.colima/rouh/docker.sock" DOCKER_CONFIG="$D/docker"
+  export PATH="$D/tools/bin:$PATH"
+fi
+command -v docker >/dev/null || { say "Rouh for Mac's Docker is not here ($D/tools/bin). Is Rouh for Mac installed and running?"; exit 1; }
+project="${ROUH_STACK_NAME:-rouh}"
+part() {
+  docker ps -q --filter "label=com.docker.compose.project=$project" --filter "label=com.docker.compose.service=$1" | head -1
+}
+guard="$(part guard)" backup="$(part backup)" core="$(part core)"
+[ -n "$guard" ] || { say "Rouh's protected core is not running. Open Rouh for Mac, wait until Rouh answers, and try again."; exit 1; }
+
+case "${1:-run}" in
+  undo)
+    point="${2:?say the undo point to go back to}" copy="${3:-}"
+    say "putting the code back to undo point $point"
+    docker exec "$guard" python3 -I /opt/rouh-guard/bin/rouh-guard undo "$point" | tail -5
+    if [ -n "$copy" ]; then
+      [ -n "$backup" ] && [ -n "$core" ] || { say "the backup part or the core is not running; the database was not put back"; exit 1; }
+      say "stopping Rouh to put the database back as it was in $copy"
+      docker stop "$core" >/dev/null
+      if docker exec "$backup" /opt/rouh-guard/bin/rouh-backup restore "$copy"; then rc=0; else rc=$?; fi
+      docker start "$core" >/dev/null
+      [ "$rc" = 0 ] || { say "the database could not be put back; it is as it was before this undo, and Rouh is started again"; exit 1; }
+    fi
+    say "done: Rouh starts again on the code and the database it had before the update."
+    exit 0 ;;
+  check) args=(--check) ;;
+  run) args=() ;;
+  *) say "say nothing, check, or undo POINT COPY"; exit 2 ;;
+esac
+
+script="$(mktemp)"; trap 'rm -f "$script"' EXIT
+if [ -f "$(dirname "$0")/rouh-catch-up" ]; then cp "$(dirname "$0")/rouh-catch-up" "$script"
+else curl -fsSL "$SRC/rouh-catch-up" -o "$script"; fi
+
+copy=""
+if [ "${#args[@]}" = 0 ]; then
+  [ -n "$backup" ] || { say "the backup part is not running, so no copy of the database can be made first; nothing was changed."; exit 1; }
+  say "copying the database first"
+  said="$(docker exec "$backup" /opt/rouh-guard/bin/rouh-backup now)" || { say "the copy failed; nothing was changed."; exit 1; }
+  printf '%s\n' "$said"
+  copy="$(printf '%s\n' "$said" | grep -o 'rouh-[0-9]\{8\}-[0-9]\{6\}\.dump' | head -1)"
+fi
+
+out="$(mktemp)"; trap 'rm -f "$script" "$out"' EXIT
+set +e
+docker exec -i "$guard" python3 -I - ${args[@]+"${args[@]}"} < "$script" | tee "$out"
+rc=${PIPESTATUS[0]}
+set -e
+before="$(sed -n 's/^ROUH-CATCH-UP .*"before": \([0-9][0-9]*\).*/\1/p' "$out" | tail -1)"
+if [ "$rc" = 0 ] && [ -n "$before" ] && grep -q '^ROUH-CATCH-UP {"ok": true' "$out"; then
+  say "Rouh is starting again on it; give it a few minutes, then open Anatomy, Meta, Changes."
+  say "to undo it, paste:"
+  echo "  curl -fsSL $SRC/rouh-catch-up-mac | bash -s undo $before $copy"
+fi
+exit "$rc"

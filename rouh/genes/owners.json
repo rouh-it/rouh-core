@@ -1818,6 +1818,8 @@
   "code-updates": {
    "files": [
     "rouh/code_update.py",
+    "bin/rouh-catch-up",
+    "bin/rouh-catch-up-mac",
     "rouh/code_evolution.py",
     "rouh/code_release.py",
     "rouh/github_org.py",
