@@ -519,9 +519,11 @@ CORE = frozenset({"identity", "model-luna", "model-other", "order", "clock", "th
 #: Built-in rules that hold what this Rouh knows of its setting up: the name it was born with and the
 #: nickname the person gave it. They go with Memory.
 MEMORY_RULES = frozenset({"born-name", "nickname"})
-#: The tools that read or keep the person's memory: not declared while Memory is off.
+#: The tools that read or keep the person's memory: not declared while Memory is off. Synapse's own tools are
+#: among them (16 November 2026): with them a chat on Memory off could still look the person up.
 MEMORY_TOOLS = frozenset({"remember", "forget", "list_memory", "agent_instructions", "capture_thought",
-                          "thoughts", "goals", "plan_goal", "goal_step", "set_goal", "goal_control"})
+                          "thoughts", "goals", "plan_goal", "goal_step", "set_goal", "goal_control",
+                          "synapse_find", "synapse_query", "synapse_add", "synapse_edit"})
 
 #: The live context a turn may be told beside the rules: (key, title, source, what it holds).
 CONTEXT = (
