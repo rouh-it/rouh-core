@@ -82,9 +82,9 @@ DEBIAN_SECURITY = "https://security.debian.org/debian-security/dists/trixie-secu
 ARCHES = ("amd64", "arm64")
 #: Where the published base is, which anyone may pull (the look reads its Debian packages there).
 GHCR = os.environ.get("ROUH_BASE_REGISTRY", "https://ghcr.io")
-#: rouh-base under either name of its organisation, tried in this order: rouh-it, and rouh-land, the
-#: name it is being renamed to (task 187; rouh/github_org.py, mac_release.py's ORGS).
-BASE_REPOS = ("rouh-it/rouh-base", "rouh-land/rouh-base")
+#: rouh-base under either name of its organisation, tried in this order: rouh-land, its name since 16
+#: November 2026, and rouh-it, the old one, whose images GitHub no longer serves (task 187; rouh/github_org.py, mac_release.py's ORGS).
+BASE_REPOS = ("rouh-land/rouh-base", "rouh-it/rouh-base")
 #: What the one program needs that Rouh's own lock does not have (one/requirements.txt, without
 #: its test-only pins).
 HEADER = """# Every Python library of Rouh and of the one program, pinned, for the base image

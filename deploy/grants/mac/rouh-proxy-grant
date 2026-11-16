@@ -65,9 +65,9 @@ update() {
   local sha=""
   # main's commit first, then that very commit's files, so what is installed is exactly the commit
   # named (a download of "main" can be a moment behind the commit just pushed). rouh-core under
-  # either name of its organisation, rouh-it or rouh-land, the name it is being renamed to (task
-  # 187): GitHub's API answers the old name with 404 after a rename.
-  for repo in ${ROUH_GRANTS_REPO:-rouh-it/rouh-core rouh-land/rouh-core}; do
+  # either name of its organisation, rouh-land, its name since 16 November 2026, or rouh-it, the
+  # old one (task 187).
+  for repo in ${ROUH_GRANTS_REPO:-rouh-land/rouh-core rouh-it/rouh-core}; do
     sha=$(gh api "repos/$repo/commits/main" --jq .sha 2>/dev/null) && [[ "$sha" =~ ^[0-9a-f]{40}$ ]] && break
     sha=""
   done

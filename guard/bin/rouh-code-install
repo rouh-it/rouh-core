@@ -13,8 +13,8 @@ replaces code-init and the rouh-code image (task 98, step 98-23, 24 October 2026
     Rouh's main branch that passed its tests, as rouh.land's public /mac/code/newest.json says it
     with its signed record (checked here with the release key); if rouh.land cannot be reached or
     its record does not check, the commit the signed release names (``ROUH_RELEASE_COMMIT``). Its
-    tarball comes straight from the public rouh-core on GitHub, under the organisation rouh-it or,
-    when that cannot give it, rouh-land, the name rouh-it is being renamed to (``ORGS``, task 187),
+    tarball comes straight from the public rouh-core on GitHub, under the organisation rouh-land or,
+    when that cannot give it, rouh-it, its name until 16 November 2026 (``ORGS``, task 187),
     and must say it is that very commit. An install code (``ROUH_INSTALL_CODE``, from an account on rouh.land) is an optional
     extra kept for installs that have one: it is tried first, and when rouh.land refuses it or
     cannot be reached the free way is taken; nothing depends on it. Release tools that a
@@ -58,10 +58,10 @@ MARK = CODE / ".rouh-filling"
 WORK = CODE / ".rouh-fill"
 URL = os.environ.get("ROUH_INSTALL_URL", "https://rouh.land/mac/code/install")
 SITE = (os.environ.get("ROUH_SITE_URL") or "https://rouh.land").strip().rstrip("/")
-#: The GitHub organisations rouh-core may be under, tried in this order: rouh-it, and rouh-land, the
-#: name it is being renamed to (task 187). A tarball must still say it is the very commit asked for
+#: The GitHub organisations rouh-core may be under, tried in this order: rouh-land, its name since
+#: 16 November 2026, and rouh-it, the old one, which GitHub forwards (task 187). A tarball must still say it is the very commit asked for
 #: (_unpack), so where it came from decides nothing. Change it with mac_release.py's ORGS.
-ORGS = ("rouh-it", "rouh-land")
+ORGS = ("rouh-land", "rouh-it")
 TARBALL = os.environ.get("ROUH_CODE_TARBALL") or "https://codeload.github.com/{org}/rouh-core/tar.gz/{commit}"
 #: The public half of the key that signs releases and "this commit passed" records: the same as
 #: deploy/container/mac_release.py's PUBLIC_KEYS, Rouh for Mac's StackRelease.trustedKeys and

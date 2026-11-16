@@ -6,9 +6,9 @@ a release that does, the organisation is renamed and an empty rouh-it is made to
 name, and only then is rouh-it taken out of the code.
 
 So every place that reads rouh-core on GitHub asks ``every`` for the addresses to try, in order,
-and takes the first that answers: the old name first, because until the rename it is the only one
-that exists, and after the rename GitHub sends it on to the new one until the empty rouh-it is
-made. A name that answers "not found" is passed over; any other failure is the answer, so a
+and takes the first that answers: rouh-land first, since the organisation was renamed on 16
+November 2026 (until then the old name was first, as the only one that existed), and rouh-it after
+it, which GitHub forwards to rouh-land while no repository of the same name is made under it. A name that answers "not found" is passed over; any other failure is the answer, so a
 GitHub that cannot be reached is never taken for a repository that is not there.
 
 ``ROUH_GITHUB_ORG`` names the organisation tried first, and the one written where a single name
@@ -23,8 +23,9 @@ import re
 import urllib.error
 import urllib.request
 
-#: The two names, the old one first.
-NAMES = ("rouh-it", "rouh-land")
+#: The two names, the new one first since the rename (16 November 2026); rouh-it, which GitHub
+#: forwards, stays the fallback until stage 4.
+NAMES = ("rouh-land", "rouh-it")
 #: Either name, for a regular expression.
 ANY = "(?:" + "|".join(re.escape(n) for n in NAMES) + ")"
 

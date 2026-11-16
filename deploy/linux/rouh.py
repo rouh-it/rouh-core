@@ -195,10 +195,10 @@ def _verified_code_commit() -> tuple[str, int]:
     return commit, int(payload.get("version") or 0)
 
 
-#: The GitHub organisations rouh-core may be under: rouh-it, and rouh-land, the name it is being
-#: renamed to (task 187). GitHub sends the old name on after the rename only until an organisation
-#: of that name is made again, so the updater must find its code under either.
-ORGS = ("rouh-it", "rouh-land")
+#: The GitHub organisations rouh-core may be under: rouh-land, its name since 16 November 2026, and
+#: rouh-it, the old one (task 187). GitHub sends the old name on after the rename unless a repository
+#: of the same name is made under it again, so the updater finds its code under either.
+ORGS = ("rouh-land", "rouh-it")
 
 
 def _fetch_commit(commit: str) -> None:
