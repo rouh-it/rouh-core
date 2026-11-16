@@ -1230,9 +1230,23 @@ function taskCard(rec) {
   // is the bin that dismisses it.
   if (!rec.dismiss) top.appendChild(taskDots(rec));
   node.appendChild(top);
-  if (rec.actual_model || rec.model) {
-    node.appendChild(el('div', 'task-detail', rec.actual_model
-      ? 'Model: ' + rec.actual_model : 'Requested model: ' + rec.model));
+  // The run's id, as words on the card, and the model beside it. Petar,
+  // 16 November 2026 (fr_af516f30d66f): "I want to be able to CMD+F and find
+  // the relevant one", on both tabs of Metabolism. So it is real text, not a
+  // title or an attribute, and the whole id: a run's id is its eight letters
+  // already (`one/runs.py`, `crew.py`), the same the run's own page says. The
+  // deploy card has no run behind it, so no id.
+  var model = rec.actual_model ? 'Model: ' + rec.actual_model
+    : rec.model ? 'Requested model: ' + rec.model : '';
+  if (!rec.dismiss || model) {
+    var ids = el('div', 'task-ids');
+    if (!rec.dismiss && rec.id) {
+      var rid = el('span', 'task-id', String(rec.id));
+      rid.title = 'Its id: ' + rec.id;
+      ids.appendChild(rid);
+    }
+    if (model) ids.appendChild(el('span', 'task-model', model));
+    node.appendChild(ids);
   }
 
   // A job whose work will not go onto main is not the same kind of waiting as
