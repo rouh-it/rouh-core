@@ -3168,6 +3168,62 @@
     "rouh/migrations/0255_permission_gates.py",
     "rouh/genes/manifests/permission-gates.json"
    ]
+  },
+  "n45-past-guard": {
+   "name": "Not booked in the past",
+   "what": "Before Rouh books or moves a meeting, it checks the time against your clock: a time that has already passed is not booked, nobody is emailed, and Rouh says the time it most likely meant.",
+   "switch": "past_guard",
+   "signals": {
+    "events": {
+     "held": "You asked Rouh to book or move a meeting to a time that had already passed, and it was held instead of sending invitations for it"
+    }
+   },
+   "files": [
+    "rouh/past_guard.py"
+   ]
+  },
+  "n45-rouh-invited": {
+   "name": "Invited Rouh, not you",
+   "what": "When somebody sends a meeting invitation to Rouh's inbox and not to you, and it is not on your calendar, you are told at once, with Put it on my calendar.",
+   "switch": "rouh_invited",
+   "signals": {
+    "events": {
+     "added": "You pressed Put it on my calendar on a notice that somebody invited Rouh and not you"
+    },
+    "runs": {
+     "told": "An invitation came to Rouh's inbox without you on it, and you were told in a notice"
+    }
+   },
+   "files": [
+    "rouh/rouh_invited.py",
+    "rouh/web/rouh_invited.py"
+   ]
+  },
+  "n45-open-files": {
+   "name": "Your files open to anyone",
+   "what": "Asked in words, Rouh lists which of your own Drive files anyone with the link can open, and which are shared outside your company and with whom, each with its link.",
+   "switch": "open_files",
+   "signals": {
+    "events": {
+     "asked": "You asked Rouh which of your files are open to anyone or shared outside, and it listed them"
+    }
+   },
+   "files": [
+    "rouh/open_files.py"
+   ]
+  },
+  "n45-invite-answer": {
+   "name": "Answer the invitation from the email",
+   "what": "An invitation opened on the inbox card shows the meeting, your answer so far, and Yes, Maybe and No: one press answers it in your calendar and Google tells the organiser.",
+   "switch": "invite_answer",
+   "signals": {
+    "events": {
+     "answered": "You pressed Yes, Maybe or No on an invitation opened on the inbox card"
+    }
+   },
+   "files": [
+    "rouh/invite_answer.py"
+   ]
   }
  }
 }

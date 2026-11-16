@@ -942,8 +942,10 @@ class Calendar:
 
     async def import_invite(self, *, uid: str, title: str, start, end, where: str = "",
                             description: str = "", organiser: str = "", organiser_name: str = "",
-                            guests=(), sequence: int = 0) -> dict:
-        """An invitation that came by email put on the account's main calendar as the same event,
+                            guests=(), sequence: int = 0, calendar_id: str = "primary") -> dict:
+        """An invitation that came by email put on the account's main calendar (or `calendar_id`, the
+        person's own when Rouh is connected to an account of its own: Invited Rouh, not you,
+        `rouh/rouh_invited.py`) as the same event,
         by its iCalendar UID, the way Gmail adds one itself (Google's events.import): a later
         change or cancellation of it from the sender then finds it, and nobody is emailed
         (Invitations not in your calendar, `rouh/invite_missing.py`)."""
@@ -960,8 +962,9 @@ class Calendar:
             body["location"] = where
         if description:
             body["description"] = description
-        made = await self._call("POST", self._event_path("primary") + "/import", json_body=body)
-        return _an_event(made, await self.about("primary"), self.zone)
+        target = calendar_id or "primary"
+        made = await self._call("POST", self._event_path(target) + "/import", json_body=body)
+        return _an_event(made, await self.about(target), self.zone)
 
     async def _raw(self, calendar_id: str, event_id: str) -> dict:
         return await self._call("GET", self._event_path(calendar_id, event_id))

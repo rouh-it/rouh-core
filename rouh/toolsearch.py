@@ -146,7 +146,7 @@ AREA_OF: dict[str, str] = {
     "write_drive_file": "drive", "upload_drive_file": "drive", "create_drive_folder": "drive",
     "manage_drive_file": "drive", "share_drive_file": "drive",
     "create_shared_drive": "drive", "add_shared_drive_members": "drive",
-    "list_drive_permissions": "drive", "read_doc": "drive", "doc_changes": "drive", "comments_by": "drive",
+    "list_drive_permissions": "drive", "open_files": "drive", "read_doc": "drive", "doc_changes": "drive", "comments_by": "drive",
     "find_slides": "drive", "edit_sheet": "drive", "edit_slides": "drive", "copy_drive_file": "drive",
     "create_doc": "drive",
     "edit_doc": "drive",

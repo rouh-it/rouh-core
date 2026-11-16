@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 
 from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, calendar_away, clock, demo,
                composing, conversations, filing, imaging, inbox, inbox_grants, inboxes,
-               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, no_company, sent_twice, same_contact, draft_twice, contact_card, forward_twice, contact_changes, postal_address, related_people, meeting_hours, meet_link, no_place,
+               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, past_guard, open_files, rouh_invited, no_company, sent_twice, same_contact, draft_twice, contact_card, forward_twice, contact_changes, postal_address, related_people, meeting_hours, meet_link, no_place,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer, reply_times,
                their_clock, their_hours, unread_lists, their_language, promised_to_you,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer,
@@ -6975,6 +6975,8 @@ class ToolRegistry:
             },
             self._list_drive_permissions,
         )
+        # Your files open to anyone (night 45, `rouh/open_files.py`).
+        self._own("open_files", open_files.DESCRIPTION, open_files.SCHEMA, self._open_files)
         # --- Docs --------------------------------------------------------------
         self._own(
             "read_doc",
@@ -7315,6 +7317,8 @@ class ToolRegistry:
                     "even_on_holiday": holiday_guard.FIELD,
                     # Not put on twice (night 38, `rouh/not_twice.py`).
                     "even_if_twice": not_twice.FIELD,
+                    # Not booked in the past (night 45, `rouh/past_guard.py`).
+                    "even_if_past": past_guard.FIELD,
                 },
                 "required": ["title", "start"],
             },
@@ -7369,6 +7373,8 @@ class ToolRegistry:
                                               "it. Default true."},
                     # Not booked over someone busy (night 33, `rouh/busy_guard.py`).
                     "even_if_busy": busy_guard.FIELD,
+                    # Not booked in the past (night 45, `rouh/past_guard.py`).
+                    "even_if_past": past_guard.FIELD,
                 },
                 "required": ["event_id"],
             },
@@ -10108,6 +10114,30 @@ class ToolRegistry:
         self.google.wrote("share_drive_file", file_id, said)
         return said + (f" - but then it stopped: {trouble}" if trouble else "")
 
+    async def _open_files(self, args, emit):
+        """Your files open to anyone (night 45, `rouh/open_files.py`)."""
+        blocked = self.google.not_ready_because()
+        if blocked:
+            return blocked
+        who = self.google.person()
+        if not await asyncio.to_thread(open_files.on, who):
+            return untrusted.ours("Your files open to anyone is switched off (in Evolution, Mutations), so "
+                                  "Rouh cannot list them; list_drive_permissions still reads one file.")
+        if _in_case():
+            return untrusted.ours("The person's files are listed only for the person, not in a contact's case.")
+        try:
+            files = await self.google.services().drive.owned_and_shared(open_files.MOST)
+        except Exception as exc:
+            return _google_trouble(exc)
+        mine = await asyncio.to_thread(open_files.own_domains, who, self.google.address() or "")
+        only = str(args.get("who") or "").strip()
+        said = open_files.answer(files, mine, only=only)
+        from . import evolution
+
+        await asyncio.to_thread(evolution.used, open_files.SWITCH, "asked", who=who,
+                                detail=f"{len(files)} shared files read" + (f", for {only[:60]}" if only else ""))
+        return untrusted.wrap(said, untrusted.SOURCES["list_drive_permissions"])
+
     async def _list_drive_permissions(self, args, emit):
         blocked = self.google.not_ready_because()
         if blocked:
@@ -10576,6 +10606,11 @@ class ToolRegistry:
             if refused:
                 return untrusted.ours(refused)
             checked = ""
+            if not args.get("even_if_past"):
+                # Not booked in the past (night 45, `rouh/past_guard.py`): a time already gone.
+                stop = await self._past_guard(args.get("start"), title)
+                if stop:
+                    return untrusted.ours(stop)
             if not args.get("even_if_twice"):
                 # Not put on twice (night 38, `rouh/not_twice.py`): the same event already there.
                 stop = await self._not_twice(calendar, title, args, guests)
@@ -10669,6 +10704,23 @@ class ToolRegistry:
         except Exception:  # noqa: BLE001 - the guests' own addresses are judged without it
             me = ""
         return meet_link.wanted(args, guests, me=me, all_day=not isinstance(start, datetime))
+
+    async def _past_guard(self, start, what: str, *, moving: bool = False) -> str:
+        """Not booked in the past (night 45, `rouh/past_guard.py`): why not, when the start asked for
+        has already passed on the person's clock; "" when it is off or still to come."""
+        from .google_api import when_given
+
+        who = self.google.person()
+        if not await asyncio.to_thread(past_guard.on, who):
+            return ""
+        zone = clock.zone_of(who)
+        stop = past_guard.check(when_given(start, zone), zone, moving=moving)
+        if stop:
+            from . import evolution
+
+            await asyncio.to_thread(evolution.used, past_guard.SWITCH, "held", who=who,
+                                    detail=("a move" if moving else "a booking") + f" of {str(what)[:80]!r} into the past")
+        return stop
 
     async def _not_twice(self, calendar, title: str, args: dict, guests: list[str]) -> str:
         """Not put on twice (night 38, `rouh/not_twice.py`): why not, when the same event is already
@@ -10787,6 +10839,11 @@ class ToolRegistry:
             where, refused = await _calendar_reached(calendar, where)
             if refused:
                 return untrusted.ours(refused)
+            if args.get("start") and not args.get("even_if_past"):
+                # Not booked in the past (night 45, `rouh/past_guard.py`): moved to a time already gone.
+                stop = await self._past_guard(args.get("start"), event_id, moving=True)
+                if stop:
+                    return untrusted.ours(stop)
             if args.get("start") and not args.get("even_if_busy"):
                 stop = await self._busy_guard_move(calendar, where, event_id, args)
                 if stop:

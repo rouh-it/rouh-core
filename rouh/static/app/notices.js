@@ -725,8 +725,9 @@ function follow(n, href) {
     // and new company (`/mail/new-company/<key>`, rouh/new_company.py), and an address they told
     // you (`/mail/told-address/<key>`, rouh/told_address.py), and a new job title in a signature
     // (`/mail/new-title/<key>`, rouh/new_title.py), and a new postal address in a signature
-    // (`/mail/new-address-sig/<key>`, rouh/sig_address.py).
-    if (/^\/mail\/(case\/[^/?#]+\/.|not-arrived\/|away-after\/|new-number\/|new-address\/|new-company\/|told-address\/|new-title\/|new-address-sig\/)/.test(link) || n.reload) location.assign(link);
+    // (`/mail/new-address-sig/<key>`, rouh/sig_address.py), and Put it on my calendar on an
+    // invitation sent to Rouh only (`/mail/rouh-invited/<key>`, rouh/rouh_invited.py).
+    if (/^\/mail\/(case\/[^/?#]+\/.|not-arrived\/|away-after\/|new-number\/|new-address\/|new-company\/|told-address\/|new-title\/|new-address-sig\/|rouh-invited\/)/.test(link) || n.reload) location.assign(link);
     else {
       // On a phone the bell is inside the navigation's drawer, which goes with the press like
       // after any other link followed from it, or it stays over the place just opened.

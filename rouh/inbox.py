@@ -1019,6 +1019,19 @@ class Mailroom:
                 card = None
             if card:
                 shown = dict(shown, card_in_mail=card)
+        # Answer the invitation from the email (night 45, `rouh/invite_answer.py`): Yes, Maybe or No.
+        from . import invite_answer
+
+        if found.get("calendar"):
+            try:
+                who = self._owner(sealed)
+                gmail = await self._theirs(sealed) if sealed and sealed.get("m") else self._gmail()
+                invite = await invite_answer.shown(who, gmail, self.google.services().calendar, found)
+            except Exception as exc:  # noqa: BLE001 - the message opens all the same
+                log.info("the invitation's answer could not be offered: %s", exc)
+                invite = None
+            if invite:
+                shown = dict(shown, invite_answer=invite)
         # If I have not answered it, remind me (night 37, `rouh/answer_watch.py`): an email asking him something.
         from . import answer_watch
 
@@ -1079,6 +1092,23 @@ class Mailroom:
             return Answer(False, why="Call them from their email is switched off.")
         await asyncio.to_thread(call_sender.pressed, who, how)
         return Answer(True, said={"counted": True})
+
+    async def invite_answer(self, message_id: str, what: str, sealed: dict | None) -> Answer:
+        """Yes, Maybe or No, pressed on an email's invitation line: the invitation and the meeting read
+        again here, never from the page, and answered in the calendar."""
+        from . import invite_answer
+
+        who = self._owner(sealed)
+        if not await asyncio.to_thread(invite_answer.on, who):
+            return Answer(False, why="Answer the invitation from the email is switched off.")
+        gmail = await self._theirs(sealed) if sealed and sealed.get("m") else self._gmail()
+        found = await gmail.message(message_id)
+        done, said, now = await invite_answer.answer(who, gmail, self.google.services().calendar, found, what)
+        if not done:
+            return Answer(False, why=said)
+        return Answer(True, said={"said": said, "answer": now},
+                      note=f"answered the invitation on {about(found)}: {invite_answer.ANSWERS.get(what, what)}, "
+                           "pressed on the inbox card")
 
     async def card_in_mail(self, message_id: str, sealed: dict | None) -> Answer:
         """Save to contacts or Add to their contact, pressed on an email's contact card line: the card read
@@ -1345,7 +1375,7 @@ def serve(room: Mailroom) -> None:
 #: What the page may ask of a card.
 ASKS = {"list", "open", "archive", "unarchive", "read", "unread", "compose", "send",
         "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch", "know_them",
-        "save_sender", "card_in_mail", "call_sender"}
+        "save_sender", "card_in_mail", "call_sender", "invite_answer"}
 
 
 async def press(msg: dict, who) -> Answer:
@@ -1381,7 +1411,7 @@ async def press(msg: dict, who) -> Answer:
     if what != "list" and not message_id:
         return Answer(False, why="Say which message.")
     if theirs and what not in ("list", "open", "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch",
-                               "know_them", "save_sender", "card_in_mail", "call_sender"):
+                               "know_them", "save_sender", "card_in_mail", "call_sender", "invite_answer"):
         # The person's own inbox is connected read-only (`rouh/inboxes.py`):
         # the card has no such button, and a page that asks anyway is told why.
         return Answer(False, why="This inbox is connected read-only, so it can be read "
@@ -1426,6 +1456,11 @@ async def press(msg: dict, who) -> Answer:
         if what == "call_sender":
             # Call them from their email, counted: nothing in the mailbox changes.
             done = await ROOM.call_sender(str(msg.get("when") or ""), sealed)
+            done.chat = chat
+            return done
+        if what == "invite_answer":
+            # Answer the invitation from the email: the answer is the calendar's, nothing in the mailbox changes.
+            done = await ROOM.invite_answer(message_id, str(msg.get("when") or ""), sealed)
             done.chat = chat
             return done
         if what == "card_in_mail":

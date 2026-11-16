@@ -578,6 +578,36 @@ class Drive:
             needs_scope=DRIVE_SCOPE)
         return [_a_permission(one) for one in (body.get("permissions") or [])]
 
+    async def owned_and_shared(self, most: int = 1000) -> list[dict]:
+        """The person's own files that somebody besides them can open, with who: up to `most`,
+        newest change first (Your files open to anyone, `rouh/open_files.py`). Read only."""
+        out: list[dict] = []
+        token = ""
+        while len(out) < most:
+            params = {
+                "q": "'me' in owners and trashed = false",
+                "pageSize": min(1000, most - len(out)),
+                "orderBy": "modifiedTime desc",
+                "fields": "nextPageToken,files(id,name,mimeType,modifiedTime,webViewLink,shared,"
+                          + PERMISSION_FIELDS + ")",
+            }
+            if token:
+                params["pageToken"] = token
+            body = await self._clients.call(self._who, "GET", self._url("/files"), params=params,
+                                            needs_scope=DRIVE_SCOPE)
+            for one in body.get("files") or []:
+                held = [_a_permission(p) for p in (one.get("permissions") or []) if p.get("role") != "owner"]
+                if not held:
+                    continue
+                out.append({"id": one.get("id") or "", "name": one.get("name") or "",
+                            "type": _kind(one.get("mimeType") or ""),
+                            "modified": one.get("modifiedTime") or "",
+                            "link": one.get("webViewLink") or "", "permissions": held})
+            token = body.get("nextPageToken") or ""
+            if not token:
+                break
+        return out[:most]
+
     async def revisions(self, file_id: str) -> list[dict]:
         """The saved versions of a file, oldest first: when, who, and where to export each.
 
@@ -991,7 +1021,8 @@ def _a_permission(one: dict) -> dict:
     else:
         who = one.get("displayName") or email or kind or "somebody"
     return {"id": one.get("id") or "", "who": who, "kind": kind,
-            "role": one.get("role") or "", "email": email}
+            "role": one.get("role") or "", "email": email,
+            "discoverable": bool(one.get("allowFileDiscovery"))}
 
 
 def _a_listed_file(found: dict) -> dict:

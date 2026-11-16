@@ -3281,3 +3281,94 @@ print(json.dumps({"saved": bool(saved.get("share")), "unsaved": bool(unsaved.get
 """))
     expect('"saved": true' in out and '"unsaved": false' in out and '"photo": false' in out and '"name": true' in out,
            f"a contact card was not marked for Send their card as it should be: {out[-500:]}")
+
+
+@check("gene.past-guard")
+def past_guard(s: Stack) -> None:
+    """A meeting asked for at a time already gone is held, with the time it most likely meant; one to come is not."""
+    out = core_py(s, _owner_py("""
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+from rouh import past_guard
+zone = ZoneInfo("Europe/Sofia")
+now = datetime(2030, 3, 6, 12, 0, tzinfo=zone)
+gone = past_guard.check(datetime(2030, 3, 4, 10, 0, tzinfo=zone), zone, now=now)
+year = past_guard.check(datetime(2029, 3, 20, 10, 0, tzinfo=zone), zone, now=now)
+ahead = past_guard.check(datetime(2030, 3, 8, 10, 0, tzinfo=zone), zone, now=now)
+print(json.dumps({"gone": gone, "year": year, "ahead": ahead}))
+"""))
+    expect("Not booked" in out and "Monday 11 March 2030 at 10:00" in out and "Wednesday 20 March 2030" in out
+           and '"ahead": ""' in out, f"a time already gone was not held as it should be: {out[-600:]}")
+
+
+_STACK_ICS = ("BEGIN:VCALENDAR\\r\\nMETHOD:REQUEST\\r\\nBEGIN:VEVENT\\r\\nUID:stack-ri@example.test\\r\\n"
+              "SUMMARY:Stack design review\\r\\nDTSTART:20300312T090000Z\\r\\nDTEND:20300312T093000Z\\r\\n"
+              "ORGANIZER;CN=Nina Stack:mailto:nina@stack-invite.test\\r\\n"
+              "ATTENDEE;CN=Rouh:mailto:GUEST\\r\\nEND:VEVENT\\r\\nEND:VCALENDAR\\r\\n")
+
+
+@check("gene.rouh-invited")
+def rouh_invited(s: Stack) -> None:
+    """An invitation that leaves the owner out is found to tell; one with the owner on it is not."""
+    out = core_py(s, _owner_py(f"""
+from datetime import datetime, timezone
+from rouh import rouh_invited
+ics = "{_STACK_ICS}"
+now = datetime(2030, 3, 1, tzinfo=timezone.utc)
+mine = {{"owner@stack-invite.test"}}
+left = rouh_invited.invitation(ics.replace("GUEST", "rouh@stack-invite.test"), timezone.utc, now, mine)
+there = rouh_invited.invitation(ics.replace("GUEST", "owner@stack-invite.test"), timezone.utc, now, mine)
+print(json.dumps({{"left": bool(left) and left.title, "there": bool(there)}}))
+"""))
+    expect('"left": "Stack design review"' in out and '"there": false' in out,
+           f"an invitation sent to Rouh only was not found as it should be: {out[-500:]}")
+
+
+@check("gene.open-files")
+def open_files(s: Stack) -> None:
+    """A file open to anyone and one shared outside are listed; one shared only inside is counted, not listed."""
+    out = core_py(s, _owner_py("""
+from rouh import open_files
+files = [
+    {"id": "f1", "name": "Stack prices", "type": "Google Sheet", "modified": "2030-03-01T10:00:00Z", "link": "L1",
+     "permissions": [{"kind": "anyone", "who": "anyone with the link", "role": "reader", "email": ""}]},
+    {"id": "f2", "name": "Stack contract", "type": "Google Doc", "modified": "2030-02-01T10:00:00Z", "link": "L2",
+     "permissions": [{"kind": "user", "who": "Dana Stack", "role": "writer", "email": "dana@other.test"}]},
+    {"id": "f3", "name": "Stack team notes", "type": "Google Doc", "modified": "2030-01-01T10:00:00Z", "link": "L3",
+     "permissions": [{"kind": "user", "who": "Ivo", "role": "writer", "email": "ivo@ours.test"}]},
+]
+print(json.dumps({"said": open_files.answer(files, {"ours.test"})}))
+"""))
+    expect("Open to anyone with the link: 1" in out and "Dana Stack (dana@other.test) can edit" in out
+           and "Stack team notes" not in out and "1 more are shared only inside" in out,
+           f"the open files were not said as they should be: {out[-600:]}")
+
+
+@check("gene.invite-answer")
+def invite_answer(s: Stack) -> None:
+    """An invitation on the owner's calendar is offered Yes, Maybe and No from its email; one on no calendar is not."""
+    out = core_py(s, _owner_py(f"""
+from datetime import datetime, timezone
+from unittest import mock
+from rouh import invite_answer
+ics = "{_STACK_ICS}".replace("GUEST", "owner@stack-invite.test")
+class G:
+    async def calendar_text(self, mid, part):
+        return ics
+class C:
+    def __init__(self, there):
+        self.there = there
+    async def events(self, a, b, limit=100):
+        ev = {{"ical_uid": "stack-ri@example.test", "mine": False, "status": "confirmed", "title": "Stack design review",
+               "start": datetime(2030, 3, 12, 9, tzinfo=timezone.utc), "my_response": "needsAction",
+               "guests": [{{"this_calendar": True}}], "calendar_id": "primary", "id": "e1"}}
+        return {{"events": [ev] if self.there else []}}
+found = {{"id": "m1", "calendar": [{{"data": "x"}}]}}
+async def go():
+    with mock.patch.object(invite_answer, "on", return_value=True):
+        return await invite_answer.shown(who, G(), C(True), found), await invite_answer.shown(who, G(), C(False), found)
+there, nowhere = asyncio.run(go())
+print(json.dumps({{"there": there, "nowhere": nowhere}}))
+"""))
+    expect("not answered yet" in out and '"label": "Maybe"' in out and '"nowhere": null' in out,
+           f"the invitation's answer was not offered as it should be: {out[-600:]}")

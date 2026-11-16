@@ -425,6 +425,10 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `gene.sig-address` | A new address in their signature | untested | works | a signature's postal address is told only when the card has another one; the same address, a new company or a card with no address is not |
 | `gene.related-people` | The people around a contact | untested | works | a related name is written to a card with Apple's label, read back with it, and taken off by name |
 | `gene.card-share` | Send their contact card | untested | works | a saved contact card is marked for Send their card, one not saved yet is not, and the card sent leaves its photo out | not checked |
+| `gene.past-guard` | Not booked in the past | untested | works | a meeting asked for at a time already gone is held with the time it most likely meant (next week, or next year); one still to come is not | not checked |
+| `gene.rouh-invited` | Invited Rouh, not you | untested | works | an invitation that leaves the owner out is found to tell; one with the owner on it is not | not checked |
+| `gene.open-files` | Your files open to anyone | untested | works | a file open to anyone with the link and one shared outside are listed with who; one shared only inside is counted, not listed | not checked |
+| `gene.invite-answer` | Answer the invitation from the email | untested | works | an invitation on the owner's calendar is offered Yes, Maybe and No from its email; one on no calendar is not | not checked |
 | `core.commands-open-credentials` | A command run in the core beside Rouh (`docker compose exec core python manage.py ...`) opens what Rouh sealed | broken | works | with Google connected, Python in the core opens the sealed refresh token with the key from the keys volume (`ROUH_ENCRYPTION_KEY_FILE`), and Google is still connected after. It was broken: only the core's start put the key in Rouh's environment, so a command beside it made a key of its own in `/data`, could open no credential, and marked the owner's Google to be connected again | not checked |
 
 ## Rouh on Windows

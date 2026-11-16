@@ -2569,6 +2569,10 @@ function inboxBlock(b) {
   // each a tel: link the phone rings in one press.
   var callRow = el('div', 'ib-remind ib-call');
   callRow.hidden = true;
+  // Answer the invitation from the email (night 45, rouh/invite_answer.py): the meeting, the answer
+  // so far, and Yes, Maybe and No, each answering it in the calendar in one press.
+  var inviteRow = el('div', 'ib-remind ib-invite');
+  inviteRow.hidden = true;
   var mailSaid = el('p', 'ib-said');
   mailSaid.hidden = true;
   mailSaid.setAttribute('role', 'status');
@@ -2582,6 +2586,7 @@ function inboxBlock(b) {
   mail.appendChild(tooRow);
   mail.appendChild(knowRow);
   mail.appendChild(callRow);
+  mail.appendChild(inviteRow);
   mail.appendChild(acts);
   mail.appendChild(unsubRow);
   mail.appendChild(remindRow);
@@ -2771,6 +2776,7 @@ function inboxBlock(b) {
     drawSaveSender(msg);
     drawCardInMail(msg);
     drawCallSender(msg);
+    drawInvite(msg);
   }
 
   /** @param {any} msg */
@@ -2917,6 +2923,49 @@ function inboxBlock(b) {
       });
       callRow.appendChild(a);
     });
+  }
+
+  /** @param {any} msg */
+  function drawInvite(msg) {
+    inviteRow.textContent = '';
+    var v = msg && msg.invite_answer;
+    inviteRow.hidden = !(v && v.said);
+    if (!v || !v.said) return;
+    var note = el('span', 'ib-remind-note', v.said);
+    inviteRow.appendChild(note);
+    var group = el('div', 'ib-invite-choices');
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', 'Answer the invitation');
+    inviteRow.appendChild(group);
+    /** @type {any[]} */
+    var buttons = [];
+    function mark(/** @type {string} */ now) {
+      buttons.forEach(function (b) {
+        var on = b.__when === now;
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.classList.toggle('is-chosen', on);
+      });
+    }
+    ((v.choices) || []).forEach(function (/** @type {any} */ c) {
+      var b = inboxButton('ib-invite-at', c.label,
+        c.label + ': answers the invitation in your calendar, and Google tells the organiser');
+      b.__when = c.when;
+      buttons.push(b);
+      group.appendChild(b);
+      b.addEventListener('click', function () {
+        busy(b, c.label + '\u2026');
+        inboxAsk(token, 'invite_answer', { id: msg.id, when: c.when }, function (m) {
+          done(b);
+          if (!m.ok) {
+            sayBad(mailSaid, m.why || 'The invitation could not be answered.');
+            return;
+          }
+          note.textContent = m.said || note.textContent;
+          mark(m.answer || c.when);
+        });
+      });
+    });
+    mark(v.answer || '');
   }
 
   /** @param {any} msg */

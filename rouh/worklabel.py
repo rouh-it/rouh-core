@@ -1204,6 +1204,11 @@ def _read_calendar_link(a):
     return "Reading a calendar's link", _arg(a, "words") or ""
 
 
+@_step("open_files")
+def _open_files(a):
+    return "Reading which of your files are open", _arg(a, "who") or ""
+
+
 @_step("no_company")
 def _no_company(a):
     return "Reading which contacts have no company", ""

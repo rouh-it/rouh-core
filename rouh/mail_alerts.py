@@ -1878,6 +1878,20 @@ class MailAlerts:
                     await self._db(self.store.record, user_id, org_id, message_id, stage=JUNK,
                                    why=f"{away} No case, and nothing was sent.")
                     return
+            # Invited Rouh, not you (night 45, `rouh/rouh_invited.py`): an invitation that leaves the
+            # person out and is not on their calendar is told, and the email goes on as before.
+            from . import rouh_invited
+
+            if message.get("calendar"):
+                try:
+                    alert = await self._db(self.store.alert, user_id, org_id)
+                    left_out = await rouh_invited.seen(who, message, self._clients.for_user(who),
+                                                       mailbox=str(alert.get("mailbox") or ""))
+                except Exception:  # noqa: BLE001 - the email is handled all the same
+                    log.exception("mail alert %s: the invitation could not be checked", message_id)
+                    left_out = ""
+                if left_out:
+                    log.info("mail alert %s: %s", message_id, left_out)
             # A new number in their signature (night 39, `rouh/new_number.py`): a contact's email
             # whose signature has a phone their contact lacks is told, and the email goes on as before.
             from . import new_number
