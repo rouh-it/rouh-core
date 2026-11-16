@@ -213,6 +213,8 @@ class Prompt:
     values: dict = field(default_factory=dict)
     placed: list = field(default_factory=list)
     pieces: list[tuple[str, dict]] = field(default_factory=list)
+    #: Whether a placed rule is told at all with this chat's switches (`reading.rule_told`); None tells all.
+    allow: object = None
     _next: int = 0
 
     def at(self, position: int) -> "Prompt":
@@ -227,6 +229,8 @@ class Prompt:
 
     def _rule(self, r: dict) -> None:
         if not r.get("on", True) or not applies(r.get("when") or {}, self.situation):
+            return
+        if self.allow is not None and not self.allow(r):
             return
         text = (fill(r["text"], self.values) if r.get("fills") else r["text"]).strip("\n")
         if not text.strip():

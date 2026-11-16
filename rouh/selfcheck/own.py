@@ -122,6 +122,55 @@ def new_rouh_routes_work() -> None:
            "a chat with no assistant_job is not told plainly that work cannot be started here")
 
 
+@check("own", "a chat with Memory, Your rules and Tools off is told nothing about the person",
+       "with all three switches of Chat Options off, the system prompt put together from the rules every Rouh "
+       "starts with holds only who Rouh is, the clock and the rules about permission, privacy and safety: "
+       "no name, no place, no goals, no description of the screen, the orb, mail, jobs or the workspace")
+def all_off_tells_nothing_personal() -> None:
+    """16 November 2026: an incognito chat with Memory, Your rules and Tools all off still knew the owner's
+    name, their city, their goals and how their Rouh was set up, because only a few blocks obeyed the
+    switches. Every stretch of the prompt now follows one (`rouh/reading.py`); this holds it there."""
+    from types import SimpleNamespace
+
+    from rouh import owner, prompting, reading, ruledefaults, rules
+
+    doc = ruledefaults.fallback()
+    off = {"memory": False, "rules": False, "tools": False, "off": []}
+    placed = []
+    for i, r in enumerate(doc["rules"]):
+        if "chats" not in rules.reach(r) or not r.get("place"):
+            continue
+        placed.append({"id": f"r{i}", "key": r["key"], "title": r.get("title") or r["key"], "text": r["text"],
+                       "when": rules.when_of(r), "place": r["place"], "group": r.get("group") or "",
+                       "fills": "{" in r["text"], "on": True, "made_at": i})
+    placed.sort(key=lambda r: (int(r["place"].get("position") or 0), r["made_at"]))
+    # What a turn with Tools off declares: no tools, so no rule about one applies.
+    situation = prompting.Situation(tools=frozenset(), provider="luna", flags=frozenset())
+    text = ""
+    for part in ("cached", "turn"):
+        got = prompting.Prompt(situation, part, {"name": "Luna", "model": "GPT-6 Luna", "company": "OpenAI"},
+                               placed=[r for r in placed if r["place"].get("part", "cached") == part],
+                               allow=lambda r: reading.rule_told(r, off))
+        said, _segs = got.finish(say=lambda t: reading.anonymous(t, owner=None))
+        text += said + "\n\n"
+    for key in ("screen", "orb", "background-jobs", "yourself", "remember", "thoughts", "time-and-goals",
+                "born-name", "nickname", "new-rouh"):
+        rule = next((r for r in placed if r["key"] == key), None)
+        if rule is not None:
+            expect(rule["text"].strip()[:60] not in text, f"the built-in rule {key} is told with Tools and Memory off")
+    expect("‹owner›" not in text and "the person's personal assistant" in text,
+           "with Memory off Rouh is not simply the person's assistant: " + text[:200])
+    expect(len(text) < 12_000, f"an all-off prompt is {len(text)} characters, more than who Rouh is, the clock "
+                               "and the safety rules come to")
+    for key, _title, src, _what in reading.CONTEXT:
+        if src in ("memory", "tools"):
+            expect(not reading.context_told(key, off), f"{key} is told with Memory and Tools off")
+    # A rule of the person's own that names them is told without the name while Memory is off.
+    someone = SimpleNamespace(name="Marta", full_name="Marta Kowalska")
+    said = reading.anonymous("Once Marta Kowalska has asked, do it. ‹His› calendar is Marta's.", owner=someone)
+    expect("Marta" not in said and "Kowalska" not in said, f"the owner's name is still in: {said}")
+
+
 @check("own", "a fork does not take up a turn stopped in the chat it came off",
        "what a fork carries of its parent has no stopped exchange in it - not the request, not what was said "
        "of it, not the stop note - and the parent's own messages keep all three")

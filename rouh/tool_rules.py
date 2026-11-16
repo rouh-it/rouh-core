@@ -92,7 +92,7 @@ def block_for(tool: toolsearch.Tool, got: list[dict], say=None) -> str:
     return say(out) if say else out
 
 
-def attach(entries, situation=None, *, rules_now=None) -> list:
+def attach(entries, situation=None, *, rules_now=None, say=None) -> list:
     """The tools of a request with each tool's rules at the end of its description.
 
     `entries` are `toolsearch.Tool`s; only Rouh's own (with a description) carry rules, never a provider's
@@ -107,9 +107,10 @@ def attach(entries, situation=None, *, rules_now=None) -> list:
         return entries
     from . import owner
 
+    say = say or owner.say
     out = []
     for tool in entries:
-        extra = block_for(tool, got, say=owner.say) if tool.portable else ""
+        extra = block_for(tool, got, say=say) if tool.portable else ""
         if extra:
             d = dict(tool.definition)
             d["description"] = str(d.get("description") or tool.brief) + extra

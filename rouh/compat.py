@@ -257,8 +257,14 @@ async def turn(brain, session_id: str, user_content, emit, on_sentence, model: s
     messages = attachments.hydrate(messages, brain.files)
     # Only Rouh's own tools: the web tools are Anthropic's and OpenAI's, run on their side.
     entries = [t for t in brain.tool_entries("other") if t.portable]
+    from .brain import _has_tool_calls, _reads
+
+    # Tools off and no call in the history: none declared, and the model told of none (`rouh/reading.py`).
+    tools_off = not _reads(session_id)["tools"] and not _has_tool_calls(messages)
+    if tools_off:
+        entries = []
     always = {n for n in getattr(cfg, "tools_always_loaded", ()) if n in {t.name for t in entries}}
-    catalogue = toolsearch.catalogue(entries, mode="client", always=sorted(always))
+    catalogue = "" if tools_off else toolsearch.catalogue(entries, mode="client", always=sorted(always))
     plan = toolsearch.Plan(mode="client", tools=[], catalogue=catalogue,
                            declared={t.name for t in entries})
     found, remembered = await memory_for_turn(session_id, seeds, recall, began or time.monotonic())
@@ -285,11 +291,12 @@ async def turn(brain, session_id: str, user_content, emit, on_sentence, model: s
             for m in llm.chat_messages("", taken):
                 convo.append(m)
         first = False
-        tools = [function(toolsearch.client_search_definition())] + [
+        tools = [] if tools_off else [function(toolsearch.client_search_definition())] + [
             function(by_name[n].definition) for n in dict.fromkeys(loaded) if n in by_name]
         request = {"model": model, "messages": convo, "stream": True,
-                   "stream_options": {"include_usage": True}, "max_completion_tokens": MAX_TOKENS,
-                   "tools": tools, "tool_choice": "auto"}
+                   "stream_options": {"include_usage": True}, "max_completion_tokens": MAX_TOKENS}
+        if tools:
+            request.update(tools=tools, tool_choice="auto")
         if effort:
             request["reasoning_effort"] = effort
         attempt = 0

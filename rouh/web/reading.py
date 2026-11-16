@@ -2,7 +2,9 @@
 
     GET  /api/reading?chat=<id>     what the panel draws for that chat
     POST /api/reading               {"chat", "change": {"memory"|"rules"|"tools"|"md"|"html"|"histories": bool,
-                                    "subtasks": "none"|"all"|"some", "picked": [task ids]}}; what it draws now
+                                    "subtasks": "none"|"all"|"some", "picked": [task ids],
+                                    "off": [item ids turned off one by one], "keep": bool (save for new chats),
+                                    "reset": true (back to Rouh's defaults)}}; what it draws now
 
 The owner's own chats, so anybody signed in to this Rouh, and nobody a page was only shared with: a reader of a
 shared page is served by `rouh/web/guests.py` and never reaches here.
@@ -35,7 +37,7 @@ async def reading_api(request: HttpRequest):
         if not await sync_to_async(_exists)(chat):
             return refuse("There is no such chat.", 404)
         change = sent.get("change") if isinstance(sent.get("change"), dict) else {}
-        await sync_to_async(reading.put)(chat, change)
+        await sync_to_async(reading.put)(chat, change, me)
     else:
         chat = str(request.GET.get("chat") or "")
         if not await sync_to_async(_exists)(chat):

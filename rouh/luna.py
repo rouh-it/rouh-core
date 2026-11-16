@@ -970,6 +970,13 @@ async def turn(brain, session_id: str, user_content, emit, on_sentence, model: s
     # for Claude (`plan_for`).
     entries = brain.tool_entries("luna")
     plan = plan_for(entries, cfg)
+    from .brain import _has_tool_calls, _reads
+
+    if not _reads(session_id)["tools"] and not _has_tool_calls(messages):
+        # Tools off and no call in the history to declare them for: none is declared, and the model is told
+        # of none (`rouh/reading.py`).
+        entries = []
+        plan = toolsearch.Plan(mode=plan.mode, tools=[], catalogue="", declared=set())
     tools = plan.tools
     spaces = namespaces_of(entries, plan)
     # Once a turn, as for Claude. The part that never changes, catalogue and

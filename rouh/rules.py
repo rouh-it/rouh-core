@@ -1378,6 +1378,16 @@ def _locked_only(got: list[dict]) -> list[dict]:
     return [r for r in got if reading.locked(r)]
 
 
+def _not_off(got: list[dict], off) -> list[dict]:
+    """Without the rules the person turned off one by one for this chat (`reading.settings` "off"), never one
+    about permission, privacy or safety (`reading.locked`)."""
+    if not off:
+        return got
+    from . import reading
+
+    return [r for r in got if reading.locked(r) or reading.rule_item(r) not in off]
+
+
 def _chat_rules(ds: dict, situation=None) -> list[dict]:
     """The rules on that a conversation turn is told in the person's sections: no place of their own, and
     everything they say holding for this turn (`in_chat`). A rule told with its tools is not among them: its
@@ -1389,7 +1399,8 @@ def _chat_rules(ds: dict, situation=None) -> list[dict]:
             and (r["for"] or not tool_rules.told_with_tools(r))]
 
 
-def prompt_parts(chat_id: str = "", situation=None, *, locked_only: bool = False) -> list[tuple[str, dict]]:
+def prompt_parts(chat_id: str = "", situation=None, *, locked_only: bool = False, off=frozenset(),
+                 memory: bool = True) -> list[tuple[str, dict]]:
     """The rules, word for word, for the system prompt, each section with which rules it holds; and anything still waiting in the old memory, so nothing is lost before it is reviewed. The rules kept
     to written or spoken replies are not here but in `reply_parts`, and the rules with a place of their own are
     told there (`placed`). `situation` is the turn's (`prompting.Situation`): a rule with a condition is told
@@ -1410,6 +1421,7 @@ def prompt_parts(chat_id: str = "", situation=None, *, locked_only: bool = False
         if locked_only:
             # "Your rules" off for this chat (`rouh/reading.py`): permission, privacy and safety stay.
             everything = _locked_only(everything)
+        everything = _not_off(everything, off)
         project = keeping.project_of_chat(chat_id) if chat_id else ""
         task = _task_of_chat(chat_id)
         people = involved_people(everything, vocabulary.entries(ds), chat_id)
@@ -1417,12 +1429,14 @@ def prompt_parts(chat_id: str = "", situation=None, *, locked_only: bool = False
                                              or (f["type"] == "project" and f["id"] == project and project)
                                              for f in r["for"])]
         parts += _told_sections(everything, people=people, here=here, about="this conversation")
-    if not locked_only:
+    # The old memory is the person's words about themselves: with "Your rules" or Memory off it is not told.
+    if not locked_only and memory:
         parts += _old_told()
     return parts
 
 
-def reply_parts(mode: str = "text", situation=None, *, locked_only: bool = False) -> list[tuple[str, dict]]:
+def reply_parts(mode: str = "text", situation=None, *, locked_only: bool = False,
+                off=frozenset()) -> list[tuple[str, dict]]:
     """The person's rules for how this turn's reply is made, "text" written or "voice" spoken (`MODES`), for the
     end of the system prompt; nothing when Master cannot be read."""
     mode = mode if mode in MODES else "text"
@@ -1431,7 +1445,7 @@ def reply_parts(mode: str = "text", situation=None, *, locked_only: bool = False
         if not ds:
             return []
         got = [r for r in _chat_rules(ds, situation) if r.get("mode") == mode]
-        return _mode_told(_locked_only(got) if locked_only else got, mode)
+        return _mode_told(_not_off(_locked_only(got) if locked_only else got, off), mode)
     except Exception:  # noqa: BLE001 - the rest of the prompt is still told
         log.exception("the rules for a %s reply could not be read", mode)
         return []

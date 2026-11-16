@@ -211,16 +211,17 @@ def _reads(chat_id: str) -> dict:
         return reading.switches(chat_id)
     except Exception:  # noqa: BLE001 - a turn is never lost to its settings
         log.exception("what chat %s reads could not be read; everything is on", chat_id)
-        return {"memory": True, "rules": True, "tools": True}
+        return {"memory": True, "rules": True, "tools": True, "off": []}
 
 
 def _reads_off_line(reads: dict) -> str:
-    off = [w for k, w in (("memory", "background memory from Synapse"), ("rules", "the person's own rules, "
+    off = [w for k, w in (("memory", "memory: you are told nothing of who the person is, where they are or "
+           "what they have told you before, so do not guess it"), ("rules", "the person's own rules, "
            "except those about permission, privacy and safety"), ("tools", "tools: you cannot call any in "
            "this chat, so answer from what you know and say so when a tool would be needed")) if not reads[k]]
     if not off:
         return ""
-    return "The person has turned these off for this chat in What I'm reading: " + "; ".join(off) + "."
+    return "The person has turned these off for this chat in Chat Options: " + "; ".join(off) + "."
 
 
 def _reading_block(chat_id: str = "") -> str:
@@ -256,25 +257,57 @@ def _task_files_block(chat_id: str = "") -> str:
     return objectindex.files_block(chat_id)
 
 
-def _rules_parts(memory, situation=None, *, locked_only: bool = False) -> list[tuple[str, dict]]:
+def _rules_parts(memory, situation=None, *, locked_only: bool = False, off=frozenset(),
+                 remembers: bool = True) -> list[tuple[str, dict]]:
     """The person's rules and words, each section with which rules it holds (`rules.prompt_parts`); the old
-    facts when that fails. `locked_only`: only those about permission, privacy and safety (`reading.locked`)."""
+    facts when that fails. `locked_only`: only those about permission, privacy and safety (`reading.locked`);
+    `off`, the rules turned off one by one in this chat; `remembers`, whether Memory is on."""
     try:
         from . import rules
 
-        return rules.prompt_parts(memory.answering_chat() or "", situation, locked_only=locked_only)
+        return rules.prompt_parts(memory.answering_chat() or "", situation, locked_only=locked_only,
+                                  off=off, memory=remembers)
     except Exception:
         log.exception("the rules could not be read for the prompt; the old memory is said instead")
+        if locked_only or not remembers:
+            return []
         old = memory.facts_block(keeping.project_names()).strip("\n")
         return [(old, {"key": "rules:old-memory", "title": "The old memory",
                        "why": "the Rules page could not be read"})] if old else []
 
 
-def _reply_parts(mode: str, situation=None, *, locked_only: bool = False) -> list[tuple[str, dict]]:
+def _reply_parts(mode: str, situation=None, *, locked_only: bool = False, off=frozenset()) -> list[tuple[str, dict]]:
     """The person's rules for this turn's reply, written or spoken (`rules.reply_parts`)."""
     from . import rules
 
-    return rules.reply_parts(mode, situation, locked_only=locked_only)
+    return rules.reply_parts(mode, situation, locked_only=locked_only, off=off)
+
+
+def _has_tool_calls(messages) -> bool:
+    """Whether a conversation holds a tool call or its result, which the API refuses without the tool declared."""
+    for m in messages or []:
+        content = m.get("content") if isinstance(m, dict) else None
+        if not isinstance(content, list):
+            continue
+        for b in content:
+            if isinstance(b, dict) and str(b.get("type") or "") in (
+                    "tool_use", "tool_result", "server_tool_use", "mcp_tool_use", "mcp_tool_result",
+                    "function_call", "function_call_output") or (isinstance(b, dict)
+                                                                 and str(b.get("type") or "").endswith("_tool_result")):
+                return True
+    return False
+
+
+def _say_for(reads: dict):
+    """How the owner's marks are filled in for a turn: their name, or with Memory off "the person", their
+    name written out in a rule taken out too (`reading.anonymous`)."""
+    from . import owner
+
+    if reads.get("memory", True):
+        return owner.say
+    from . import reading
+
+    return reading.anonymous
 
 
 def _master_now():
@@ -580,6 +613,20 @@ def _plain_words_block(chat: str, user_content, note: bool = False) -> str:
         return ""
 
 
+def _plain_words_rule() -> str:
+    """Plain words' own rule, with none of the terms the person asked about (`plain_words.RULE`), or ""
+    where plain words are off."""
+    try:
+        from . import plain_words
+        from .tenancy import speaker
+
+        who = speaker()
+        return plain_words.RULE if who is not None and plain_words.on(getattr(who, "org_id", None)) else ""
+    except Exception:  # noqa: BLE001 - a line of context is never worth a turn
+        log.exception("plain words could not be put in the prompt")
+        return ""
+
+
 def _asked_again_block(chat: str, user_content) -> str:
     """A request the person keeps typing by hand, offered once as Clockwork work (`rouh/asked_again.py`):
     only in a turn they started, never a note, the heartbeat's, an unattended turn or a mail's."""
@@ -811,11 +858,20 @@ class Brain:
 
     def tool_entries(self, provider: str = "claude") -> list:
         """This turn's tools, each carrying the person's rules told with it (`rouh/tool_rules.py`)."""
-        from . import prompting, tool_rules
+        from . import prompting, reading, tool_rules
 
         entries = self.tools.entries()
+        reads = _reads(self.memory.answering_chat() or "")
+        if not reads["memory"]:
+            # Memory off for this chat: nothing that reads or keeps the person's memory is declared.
+            entries = [t for t in entries if t.name not in reading.MEMORY_TOOLS]
         situation = prompting.Situation(tools=frozenset(t.name for t in entries), provider=provider)
-        return tool_rules.attach(entries, situation)
+        try:
+            got = [r for r in tool_rules._rules_now(situation) if reading.rule_told(r, reads)]
+        except Exception:  # noqa: BLE001 - the tools still go out
+            log.exception("the rules told with tools could not be read; the tools go without them")
+            got = []
+        return tool_rules.attach(entries, situation, rules_now=got, say=_say_for(reads))
 
     def _tool_plan(self, entries, model: str) -> toolsearch.Plan:
         """What a request to this model declares: the tools and their catalogue."""
@@ -847,7 +903,7 @@ class Brain:
         (`seeds_for_turn`), for this turn alone, after the clock, and
         `recall` what automatic recall found about what it names
         (`memory_for_turn`), after them."""
-        from . import owner, prompting, rules as rules_mod
+        from . import prompting, reading, rules as rules_mod
         from .modeldefaults import org_now
 
         names = _tool_names(getattr(self, "tools", None))
@@ -860,23 +916,32 @@ class Brain:
         # How this turn came and how its reply goes out, written or spoken (`rouh/replymode.py`).
         mode = replymode.NOW.get()
         chat = self.memory.answering_chat() or ""
-        # What the person set for this chat in What I'm reading (`rouh/reading.py`): memory, their rules, tools.
+        # What the person set for this chat in Chat Options (`rouh/reading.py`): memory, their rules, tools.
         reads = _reads(chat)
         if not reads["memory"]:
             seeds = recall = ""
+            names = {n for n in names if n not in reading.MEMORY_TOOLS}
+        if not reads["tools"]:
+            # Tools off: no rule about a tool is told, and nothing says what the screen, the orb, mail, jobs
+            # or the workspace are (`reading.rule_told`).
+            names = set()
+        # Every stretch of the prompt follows one of the switches (`rouh/reading.py`, "where everything a chat
+        # is told comes from"); with Memory off the person is "the person", never their name.
+        say = _say_for(reads)
         org = org_now()
-        mine = _own_mail()
-        flags = {"own_mail" if mine else "no_own_mail"}
+        mine = _own_mail() if reading.context_told("own-mail", reads) else ""
+        flags = {"own_mail" if mine else "no_own_mail"} if reads["tools"] else set()
         # Its own name, once it is born, and the rest of setting up for a few days after its
-        # first run (`rouh/birth.py`, `rouh/web/firstrun.py`).
-        born = _born_name(org)
+        # first run (`rouh/birth.py`, `rouh/web/firstrun.py`). What this Rouh knows of its setting up goes
+        # with Memory.
+        born = _born_name(org) if reads["memory"] else None
         if born:
             flags.add("born")
         # A nickname the person gave it on top of "Rouh", which it answers to as well.
-        nick = _nickname_now(org)
+        nick = _nickname_now(org) if reads["memory"] else ""
         if nick:
             flags.add("nicknamed")
-        if _new_rouh(org):
+        if reads["tools"] and _new_rouh(org):
             flags.add("new_rouh")
         if untrusted.rule_needed(names):
             flags.add("untrusted")
@@ -889,7 +954,10 @@ class Brain:
         # On the stage in demo mode none of the person's own rules or words is told: the answer is
         # drawn as it is in front of an audience (`rouh/demo.py`).
         ds = _master_now()
-        personal = [] if demo.on_stage() else _rules_parts(self.memory, situation, locked_only=not reads["rules"])
+        off = frozenset(reads.get("off") or ())
+        personal = [] if demo.on_stage() else _rules_parts(self.memory, situation, locked_only=not reads["rules"],
+                                                            off=off, remembers=reads["memory"])
+        allow = (lambda r: reading.rule_told(r, reads))
         values = {"own_mail": mine, "rouh_name": born[0] if born else "", "born_day": born[1] if born else "",
                   "rouh_nickname": nick,
                   "app_dir": self.cfg.app_dir, "version": get_version()["human_readable"],
@@ -900,13 +968,13 @@ class Brain:
                   "still_thinking": turnmarks.STILL_THINKING}
         if openai:
             values.update(_luna_names(openai))
-        cached = prompting.Prompt(situation, "cached", values, placed=rules_mod.placed(ds, "cached"))
+        cached = prompting.Prompt(situation, "cached", values, placed=rules_mod.placed(ds, "cached"), allow=allow)
         # Rouh's own address is a live value, not a rule (until 30 October 2026 the rule "own-mail").
         cached.at(OWN_MAIL_AT)
         if mine:
             cached.context(f"Your own email address is {mine}.", "Rouh's own email address", "rouh/inbox.py")
         cached.at(CATALOGUE_AT)
-        if plan is not None and plan.catalogue:
+        if plan is not None and plan.catalogue and reading.context_told("catalogue", reads):
             cached.add(plan.catalogue, kind="catalogue", key="rouh/toolsearch.py", title="The tool catalogue",
                        why="made from the tool registry for this request's tools; never a rule")
         # The person's own rules and words, word for word, after every built-in rule they can overrule, and
@@ -915,21 +983,30 @@ class Brain:
         cached.at(PERSONAL_AT)
         for words, meta in personal:
             cached.add(words, kind="personal", **meta)
-        text, segments = cached.finish(say=owner.say)
+        text, segments = cached.finish(say=say)
         prompting.keep(org, text, segments)
 
         # The part told with the clock: the person's clock, not this machine's (`clock.zone`).
         now = clock.now()
+        # The name of the person's time zone says where they are, which goes with Memory; the offset does not.
+        where = reading.context_told("location", reads)
+        place = clock.place() if where else f"UTC{clock.offset(now)}"
         turn = prompting.Prompt(situation, "turn", {
             "came": replymode.came(mode), "today": now.strftime("%A, %d %B %Y"), "now": now.strftime("%H:%M"),
-            "place": clock.place(), "offset": clock.offset(now), "finished": turnmarks.FINISHED,
+            "place": place, "offset": clock.offset(now), "finished": turnmarks.FINISHED,
             "cut_off": turnmarks.CUT_OFF_MID_THOUGHT, "still_thinking": turnmarks.STILL_THINKING},
-            placed=rules_mod.placed(ds, "turn"))
+            placed=rules_mod.placed(ds, "turn"), allow=allow)
         # The date and the time are live values, not a rule; what to make of them is the rule after them.
         turn.at(CLOCK_AT)
         turn.context(f"Today is {now.strftime('%A, %d %B %Y')}. The time is {now.strftime('%H:%M')} where the "
-                     f"person is, on {clock.place()} time, which is UTC{clock.offset(now)}.",
+                     + (f"person is, on {place} time, which is UTC{clock.offset(now)}." if where
+                        else f"person is, UTC{clock.offset(now)}."),
                      "The date and the time", "rouh/clock.py")
+        # Which switch each piece of live context follows (`reading.CONTEXT`); "" is the chat's own, or one
+        # that holds only what the switches already decided (the turn's memory, what is turned off).
+        follows = {20: "location", 30: "inboxes", 45: "task", 47: "page", 35: "general-summary", 40: "goals",
+                   50: "task", 55: "task", 60: "task", 80: "meetings", 120: "phone", 130: "heartbeat",
+                   70: "synapse", 140: "genes", 150: "gene-drafts"}
         for at, label, source, block in (
                 # Where the person is, when they shared it in Settings.
                 (20, "Where the person is", "rouh/location.py", location.prompt_line),
@@ -978,6 +1055,8 @@ class Brain:
             if demo.on_stage() and at not in _STAGE_CONTEXT:
                 # What only the person's own life fills in, left out on the stage (`rouh/demo.py`).
                 continue
+            if at in follows and not reading.context_told(follows[at], reads):
+                continue
             try:
                 got = block()
             except Exception:  # noqa: BLE001 - a line of context is never worth a turn
@@ -993,11 +1072,11 @@ class Brain:
         turn.at(REPLY_RULES_AT)
         try:
             for words, meta in ([] if demo.on_stage() else _reply_parts(mode.reply, situation,
-                                                                        locked_only=not reads["rules"])):
+                                                                        locked_only=not reads["rules"], off=off)):
                 turn.add(words, kind="personal", **meta)
         except Exception:  # noqa: BLE001 - the rest of the prompt is still told
             log.exception("the rules for this reply could not be put in the prompt")
-        said, told = turn.finish(say=owner.say)
+        said, told = turn.finish(say=say)
         prompting.keep(org, said, told)
         # The breakpoint is on the first block, and it caches the tools with
         # it: everything in front of it is the same for every turn of every
@@ -1254,6 +1333,11 @@ class Brain:
         # the model, so a fallback to one that cannot defer gets its own plan.
         entries = self.tool_entries("claude")
         plan = self._tool_plan(entries, model)
+        if not _reads(session_id)["tools"] and not _has_tool_calls(messages):
+            # Tools off and no call in the history to declare them for: none is declared at all, so the
+            # model is told of none (`rouh/reading.py`).
+            entries = []
+            plan = toolsearch.Plan(mode=plan.mode, tools=[], catalogue="", declared=set())
         # A search in the history names the tools it loaded, and a name this
         # request does not declare is a 400 on this turn and every one after.
         messages = toolsearch.clean_references(messages, plan.declared)
@@ -1269,9 +1353,16 @@ class Brain:
         found, remembered = await memory_for_turn(session_id, seeds, recall, began)
         # The asked-again offer and plain words, worked out once a turn. Named `again`, not
         # `asked`, which is the model the request asks for below.
-        again = "" if question.note else await asyncio.to_thread(_asked_again_block, session_id,
-                                                                 user_content)
-        plain = await asyncio.to_thread(_plain_words_block, session_id, user_content, question.note)
+        # Both read and keep the person's words, so neither runs in an incognito chat or with Memory off
+        # (`rouh/reading.py`); plain words' own rule is then told alone, while the person's rules are on.
+        from . import incognito as _incognito
+
+        reads = _reads(session_id)
+        quiet = _incognito.quiet(session_id) or not reads["memory"] or "ctx:terms" in set(reads.get("off") or ())
+        again = "" if question.note or quiet else await asyncio.to_thread(_asked_again_block, session_id,
+                                                                          user_content)
+        plain = (await asyncio.to_thread(_plain_words_block, session_id, user_content, question.note)
+                 if not quiet else (await asyncio.to_thread(_plain_words_rule) if reads["rules"] else ""))
         if plain:
             again = (again + "\n\n" + plain) if again else plain
         system = await asyncio.to_thread(self._system, plan, seeds=found, recall=remembered, asked=again)
@@ -1373,10 +1464,12 @@ class Brain:
                 messages=promptcache.marked(messages, anchor),
                 tools=plan.tools,
             )
-            # Tools turned off for this chat in What I'm reading: still declared, because the history may
+            # Tools turned off for this chat in Chat Options: still declared, because the history may
             # hold earlier calls and the API refuses those without their tools, but none may be called.
-            if not _reads(session_id)["tools"]:
+            if not _reads(session_id)["tools"] and plan.tools:
                 request["tool_choice"] = {"type": "none"}
+            if not request["tools"]:
+                del request["tools"]
             # How deeply to think, but only to a model that takes the question.
             # Haiku 4.5 can be a tier's model, and an effort level is a 400
             # there, and a 400 is a turn that says nothing at all rather than a
@@ -1633,7 +1726,7 @@ class Brain:
                 # The tools and the catalogue are the plan of the model this
                 # attempt asks, and only differ from the turn's when a fallback
                 # cannot defer tools at all.
-                if toolsearch.mode_for(asked, getattr(self.cfg, "tool_search", "regex")) != plan.mode:
+                if entries and toolsearch.mode_for(asked, getattr(self.cfg, "tool_search", "regex")) != plan.mode:
                     other = self._tool_plan(entries, asked)
                     request["tools"] = other.tools
                     request["system"] = self._system(other, seeds=found, recall=remembered,
@@ -1641,6 +1734,8 @@ class Brain:
                 else:
                     request["tools"] = plan.tools
                     request["system"] = system
+                if not request["tools"]:
+                    request.pop("tools", None)
                 timing["requests"] += 1
                 sent_at = time.monotonic()
                 # The request goes out inside `pump`, a task of its own, which
