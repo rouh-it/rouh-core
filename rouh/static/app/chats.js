@@ -2561,26 +2561,26 @@ function withSendKeys(words, shorter) {
   return words;
 }
 
-/* The line of keys under the main box, at a desk, or on a phone or a tablet
-   once a keyboard of its own is seen: what Enter, Shift+Enter and Cmd+Enter
-   do, with Ctrl in place of the Cmd sign off a Mac, and
-   without the fork where there is nothing to fork. */
+/* The line of keys in the empty chat, under the welcome, at a desk, or on a
+   phone or a tablet once a keyboard of its own is seen: what Enter,
+   Shift+Enter and Cmd+Enter do, with Ctrl in place of the Cmd sign off a Mac.
+   Petar, 16 November 2026: not under the box, where it took room at the
+   bottom; each button's tooltip says its key as well (app/tips.js). */
 function keysHintPaint() {
   var h = $('composerKeys');
   if (!h) return;
   if (touchTyping()) { h.hidden = true; return; }
   h.hidden = false;
-  var fork = $('forkBtn');
-  var parts = ['Enter to send', 'Shift+Enter new line'];
-  if (fork && !fork.hidden) parts.push((onMac() ? '⌘' : 'Ctrl') + '+Enter fork');
-  h.textContent = parts.join(' · ');
+  h.textContent = 'Enter to send · Shift+Enter for a new line · ' + (onMac() ? '⌘' : 'Ctrl') + '+Enter to fork';
 }
 
 (function () {
   var b = $('forkBtn');
   if (!b) return;
-  b.title = 'Fork: ask this in a side chat to the right, and keep this chat where it is ('
-    + forkKeys() + ')';
+  // Petar's own words for it, 16 November 2026, with its key, in the composer's tooltip (app/tips.js).
+  b.dataset.tip = 'Branch off this message to a new side chat (Fork). You can easily close it or switch '
+    + 'to parent chat later. Keeps your parent chat clean of the side topics.';
+  b.dataset.key = (onMac() ? '⌘' : 'Ctrl') + '+Enter';
   b.addEventListener('click', function () { sendTyped(true); });
 }());
 

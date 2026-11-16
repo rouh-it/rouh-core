@@ -58,8 +58,10 @@
  *   app/focus.js            today's focus at the top of the navigation, from
  *                           the morning brief's one thing; outside the chain,
  *                           and needs only app/helpers.js
- *   app/reading.js          What I'm reading: the book beside the model, its panel
+ *   app/reading.js          Chat Options: the sliders beside the model, its panel
  *                           and the strip under the chat's head; outside the chain
+ *   app/tips.js             the composer's tooltips, what each button does and its
+ *                           key after a short wait; needs only app/helpers.js
  *   app/composer_extras.js  the voice button and Cheap, Smart or Auto on the
  *                           composer's line; outside the chain, and needs
  *                           app/chats.js, app/helpers.js, app/notices.js and
@@ -103,6 +105,7 @@ import 'app/demo.js';
 import 'app/focus.js';
 import 'app/composer_extras.js';
 import 'app/reading.js';
+import 'app/tips.js';
 import { addrEarly } from 'app/address.js';
 
 // A page opened at the task browser opens it now, once every module above

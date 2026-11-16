@@ -1045,6 +1045,10 @@ with {% asset %}, which gives it its hashed address.
         <p class="welcome-ask welcome-key" role="alert">{{ CHATS_NEED_KEY.said }} <a href="{{ CHATS_NEED_KEY.href }}">Add a key</a></p>{% elif SETTING_UP %}
         <p class="welcome-ask">Ask me anything, or drop in a screenshot</p>{% else %}
         <p class="welcome-ask">Ask me what I can do</p>{% endif %}
+        {% comment %} The keys, quietly, in the empty chat at a desk (`keysHintPaint`). Petar, 16 November
+             2026: under the box they took the room at the bottom, so they are here and in each button's
+             tooltip instead. {% endcomment %}
+        <p class="composer-keys" id="composerKeys" hidden></p>
       </div>
       {% comment %} Whenever the reader has scrolled up from the end. Pressing it goes
            back to the very end and does nothing else: the focus stays where it
@@ -1288,8 +1292,6 @@ with {% asset %}, which gives it its hashed address.
           </button>
         </div>
       </div>
-      {% comment %} The keys, quietly, under the box at a desk only (`keysHintPaint`). {% endcomment %}
-      <p class="composer-keys" id="composerKeys" hidden></p>
     </form>
 
     {% comment %} Under the box while the welcome is up: the other half of the column,
