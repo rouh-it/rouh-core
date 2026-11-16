@@ -3,7 +3,8 @@
     GET  /api/anatomy/keeps              the preset, and every job and record with its value, where it comes
                                          from, its options with roughly the disk each holds, and any lowering
                                          that waits for the owner's press with what would go
-    POST /api/anatomy/keeps              {item, mode, days?, confirm?}: one item set. A value that would remove
+    POST /api/anatomy/keeps              {item, mode, days?, confirm?, where?}: one item set (where: "heartbeat"
+                                         when sent from the Heartbeat settings, for who set it). A value that would remove
                                          old rows answers {needs_confirm, preview} and is saved only when sent
                                          again with confirm
     POST /api/anatomy/keeps/default      {item, confirm?}: back to the preset's value, the same way
@@ -51,8 +52,12 @@ def _sweep_soon(item_ids, org: str) -> None:
     threading.Thread(target=go, name="rouh-lean-sweep", daemon=True).start()
 
 
-def _by(me) -> str:
-    return "the owner on Anatomy"
+#: Where a change can come from besides Anatomy: the other page that holds the same setting.
+WHERE = {"heartbeat": "the owner on the Heartbeat settings"}
+
+
+def _by(me, body=None) -> str:
+    return WHERE.get(str((body or {}).get("where") or ""), "the owner on Anatomy")
 
 
 async def _change(request, work):
@@ -65,12 +70,21 @@ async def _change(request, work):
         return refuse("Only this Rouh's administrator can change what it keeps and runs.", 403)
     org = str(me.org_id)
     try:
-        got = await asyncio.to_thread(work, org, _by(me), body_of(request))
+        body = body_of(request)
+        got = await asyncio.to_thread(work, org, _by(me, body), body)
     except lean.Refused as exc:
         return refuse(str(exc), 400, **(await asyncio.to_thread(lean.page, org)))
     except Exception:  # noqa: BLE001 - said plainly, and the log has why
         log.exception("a change to what Rouh keeps failed")
         return refuse("That could not be saved. Try again.", 500)
+    if got.get("item") == "heartbeat" or got.get("preset"):
+        # The heartbeat's On / Off moved: its loop looks again now (`heartbeat.Heartbeat.setting_changed`).
+        try:
+            from rouh import runtime
+
+            runtime.pulse.setting_changed()
+        except Exception:  # noqa: BLE001 - the loop looks again within ten minutes anyway
+            log.exception("the heartbeat could not be told its setting changed")
     if got.get("swept"):
         _sweep_soon(got.get("sweep") or ([got["item"]] if got.get("item") else []), org)
     if got.get("needs_confirm"):

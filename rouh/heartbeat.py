@@ -41,7 +41,17 @@ message worth sending. And Check now on a quest, from its page or its goal's map
 press makes one, run even in quiet hours and never a resume; what happens next on a quest
 is worked out in `rouh/questcheck.py`, from the same state this loop acts on.
 
-**Skipped in code, with the reason written down** (`Heartbeat._skip_because`): paused; in
+**On or Off, and paused.** Whether this Rouh has a heartbeat at all is a setting of what Rouh
+keeps and runs (`lean`, item `heartbeat`, task 185): Off on every new install, On on the Creator
+Rouh, and kept On as its own choice on a Rouh that had one when the setting came (migration 0257).
+It has two places to change it, its Settings here and Anatomy, Meta, What Rouh keeps and runs,
+and one value. Off, nothing beats by itself: no timer, no event, no due time, no summary, and an
+event that arrives is not kept for later (`is_off`, `lean.HEARTBEAT_OFF`). A yes in its queue still
+runs exactly what was queued, a job's request still reaches the owner, and Beat now and a quest's
+Check now still run one beat when pressed, as while paused. Pause is the temporary hold of a
+heartbeat that is On: it keeps the events for when it is resumed.
+
+**Skipped in code, with the reason written down** (`Heartbeat._skip_because`): off; paused; in
 quiet hours; a turn of Rouh's already running; today's spend at the daily cap; for a
 quest, paused, not carried, before its start, after its end or its budget spent; no duty
 on; or nothing new since the last beat with a full beat less than `skip.nothing_new_hours`
@@ -696,6 +706,19 @@ def ensure(who):
                       config={}, pending=[], own={}, notes=[], wakes=[], sent=[], held=[],
                       created_at=now, updated_at=now))
     return row
+
+
+def is_off(who) -> bool:
+    """Whether this Rouh's heartbeat is Off (`lean`, item `heartbeat`): nothing beats by itself."""
+    from . import lean
+
+    org = str(getattr(who, "org_id", "") or "") or None
+    return not lean.runs("heartbeat", org)
+
+
+#: What a beat skipped because the heartbeat is Off says.
+OFF_SAID = ("The heartbeat is off on this Rouh. Turn it on in Heartbeat, Settings, or in Anatomy, "
+            "Meta, What Rouh keeps and runs.")
 
 
 def state_of(who):
@@ -1491,6 +1514,9 @@ class Heartbeat:
             # Held since the last skip: Rouh busy, or the heartbeat at its cap. Events wait
             # for the next look rather than skipping again.
             return self.retry_at - now
+        if await asyncio.to_thread(is_off, who):
+            # Off: nothing beats by itself, and what would wake it is not kept (`event`).
+            return 600.0
         if row.state == "paused":
             return 600.0
         await self.settle_by_rule(who)
@@ -1576,6 +1602,10 @@ class Heartbeat:
         try:
             who = await self._who()
             if who is None:
+                return
+            if await asyncio.to_thread(is_off, who):
+                # Off: nothing is kept to wake a beat later, so turning it on is not a flood.
+                log.debug("the heartbeat is off: %s event not kept", kind)
                 return
             entry = {"kind": kind, "at": time.time(), "what": " ".join(str(what).split())[:400],
                      **{k: v for k, v in more.items() if v not in (None, "")}}
@@ -1704,6 +1734,8 @@ class Heartbeat:
         """
         asked = trigger == "now"
         next_look = now + max(1, row.interval_minutes or DEFAULT_INTERVAL) * 60
+        if not asked and await asyncio.to_thread(is_off, row):
+            return OFF_SAID, next_look
         if row.state == "paused" and not asked:
             return "The heartbeat is paused.", next_look
         if cfg["skip"]["busy"]:
@@ -2251,6 +2283,9 @@ class Heartbeat:
         row = await asyncio.to_thread(ensure, who)
         await asyncio.to_thread(_save, row, state="paused")
         await self._changed()
+        if await asyncio.to_thread(is_off, who):
+            return ("The heartbeat is paused. It is also off on this Rouh, so nothing beats by "
+                    "itself either way.")
         return "The heartbeat is paused. Nothing beats until it is resumed."
 
     async def resume(self, who) -> str:
@@ -2259,8 +2294,16 @@ class Heartbeat:
         self.retry_at = 0.0
         self.poke()
         await self._changed()
+        if await asyncio.to_thread(is_off, who):
+            return ("The pause is lifted, but the heartbeat is off on this Rouh, so nothing beats "
+                    "by itself until it is turned on in Heartbeat, Settings.")
         return (f"The heartbeat is on again, every {row.interval_minutes} minutes in working "
                 "hours, with events in between.")
+
+    def setting_changed(self) -> None:
+        """Its On / Off was changed (`lean`): the loop looks again now rather than in ten minutes."""
+        self.retry_at = 0.0
+        self.poke()
 
     async def now(self, who) -> str:
         await asyncio.to_thread(ensure, who)
@@ -2507,13 +2550,14 @@ class Heartbeat:
         v = await asyncio.to_thread(view, who)
         s, c = v["state"], v["config"]
         on = [d["text"] for d in c["duties"] if d.get("on")]
-        lines = [f"Heartbeat: {'paused' if s['paused'] else 'on'}, every {s['interval_minutes']} "
+        lines = [f"Heartbeat: {'off on this Rouh' if s['off'] else 'paused' if s['paused'] else 'on'}, every {s['interval_minutes']} "
                  f"minutes between {c['hours']['work_from']} and {c['hours']['work_to']}"
                  + (f", silent {c['hours']['quiet_from']}-{c['hours']['quiet_to']}"
                     if c["hours"]["quiet_on"] else "")
                  + f"; daily cap {s['daily_cap']} across every beat (spent today "
                    f"{s['spent_today']}).",
-                 *([s["capped"]] if s.get("capped") and not s["paused"] else []),
+                 *([s["capped"]] if s.get("capped") and not s["paused"] and not s["off"] else []),
+                 *([s["setting"]["off_means"]] if s["off"] else []),
                  f"Duties on ({len(on)}): " + ("; ".join(t[:80] for t in on) or "none") + "."]
         if s["last_full"]:
             lines.append(f"Last full beat: {s['last_full']}.")
@@ -2555,10 +2599,14 @@ LIVE: "Heartbeat | None" = None
 def view(who, beats: int = 60) -> dict:
     """Everything the Heartbeat page shows, for this person: the heartbeat and nothing else,
     and the quests it carries by name."""
+    from . import lean
+
     m = _models()
     row = ensure(who)
     cfg = config_of(row)
     now = time.time()
+    setting = lean.setting("heartbeat", str(getattr(who, "org_id", "") or "") or None)
+    off = not setting["on"]
     spent_today = spend(row, _midnight())
     timer_at = (row.last_beat_at or row.created_at or now) + (row.interval_minutes or 30) * 60
     nxt = min([t for t in (timer_at, row.due_at) if t] or [timer_at])
@@ -2580,13 +2628,14 @@ def view(who, beats: int = 60) -> dict:
 
     return {
         "state": {
-            "paused": row.state == "paused", "interval_minutes": row.interval_minutes,
+            "paused": row.state == "paused", "off": off, "setting": setting,
+            "interval_minutes": row.interval_minutes,
             "daily_cap": _dollars(row.daily_cap), "daily_cap_value": str(row.daily_cap),
             "spent_today": _dollars(spent_today), "chat": row.chat_id or "",
             "capped": cap_reached(row, cfg, spent_today, beat_reserve(row)),
             "last_full": (clock.clock(row.last_full_at) + f", {_ago(now - row.last_full_at)} ago"
                           if row.last_full_at else ""),
-            "next": "" if row.state == "paused" else (
+            "next": "" if row.state == "paused" or off else (
                 clock.clock(nxt) + (f" ({row.due_what})" if row.due_at and nxt == row.due_at
                                     and row.due_what else "")),
             "pending": len(row.pending or []),
@@ -2616,7 +2665,7 @@ def view(who, beats: int = 60) -> dict:
             "answered": _when(a.answered_at, now) if a.answered_at else "",
             "by": raised(a.work_id, [a.duty] if a.duty else []),
         } for a in asks],
-        "days": days_of(who, row, cfg, now),
+        "days": days_of(who, row, cfg, now, off=off),
         "carried": _cards(who, row, works),
     }
 
@@ -2666,7 +2715,7 @@ def _spent_between(row, start: float, end: float) -> Decimal:
     return Decimal(found or 0)
 
 
-def days_of(who, row, cfg: dict, now: float) -> dict:
+def days_of(who, row, cfg: dict, now: float, *, off: bool = False) -> dict:
     """The last `DAYS_BACK` days on the owner's clock, each with every beat of it placed by its
     minute of the day, its lane (its own duties, or a quest) and how it ended, and the day's
     spend from the log of every model request, so the page's day picture, its tiles and its
@@ -2707,7 +2756,7 @@ def days_of(who, row, cfg: dict, now: float) -> dict:
                     "beats": beats, "counts": counts})
     local = clock.moment(now)
     nxt = None
-    if row.state != "paused":
+    if row.state != "paused" and not off:
         timer_at = (row.last_beat_at or row.created_at or now) + (row.interval_minutes or 30) * 60
         at = min([t for t in (timer_at, row.due_at) if t] or [timer_at])
         when = clock.moment(at)

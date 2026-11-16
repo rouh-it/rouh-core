@@ -353,6 +353,7 @@
     var beats = el('p', 'hb-note q-beats');
     beats.textContent = 'Last beat ' + (q.last_beat || 'not yet') + ' · Next beat ' +
       (q.next_beat || (q.state !== 'on' ? 'none while ' + (STATE_WORDS[q.state] || q.state).toLowerCase() :
+        q.heartbeat_off ? 'none while the heartbeat is off' :
         q.heartbeat_paused ? 'none while the heartbeat is paused' : 'when the heartbeat next looks'));
     s.appendChild(beats);
     var acts = el('div', 'hb-actions q-acts');
@@ -458,9 +459,11 @@
   function nowCard(d) {
     var w = d.work;
     var s = card('Where it stands', w.period, 'hb-now');
-    var st = el('p', 'hb-state ' + (w.why_not || w.heartbeat_paused ? 'paused' : 'on'));
+    var st = el('p', 'hb-state ' + (w.why_not || w.heartbeat_paused || w.heartbeat_off ? 'paused' : 'on'));
     st.appendChild(el('span', 'hb-pulse'));
-    st.appendChild(document.createTextNode(w.why_not ? w.why_not : w.heartbeat_paused ?
+    st.appendChild(document.createTextNode(w.why_not ? w.why_not : w.heartbeat_off ?
+      'The heartbeat is off on this Rouh, so no beat works on it by itself. Turn it on in Heartbeat, Settings, or press Check now.' :
+      w.heartbeat_paused ?
       'The heartbeat itself is paused, so no beat works on it until the heartbeat is resumed.' :
       'The heartbeat works on it, in its own chat. What happens next is above.'));
     s.appendChild(st);

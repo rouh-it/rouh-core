@@ -32,7 +32,9 @@
             // A card being typed into, kept out of the timer's redraws.
             editing: '', carried: '',
             // The waiting approvals ticked for a mass delete, by number.
-            picked: {} };
+            picked: {},
+            // The On / Off switch being saved, and what it said when it could not be.
+            switching: false, switchError: '' };
 
   function host() { return window.RouhHeartbeatHost || {}; }
   function $(id) { return document.getElementById(id); }
@@ -128,6 +130,7 @@
     }
     page.insertBefore(header(H.view === 'settings' ? 'settings' : 'today', d), say2);
     if (H.view === 'settings') {
+      page.appendChild(switchCard(d));
       page.appendChild(settingsHead(d));
       page.appendChild(jumps());
       var grid = el('div', 'hb2-settings');
@@ -575,6 +578,7 @@
   /** How it stands, in a word and a tone: on, paused, or paused for today at the cap. */
   function standing(d) {
     if (!d) return { word: 'Reading…', tone: 'idle' };
+    if (d.state.off) return { word: 'Off', tone: 'off' };
     if (d.state.paused) return { word: 'Paused', tone: 'off' };
     if (d.state.capped) return { word: 'Paused for today', tone: 'warn' };
     return { word: 'On', tone: 'on' };
@@ -595,13 +599,15 @@
       top.appendChild(el('span', 'hb2-next', 'Next look ' + d.state.next));
     }
     var acts = el('div', 'hb2-head-acts');
-    if (d) {
+    if (d && !d.state.off) {
       var paused = d.state.paused;
       var pb = button(paused ? 'Resume' : 'Pause', paused ? 'primary' : '', function () {
         act(paused ? 'resume' : 'pause');
       }, paused ? 'Start beating again' : 'Stop every beat until you resume it');
       pb.id = 'heartbeatPause';
       acts.appendChild(pb);
+    }
+    if (d) {
       var now = button('Beat now', '', function () {
         act('now').then(function () { setTimeout(load, 2500); });
       }, 'A beat on its duties now, whatever the timer says');
@@ -687,7 +693,8 @@
     var failed = todayDay ? todayDay.counts.failed : 0;
     var carried = (d.carried || []).filter(function (w) { return w.carried && !w.why_not; }).length;
     var line;
-    if (d.state.paused) line = 'Paused. Nothing beats until you resume it.';
+    if (d.state.off) line = 'Off on this Rouh. Nothing beats by itself.';
+    else if (d.state.paused) line = 'Paused. Nothing beats until you resume it.';
     else if (d.state.capped) line = 'Paused for today: the daily cap is reached.';
     else if (waiting) line = 'Working, and ' + plural(waiting, 'thing waits', 'things wait') + ' for your answer.';
     else if (failed) line = 'Working, but ' + plural(failed, 'beat') + ' failed today.';
@@ -695,7 +702,13 @@
     s.appendChild(el('h3', 'hb2-say', line));
     var facts = el('ul', 'hb2-facts');
     function fact(text, cls) { var li = el('li', cls || '', text); facts.appendChild(li); return li; }
-    if (d.state.capped && !d.state.paused) {
+    if (d.state.off) {
+      var turnOn = goLink('Turn it on in Settings', VIEWS[2][2], 'hb2-off-link');
+      var offLi = fact('', 'wide');
+      offLi.appendChild(document.createTextNode(d.state.setting.off_means + ' '));
+      offLi.appendChild(turnOn);
+    }
+    if (d.state.capped && !d.state.paused && !d.state.off) {
       var why = String(d.state.capped).replace(/^Paused for today:\s*/, '');
       fact(why.charAt(0).toUpperCase() + why.slice(1), 'wide');
     }
@@ -1194,6 +1207,92 @@
 
   var PARTS = [['duties', 'Duties'], ['rhythm', 'Rhythm'], ['hours', 'Hours'], ['wakes', 'What wakes it'],
                ['skips', 'Skips'], ['messages', 'Messages']];
+
+  /* On or Off: whether this Rouh has a heartbeat at all. One setting with two places to change it,
+     here and Anatomy, Meta, What Rouh keeps and runs (`rouh/lean.py`, item heartbeat): both send it
+     to the same address and draw the same value. Pause, in the header, is the temporary hold. */
+  function switchCard(d) {
+    var st = d.state.setting || {};
+    var on = !!st.on;
+    var s = el('section', 'setting-card hb-card hb2-onoff' + (on ? ' on' : ' off'));
+    s.dataset.card = 'switch';
+    s.setAttribute('aria-labelledby', 'hbSwitchH');
+    var top = el('div', 'hb2-onoff-top');
+    var h = el('h4', 'hb-h', 'Heartbeat');
+    h.id = 'hbSwitchH';
+    top.appendChild(h);
+    var group = el('div', 'hb2-onoff-btns');
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-labelledby', 'hbSwitchH');
+    [['on', 'On'], ['off', 'Off']].forEach(function (x) {
+      var b = button(x[1], 'hb2-onoff-btn', function () { setOn(x[0]); });
+      b.id = 'hbSwitch' + x[1];
+      b.setAttribute('aria-pressed', (x[0] === 'on') === on ? 'true' : 'false');
+      if (H.switching) b.disabled = true;
+      group.appendChild(b);
+    });
+    top.appendChild(group);
+    if (st.changed) top.appendChild(el('span', 'hb2-onoff-tag', 'changed'));
+    s.appendChild(top);
+    s.appendChild(el('p', 'hb2-onoff-line', on
+      ? 'On: Rouh takes a turn of its own every ' + d.state.interval_minutes + ' minutes in working hours, and when a run ends or mail arrives, to work on its duties and carry the quests. Pause, above, holds it for a while.'
+      : st.off_means || 'Off: nothing beats by itself.'));
+    var foot = el('p', 'settings-help hb2-onoff-foot');
+    foot.appendChild(document.createTextNode('Default ' + (st.preset_said ? 'for ' + st.preset_said : 'here') +
+      ': ' + (st.default_said || '') + '. Also in '));
+    var a = el('a', 'hb2-onoff-link', 'Anatomy, Meta, What Rouh keeps and runs');
+    a.setAttribute('href', st.anatomy || '/anatomy/meta/keeps');
+    foot.appendChild(a);
+    foot.appendChild(document.createTextNode(', the same setting.'));
+    s.appendChild(foot);
+    if (st.changed) {
+      var acts = el('div', 'hb-actions');
+      var back = button('Back to default', '', function () { setOn('default'); }, 'Back to the default: ' + (st.default_said || ''));
+      back.id = 'hbSwitchDefault';
+      if (H.switching) back.disabled = true;
+      acts.appendChild(back);
+      s.appendChild(acts);
+    }
+    if (H.switchError) {
+      var bad = el('p', 'hb-say bad', H.switchError);
+      bad.setAttribute('role', 'alert');
+      s.appendChild(bad);
+    }
+    return s;
+  }
+
+  /** The heartbeat's On / Off sent to the one place it is kept, then the page read again. */
+  function setOn(mode) {
+    if (H.switching) return;
+    var st = (H.data && H.data.state.setting) || {};
+    if (mode !== 'default' && (mode === 'on') === !!st.on && !st.changed) return;
+    H.switching = true;
+    H.switchError = '';
+    H.said = '';
+    draw();
+    var url = mode === 'default' ? '/api/anatomy/keeps/default' : '/api/anatomy/keeps';
+    var body = mode === 'default' ? { item: 'heartbeat', where: 'heartbeat' } : { item: 'heartbeat', mode: mode, where: 'heartbeat' };
+    fetch(url, { method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+                 body: JSON.stringify(body) })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok || !j || j.ok === false) H.switchError = (j && j.error) || 'That could not be saved. Try again.';
+        });
+      })
+      .catch(function () { H.switchError = 'Rouh could not be reached. Check the connection and try again.'; })
+      .then(function () {
+        H.switching = false;
+        return load();
+      })
+      .then(function () {
+        var now = H.data && H.data.state.setting;
+        if (!H.switchError && now) H.said = now.on ? 'The heartbeat is on.' : 'The heartbeat is off. Nothing beats by itself.';
+        draw();
+        var again = document.getElementById(mode === 'off' ? 'hbSwitchOff' : 'hbSwitchOn');
+        if (again) again.focus({ preventScroll: true });
+      });
+  }
 
   /* The headline of Settings: what it looks after and how often, in one sentence. */
   function settingsHead(d) {

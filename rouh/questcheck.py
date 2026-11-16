@@ -380,6 +380,11 @@ def _blockers(who, work, now: float) -> dict:
     held: list[dict] = []        # what stops automatic checks altogether
     once_ok: list[str] = []      # what Check now asks him to say yes to, once
     stop = ""                    # what stops even Check now
+    if heartbeat.is_off(who):
+        held.append({"key": "heartbeat_off",
+                     "words": "The heartbeat is off on this Rouh, so no quest advances by itself. "
+                              "Turn it on in Heartbeat, Settings."})
+        once_ok.append("the heartbeat is off")
     if hb.state == "paused":
         held.append({"key": "heartbeat_paused",
                      "words": "The heartbeat is paused, so nothing beats on its own until it "
@@ -531,6 +536,8 @@ def _state(who, work, now: float, v: dict | None, with_steps: bool = True) -> di
         st, label = "paused", "Paused"
         if held[0]["key"] == "heartbeat_paused":
             label = "Heartbeat paused"
+        elif held[0]["key"] == "heartbeat_off":
+            label = "Heartbeat off"
         elif held[0]["key"] in ("duty_off", "not_carried"):
             label = "Not carried"
     elif waits and any(w["key"] == "quiet" for w in waits):
@@ -546,7 +553,8 @@ def _state(who, work, now: float, v: dict | None, with_steps: bool = True) -> di
         "needs_yes": bool(once_ok) and live is None and not stop,
         "paused": once_ok,
         "yes_words": ("Check it once even though " + " and ".join(once_ok)
-                      + ". It stays paused afterwards.") if once_ok else "",
+                      + (". The heartbeat stays off afterwards." if once_ok == ["the heartbeat is off"]
+                         else ". It stays paused afterwards.")) if once_ok else "",
         "help": (f"Runs one heartbeat check of quest {work.task_number} now, in its own chat, "
                  "even outside its hours. It is not a resume and runs none of the heartbeat's "
                  "other duties. It may do the quest's own allowed work, such as reading and "

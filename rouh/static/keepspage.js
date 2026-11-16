@@ -310,6 +310,16 @@
     if (it.changed && it.by) notes.push('Set by ' + it.by + '. Default: ' + it.preset_said + '.');
     else if (it.changed) notes.push('Default: ' + it.preset_said + '.');
     notes.forEach(function (n) { row.appendChild(el('p', 'kp-note', n)); });
+    if (it.link) {
+      // The same setting has a second place to change it (the heartbeat's own Settings): one value.
+      var also = el('p', 'kp-note kp-also');
+      also.appendChild(document.createTextNode('Also on '));
+      var a = el('a', 'kp-link', it.link_said || it.link);
+      a.setAttribute('href', it.link);
+      also.appendChild(a);
+      also.appendChild(document.createTextNode(', the same setting.'));
+      row.appendChild(also);
+    }
 
     if (S.ask && S.ask.item === it.id) {
       var box = el('div', 'kp-ask');

@@ -3159,7 +3159,8 @@
     "rouh/models/lean.py",
     "rouh/web/lean.py",
     "rouh/static/keepspage.*",
-    "rouh/migrations/0251_lean_settings.py"
+    "rouh/migrations/0251_lean_settings.py",
+    "rouh/migrations/0257_heartbeat_kept_on.py"
    ]
   },
   "permission-gates": {

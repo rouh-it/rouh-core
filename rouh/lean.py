@@ -135,14 +135,29 @@ class Item:
     versions: bool = False
     #: Removed outside Rouh's database: "copies" (the protected core's copy part) or "run_logs" (the one program).
     outside: str = ""
+    #: The page where the same setting is also changed, and the words of the link to it.
+    link: str = ""
+    link_said: str = ""
 
 
 _OLD_ROWS = "status <> 'running'"
 #: The memory items that are people: their versions are contacts' (`synapse/sources/contacts.write`).
 _PERSON = "item_id IN (SELECT id FROM synapse.item WHERE kind = 'person')"
 
+#: What an Off heartbeat stops, said on its row here and on the Heartbeat page (`rouh/heartbeat.py`).
+HEARTBEAT_OFF = ("Off: nothing beats by itself. Quests don't advance by themselves, its duties (waiting "
+                 "work, unreported runs, Rouh's inbox, the calendar, goal steps) are not looked at, no "
+                 "Telegram comes from it, and mail, finished runs and completed steps don't wake it. A yes "
+                 "you give in Decisions still runs exactly what was queued, and jobs' requests still reach "
+                 "you; Beat now and a quest's Check now still run one beat when you press them.")
+
 ITEMS: tuple[Item, ...] = (
     # ---- night and background jobs ----
+    Item("heartbeat", "job", "The heartbeat",
+         "Rouh's own turn nobody asked for: every half hour or so in working hours, and when a run ends or "
+         "mail arrives, it works on its duties and carries the quests.",
+         ("off", "on"), money="its daily cap, $3 a day unless you set another", note=HEARTBEAT_OFF,
+         link="/anatomy/behaviour/heartbeat/settings", link_said="Heartbeat settings"),
     Item("synapse_nightly", "job", "Synapse's nightly improvement try (02:00)",
          "Each night an Opus coding run tries to make Synapse, Rouh's memory search, better.",
          ("off", "on"), money="one Opus coding run a night; not measured"),
@@ -286,12 +301,16 @@ RECORDS = tuple(i.id for i in ITEMS if i.kind == "record")
 #: one, else Rouh's suggestions there; database copies at 3 on every preset he did not pick otherwise
 #: (Installed: 1, his pick, which is the floor). A record "on" there is "forever" here. The old versions
 #: of contacts, pages, cards and files came after 185-02 (step 185-04) and are Rouh's suggestions.
+#: The heartbeat came 16 November 2026 (185-05, Petar: "heartbeat should be off by default"): Off on
+#: Installed and Developer, On on the Creator Rouh; a Rouh that had one running kept it on as its own
+#: choice (migration 0257).
 #: Changed 15 November 2026 (185-04): Installed got the nightly feature run on, the gene log as a
 #: trigger, dreaming on, model-call words 14 days, Synapse searches 14 days and 1 copy; Developer got
 #: Synapse's 02:00 try on, the nightly feature run on, the gene log as a trigger, the gap tracker on,
 #: dreaming on and Synapse searches 30 days.
 PRESETS: dict[str, dict[str, tuple[str, int | None]]] = {
     "installed": {
+        "heartbeat": ("off", None),
         "synapse_nightly": ("off", None), "synapse_tests": ("off", None), "memory_judge": ("off", None),
         "nightly_refactor": ("off", None), "nightly_feature": ("on", None), "gene_log": ("trigger", None),
         "trial_stage": ("off", None), "tester_problems": ("off", None), "gap_tracker": ("off", None),
@@ -304,6 +323,7 @@ PRESETS: dict[str, dict[str, tuple[str, int | None]]] = {
         "run_logs": ("keep", 30), "model_costs": ("keep", 400),
     },
     "developer": {
+        "heartbeat": ("off", None),
         "synapse_nightly": ("on", None), "synapse_tests": ("lab", None), "memory_judge": ("lab", None),
         "nightly_refactor": ("off", None), "nightly_feature": ("on", None), "gene_log": ("trigger", None),
         "trial_stage": ("on", None), "tester_problems": ("on", None), "gap_tracker": ("on", None),
@@ -551,6 +571,25 @@ def require(item_id: str, org_id=None) -> None:
     if not runs(item_id, org_id):
         raise Off(f"{BY_ID[item_id].name} is off on this Rouh. Turn it on in Anatomy, Meta, "
                   "What Rouh keeps and runs.")
+
+
+def setting(item_id: str, org_id=None) -> dict:
+    """One job's value as another page draws its own switch for it (the Heartbeat page's On / Off):
+    the same value and the same source as its row here, never a second value."""
+    item = BY_ID[item_id]
+    org = _org(org_id)
+    try:
+        got = choice(item_id, org)
+        name = preset(org)
+    except Exception:  # noqa: BLE001 - today's behaviour, and the log says why
+        log.exception("lean: %s could not be read", item_id)
+        got, name = {"mode": _today(item)[0], "days": None, "from": "today", "by": ""}, None
+    base = preset_value(item_id, name)
+    return {"item": item_id, "mode": got["mode"], "on": runs(item_id, org), "from": got["from"],
+            "changed": got["from"] == "yours", "by": got["by"], "preset": name or "",
+            "preset_said": PRESET_SAID.get(name or "", ""), "default_mode": base[0],
+            "default_said": MODE_SAID.get(base[0], base[0]), "off_means": item.note,
+            "anatomy": "/anatomy/meta/keeps"}
 
 
 def keeps(item_id: str, org_id=None) -> bool:
@@ -1411,6 +1450,7 @@ def page(org_id=None, *, look: bool = True) -> dict:
             "money": _money(item) if item.kind == "job" else "", "size_bytes": size,
             "size_said": size_said, "off_means": item.off_means, "not_yet": item.not_yet,
             "note": item.note, "copies": item.copies, "versions": item.versions,
+            "link": item.link, "link_said": item.link_said,
             "shares": "Shares the model calls' table with the row above" if item.id == "model_costs" else shares,
             "options": options, "runs": runs(item.id, org)
             if item.kind == "job" else None, "waiting": wait,

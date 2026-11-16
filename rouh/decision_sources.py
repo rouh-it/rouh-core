@@ -1056,6 +1056,11 @@ class ApprovalSource(Source):
 
         rows = heartbeat.waiting(who)
         works = {w.id: w for w in quests.all_of(who)} if rows else {}
+        # Off, no beat carries on from an answer by itself: said on each of its own questions.
+        off = bool(rows) and heartbeat.is_off(who)
+        hears = ("The heartbeat is off on this Rouh, so nothing carries on from your answer by itself "
+                 "until it is turned on or you press Beat now; a no runs nothing." if off else
+                 "The heartbeat hears your answer either way; a no runs nothing.")
         out = []
         # One decision per job: a job's calls waiting together are one question, named by its
         # first call, which lists them all (`_job_calls`). Its asks for what only ‹he› can give
@@ -1113,7 +1118,7 @@ class ApprovalSource(Source):
                 why=" ".join(x for x in (a.why, f"To: {a.to_whom}." if a.to_whom else "",
                                          f"Cost: {a.cost}." if a.cost else "") if x),
                 then=("The job that asked is told your answer either way; a no runs nothing."
-                      if job else "The heartbeat hears your answer either way; a no runs nothing."),
+                      if job else hears),
                 link=link, context=context, project=project,
                 batch=(f"quest:{a.work_id}" if a.work_id is not None else f"job:{job}" if job
                        else "heartbeat"),

@@ -1046,6 +1046,13 @@ def _heart(who) -> tuple[int, bool]:
     return int(getattr(row, "interval_minutes", 0) or 30), getattr(row, "state", "on") == "paused"
 
 
+def _heart_off(who) -> bool:
+    """Whether the heartbeat is off on this Rouh (`heartbeat.is_off`), which stops every quest too."""
+    from .heartbeat import is_off
+
+    return is_off(who)
+
+
 def card(who, row, *, heart: tuple[int, bool] | None = None) -> dict:
     """One quest as the Quests page lists it."""
     from . import questcheck
@@ -1071,7 +1078,7 @@ def card(who, row, *, heart: tuple[int, bool] | None = None) -> dict:
         "last_beat": _when(row.last_full_at, now),
         "next_beat": _next_words(st),
         "exec_label": st["label"], "exec_state": st["state"],
-        "tally": tally(row), "heartbeat_paused": hb_paused,
+        "tally": tally(row), "heartbeat_paused": hb_paused, "heartbeat_off": _heart_off(who),
     }
 
 
@@ -1116,6 +1123,7 @@ def view(who, row) -> dict:
             **summary(row), **b, "chat": row.chat_id or "",
             "earlier_chat": row.earlier_chat_id or "",
             "state": state_of(row, now), "heartbeat_paused": hb_paused,
+            "heartbeat_off": _heart_off(who),
             "task_folder": task.folder if task is not None and task.folder else "",
             "task_files": {part: FILES[part] for part in FILES},
             "steps": steps_of(row),
