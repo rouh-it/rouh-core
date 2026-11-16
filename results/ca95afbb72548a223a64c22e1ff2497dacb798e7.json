@@ -1,0 +1,8 @@
+{
+  "commit": "ca95afbb72548a223a64c22e1ff2497dacb798e7",
+  "ref": "proof/stack-187-03",
+  "ok": false,
+  "result": "failure",
+  "at": "2026-11-16T19:02:08Z",
+  "run": "https://github.com/rouh-land/rouh-core/actions/runs/43927694374"
+}
