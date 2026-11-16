@@ -11424,3 +11424,41 @@ body.cot-open { overflow: hidden; }
 .page-about b { color: var(--text); font-weight: 600; }
 .page-point-btn[hidden] { display: none; }
 .page-point-btn.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+/* Chat Options' mode (Petar, 16 November 2026): Simple chat, Full capabilities and Custom, three rows drawn
+   like the model's (`.model-opt`), and the one sentence that safety cannot be turned off, which is said
+   rather than drawn as a switch. */
+.reading-modes { padding: 2px 4px 4px; }
+.reading-modes .model-opt { min-height: 48px; align-content: start; }
+.reading-safety, .reading-sec > p.reading-safety {
+  display: block; margin: 4px 10px 6px; font-size: 12.5px; font-weight: 400; line-height: 1.4; color: var(--dim);
+}
+.cot-in > .reading-modes { padding: 0; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 6px; }
+.cot-in > .reading-modes .model-opt { border: 1px solid var(--line); background: var(--panel); }
+.cot-in > .reading-safety { margin: 0; }
+/* Reset to defaults, in the full list's title bar beside Close. */
+.cot-head .cot-reset { min-height: 44px; flex: 0 0 auto; }
+@media (max-width: 600px) {
+  .cot-head { gap: 8px; }
+  .cot-head h2 { font-size: 15px; min-width: 0; }
+  .cot-head .cot-reset { padding: 0 10px; font-size: 13px; }
+  /* The three choices kept short at the top of the full list, as the switches are: the panel says each. */
+  .cot-in > .reading-modes { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+  .cot-in > .reading-modes .model-opt { min-height: 44px; padding: 6px; grid-template-columns: 16px 1fr; column-gap: 4px; align-items: center; }
+  .cot-in > .reading-modes .model-opt-hint { display: none; }
+  .cot-in > .reading-modes .model-opt-name { font-size: 12.5px; }
+}
+
+/* Close, on an incognito chat's head, at the top right, and the one line it asks with messages in it. */
+.crumb-act.incog-close { color: var(--incog); }
+.crumb-act.incog-close:hover { color: var(--text); background: var(--incog-soft); }
+.crumb-acts { position: relative; }
+.incog-ask {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; width: max-content; max-width: min(320px, calc(100vw - 24px));
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; box-sizing: border-box;
+  border: 1px solid var(--incog); border-radius: var(--radius-s); background: var(--panel-2); box-shadow: var(--shadow);
+}
+.incog-ask[hidden] { display: none; }
+.incog-ask p { flex: 1 0 100%; margin: 0; font-size: 13.5px; font-weight: 600; color: var(--text); }
+.incog-ask .cot-btn { min-height: 44px; }
+.incog-ask .cot-btn.danger { border-color: var(--incog); background: var(--incog); color: var(--incog-ink); font-weight: 600; }

@@ -11,9 +11,13 @@
  *   `incogBtn`, beside this one);
  * - in a task's chat, what is read now, each item with its size (short, long, very long) and
  *   "outline" when it is too much to read whole;
- * - memory, the person's rules and tools, with permission, privacy and safety shown always on;
- * - in a task's chat, notes, pages, chat histories and the subtasks (none, all, some);
- * - a link to everything this chat is told, full screen (`fullOpen`), and Reset to defaults.
+ * - the mode, three rows like the model's (Petar, 16 November 2026: "it can be a selector like the
+ *   smart/cheap"): Simple chat, Full capabilities and Custom (`modes`), each with one line of what it
+ *   means, and the one sentence that permission, privacy and safety cannot be turned off;
+ * - on Custom only, memory, the person's rules and tools, and in a task's chat notes, pages, chat
+ *   histories and the subtasks (none, all, some); a switch pressed anywhere puts the chat on Custom;
+ * - a link to everything this chat is told, full screen (`fullOpen`), whether new chats start like
+ *   this one, and Reset to defaults.
  *
  * The full list (Petar, 16 November 2026): the same switches, kept in step with the panel; every
  * rule and piece of live context with its whole text and the switch it follows; filters by switch
@@ -35,6 +39,7 @@ import { notify } from 'app/notices.js';
 /** @typedef {{ id: string, title: string, text: string, source: string, locked: boolean, own?: boolean,
  *              on: boolean, off: boolean, with?: string, when?: string, live?: boolean, fills?: string }} ReadRule */
 /** @typedef {{ chat: string, kind: string, incognito: boolean, settings: Record<string, any>,
+ *              mode?: string,
  *              items: ReadItem[], subtasks?: {id: string, label: string, on: boolean}[],
  *              task?: {id: string, label: string}, rules: ReadRule[], context?: ReadRule[], strip: string,
  *              outlined: number, reads: number, budget: number, kept?: string,
@@ -52,9 +57,19 @@ if (full && full.parentElement !== document.body) document.body.appendChild(full
 var FULL = { filter: 'all', q: '', opener: /** @type {HTMLElement | null} */ (null) };
 var SLIDERS = 'M4 7h9M17 7h3M4 17h3M11 17h9M17 7a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM11 17a2 2 0 1 1-4 0 2 2 0 0 1 4 0z';
 var HAT = 'M3 11h18M6.5 11l1.6-5.5h7.8L17.5 11M10.1 16a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 0 1 5.2 0zM19.1 16a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 0 1 5.2 0zM10.1 16h3.8';
-var READ = { chat: '', data: /** @type {ReadView | null} */ (null), more: false, busy: false, asked: 0, focus: '', painted: '', openAfter: false, doc: '', after: '' };
+var READ = { chat: '', data: /** @type {ReadView | null} */ (null), more: false, busy: false, asked: 0, focus: '', painted: '', openAfter: false, doc: '', after: '', from: '' };
+var incogClose = /** @type {HTMLButtonElement | null} */ ($('incogClose'));
+var incogAsk = $('incogAsk');
 
 var LOCK = 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z';
+
+/** The three modes, as the selector says them (rouh/reading.py `MODES`), each with one line of what it means. */
+var MODES = [
+  ['simple', 'Simple chat', 'Fast and cheap: no memory, none of your rules, tools only when needed.'],
+  ['full', 'Full capabilities', 'Everything on: memory, your rules, tools, and a task’s notes and pages.'],
+  ['custom', 'Custom', 'Choose each of them yourself.']
+];
+var SAFETY = 'Permission, privacy and safety cannot be turned off.';
 
 function currentChat() { return String((CHATS && CHATS.active) || ''); }
 
@@ -118,6 +133,8 @@ function paintStrip(d) {
   document.body.classList.toggle('chat-incognito', !!(d && d.incognito));
   var mark = $('incogMark');
   if (mark) mark.hidden = !(d && d.incognito);
+  if (incogClose) incogClose.hidden = !(d && d.incognito);
+  if (incogAsk && !(d && d.incognito)) incogAsk.hidden = true;
   if (incogBtn) {
     incogBtn.setAttribute('aria-pressed', d && d.incognito ? 'true' : 'false');
     incogBtn.dataset.tip = d && d.incognito ? 'Leave incognito: this chat is deleted, and you go back to General'
@@ -133,7 +150,10 @@ function paintStrip(d) {
   stripMark.appendChild(icon(d.incognito ? HAT : SLIDERS, 15));
   if (d.incognito) {
     words.appendChild(el('b', '', 'Incognito:'));
-    words.appendChild(document.createTextNode('nothing here is kept, and the chat is deleted when you leave it'));
+    words.appendChild(document.createTextNode('nothing here is kept'));
+    // What it is on, after the one thing that matters most in it.
+    words.appendChild(document.createTextNode(' · '));
+    words.appendChild(el('span', 'reading-strip-bit', d.strip));
   } else {
     words.appendChild(el('b', '', 'Reading'));
     // The page open on the canvas beside the chat, which every message is told (`rouh/page_in_chat.py`).
@@ -145,7 +165,7 @@ function paintStrip(d) {
       words.appendChild(el('span', 'reading-strip-bit', bit));
     });
   }
-  var says = (d.incognito ? 'Incognito chat. ' : 'Reading: ' + d.strip + '. ') + 'Press for Chat Options.';
+  var says = (d.incognito ? 'Incognito chat, nothing is kept: ' + d.strip + '. ' : 'Reading: ' + d.strip + '. ') + 'Press for Chat Options.';
   strip.title = says;
   strip.setAttribute('aria-label', says);
 }
@@ -161,6 +181,12 @@ function paintPop(d) {
   h.id = 'readingHead';
   h.tabIndex = -1;
   pop.appendChild(h);
+
+  // The mode first, in every chat: it is the one choice most people make here.
+  var mode = sec('How this chat works');
+  mode.appendChild(modes(s.mode, 'readingModes'));
+  mode.appendChild(el('p', 'reading-safety', SAFETY));
+  pop.appendChild(mode);
 
   if (task && d.items.length) {
     var list = sec(d.outlined ? 'What is read now · ' + d.outlined + ' of ' + d.items.length + ' as outlines'
@@ -197,11 +223,14 @@ function paintPop(d) {
     pop.appendChild(top);
   }
 
-  var every = sec('What this chat uses');
-  switches(every, s);
-  pop.appendChild(every);
+  // The switches one by one, on Custom only: Simple and Full set them all.
+  if (s.mode === 'custom') {
+    var every = sec('What this chat uses');
+    switches(every, s);
+    pop.appendChild(every);
+  }
 
-  if (task && d.task) {
+  if (task && d.task && s.mode === 'custom') {
     var t = sec('Task ' + d.task.label.split(' · ')[0]);
     t.appendChild(row('md', !!s.md, 'Notes', 'The task’s .md files'));
     t.appendChild(row('html', !!s.html, 'Pages', 'The task’s pages, as their words'));
@@ -240,21 +269,52 @@ function paintPop(d) {
   link.appendChild(el('span', '', 'See everything this chat is told (' + n.told + ' of ' + n.all + ')'));
   link.appendChild(icon('M9 6l6 6-6 6', 14));
   foot.appendChild(link);
+  // Save for next time, the same choice as the full list's "This chat and new chats". Never in an
+  // incognito chat, whose choices are its own.
+  if (!d.incognito) foot.appendChild(row('keep', !!s.keep, 'Start new chats like this', s.keep ? 'New chats start on ' + modeName(s.mode) : 'Only this chat is set this way', 'keep'));
   var reset = el('button', 'reading-link quiet', 'Reset to defaults');
   reset.type = 'button';
   reset.dataset.reset = '1';
   foot.appendChild(reset);
-  if (d.saved && Object.keys(d.saved).length) foot.appendChild(el('p', 'reading-verdict', 'New chats start with your saved choices.'));
+  if (!s.keep && d.saved && Object.keys(d.saved).length) foot.appendChild(el('p', 'reading-verdict', 'New chats start with your saved choices.'));
   pop.appendChild(foot);
 }
 
-/** The three switches and the locked one, the same in the panel and the full list. @param {HTMLElement} into
-    @param {Record<string, any>} s */
+/** @param {string} id */
+function modeName(id) {
+  for (var i = 0; i < MODES.length; i++) if (MODES[i][0] === id) return MODES[i][1];
+  return 'Full capabilities';
+}
+
+/** The mode selector: three radio rows drawn like the model's (`.model-opt`, app/composer_extras.js).
+    @param {string} now @param {string} id */
+function modes(now, id) {
+  var g = el('div', 'model-opts reading-modes');
+  g.setAttribute('role', 'radiogroup');
+  g.setAttribute('aria-label', 'How this chat works');
+  g.id = id;
+  MODES.forEach(function (m) {
+    var b = el('button', 'model-opt');
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', m[0] === now ? 'true' : 'false');
+    b.tabIndex = m[0] === now ? 0 : -1;
+    b.dataset.mode = m[0];
+    b.appendChild(el('span', 'model-opt-mark'));
+    b.appendChild(el('span', 'model-opt-name', m[1]));
+    b.appendChild(el('span', 'model-opt-hint', m[2]));
+    g.appendChild(b);
+  });
+  return g;
+}
+
+/** The three switches, the same in the panel and the full list. Permission, privacy and safety is not one of
+    them: what cannot be turned off is said in a sentence, never drawn as a switch (Petar, 16 November 2026).
+    @param {HTMLElement} into @param {Record<string, any>} s */
 function switches(into, s) {
   into.appendChild(row('memory', !!s.memory, 'Memory', 'What Rouh has learned about you and your people'));
   into.appendChild(row('rules', !!s.rules, 'Your rules', 'Off keeps the rules about permission, privacy and safety'));
   into.appendChild(row('tools', !!s.tools, 'Tools', 'Mail, calendar, the browser, jobs and the rest'));
-  into.appendChild(row('safety', true, 'Permission, privacy and safety', 'Always on', 'locked', true));
 }
 
 /** The full list, from the server's words. @param {ReadView} d */
@@ -269,9 +329,13 @@ function fullPaint(d) {
     : 'Memory is off: Synapse is not read, and your name is taken out of what is told. ')
     + 'An item marked “only when” is told only in the turns it names.'));
   inner.appendChild(head);
-  var sw = el('div', 'cot-switches');
-  switches(sw, s);
-  inner.appendChild(sw);
+  inner.appendChild(modes(s.mode, 'toldModes'));
+  if (s.mode === 'custom') {
+    var sw = el('div', 'cot-switches');
+    switches(sw, s);
+    inner.appendChild(sw);
+  }
+  inner.appendChild(el('p', 'reading-safety', SAFETY));
   var syn = el('p', 'cot-synapse' + (s.memory ? '' : ' off'));
   syn.appendChild(el('b', '', 'Synapse: ' + (s.memory ? 'included. ' : 'not included. ')));
   syn.appendChild(document.createTextNode((d.synapse && d.synapse.text || 'All of Synapse, Rouh’s memory.')
@@ -332,7 +396,7 @@ function fullPaint(d) {
     if (r.locked) {
       var lk = el('span', 'reading-lock');
       lk.appendChild(icon(LOCK, 12));
-      lk.appendChild(document.createTextNode(r.source === 'chat' ? 'set above' : 'always on'));
+      lk.appendChild(document.createTextNode(r.source === 'chat' ? 'set above' : 'cannot be turned off'));
       top.appendChild(lk);
     } else {
       var b = el('button', 'cot-sw' + (!r.on && !r.off ? ' follows' : ''));
@@ -380,11 +444,10 @@ function fullPaint(d) {
     });
     foot.appendChild(apply);
   }
-  var reset = el('button', 'cot-btn', 'Reset to defaults');
-  reset.type = 'button';
-  reset.dataset.reset = '1';
-  reset.title = 'Everything on, nothing left out' + (d.incognito ? '' : ', here and for new chats');
-  foot.appendChild(reset);
+  // Reset to defaults is in the title bar, beside Close (`toldReset`).
+  var top = $('toldReset');
+  if (top) top.title = d.incognito ? 'Back to Simple chat, nothing left out'
+    : 'Back to Full capabilities, nothing left out, here and for new chats';
   var done = el('button', 'cot-btn done', 'Done');
   done.type = 'button';
   done.dataset.done = '1';
@@ -487,16 +550,25 @@ function load(chat) {
     .catch(function () { /* the next look asks again */ READ.chat = ''; });
 }
 
-/** @param {Record<string, any>} change */
-function change(change) {
+/** A change pressed while another was on its way: sent as soon as that one is answered, never dropped.
+    @type {Record<string, any> | null} */
+var NEXT = null;
+
+/** @param {Record<string, any>} wanted */
+function change(wanted) {
   var chat = READ.chat || currentChat();
-  if (!chat || READ.busy) return;
+  if (!chat) return;
+  if (READ.busy) {
+    // Kept, with later switches merged into it; a mode or a reset pressed after replaces what was kept.
+    NEXT = wanted.mode || wanted.reset ? wanted : Object.assign(NEXT || {}, wanted);
+    return;
+  }
   READ.busy = true;
   // Whatever an earlier read answers after this, the answer to this change is what is drawn.
   READ.asked++;
   fetch('/api/reading', { method: 'POST', credentials: 'same-origin',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ chat: chat, change: change }) })
+                          body: JSON.stringify({ chat: chat, change: wanted }) })
     .then(function (r) {
       return r.json().then(function (d) {
         if (!r.ok) throw new Error(d && d.error ? d.error : 'That could not be changed.');
@@ -507,9 +579,13 @@ function change(change) {
       READ.busy = false;
       if (READ.chat === chat) paint(d);
       if (READ.after) { refocus(READ.after); READ.after = ''; }
+      var next = NEXT;
+      NEXT = null;
+      if (next && READ.chat === chat) change(next);
     })
     .catch(function (err) {
       READ.busy = false;
+      NEXT = null;
       notify(String(err && err.message || 'That could not be changed: Rouh is not connected.'), { tone: 'error' });
     });
 }
@@ -526,7 +602,9 @@ function onIncognito(fn) { incognitoTo = fn; }
    (rouh/incognito.py). */
 onIncognito(function (on) {
   if (full && !full.hidden) fullOpen(false);
-  if (!on) { openChat(CHATS.general); return; }
+  if (!on) { leaveIncognito(); return; }
+  // Where the person was, to go back to when they close it.
+  if (!(READ.data && READ.data.incognito)) READ.from = currentChat();
   // The look changes at once; the chat follows a moment later.
   document.body.classList.add('chat-incognito');
   fetch('/api/incognito', { method: 'POST', credentials: 'same-origin',
@@ -539,12 +617,74 @@ onIncognito(function (on) {
     });
 });
 
+/** Out of the incognito chat, back to the chat the person was in before it, else General. Opening another
+    chat ends the incognito one, which deletes it (rouh/runtime.py `incognito_left`). */
+function leaveIncognito() {
+  if (incogAsk) incogAsk.hidden = true;
+  if (pop && !pop.hidden) openPop(false);
+  var back = READ.from && READ.from !== currentChat() ? READ.from : String(CHATS.general || '');
+  READ.from = '';
+  openChat(back);
+}
+
+/** The X at the top right of an incognito chat: at once when nothing was said in it, else after one line. */
+function closeIncognito() {
+  var said = !!document.querySelector('#transcript .turn');
+  if (!said || !incogAsk) { leaveIncognito(); return; }
+  incogAsk.hidden = false;
+  var keep = $('incogAskGo');
+  if (keep) keep.focus();
+}
+if (incogClose) incogClose.addEventListener('click', function (e) {
+  e.stopPropagation();
+  if (incogAsk && !incogAsk.hidden) { incogAsk.hidden = true; return; }
+  closeIncognito();
+});
+if (incogAsk) {
+  incogAsk.addEventListener('click', function (e) {
+    var t = /** @type {HTMLElement} */ (e.target).closest('button');
+    if (!t) return;
+    if (t.id === 'incogAskGo') leaveIncognito();
+    else if (t.id === 'incogAskKeep') { incogAsk.hidden = true; if (incogClose) incogClose.focus(); }
+  });
+  document.addEventListener('pointerdown', function (e) {
+    if (!incogAsk || incogAsk.hidden) return;
+    var t = /** @type {Node} */ (e.target);
+    if (incogAsk.contains(t) || (incogClose && incogClose.contains(t))) return;
+    incogAsk.hidden = true;
+  }, true);
+  window.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || !incogAsk || incogAsk.hidden) return;
+    e.preventDefault();
+    e.stopPropagation();
+    incogAsk.hidden = true;
+    if (incogClose) incogClose.focus();
+  }, true);
+}
+
+/** Arrow keys move between the three modes, as a group of radio buttons does. @param {KeyboardEvent} e */
+function modeKeys(e) {
+  if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].indexOf(e.key) < 0) return;
+  var at = /** @type {HTMLElement | null} */ (document.activeElement);
+  var group = at && at.closest('.reading-modes');
+  if (!group || !at) return;
+  var all = Array.prototype.slice.call(group.querySelectorAll('.model-opt'));
+  var i = all.indexOf(at);
+  if (i < 0) return;
+  e.preventDefault();
+  all[(i + (e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : all.length - 1)) % all.length].focus();
+}
+
 /** A switch pressed in the panel or the full list: what it changes on the server.
     @param {HTMLElement} t */
 function pressed(t) {
   if (!READ.data) return;
   if (t.dataset.reset) { change({ reset: true }); return; }
   if (t.dataset.seg) { change({ subtasks: t.dataset.seg }); return; }
+  if (t.dataset.mode) {
+    if (t.getAttribute('aria-checked') !== 'true') change({ mode: t.dataset.mode });
+    return;
+  }
   var key = t.dataset.key;
   if (!key || t.getAttribute('aria-disabled') === 'true') return;
   var on = t.getAttribute('aria-checked') !== 'true';
@@ -580,11 +720,13 @@ if (btn && pop) {
     e.stopPropagation();
     openPop(pop.hidden);
   });
+  pop.addEventListener('keydown', modeKeys);
+  if (full) full.addEventListener('keydown', modeKeys);
   pop.addEventListener('click', function (e) {
     var t = /** @type {HTMLElement} */ (e.target).closest('button');
     if (!t || !READ.data) return;
     READ.focus = t.dataset.key ? '[data-key="' + t.dataset.key + '"]' : t.dataset.seg ? '[data-seg="' + t.dataset.seg + '"]'
-      : t.dataset.more ? '[data-more]' : t.dataset.reset ? '[data-reset]' : '';
+      : t.dataset.mode ? '[data-mode="' + t.dataset.mode + '"]' : t.dataset.more ? '[data-more]' : t.dataset.reset ? '[data-reset]' : '';
     if (t.dataset.more) { READ.more = !READ.more; paint(READ.data); return; }
     if (t.dataset.full) { fullOpen(true); return; }
     pressed(t);
@@ -604,7 +746,8 @@ if (btn && pop) {
         change({ off: off });
         return;
       }
-      READ.after = t.dataset.key ? '#toldFull [data-key="' + t.dataset.key + '"]' : t.dataset.reset ? '#toldFull [data-reset]' : '';
+      READ.after = t.dataset.key ? '#toldFull [data-key="' + t.dataset.key + '"]' : t.dataset.reset ? '#toldReset'
+        : t.dataset.mode ? '#toldFull [data-mode="' + t.dataset.mode + '"]' : '';
       pressed(t);
     });
     full.addEventListener('input', function (e) {

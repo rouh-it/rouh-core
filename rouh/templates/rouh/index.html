@@ -954,6 +954,20 @@ with {% asset %}, which gives it its hashed address.
               <path d="M6 12h.01M12 12h.01M18 12h.01"/>
             </svg>
           </button>
+          {% comment %} Close, in an incognito chat only, at the top right (Petar, 16 November 2026: "incognito
+               chat needs a close button top right"). It ends the chat, which deletes it, and goes back to
+               the chat the person was in before; with messages in it, one line asks first
+               (app/reading.js `incogClose`). {% endcomment %}
+          <button id="incogClose" class="crumb-act incog-close" type="button" hidden
+                  aria-label="Close this incognito chat" title="Close: this incognito chat is deleted">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+          <div id="incogAsk" class="incog-ask" role="alertdialog" aria-labelledby="incogAskWords" hidden>
+            <p id="incogAskWords">This chat will be deleted.</p>
+            <button type="button" class="cot-btn" id="incogAskKeep">Keep chatting</button>
+            <button type="button" class="cot-btn danger" id="incogAskGo">Delete and close</button>
+          </div>
         </div>
         {% comment %} The one menu every three dots open (`menu.js`, `menu.css`): an
              icon and a short word on each item, because the menu is already
@@ -1088,6 +1102,9 @@ with {% asset %}, which gives it its hashed address.
       <div class="cot-full" id="toldFull" role="dialog" aria-modal="true" aria-labelledby="toldHead" hidden>
         <div class="cot-head">
           <h2 id="toldHead" tabindex="-1">Everything this chat is told</h2>
+          {% comment %} Reset to defaults at the top right of the title bar, beside Close (Petar, 16 November
+               2026). {% endcomment %}
+          <button type="button" class="cot-btn cot-reset" id="toldReset" data-reset="1">Reset to defaults</button>
           <button type="button" class="cot-x" id="toldClose" aria-label="Close">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
           </button>
