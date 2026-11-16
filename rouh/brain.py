@@ -339,6 +339,12 @@ def start_seeds(session_id: str, user_content):
     text = _plain(user_content).strip()
     if not text:
         return None
+    from . import incognito
+
+    # Memory off, or an incognito chat: Synapse is not read for this message at all, so its words go to no
+    # search (`rouh/reading.py`).
+    if incognito.quiet(session_id) or not _reads(session_id)["memory"]:
+        return None
     import contextvars
     import functools
 
