@@ -420,7 +420,7 @@ class Drive:
                 "replaced": bool(file_id)}
 
     async def upload(self, name: str, data: bytes, *, folder_id: str = "",
-                     file_id: str = "", mime_type: str = "") -> dict:
+                     file_id: str = "", mime_type: str = "", as_google: str = "") -> dict:
         """A file's real bytes, from this machine's disk into Drive.
 
         The difference from `write` is the whole point of it: `write` takes a
@@ -437,6 +437,10 @@ class Drive:
         metadata: dict = {}
         if name:
             metadata["name"] = name
+        if as_google and not file_id:
+            # Drive converts on the way in when the metadata names a Google type:
+            # an .xlsx becomes a native Google Sheet with its tabs, formulas and formats.
+            metadata["mimeType"] = as_google
         if file_id:
             where, method = self._upload_url("/files/" + urllib.parse.quote(file_id)), "PATCH"
         else:

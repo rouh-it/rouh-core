@@ -6822,6 +6822,12 @@ class ToolRegistry:
                     "notify": {"type": "boolean",
                                "description": "Whether Google mails them about it. "
                                               "Default true."},
+                    "convert_to_google": {
+                        "type": "boolean",
+                        "description": "Make it a native Google file as it goes up: an Excel "
+                                       "or CSV file becomes a Google Sheet (tabs, formulas, "
+                                       "formats kept), a Word file a Google Doc, a PowerPoint "
+                                       "a Slides deck. One file only, not a folder."},
                 },
                 "required": ["path"],
             },
@@ -10037,13 +10043,19 @@ class ToolRegistry:
                     f"in one go is {size_said(MAX_UPLOAD_BYTES)}. Split it, or copy it "
                     f"in from a computer with Drive on it.")
         name = (args.get("name") or "").strip() or os.path.basename(where)
+        as_google = ""
+        if args.get("convert_to_google"):
+            as_google = _GOOGLE_TYPE_FOR.get(os.path.splitext(where)[1].lower(), "")
+            if not as_google:
+                return (f"{asked} cannot be made a Google file: only Excel or CSV (to a Sheet), "
+                        f"Word (to a Doc) and PowerPoint (to Slides) are converted.")
         try:
             data = await asyncio.to_thread(_bytes_of, where)
             on_drive = await self._on_which_drive(drive, args)
             folder = await drive.folder_id((args.get("folder") or "").strip(),
                                            drive_id=on_drive) or on_drive
             put = await drive.upload(name, data, folder_id=folder,
-                                     mime_type=type_of(where))
+                                     mime_type=type_of(where), as_google=as_google)
         except Exception as exc:
             return _google_trouble(exc)
         shared, link, _, trouble = await self._share(drive, put["id"], args)
@@ -16182,6 +16194,20 @@ def _how_wide(permission: dict) -> int:
     if permission.get("kind") == "domain":
         return 1
     return 3 if permission.get("role") == "owner" else 2
+
+
+#: What upload_drive_file's convert_to_google turns each kind of file into.
+_GOOGLE_TYPE_FOR = {
+    ".xlsx": "application/vnd.google-apps.spreadsheet",
+    ".xls": "application/vnd.google-apps.spreadsheet",
+    ".ods": "application/vnd.google-apps.spreadsheet",
+    ".csv": "application/vnd.google-apps.spreadsheet",
+    ".docx": "application/vnd.google-apps.document",
+    ".doc": "application/vnd.google-apps.document",
+    ".odt": "application/vnd.google-apps.document",
+    ".pptx": "application/vnd.google-apps.presentation",
+    ".ppt": "application/vnd.google-apps.presentation",
+}
 
 
 def _not_for_drive(path: str) -> str:
