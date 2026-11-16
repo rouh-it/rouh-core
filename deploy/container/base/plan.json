@@ -1,13 +1,13 @@
 {
- "level": "1.0.16",
+ "level": "1.0.17",
  "line": "1.0",
- "from_level": "1.0.15",
+ "from_level": "1.0.16",
  "changed": true,
  "changes": [
   {
-   "what": "Images",
-   "from": "ghcr.io/rouh-it",
-   "to": "ghcr.io/rouh-land"
+   "what": "pg_dump and pg_restore",
+   "from": "18.6",
+   "to": "18.7"
   }
  ],
  "security": [],
