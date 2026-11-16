@@ -5,7 +5,7 @@
                                     capabilities, or the switches one by one),
                                     "memory"|"rules"|"tools"|"md"|"html"|"histories": bool,
                                     "subtasks": "none"|"all"|"some", "picked": [task ids],
-                                    "off": [item ids turned off one by one], "keep": bool (save for new chats),
+                                    "off": [item ids turned off one by one],
                                     "reset": true (back to Rouh's defaults)}}; what it draws now
 
 The owner's own chats, so anybody signed in to this Rouh, and nobody a page was only shared with: a reader of a

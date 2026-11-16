@@ -16,13 +16,19 @@
  *   means, and the one sentence that permission, privacy and safety cannot be turned off;
  * - on Custom only, memory, the person's rules and tools, and in a task's chat notes, pages, chat
  *   histories and the subtasks (none, all, some); a switch pressed anywhere puts the chat on Custom;
- * - a link to everything this chat is told, full screen (`fullOpen`), whether new chats start like
- *   this one, and Reset to defaults.
+ * - a link to everything this chat is told, full screen (`fullOpen`).
+ *
+ * Reset to defaults is a button at the right of the panel's title bar (Petar, 16 November 2026: "reset
+ * to defaults should to top-right on the title bar"). On a desk, Custom's choices and the link stand
+ * in a column of their own to the right of the modes ("when I press custom, the choices should appear
+ * on the right side for desktop"); a phone keeps one column, the choices under the modes. The mode is
+ * the chat's own, like the model beside it ("behavior should be like smart/cheap selection"): nothing
+ * here saves it for new chats, and the button says which it is, Simple, Full or Custom (`paintBtn`).
  *
  * The full list (Petar, 16 November 2026): the same switches, kept in step with the panel; every
  * rule and piece of live context with its whole text and the switch it follows; filters by switch
- * and a search; a switch for each item but the locked ones; whether the choices are this chat's
- * only or kept for new chats; Reset to defaults; and one line for Synapse, which follows Memory.
+ * and a search; a switch for each item but the locked ones; Reset to defaults in its title bar; and
+ * one line for Synapse, which follows Memory.
  *
  * Every switch is a real button with role="switch", the whole row its target. What the server says
  * after each change is what is drawn: the panel never guesses a count. Outside the chain, like
@@ -43,8 +49,7 @@ import { notify } from 'app/notices.js';
  *              items: ReadItem[], subtasks?: {id: string, label: string, on: boolean}[],
  *              task?: {id: string, label: string}, rules: ReadRule[], context?: ReadRule[], strip: string,
  *              outlined: number, reads: number, budget: number, kept?: string,
- *              synapse?: {text: string, on: boolean}, sources?: Record<string, string>,
- *              saved?: Record<string, any> }} ReadView */
+ *              synapse?: {text: string, on: boolean}, sources?: Record<string, string> }} ReadView */
 
 var btn = /** @type {HTMLButtonElement | null} */ ($('readingBtn'));
 var pop = $('readingPop');
@@ -59,6 +64,7 @@ var SLIDERS = 'M4 7h9M17 7h3M4 17h3M11 17h9M17 7a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM11
 var HAT = 'M3 11h18M6.5 11l1.6-5.5h7.8L17.5 11M10.1 16a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 0 1 5.2 0zM19.1 16a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 0 1 5.2 0zM10.1 16h3.8';
 var READ = { chat: '', data: /** @type {ReadView | null} */ (null), more: false, busy: false, asked: 0, focus: '', painted: '', openAfter: false, doc: '', after: '', from: '' };
 var incogClose = /** @type {HTMLButtonElement | null} */ ($('incogClose'));
+var btnWord = $('readingWord');
 var incogAsk = $('incogAsk');
 
 var LOCK = 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z';
@@ -70,6 +76,8 @@ var MODES = [
   ['custom', 'Custom', 'Choose each of them yourself.']
 ];
 var SAFETY = 'Permission, privacy and safety cannot be turned off.';
+/** The mode in one word, on the button, as the model's button says Smart or Cheap. */
+var SHORT = /** @type {Record<string, string>} */ ({ simple: 'Simple', full: 'Full', custom: 'Custom' });
 
 function currentChat() { return String((CHATS && CHATS.active) || ''); }
 
@@ -128,8 +136,20 @@ function toldCount(d) {
   return { told: every.filter(function (r) { return r.on; }).length, all: every.length };
 }
 
+/** The button on the composer's line: its one word is the chat's mode. @param {ReadView | null} d */
+function paintBtn(d) {
+  if (!btn || !btnWord) return;
+  var mode = d && d.settings ? String(d.settings.mode || '') : '';
+  btnWord.textContent = SHORT[mode] || 'Options';
+  btn.dataset.mode = mode;
+  var says = 'Chat Options: ' + (mode ? modeName(mode) : 'what this chat uses') + '. Memory, your rules and tools';
+  btn.dataset.tip = says;
+  btn.setAttribute('aria-label', 'Chat Options, ' + (mode ? modeName(mode) : 'loading'));
+}
+
 /** The strip, from the server's words. @param {ReadView | null} d */
 function paintStrip(d) {
+  paintBtn(d);
   document.body.classList.toggle('chat-incognito', !!(d && d.incognito));
   var mark = $('incogMark');
   if (mark) mark.hidden = !(d && d.incognito);
@@ -175,18 +195,36 @@ function paintPop(d) {
   if (!pop) return;
   var s = d.settings;
   var task = d.kind === 'task';
+  var custom = s.mode === 'custom';
   pop.textContent = '';
-  // Just the name of the panel: a second line under it read as one more option (Petar, 16 November 2026).
+  pop.classList.toggle('custom', custom);
+  // The title bar: just the name of the panel (a second line under it read as one more option), and
+  // Reset to defaults at its right (Petar, 16 November 2026).
+  var bar = el('div', 'reading-top');
   var h = el('h2', '', 'Chat Options');
   h.id = 'readingHead';
   h.tabIndex = -1;
-  pop.appendChild(h);
+  bar.appendChild(h);
+  var reset = el('button', 'reading-reset', 'Reset to defaults');
+  reset.type = 'button';
+  reset.dataset.reset = '1';
+  reset.title = d.incognito ? 'Back to Simple chat, nothing left out' : 'Back to Full capabilities, nothing left out';
+  bar.appendChild(reset);
+  pop.appendChild(bar);
+
+  // Two columns on Custom when there is the room (a desk): the modes on the left, the choices on the right.
+  var body = el('div', 'reading-body' + (custom ? ' cols' : ''));
+  var main = el('div', 'reading-main');
+  var side = custom ? el('div', 'reading-side') : main;
+  body.appendChild(main);
+  if (custom) body.appendChild(side);
+  pop.appendChild(body);
 
   // The mode first, in every chat: it is the one choice most people make here.
   var mode = sec('How this chat works');
   mode.appendChild(modes(s.mode, 'readingModes'));
   mode.appendChild(el('p', 'reading-safety', SAFETY));
-  pop.appendChild(mode);
+  main.appendChild(mode);
 
   if (task && d.items.length) {
     var list = sec(d.outlined ? 'What is read now · ' + d.outlined + ' of ' + d.items.length + ' as outlines'
@@ -212,7 +250,7 @@ function paintPop(d) {
       more.dataset.more = '1';
       list.appendChild(more);
     }
-    pop.appendChild(list);
+    main.appendChild(list);
   }
 
   // Incognito is a button of its own (`incogBtn`); here, while it is on, what it means and a way out.
@@ -220,17 +258,17 @@ function paintPop(d) {
     var top = sec('');
     top.appendChild(row('incognito', true, 'Incognito', 'On: nothing here is kept, and the chat is deleted when you leave it', 'incog'));
     if (d.kept) top.appendChild(el('p', 'reading-verdict', d.kept));
-    pop.appendChild(top);
+    main.appendChild(top);
   }
 
   // The switches one by one, on Custom only: Simple and Full set them all.
-  if (s.mode === 'custom') {
+  if (custom) {
     var every = sec('What this chat uses');
     switches(every, s);
-    pop.appendChild(every);
+    side.appendChild(every);
   }
 
-  if (task && d.task && s.mode === 'custom') {
+  if (task && d.task && custom) {
     var t = sec('Task ' + d.task.label.split(' · ')[0]);
     t.appendChild(row('md', !!s.md, 'Notes', 'The task’s .md files'));
     t.appendChild(row('html', !!s.html, 'Pages', 'The task’s pages, as their words'));
@@ -258,7 +296,7 @@ function paintPop(d) {
         subs.forEach(function (sub) { t.appendChild(row('sub:' + sub.id, sub.on, sub.label, '', 'sub')); });
       }
     }
-    pop.appendChild(t);
+    side.appendChild(t);
   }
   // Everything this chat is told is a link to the full list, never a list of its own here.
   var foot = sec('');
@@ -269,15 +307,7 @@ function paintPop(d) {
   link.appendChild(el('span', '', 'See everything this chat is told (' + n.told + ' of ' + n.all + ')'));
   link.appendChild(icon('M9 6l6 6-6 6', 14));
   foot.appendChild(link);
-  // Save for next time, the same choice as the full list's "This chat and new chats". Never in an
-  // incognito chat, whose choices are its own.
-  if (!d.incognito) foot.appendChild(row('keep', !!s.keep, 'Start new chats like this', s.keep ? 'New chats start on ' + modeName(s.mode) : 'Only this chat is set this way', 'keep'));
-  var reset = el('button', 'reading-link quiet', 'Reset to defaults');
-  reset.type = 'button';
-  reset.dataset.reset = '1';
-  foot.appendChild(reset);
-  if (!s.keep && d.saved && Object.keys(d.saved).length) foot.appendChild(el('p', 'reading-verdict', 'New chats start with your saved choices.'));
-  pop.appendChild(foot);
+  side.appendChild(foot);
 }
 
 /** @param {string} id */
@@ -427,27 +457,10 @@ function fullPaint(d) {
   inner.appendChild(ul);
 
   foot.textContent = '';
-  if (!d.incognito) {
-    var apply = el('div', 'cot-apply');
-    apply.setAttribute('role', 'radiogroup');
-    apply.setAttribute('aria-label', 'Apply these choices to');
-    [['0', 'This chat only'], ['1', 'This chat and new chats']].forEach(function (o) {
-      var lab = el('label', '');
-      var r = /** @type {HTMLInputElement} */ (el('input', ''));
-      r.type = 'radio';
-      r.name = 'toldKeep';
-      r.value = o[0];
-      r.checked = (s.keep ? '1' : '0') === o[0];
-      lab.appendChild(r);
-      lab.appendChild(document.createTextNode(o[1]));
-      apply.appendChild(lab);
-    });
-    foot.appendChild(apply);
-  }
   // Reset to defaults is in the title bar, beside Close (`toldReset`).
   var top = $('toldReset');
   if (top) top.title = d.incognito ? 'Back to Simple chat, nothing left out'
-    : 'Back to Full capabilities, nothing left out, here and for new chats';
+    : 'Back to Full capabilities, nothing left out';
   var done = el('button', 'cot-btn done', 'Done');
   done.type = 'button';
   done.dataset.done = '1';
@@ -586,6 +599,7 @@ function change(wanted) {
     .catch(function (err) {
       READ.busy = false;
       NEXT = null;
+      paintBtn(READ.data);
       notify(String(err && err.message || 'That could not be changed: Rouh is not connected.'), { tone: 'error' });
     });
 }
@@ -682,7 +696,10 @@ function pressed(t) {
   if (t.dataset.reset) { change({ reset: true }); return; }
   if (t.dataset.seg) { change({ subtasks: t.dataset.seg }); return; }
   if (t.dataset.mode) {
-    if (t.getAttribute('aria-checked') !== 'true') change({ mode: t.dataset.mode });
+    if (t.getAttribute('aria-checked') === 'true') return;
+    // The button says the new mode at once; the server's answer is drawn when it comes.
+    if (btnWord) btnWord.textContent = SHORT[t.dataset.mode] || btnWord.textContent;
+    change({ mode: t.dataset.mode });
     return;
   }
   var key = t.dataset.key;
@@ -755,10 +772,6 @@ if (btn && pop) {
       if (t.id !== 'toldQ' || !READ.data) return;
       FULL.q = t.value;
       fullPaint(READ.data);
-    });
-    full.addEventListener('change', function (e) {
-      var t = /** @type {HTMLInputElement} */ (e.target);
-      if (t.name === 'toldKeep') { READ.after = '#toldFull input[name="toldKeep"][value="' + t.value + '"]'; change({ keep: t.value === '1' }); }
     });
     // Tab stays inside the full list while it is open.
     full.addEventListener('keydown', function (e) {

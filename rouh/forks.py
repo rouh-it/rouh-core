@@ -393,12 +393,19 @@ def make(parent_id: str, before: int | None = None, *,
     # carried on, and a choice made by hand holds until they change it. A parent that
     # follows the Models page leaves the fork following it too.
     chosen = chatkinds.stored_choice(parent_id)
+    # Chat Options' mode and switches go with it the same way (Petar, 16 November 2026: "behavior
+    # should be like smart/cheap selection"); a parent that set nothing leaves the fork on Full.
+    parent = Chat.objects.filter(id=parent_id).values("reading", "incognito").first() or {}
+    reading = parent.get("reading") if isinstance(parent.get("reading"), dict) and not parent.get("incognito") else {}
+    reading = {k: v for k, v in (reading or {}).items() if k != "keep"}
     with transaction.atomic():
         chat_id = conversations.new_chat(fork=True)
         ChatFork.objects.create(chat_id=chat_id, parent_id=parent_id, at=at,
                                 created_at=time.time())
         if chosen:
             Chat.objects.filter(id=chat_id).update(model_choice=chosen)
+        if reading:
+            Chat.objects.filter(id=chat_id).update(reading=reading)
     log.info("chat %s forked into %s after message %s%s", parent_id, chat_id, at,
              f", above exchange {before}" if before is not None else
              f", through exchange {through}" if through is not None else "")

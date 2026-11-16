@@ -1097,8 +1097,8 @@ with {% asset %}, which gives it its hashed address.
       <div class="reading-pop" id="readingPop" role="dialog" aria-labelledby="readingHead" hidden></div>
       {% comment %} Everything this chat is told, full screen, opened from the foot of Chat Options
            (Petar, 16 November 2026): the same switches, every rule and piece of context with its whole
-           text and the switch it follows, filters, a search, a switch for each item, whether the choices
-           are kept for new chats, and Reset to defaults (app/reading.js `fullPaint`). {% endcomment %}
+           text and the switch it follows, filters, a search, a switch for each item, and Reset to defaults
+           (app/reading.js `fullPaint`). {% endcomment %}
       <div class="cot-full" id="toldFull" role="dialog" aria-modal="true" aria-labelledby="toldHead" hidden>
         <div class="cot-head">
           <h2 id="toldHead" tabindex="-1">Everything this chat is told</h2>
@@ -1255,14 +1255,17 @@ with {% asset %}, which gives it its hashed address.
                memory, the person's rules, tools, a task's notes, pages and subtasks (Petar, 15
                November 2026: "same icon, same location, same interface ... a button next to the
                smart"). Sliders, since 16 November 2026 ("this is book doesn't make sense to me").
-               The panel opens above the box (app/reading.js). {% endcomment %}
+               The panel opens above the box (app/reading.js). Beside the sliders, the chat's mode in
+               one word, as the model's button says Smart or Cheap (Petar, 16 November 2026: "the icon
+               for those settings should show current setup. Simple or Full"). {% endcomment %}
           <div class="reading-wrap" id="readingWrap">
-            <button id="readingBtn" class="tog reading-btn" type="button" aria-haspopup="dialog"
+            <button id="readingBtn" class="model-btn reading-btn" type="button" aria-haspopup="dialog"
                     aria-expanded="false" aria-controls="readingPop" aria-label="Chat Options"
                     data-tip="Chat Options: what this chat uses - memory, your rules and tools">
-              <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>
               </svg>
+              <span class="model-btn-word" id="readingWord">Options</span>
             </button>
           </div>
           {% comment %} Incognito, a button of its own beside Chat Options (Petar, 16 November 2026:

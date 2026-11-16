@@ -31,9 +31,12 @@ draws them (`readingPaint` in app/reading.js):
   instructions only once the model loads it (`light`), so a quick web search still works and the turn is fast
   and cheap. It is not incognito: the chat is kept. *Full capabilities* is everything on, and in a task's chat
   the task's default content. *Custom* is the switches one by one, as they were before; changing any of them
-  puts the chat on Custom by itself. General, forks and task chats start on Full, an incognito chat on Simple
-  (`incognito.start`), and the person's saved choice, when there is one, starts every new chat that is not
-  incognito.
+  puts the chat on Custom by itself. The mode is the chat's own, the way the model beside it is
+  (`chatkinds.choice_of`; Petar, 16 November 2026: "behavior should be like smart/cheap selection"): a choice
+  stays with its chat, a fork carries on with its parent's (`forks.fork`), and every new chat starts on
+  Rouh's default, Full for General, forks and task chats, Simple for an incognito chat (`incognito.start`).
+  Nothing is saved for new chats any more: "Start new chats like this" is gone, and the choices it saved
+  were forgotten (`0256_forget_saved_chat_options`).
 
 `block` is what a turn of a task's chat is told (`brain.Brain._system`), `switches` what the turn does with
 memory, rules and tools, `view` what the panel draws, and `strip` the one line under the chat's title that
@@ -53,7 +56,7 @@ log = logging.getLogger("rouh.reading")
 #: The defaults: memory, rules and tools on; a task's chat reads the task, its notes and pages, no subtasks,
 #: no chat histories.
 DEFAULTS = {"mode": "full", "memory": True, "rules": True, "tools": True, "subtasks": "none", "picked": [],
-            "md": True, "html": True, "histories": False, "off": [], "keep": False}
+            "md": True, "html": True, "histories": False, "off": []}
 #: The three modes, as the selector at the top of Chat Options names them.
 MODES = ("simple", "full", "custom")
 MODE_NAMES = {"simple": "Simple chat", "full": "Full capabilities", "custom": "Custom"}
@@ -64,11 +67,6 @@ FULL = {"memory": True, "rules": True, "tools": True, "off": [], "md": True, "ht
         "subtasks": "none", "picked": [], "histories": False}
 #: The switches a mode sets, and which Custom leaves to the person one by one.
 SWITCH_KEYS = ("memory", "rules", "tools", "off", "md", "html", "subtasks", "picked", "histories")
-#: What a person can save as the start of every new chat (`saved`): the mode, the three switches and the
-#: items off.
-SAVED_KEYS = ("mode", "memory", "rules", "tools", "off")
-#: The person's saved choices, a `UserSetting` of theirs.
-SAVED = "chat_options"
 SUBTASKS = ("none", "all", "some")
 #: What the included items may take of a turn, in tokens, before the largest are read as outlines.
 BUDGET = 60_000
@@ -86,57 +84,6 @@ def _chat_row(chat_id: str):
     from .models.objects import Chat
 
     return Chat.objects.filter(id=chat_id).first()
-
-
-def _whose(who=None):
-    """The person these settings are for: `who`, else whoever the turn is for."""
-    if who is not None:
-        return who
-    try:
-        from .tenancy import speaker
-
-        return speaker()
-    except Exception:  # noqa: BLE001
-        return None
-
-
-def saved(who=None) -> dict:
-    """The choices the person saved for every new chat ("This chat and new chats" in Chat Options), or {}."""
-    who = _whose(who)
-    uid = str(getattr(who, "user_id", "") or "")
-    if not uid:
-        return {}
-    try:
-        import json
-
-        from .models import UserSetting
-
-        raw = UserSetting.objects.filter(user_id=uid, name=SAVED).values_list("value", flat=True).first()
-        got = json.loads(raw) if raw else {}
-    except Exception:  # noqa: BLE001 - a chat starts on Rouh's defaults rather than not at all
-        log.exception("the saved chat options could not be read")
-        return {}
-    return {k: v for k, v in got.items() if k in SAVED_KEYS} if isinstance(got, dict) else {}
-
-
-def _save(who, value: dict | None) -> None:
-    """Keep these choices for every new chat, or forget them (None)."""
-    import json
-    import time
-
-    from .models import UserSetting
-
-    who = _whose(who)
-    uid, org = str(getattr(who, "user_id", "") or ""), str(getattr(who, "org_id", "") or "")
-    if not uid:
-        return
-    if value is None:
-        UserSetting.objects.filter(user_id=uid, name=SAVED).delete()
-        return
-    UserSetting.objects.update_or_create(
-        user_id=uid, name=SAVED,
-        defaults={"org_id": org, "value": json.dumps({k: value[k] for k in SAVED_KEYS if k in value}),
-                  "updated_at": time.time()})
 
 
 def mode_of(stored: dict) -> str:
@@ -159,17 +106,11 @@ def _on_mode(got: dict) -> dict:
 
 
 def settings(chat_id: str, who=None) -> dict:
-    """This chat's settings: Rouh's defaults, under the person's saved choices, under what this chat set, with
-    what its mode sets on top (`_on_mode`)."""
+    """This chat's settings: Rouh's defaults under what this chat set, with what its mode sets on top
+    (`_on_mode`). `who` is kept for the callers; the settings are the chat's alone."""
     row = _chat_row(chat_id) if chat_id else None
     got = dict(DEFAULTS)
     own = row.reading if row is not None and isinstance(row.reading, dict) else {}
-    # An incognito chat is its own: nothing saved for ordinary chats reaches it.
-    if not (row is not None and row.incognito):
-        kept = saved(who)
-        if kept:
-            got.update(kept)
-            got["mode"] = mode_of(kept)
     got.update({k: v for k, v in own.items() if k in DEFAULTS})
     if own:
         got["mode"] = mode_of(own) if "mode" in own or any(k in own for k in SWITCH_KEYS) else got["mode"]
@@ -185,8 +126,8 @@ def settings(chat_id: str, who=None) -> dict:
 def put(chat_id: str, change: dict, who=None) -> dict:
     """Change some of this chat's settings; what it is now. Unknown keys are ignored.
 
-    `reset` puts the chat back on Rouh's defaults and forgets the person's saved choices; `keep` true saves
-    this chat's choices for every new chat, now and with each change after, and false stops that."""
+    `reset` puts the chat back on Rouh's defaults. Every choice is this chat's own: none is kept for new
+    chats (the model beside it works the same way)."""
     from .models.objects import Chat
 
     row = _chat_row(chat_id)
@@ -206,8 +147,6 @@ def put(chat_id: str, change: dict, who=None) -> dict:
         # as it started (`incognito.start`).
         now = {"mode": "simple"} if row.incognito else {"mode": "full"}
         Chat.objects.filter(id=chat_id).update(reading=now)
-        if not row.incognito:
-            _save(who, None)
         return settings(chat_id, who)
     before = settings(chat_id, who)
     mode = change.pop("mode", None)
@@ -233,13 +172,9 @@ def put(chat_id: str, change: dict, who=None) -> dict:
             now[k] = sorted({str(x) for x in (v or []) if str(x)})[:500]
         else:
             now[k] = bool(v)
-    if row.incognito:
-        now.pop("keep", None)   # an incognito chat's choices are never saved for others
+    now.pop("keep", None)   # the old "Start new chats like this", gone since 16 November 2026
     Chat.objects.filter(id=chat_id).update(reading=now)
-    got = settings(chat_id, who)
-    if got.get("keep") and not row.incognito:
-        _save(who, got)
-    return got
+    return settings(chat_id, who)
 
 
 # --- what is in a task --------------------------------------------------------------------------
@@ -914,5 +849,4 @@ def view(chat_id: str, who=None) -> dict:
     out["context"] = context_listing(chat_id, who, s)
     out["synapse"] = {"text": SYNAPSE_LINE, "on": bool(s["memory"])}
     out["sources"] = SOURCES
-    out["saved"] = saved(who) if not is_incognito else {}
     return out
