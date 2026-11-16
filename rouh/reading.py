@@ -684,6 +684,7 @@ def rules_listing(chat_id: str, who=None, s: dict | None = None) -> list[dict]:
                     "on": rule_told(r, reads), "off": rule_item(r) in off,
                     "with": tool_rules.said(tool_rules.targets(r)) if tool_rules.told_with_tools(r) else "",
                     "when": ("only when " + "; ".join(when)) if when else "",
+                    "fills": prompting.value_words(prompting.placeholders(r["text"])) if r.get("fills") else "",
                     "reply": r.get("mode") or ""})
     order = {"builtin": 0, "safety": 1, "memory": 2, "rules": 3, "tools": 4}
     out.sort(key=lambda x: (order.get(x["source"], 9), x["title"].lower()))

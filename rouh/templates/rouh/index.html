@@ -859,10 +859,10 @@ with {% asset %}, which gives it its hashed address.
              draggable. But the beginning of the title is the beginning of
              the chat." {% endcomment %}
         {% comment %} An incognito chat's mark, in place of the chat's name and what it belongs to
-             (rouh/incognito.py): the eye struck through and the word. {% endcomment %}
+             (rouh/incognito.py): the hat and glasses of the Incognito button, and the word. {% endcomment %}
         <span class="incog-mark" id="incogMark" hidden>
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.1M6.6 6.6A13 13 0 0 0 2 12c1 2.5 5 7 10 7a10 10 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>
+            <path d="M3 11h18"/><path d="M6.5 11l1.6-5.5h7.8L17.5 11"/><circle cx="7.5" cy="16" r="2.6"/><circle cx="16.5" cy="16" r="2.6"/><path d="M10.1 16h3.8"/>
           </svg>
           Incognito
         </span>
@@ -1040,7 +1040,7 @@ with {% asset %}, which gives it its hashed address.
            the canvas beside it. The first thing said puts everything back
            where a conversation has it (`welcomeShow` in app.js). {% endcomment %}
       <div class="welcome-hello" id="welcomeHello" hidden>
-        <p class="welcome-hi">Hello{% if GREET_NAME %}, {{ GREET_NAME }}{% endif %}{% if ROUH_SELF %}. I'm <span class="rouh-name">{{ ROUH_SELF }}</span>{% endif %}</p>
+        <p class="welcome-hi">Hello{% if GREET_NAME %}<span class="welcome-name">, {{ GREET_NAME }}</span>{% endif %}{% if ROUH_SELF %}<span class="welcome-name">. I'm <span class="rouh-name">{{ ROUH_SELF }}</span></span>{% endif %}</p>
 {% if CHATS_NEED_KEY %}
         <p class="welcome-ask welcome-key" role="alert">{{ CHATS_NEED_KEY.said }} <a href="{{ CHATS_NEED_KEY.href }}">Add a key</a></p>{% elif SETTING_UP %}
         <p class="welcome-ask">Ask me anything, or drop in a screenshot</p>{% else %}
@@ -1081,6 +1081,20 @@ with {% asset %}, which gives it its hashed address.
              accept="{{ATTACH_ACCEPT}}" data-max="{{ATTACH_MAX}}" aria-hidden="true" tabindex="-1">
 
       <div class="reading-pop" id="readingPop" role="dialog" aria-labelledby="readingHead" hidden></div>
+      {% comment %} Everything this chat is told, full screen, opened from the foot of Chat Options
+           (Petar, 16 November 2026): the same switches, every rule and piece of context with its whole
+           text and the switch it follows, filters, a search, a switch for each item, whether the choices
+           are kept for new chats, and Reset to defaults (app/reading.js `fullPaint`). {% endcomment %}
+      <div class="cot-full" id="toldFull" role="dialog" aria-modal="true" aria-labelledby="toldHead" hidden>
+        <div class="cot-head">
+          <h2 id="toldHead" tabindex="-1">Everything this chat is told</h2>
+          <button type="button" class="cot-x" id="toldClose" aria-label="Close">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <div class="cot-body" id="toldBody"><div class="cot-in" id="toldIn"></div></div>
+        <div class="cot-foot" id="toldFoot"></div>
+      </div>
       <div class="composer-box" id="composerBox">
         {% comment %} The picture settings, while the box is asking for a picture rather
              than a reply (the picture button below). Built from what the
@@ -1220,23 +1234,30 @@ with {% asset %}, which gives it its hashed address.
             </div>
           </div>
 
-          {% comment %} What I'm reading: the one control, in every chat, for what Rouh reads here -
-               memory, the person's rules, tools, a task's notes, pages and subtasks - and for
-               incognito (Petar, 15 November 2026: "same icon, same location, same interface ...
-               a button next to the smart"). An open book; an eye struck through while the chat is
-               incognito. The panel opens above the box (app/reading.js). {% endcomment %}
+          {% comment %} Chat Options: the one control, in every chat, for what Rouh uses here -
+               memory, the person's rules, tools, a task's notes, pages and subtasks (Petar, 15
+               November 2026: "same icon, same location, same interface ... a button next to the
+               smart"). Sliders, since 16 November 2026 ("this is book doesn't make sense to me").
+               The panel opens above the box (app/reading.js). {% endcomment %}
           <div class="reading-wrap" id="readingWrap">
             <button id="readingBtn" class="tog reading-btn" type="button" aria-haspopup="dialog"
-                    aria-expanded="false" aria-controls="readingPop"
-                    aria-label="What I'm reading in this chat" title="What I'm reading in this chat">
-              <svg class="ico-book" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5z"/><path d="M12 6.5v13"/>
-              </svg>
-              <svg class="ico-incog" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.1M6.6 6.6A13 13 0 0 0 2 12c1 2.5 5 7 10 7a10 10 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>
+                    aria-expanded="false" aria-controls="readingPop" aria-label="Chat Options"
+                    data-tip="Chat Options: what this chat uses - memory, your rules and tools">
+              <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>
               </svg>
             </button>
           </div>
+          {% comment %} Incognito, a button of its own beside Chat Options (Petar, 16 November 2026:
+               "incognito should be a separate icon"): pressed, a new chat where nothing is kept, with
+               Chat Options open on it; pressed again, back to General (rouh/incognito.py,
+               app/reading.js). Orange while on, as the whole column is. {% endcomment %}
+          <button id="incogBtn" class="tog incog-btn" type="button" aria-pressed="false" aria-label="Incognito"
+                  data-tip="Incognito: a new chat where nothing is kept, deleted when you leave it">
+            <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 11h18"/><path d="M6.5 11l1.6-5.5h7.8L17.5 11"/><circle cx="7.5" cy="16" r="2.6"/><circle cx="16.5" cy="16" r="2.6"/><path d="M10.1 16h3.8"/>
+            </svg>
+          </button>
 
           {% comment %} Stop. On screen only while a turn is running, and the same
                thing the Escape key does. It ends Rouh's own turn: the model

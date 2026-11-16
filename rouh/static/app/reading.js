@@ -1,18 +1,24 @@
-/* What I'm reading: the one control for what Rouh reads in the chat on screen (rouh/reading.py).
+/* Chat Options: the one control for what Rouh uses in the chat on screen (rouh/reading.py).
  *
  * Petar, 15 November 2026 (Chat Change Planning): "context controls should be unified everywehre.
- * same icon, same location, same interface ... a button next to the smart". So an open book beside
- * the model on the composer's line, in every chat, and a thin strip under the chat's head that says
- * in plain words what is read ("Reading Memory · Your rules · Tools · Task 62 · 1 note"); pressing
- * either opens one panel above the box:
+ * same icon, same location, same interface ... a button next to the smart". So a button beside the
+ * model on the composer's line, in every chat (sliders since 16 November 2026: "this is book
+ * doesn't make sense to me"), and a thin strip under the chat's head that says in plain words what
+ * is read ("Reading Memory · Your rules · Tools · Task 62 · 1 note"); pressing either opens one
+ * panel above the box, headed "Chat Options" and nothing more:
  *
- * - Incognito, first, because it changes everything below it (app/reading.js `incognitoTo`);
+ * - while the chat is incognito, that it is and what is kept (Incognito is a button of its own,
+ *   `incogBtn`, beside this one);
  * - in a task's chat, what is read now, each item with its size (short, long, very long) and
  *   "outline" when it is too much to read whole;
- * - memory, the person's rules and tools, in every chat, with permission, privacy and safety
- *   shown always on;
+ * - memory, the person's rules and tools, with permission, privacy and safety shown always on;
  * - in a task's chat, notes, pages, chat histories and the subtasks (none, all, some);
- * - the rules told in this chat, each readable, open in an incognito chat.
+ * - a link to everything this chat is told, full screen (`fullOpen`), and Reset to defaults.
+ *
+ * The full list (Petar, 16 November 2026): the same switches, kept in step with the panel; every
+ * rule and piece of live context with its whole text and the switch it follows; filters by switch
+ * and a search; a switch for each item but the locked ones; whether the choices are this chat's
+ * only or kept for new chats; Reset to defaults; and one line for Synapse, which follows Memory.
  *
  * Every switch is a real button with role="switch", the whole row its target. What the server says
  * after each change is what is drawn: the panel never guesses a count. Outside the chain, like
@@ -26,16 +32,27 @@ import { notify } from 'app/notices.js';
 
 /** @typedef {{ id: string, kind: string, label: string, owner: string, path: string, size: string,
  *              tokens: number, on: boolean, how: string }} ReadItem */
-/** @typedef {{ title: string, text: string, locked: boolean, own: boolean, on: boolean, with: string }} ReadRule */
+/** @typedef {{ id: string, title: string, text: string, source: string, locked: boolean, own?: boolean,
+ *              on: boolean, off: boolean, with?: string, when?: string, live?: boolean, fills?: string }} ReadRule */
 /** @typedef {{ chat: string, kind: string, incognito: boolean, settings: Record<string, any>,
  *              items: ReadItem[], subtasks?: {id: string, label: string, on: boolean}[],
- *              task?: {id: string, label: string}, rules: ReadRule[], strip: string,
- *              outlined: number, reads: number, budget: number, kept?: string }} ReadView */
+ *              task?: {id: string, label: string}, rules: ReadRule[], context?: ReadRule[], strip: string,
+ *              outlined: number, reads: number, budget: number, kept?: string,
+ *              synapse?: {text: string, on: boolean}, sources?: Record<string, string>,
+ *              saved?: Record<string, any> }} ReadView */
 
 var btn = /** @type {HTMLButtonElement | null} */ ($('readingBtn'));
 var pop = $('readingPop');
 var strip = /** @type {HTMLButtonElement | null} */ ($('readingStrip'));
-var READ = { chat: '', data: /** @type {ReadView | null} */ (null), more: false, busy: false, asked: 0, focus: '', painted: '', openAfter: false, doc: '' };
+var incogBtn = /** @type {HTMLButtonElement | null} */ ($('incogBtn'));
+var full = $('toldFull');
+// On the page itself, so no box around the composer can hold it inside its own bounds.
+if (full && full.parentElement !== document.body) document.body.appendChild(full);
+/** The full list: which switch's items are shown, the search, and what had the focus before it opened. */
+var FULL = { filter: 'all', q: '', opener: /** @type {HTMLElement | null} */ (null) };
+var SLIDERS = 'M4 7h9M17 7h3M4 17h3M11 17h9M17 7a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM11 17a2 2 0 1 1-4 0 2 2 0 0 1 4 0z';
+var HAT = 'M3 11h18M6.5 11l1.6-5.5h7.8L17.5 11M10.1 16a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 0 1 5.2 0zM19.1 16a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 0 1 5.2 0zM10.1 16h3.8';
+var READ = { chat: '', data: /** @type {ReadView | null} */ (null), more: false, busy: false, asked: 0, focus: '', painted: '', openAfter: false, doc: '', after: '' };
 
 var LOCK = 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z';
 
@@ -87,32 +104,13 @@ function sec(label) {
   return s;
 }
 
-/** @param {ReadView} d @param {boolean} open */
-function rulesBlock(d, open) {
-  var s = sec('');
-  var det = el('details', 'reading-rules');
-  if (open) det.open = true;
-  var locked = d.rules.filter(function (r) { return r.locked; }).length;
-  var withTools = d.rules.filter(function (r) { return !!r.with; }).length;
-  det.appendChild(el('summary', '', 'Rules told in this chat: ' + d.rules.length + ' (' + locked + ' always on'
-    + (withTools ? ', ' + withTools + ' only with their tools' : '') + ')'));
-  var ul = el('ul', '');
-  d.rules.forEach(function (r) {
-    var li = el('li', r.on ? '' : 'off');
-    var head = el('b', '');
-    head.appendChild(el('span', '', r.title));
-    var tag = el('span', 'reading-lock');
-    if (r.locked) { tag.appendChild(icon(LOCK, 12)); tag.appendChild(document.createTextNode('always on')); }
-    else if (!r.on) tag.textContent = 'off here';
-    else if (r.with) tag.textContent = 'with ' + r.with.replace(/^the /, '');
-    if (tag.textContent) head.appendChild(tag);
-    li.appendChild(head);
-    li.appendChild(el('p', '', r.text.length > 320 ? r.text.slice(0, 320) + '…' : r.text));
-    ul.appendChild(li);
-  });
-  det.appendChild(ul);
-  s.appendChild(det);
-  return s;
+/** Every item a chat can be told: the rules, then the live context. @param {ReadView} d @returns {ReadRule[]} */
+function allItems(d) { return (d.rules || []).concat(d.context || []); }
+
+/** "61 of 93": what is told now, of everything that can be. @param {ReadView} d */
+function toldCount(d) {
+  var every = allItems(d);
+  return { told: every.filter(function (r) { return r.on; }).length, all: every.length };
 }
 
 /** The strip, from the server's words. @param {ReadView | null} d */
@@ -120,6 +118,11 @@ function paintStrip(d) {
   document.body.classList.toggle('chat-incognito', !!(d && d.incognito));
   var mark = $('incogMark');
   if (mark) mark.hidden = !(d && d.incognito);
+  if (incogBtn) {
+    incogBtn.setAttribute('aria-pressed', d && d.incognito ? 'true' : 'false');
+    incogBtn.dataset.tip = d && d.incognito ? 'Leave incognito: this chat is deleted, and you go back to General'
+      : 'Incognito: a new chat where nothing is kept, deleted when you leave it';
+  }
   if (!strip) return;
   strip.hidden = !d;
   if (!d) return;
@@ -127,9 +130,7 @@ function paintStrip(d) {
   if (!words || !stripMark) return;
   words.textContent = '';
   stripMark.textContent = '';
-  stripMark.appendChild(icon(d.incognito
-    ? 'M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.1M6.6 6.6A13 13 0 0 0 2 12c1 2.5 5 7 10 7a10 10 0 0 0 4.4-1M9.9 9.9a3 3 0 0 0 4.2 4.2'
-    : 'M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5C17 4.5 14 5 12 6.5zM12 6.5v13', 15));
+  stripMark.appendChild(icon(d.incognito ? HAT : SLIDERS, 15));
   if (d.incognito) {
     words.appendChild(el('b', '', 'Incognito:'));
     words.appendChild(document.createTextNode('nothing here is kept, and the chat is deleted when you leave it'));
@@ -144,7 +145,7 @@ function paintStrip(d) {
       words.appendChild(el('span', 'reading-strip-bit', bit));
     });
   }
-  var says = (d.incognito ? 'Incognito chat. ' : 'Reading: ' + d.strip + '. ') + 'Press to change what I read.';
+  var says = (d.incognito ? 'Incognito chat. ' : 'Reading: ' + d.strip + '. ') + 'Press for Chat Options.';
   strip.title = says;
   strip.setAttribute('aria-label', says);
 }
@@ -155,20 +156,15 @@ function paintPop(d) {
   var s = d.settings;
   var task = d.kind === 'task';
   pop.textContent = '';
-  var h = el('h2', '', 'What I’m reading');
+  // Just the name of the panel: a second line under it read as one more option (Petar, 16 November 2026).
+  var h = el('h2', '', 'Chat Options');
   h.id = 'readingHead';
   h.tabIndex = -1;
   pop.appendChild(h);
-  var verdict = d.kind === 'task'
-    ? (d.outlined ? 'Too much to read whole: ' + d.outlined + ' of ' + d.items.length
-        + ' items are read as outlines, their headings and first lines.'
-        : 'All ' + d.items.length + ' item' + (d.items.length === 1 ? ' is' : 's are') + ' read whole.')
-    : d.kind === 'general' ? 'You, your rules and your tools. A task’s chat also reads its task.'
-    : 'You, your rules and your tools.';
-  pop.appendChild(el('p', 'reading-verdict', verdict));
 
   if (task && d.items.length) {
-    var list = sec('What is read now');
+    var list = sec(d.outlined ? 'What is read now · ' + d.outlined + ' of ' + d.items.length + ' as outlines'
+      : 'What is read now · all ' + d.items.length + ' read whole');
     var ul = el('ul', 'reading-items');
     // What is cut to an outline first, then the largest: the short list shows what matters.
     var order = d.items.slice().sort(function (a, b) {
@@ -193,20 +189,17 @@ function paintPop(d) {
     pop.appendChild(list);
   }
 
-  var top = sec('');
-  if (incognitoTo || d.incognito) top.appendChild(row('incognito', d.incognito, 'Incognito',
-    d.incognito ? 'On: nothing here is kept, and the chat is deleted when you leave it'
-                : 'A new chat where nothing is kept, deleted when you leave it', 'incog'));
-  if (d.incognito && d.kept) top.appendChild(el('p', 'reading-verdict', d.kept));
-  if (top.childNodes.length) pop.appendChild(top);
+  // Incognito is a button of its own (`incogBtn`); here, while it is on, what it means and a way out.
+  if (d.incognito) {
+    var top = sec('');
+    top.appendChild(row('incognito', true, 'Incognito', 'On: nothing here is kept, and the chat is deleted when you leave it', 'incog'));
+    if (d.kept) top.appendChild(el('p', 'reading-verdict', d.kept));
+    pop.appendChild(top);
+  }
 
-  var every = sec('In every chat');
-  every.appendChild(row('memory', !!s.memory, 'Memory', 'What Rouh has learned about you and your people'));
-  every.appendChild(row('rules', !!s.rules, 'Your rules', 'Off keeps the rules about permission, privacy and safety'));
-  every.appendChild(row('tools', !!s.tools, 'Tools', 'Mail, calendar, the browser, jobs and the rest'));
-  every.appendChild(row('safety', true, 'Permission, privacy and safety', 'Always on', 'locked', true));
+  var every = sec('What this chat uses');
+  switches(every, s);
   pop.appendChild(every);
-  if (d.incognito) pop.appendChild(rulesBlock(d, true));
 
   if (task && d.task) {
     var t = sec('Task ' + d.task.label.split(' · ')[0]);
@@ -238,13 +231,193 @@ function paintPop(d) {
     }
     pop.appendChild(t);
   }
-  if (!d.incognito) pop.appendChild(rulesBlock(d, false));
+  // Everything this chat is told is a link to the full list, never a list of its own here.
+  var foot = sec('');
+  var n = toldCount(d);
+  var link = el('button', 'reading-link');
+  link.type = 'button';
+  link.dataset.full = '1';
+  link.appendChild(el('span', '', 'See everything this chat is told (' + n.told + ' of ' + n.all + ')'));
+  link.appendChild(icon('M9 6l6 6-6 6', 14));
+  foot.appendChild(link);
+  var reset = el('button', 'reading-link quiet', 'Reset to defaults');
+  reset.type = 'button';
+  reset.dataset.reset = '1';
+  foot.appendChild(reset);
+  if (d.saved && Object.keys(d.saved).length) foot.appendChild(el('p', 'reading-verdict', 'New chats start with your saved choices.'));
+  pop.appendChild(foot);
+}
+
+/** The three switches and the locked one, the same in the panel and the full list. @param {HTMLElement} into
+    @param {Record<string, any>} s */
+function switches(into, s) {
+  into.appendChild(row('memory', !!s.memory, 'Memory', 'What Rouh has learned about you and your people'));
+  into.appendChild(row('rules', !!s.rules, 'Your rules', 'Off keeps the rules about permission, privacy and safety'));
+  into.appendChild(row('tools', !!s.tools, 'Tools', 'Mail, calendar, the browser, jobs and the rest'));
+  into.appendChild(row('safety', true, 'Permission, privacy and safety', 'Always on', 'locked', true));
+}
+
+/** The full list, from the server's words. @param {ReadView} d */
+function fullPaint(d) {
+  var inner = $('toldIn'), foot = $('toldFoot');
+  if (!full || !inner || !foot) return;
+  var s = d.settings, names = d.sources || {}, every = allItems(d), n = toldCount(d);
+  var keepFocus = document.activeElement && document.activeElement.id === 'toldQ';
+  inner.textContent = '';
+  var head = el('p', 'cot-verdict', n.told + ' of ' + n.all + ' items reach this chat with these choices.');
+  head.appendChild(el('small', '', (s.memory ? 'Memory is on, so all of Synapse is read for each message too. '
+    : 'Memory is off: Synapse is not read, and your name is taken out of what is told. ')
+    + 'An item marked “only when” is told only in the turns it names.'));
+  inner.appendChild(head);
+  var sw = el('div', 'cot-switches');
+  switches(sw, s);
+  inner.appendChild(sw);
+  var syn = el('p', 'cot-synapse' + (s.memory ? '' : ' off'));
+  syn.appendChild(el('b', '', 'Synapse: ' + (s.memory ? 'included. ' : 'not included. ')));
+  syn.appendChild(document.createTextNode((d.synapse && d.synapse.text || 'All of Synapse, Rouh’s memory.')
+    + ' It follows Memory, and is too big to list here.'));
+  inner.appendChild(syn);
+
+  var bar = el('div', 'cot-bar');
+  var filters = el('div', 'cot-filters');
+  filters.setAttribute('role', 'group');
+  filters.setAttribute('aria-label', 'Show the items of');
+  ['all', 'memory', 'rules', 'tools', 'safety', 'builtin', 'chat'].forEach(function (k) {
+    var of = k === 'all' ? every : every.filter(function (r) { return r.source === k; });
+    if (!of.length && k !== 'all') return;
+    var on = of.filter(function (r) { return r.on; }).length;
+    // How many of them reach the chat, when not all of them do.
+    var b = el('button', '', (k === 'all' ? 'All' : names[k] || k) + ' ' + (on < of.length ? on + ' of ' + of.length : of.length));
+    b.type = 'button';
+    b.dataset.filter = k;
+    b.setAttribute('aria-pressed', FULL.filter === k ? 'true' : 'false');
+    filters.appendChild(b);
+  });
+  bar.appendChild(filters);
+  var search = el('input', 'cot-q');
+  var q = /** @type {HTMLInputElement} */ (search);
+  q.type = 'search';
+  q.id = 'toldQ';
+  q.placeholder = 'Search the words';
+  q.setAttribute('aria-label', 'Search the words of every item');
+  q.value = FULL.q;
+  bar.appendChild(q);
+  inner.appendChild(bar);
+  // On a phone the chips scroll on their own: the one chosen is kept in sight.
+  var cur = /** @type {HTMLElement | null} */ (filters.querySelector('[aria-pressed="true"]'));
+  if (cur && filters.scrollWidth > filters.clientWidth) {
+    var fr = filters.getBoundingClientRect(), cr = cur.getBoundingClientRect();
+    if (cr.right > fr.right - 24 || cr.left < fr.left) filters.scrollLeft += cr.left - fr.left - 16;
+  }
+
+  var words = FULL.q.trim().toLowerCase();
+  var shown = every.filter(function (r) {
+    return (FULL.filter === 'all' || r.source === FULL.filter)
+      && (!words || (r.title + ' ' + r.text + ' ' + (r.with || '')).toLowerCase().indexOf(words) >= 0);
+  });
+  if (!shown.length) {
+    var none = el('div', 'cot-none');
+    none.appendChild(el('p', '', words ? 'Nothing matches “' + FULL.q.trim() + '”.' : 'Nothing here.'));
+    var clear = el('button', 'cot-btn', 'Show everything');
+    clear.type = 'button';
+    clear.dataset.clear = '1';
+    none.appendChild(clear);
+    inner.appendChild(none);
+  }
+  var ul = el('ul', 'cot-items');
+  shown.forEach(function (r) {
+    var li = el('li', 'cot-item' + (r.on ? '' : ' out'));
+    var top = el('div', 'cot-item-h');
+    top.appendChild(el('b', '', r.title));
+    if (r.locked) {
+      var lk = el('span', 'reading-lock');
+      lk.appendChild(icon(LOCK, 12));
+      lk.appendChild(document.createTextNode(r.source === 'chat' ? 'set above' : 'always on'));
+      top.appendChild(lk);
+    } else {
+      var b = el('button', 'cot-sw' + (!r.on && !r.off ? ' follows' : ''));
+      b.type = 'button';
+      b.setAttribute('role', 'switch');
+      b.setAttribute('aria-checked', r.off ? 'false' : 'true');
+      b.setAttribute('aria-label', (r.off ? 'Put back: ' : 'Leave out: ') + r.title);
+      b.dataset.item = r.id;
+      b.appendChild(el('span', 'reading-sw'));
+      top.appendChild(b);
+    }
+    li.appendChild(top);
+    var tags = el('div', 'cot-tags');
+    tags.appendChild(el('span', 'cot-tag', (names[r.source] || r.source) + (r.with ? ' · with ' + r.with : '')));
+    if (r.when) tags.appendChild(el('span', 'cot-tag', r.when));
+    if (r.live) tags.appendChild(el('span', 'cot-tag', 'live: what it says now'));
+    if (r.fills) tags.appendChild(el('span', 'cot-tag', 'the {…} are filled in as it is told: ' + r.fills));
+    li.appendChild(tags);
+    if (!r.on) {
+      var why = r.off ? 'Left out: you turned it off here.'
+        : 'Left out: ' + (r.with && !s.tools ? 'Tools' : names[r.source] || r.source) + ' is off.';
+      li.appendChild(el('p', 'cot-why', why));
+    }
+    // Lines the source wrapped by hand run on; blank lines and list items stay where they are.
+    li.appendChild(el('p', 'cot-text', r.text.replace(/\n {2,}(?=\S)/g, ' ').replace(/([^\n])\n(?![\n\-*•]|\d+[.)] )/g, '$1 ')));
+    ul.appendChild(li);
+  });
+  inner.appendChild(ul);
+
+  foot.textContent = '';
+  if (!d.incognito) {
+    var apply = el('div', 'cot-apply');
+    apply.setAttribute('role', 'radiogroup');
+    apply.setAttribute('aria-label', 'Apply these choices to');
+    [['0', 'This chat only'], ['1', 'This chat and new chats']].forEach(function (o) {
+      var lab = el('label', '');
+      var r = /** @type {HTMLInputElement} */ (el('input', ''));
+      r.type = 'radio';
+      r.name = 'toldKeep';
+      r.value = o[0];
+      r.checked = (s.keep ? '1' : '0') === o[0];
+      lab.appendChild(r);
+      lab.appendChild(document.createTextNode(o[1]));
+      apply.appendChild(lab);
+    });
+    foot.appendChild(apply);
+  }
+  var reset = el('button', 'cot-btn', 'Reset to defaults');
+  reset.type = 'button';
+  reset.dataset.reset = '1';
+  reset.title = 'Everything on, nothing left out' + (d.incognito ? '' : ', here and for new chats');
+  foot.appendChild(reset);
+  var done = el('button', 'cot-btn done', 'Done');
+  done.type = 'button';
+  done.dataset.done = '1';
+  foot.appendChild(done);
+  if (keepFocus) {
+    var again = /** @type {HTMLInputElement | null} */ ($('toldQ'));
+    if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+  }
+}
+
+/** Open or close the full list. @param {boolean} on */
+function fullOpen(on) {
+  if (!full) return;
+  if (on) {
+    FULL.opener = /** @type {HTMLElement | null} */ (document.activeElement);
+    full.hidden = false;
+    document.body.classList.add('cot-open');
+    if (READ.data) fullPaint(READ.data);
+    var h = $('toldHead');
+    if (h) h.focus();
+  } else {
+    full.hidden = true;
+    document.body.classList.remove('cot-open');
+    var back = FULL.opener && document.contains(FULL.opener) ? FULL.opener : btn;
+    if (back) back.focus();
+  }
 }
 
 /** @param {ReadView | null} d */
 function paint(d) {
   READ.data = d;
   paintStrip(d);
+  if (d && full && !full.hidden) fullPaint(d);
   if (d && pop && !pop.hidden) {
     var moved = READ.painted !== d.chat;
     paintPop(d);
@@ -333,6 +506,7 @@ function change(change) {
     .then(function (d) {
       READ.busy = false;
       if (READ.chat === chat) paint(d);
+      if (READ.after) { refocus(READ.after); READ.after = ''; }
     })
     .catch(function (err) {
       READ.busy = false;
@@ -351,6 +525,7 @@ function onIncognito(fn) { incognitoTo = fn; }
    are in front of the person; off goes back to the main chat, and leaving the incognito chat ends it
    (rouh/incognito.py). */
 onIncognito(function (on) {
+  if (full && !full.hidden) fullOpen(false);
   if (!on) { openChat(CHATS.general); return; }
   // The look changes at once; the chat follows a moment later.
   document.body.classList.add('chat-incognito');
@@ -363,6 +538,38 @@ onIncognito(function (on) {
       notify('An incognito chat could not be started. Try again in a moment.', { tone: 'error' });
     });
 });
+
+/** A switch pressed in the panel or the full list: what it changes on the server.
+    @param {HTMLElement} t */
+function pressed(t) {
+  if (!READ.data) return;
+  if (t.dataset.reset) { change({ reset: true }); return; }
+  if (t.dataset.seg) { change({ subtasks: t.dataset.seg }); return; }
+  var key = t.dataset.key;
+  if (!key || t.getAttribute('aria-disabled') === 'true') return;
+  var on = t.getAttribute('aria-checked') !== 'true';
+  if (key === 'incognito') {
+    if (incognitoTo) incognitoTo(on);
+    else notify('Incognito is not ready on this page yet.', { tone: 'error' });
+    return;
+  }
+  if (key.indexOf('sub:') === 0) {
+    var id = key.slice(4);
+    var picked = (READ.data.subtasks || []).filter(function (x) { return x.on; }).map(function (x) { return x.id; });
+    picked = on ? picked.concat([id]) : picked.filter(function (x) { return x !== id; });
+    change({ subtasks: 'some', picked: picked });
+    return;
+  }
+  var c = /** @type {Record<string, any>} */ ({});
+  c[key] = on;
+  change(c);
+}
+
+/** Put the focus back on what was pressed, once the list is drawn again. @param {string} sel */
+function refocus(sel) {
+  var again = sel ? /** @type {HTMLElement | null} */ (document.querySelector(sel)) : null;
+  if (again) again.focus();
+}
 
 if (btn && pop) {
   btn.addEventListener('click', function (e) {
@@ -377,36 +584,69 @@ if (btn && pop) {
     var t = /** @type {HTMLElement} */ (e.target).closest('button');
     if (!t || !READ.data) return;
     READ.focus = t.dataset.key ? '[data-key="' + t.dataset.key + '"]' : t.dataset.seg ? '[data-seg="' + t.dataset.seg + '"]'
-      : t.dataset.more ? '[data-more]' : '';
+      : t.dataset.more ? '[data-more]' : t.dataset.reset ? '[data-reset]' : '';
     if (t.dataset.more) { READ.more = !READ.more; paint(READ.data); return; }
-    if (t.dataset.seg) { change({ subtasks: t.dataset.seg }); return; }
-    var key = t.dataset.key;
-    if (!key || t.getAttribute('aria-disabled') === 'true') return;
-    var on = t.getAttribute('aria-checked') !== 'true';
-    if (key === 'incognito') {
-      if (incognitoTo) incognitoTo(on);
-      else notify('Incognito is not ready on this page yet.', { tone: 'error' });
-      return;
-    }
-    if (key.indexOf('sub:') === 0) {
-      var id = key.slice(4);
-      var picked = (READ.data.subtasks || []).filter(function (x) { return x.on; }).map(function (x) { return x.id; });
-      picked = on ? picked.concat([id]) : picked.filter(function (x) { return x !== id; });
-      change({ subtasks: 'some', picked: picked });
-      return;
-    }
-    var c = /** @type {Record<string, any>} */ ({});
-    c[key] = on;
-    change(c);
+    if (t.dataset.full) { fullOpen(true); return; }
+    pressed(t);
+  });
+  if (full) {
+    full.addEventListener('click', function (e) {
+      var t = /** @type {HTMLElement} */ (e.target).closest('button');
+      if (!t || !READ.data) return;
+      if (t.id === 'toldClose' || t.dataset.done) { fullOpen(false); return; }
+      if (t.dataset.filter) { FULL.filter = t.dataset.filter; fullPaint(READ.data); refocus('[data-filter="' + t.dataset.filter + '"]'); return; }
+      if (t.dataset.clear) { FULL.q = ''; FULL.filter = 'all'; fullPaint(READ.data); refocus('#toldQ'); return; }
+      if (t.dataset.item) {
+        var id = t.dataset.item;
+        var off = (READ.data.settings.off || []).filter(function (/** @type {string} */ x) { return x !== id; });
+        if (t.getAttribute('aria-checked') === 'true') off.push(id);
+        READ.after = '[data-item="' + id + '"]';
+        change({ off: off });
+        return;
+      }
+      READ.after = t.dataset.key ? '#toldFull [data-key="' + t.dataset.key + '"]' : t.dataset.reset ? '#toldFull [data-reset]' : '';
+      pressed(t);
+    });
+    full.addEventListener('input', function (e) {
+      var t = /** @type {HTMLInputElement} */ (e.target);
+      if (t.id !== 'toldQ' || !READ.data) return;
+      FULL.q = t.value;
+      fullPaint(READ.data);
+    });
+    full.addEventListener('change', function (e) {
+      var t = /** @type {HTMLInputElement} */ (e.target);
+      if (t.name === 'toldKeep') { READ.after = '#toldFull input[name="toldKeep"][value="' + t.value + '"]'; change({ keep: t.value === '1' }); }
+    });
+    // Tab stays inside the full list while it is open.
+    full.addEventListener('keydown', function (e) {
+      if (e.key !== 'Tab' || !full) return;
+      var all = /** @type {HTMLElement[]} */ (Array.prototype.slice.call(full.querySelectorAll('button, input, [tabindex="-1"]#toldHead')))
+        .filter(function (x) { return x.offsetParent !== null || x.id === 'toldHead'; });
+      if (!all.length) return;
+      var first = all[0], last = all[all.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+  }
+  if (incogBtn) incogBtn.addEventListener('click', function () {
+    var on = incogBtn.getAttribute('aria-pressed') !== 'true';
+    if (incognitoTo) incognitoTo(on);
   });
   document.addEventListener('pointerdown', function (e) {
-    if (pop.hidden) return;
+    if (pop.hidden || (full && !full.hidden)) return;
     var t = /** @type {Node} */ (e.target);
-    if (pop.contains(t) || btn.contains(t) || (strip && strip.contains(t))) return;
+    if (pop.contains(t) || btn.contains(t) || (strip && strip.contains(t)) || (incogBtn && incogBtn.contains(t))) return;
     openPop(false);
   }, true);
   window.addEventListener('keydown', function (e) {
-    if (e.key !== 'Escape' || pop.hidden) return;
+    if (e.key !== 'Escape') return;
+    if (full && !full.hidden) {
+      e.preventDefault();
+      e.stopPropagation();
+      fullOpen(false);
+      return;
+    }
+    if (pop.hidden) return;
     e.preventDefault();
     e.stopPropagation();
     var inside = pop.contains(document.activeElement);
