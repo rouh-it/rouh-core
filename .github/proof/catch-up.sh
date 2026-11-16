@@ -58,7 +58,8 @@ up "${compose[@]}" || die "the 10 November Rouh did not come up"
 say "it answers, at $(sha)"
 
 # 3. Its first run, and something it remembers, with the stack test of that day.
-python3 "$old/tests/stack/smoke.py" --url "http://127.0.0.1:$port" --features "$old/CONTAINERS.md" --out "$out/old" \
+setup="$("${compose[@]}" exec -T core python manage.py setup_link | tr -d '\r' | tail -1)"; say "setup address: ${setup%%code=*}code=..."
+python3 "$old/tests/stack/smoke.py" --setup-url "$setup" --url "http://127.0.0.1:$port" --features "$old/CONTAINERS.md" --out "$out/old" \
   --compose "$(printf '%q ' "${compose[@]}")" --only first-run,tool.memory | tee "$out/old-smoke.log"
 grep -q '^ok    first-run\|^ok  first-run' "$out/old-smoke.log" || grep -q 'ok  *first-run' "$out/old-smoke.log" || die "the first run failed"
 PASS="$(cd "$old/tests/stack" && python3 -c 'import smoke; print(smoke.STACK_PASSWORD)')"
