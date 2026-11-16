@@ -57,6 +57,46 @@
     return !realKeys && !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches
       && !window.matchMedia('(any-pointer: fine)').matches);
   }
+  /* Petar, 16 November 2026: "nowhere does it say SHIFT + ENTER is a new line". So an
+     empty box's grey words end with it, at a desk or once a keyboard of its own is seen,
+     and not on a phone's own keyboard, where Return is the new line already
+     (`keysPlaceholder` in Rouh's app/chats.js). The hint is put on, or taken off, whenever
+     the words are set and whenever the keyboard changes; when the on-screen keyboard
+     comes up again (the visible page shrinks by a third or more while a box has the
+     cursor), the real one has gone. */
+  var NEW_LINE_SAID = ' \u00b7 Shift+Enter for a new line';
+  var HINTED = [], hintFor = null;
+  var hintWatch = window.MutationObserver ? new MutationObserver(function (changes) {
+    changes.forEach(function (c) { hintPut(c.target); });
+  }) : null;
+  function hintPut(box) {
+    var was = box.getAttribute('placeholder') || '';
+    var words = was.slice(-NEW_LINE_SAID.length) === NEW_LINE_SAID ? was.slice(0, -NEW_LINE_SAID.length) : was;
+    var want = words && !touchOnly() ? words + NEW_LINE_SAID : words;
+    if (want !== was) { box.setAttribute('placeholder', want); }
+  }
+  function keysPlaceholder(box) {
+    if (!box || HINTED.indexOf(box) >= 0) { return; }
+    HINTED.push(box);
+    if (hintWatch) { hintWatch.observe(box, { attributes: true, attributeFilter: ['placeholder'] }); }
+    hintPut(box);
+  }
+  function hintAll() {
+    var t = touchOnly();
+    if (t === hintFor) { return; }
+    hintFor = t;
+    HINTED = HINTED.filter(function (b) { return document.contains(b); });
+    HINTED.forEach(hintPut);
+  }
+  document.addEventListener('keydown', hintAll, true);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', function () {
+      var vv = window.visualViewport, on = document.activeElement;
+      if (!realKeys || !on || on.tagName !== 'TEXTAREA' || vv.height > window.innerHeight * 0.67) { return; }
+      realKeys = false;
+      hintAll();
+    });
+  }
 
   var SOURCE_ICON = {
     task: '<path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>',
@@ -774,6 +814,7 @@
       if (state.prefill) { t.value = state.prefill; t.rows = 5; state.prefill = ''; }
       t.placeholder = d.options.length ? 'Something else, in your own words' : 'Your answer';
       t.setAttribute('aria-label', 'Your own answer');
+      keysPlaceholder(t);
       var sendIt = function () {
         var words = t.value.trim();
         if (!words) { t.focus(); return; }

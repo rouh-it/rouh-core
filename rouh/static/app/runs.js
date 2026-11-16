@@ -17,7 +17,7 @@ import { scrollDown } from 'app/transcript.js';
 import { ASK_ROUTE, cardViewClose, clockOf, contentOpen, drawnClose, drawnOpen, FILING,
   footnotes, frameLoad, goalMapTell, goToAddress, layerOpen, mdCells, mdIsRule, renderBlock,
   renderMarkdown, showLayer, sourcesLast, standingDown, svgEl, taskPageFolder, WORKSPACE_ROUTE } from 'app/cards.js';
-import { chatById, chatMenuShow, CHATS, FORKS, isSendKey, openChat, sendKeys, showCrumb, withSendKeys } from 'app/chats.js';
+import { chatById, chatMenuShow, CHATS, FORKS, isSendKey, keysPlaceholder, openChat, sendKeys, showCrumb, withSendKeys } from 'app/chats.js';
 import { detachAsk } from 'app/search.js';
 import { ADDR, ADDR_BROWSER, addrAsk, addrBack, addrIsTasksOwn, addrOf, addrOfFolder, addrPlaceLink, addrRead,
   addrTouch } from 'app/address.js';
@@ -6855,6 +6855,7 @@ function askInit() {
   form.addEventListener('submit', function (e) { e.preventDefault(); askAsk(); });
   var box = $('askInput');
   box.placeholder = ASK_PLACEHOLDER;
+  keysPlaceholder(box);
   $('askSend').title = 'Ask (' + sendKeys() + ')';
   box.addEventListener('input', askGrow);
   // Enter asks and Shift+Enter is a new line here too; there is nothing to

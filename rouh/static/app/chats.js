@@ -2555,10 +2555,59 @@ function sendKeys() {
 }
 
 // An empty box used to say how to send what is written in it. Enter sends
-// now, as everywhere else, so the words stay as they are, and the main box
-// has its quiet line of keys under it instead (`keysHintPaint`).
+// now, as everywhere else, so the words stay as they are; what the empty box
+// says about Shift+Enter is added to them as they are set (`keysPlaceholder`).
 function withSendKeys(words, shorter) {
   return words;
+}
+
+/* Petar, 16 November 2026: "nowhere does it say SHIFT + ENTER is a new line".
+   Not as a line under the box, which took room, but in the box's own grey
+   words while it is empty: at a desk, or on a phone or a tablet once a
+   keyboard of its own is seen, they end with this. On a phone's own keyboard
+   Return is the new line already, and they say nothing more. Whoever sets a
+   box's placeholder sets its own words; the hint is put on, or taken off, as
+   it is set and whenever the keyboard changes (`keysHintPaint`). */
+// Kept on the functions themselves, which are there before this module has
+// run: app/controls.js and app/runs.js, which ask for it, can run first.
+function newLineSaid() { return ' \u00b7 Shift+Enter for a new line'; }
+
+/** @returns {{boxes: HTMLTextAreaElement[], watch: MutationObserver | null}} */
+function hinted() {
+  var h = /** @type {any} */ (hinted);
+  if (!h.kept) {
+    h.kept = { boxes: [], watch: window.MutationObserver ? new MutationObserver(function (changes) {
+      changes.forEach(function (c) { hintPut(/** @type {HTMLTextAreaElement} */ (c.target)); });
+    }) : null };
+  }
+  return h.kept;
+}
+
+/** @param {HTMLTextAreaElement} box */
+function hintPut(box) {
+  var said = newLineSaid();
+  var was = box.getAttribute('placeholder') || '';
+  var words = was.slice(-said.length) === said ? was.slice(0, -said.length) : was;
+  var want = words && !touchTyping() ? words + said : words;
+  if (want !== was) box.setAttribute('placeholder', want);
+}
+
+/** A box a message is written in, whose empty words say Shift+Enter. @param {HTMLTextAreaElement | null} box */
+function keysPlaceholder(box) {
+  var h = hinted();
+  if (!box || h.boxes.indexOf(box) >= 0) return;
+  h.boxes.push(box);
+  if (h.watch) h.watch.observe(box, { attributes: true, attributeFilter: ['placeholder'] });
+  hintPut(box);
+}
+
+/* Send's tooltip, with what it does in this mode ('Send', 'Make the picture'):
+   its key, and Shift+Enter's beside it where Enter is the key. */
+function sendTip(what) {
+  var b = $('sendBtn');
+  if (!b) return;
+  b.dataset.what = what || b.dataset.what || 'Send';
+  b.title = b.dataset.what + ' (' + sendKeys() + ')' + (touchTyping() ? '' : ' \u00b7 Shift+Enter: new line');
 }
 
 /* The line of keys in the empty chat, under the welcome, at a desk, or on a
@@ -2567,6 +2616,9 @@ function withSendKeys(words, shorter) {
    Petar, 16 November 2026: not under the box, where it took room at the
    bottom; each button's tooltip says its key as well (app/tips.js). */
 function keysHintPaint() {
+  hinted().boxes.forEach(hintPut);
+  var b = $('sendBtn');
+  if (b && b.dataset.what) sendTip();
   var h = $('composerKeys');
   if (!h) return;
   if (touchTyping()) { h.hidden = true; return; }
@@ -2794,5 +2846,5 @@ $('deleteChatBtn').addEventListener('click', function () {
 
 export { applyChats, chatById, chatIsTask, chatMenuShow, CHATS, chatShow, forkBehind, forkBtnPaint, forkTip,
   composerKey, forkComeNow, forkHold, forkKeptStale, forkPeeked, forkKeys, keysHintPaint, touchTyping, forkMarksDraw, forkPark, forkRefused, forkReplay,
-  forkResume, FORKS, forkWithin, isSendKey, onChatSwitched, onNoteSent, openChat, sendKeys,
+  forkResume, FORKS, forkWithin, isSendKey, keysPlaceholder, onChatSwitched, onNoteSent, openChat, sendKeys, sendTip,
   showCrumb, withSendKeys };

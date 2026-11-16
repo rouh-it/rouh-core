@@ -238,6 +238,47 @@
     return words;
   }
 
+  /* Petar, 16 November 2026: "nowhere does it say SHIFT + ENTER is a new line". So an
+     empty box's grey words end with it, at a desk or once a keyboard of its own is seen,
+     and not on a phone's own keyboard, where Return is the new line already
+     (`keysPlaceholder` in Rouh's app/chats.js). The hint is put on, or taken off, whenever
+     the words are set and whenever the keyboard changes; when the on-screen keyboard
+     comes up again (the visible page shrinks by a third or more while a box has the
+     cursor), the real one has gone. */
+  var NEW_LINE_SAID = ' \u00b7 Shift+Enter for a new line';
+  var HINTED = [], hintFor = null;
+  var hintWatch = window.MutationObserver ? new MutationObserver(function (changes) {
+    changes.forEach(function (c) { hintPut(c.target); });
+  }) : null;
+  function hintPut(box) {
+    var was = box.getAttribute('placeholder') || '';
+    var words = was.slice(-NEW_LINE_SAID.length) === NEW_LINE_SAID ? was.slice(0, -NEW_LINE_SAID.length) : was;
+    var want = words && !touchTyping() ? words + NEW_LINE_SAID : words;
+    if (want !== was) { box.setAttribute('placeholder', want); }
+  }
+  function keysPlaceholder(box) {
+    if (!box || HINTED.indexOf(box) >= 0) { return; }
+    HINTED.push(box);
+    if (hintWatch) { hintWatch.observe(box, { attributes: true, attributeFilter: ['placeholder'] }); }
+    hintPut(box);
+  }
+  function hintAll() {
+    var t = touchTyping();
+    if (t === hintFor) { return; }
+    hintFor = t;
+    HINTED = HINTED.filter(function (b) { return document.contains(b); });
+    HINTED.forEach(hintPut);
+  }
+  document.addEventListener('keydown', hintAll, true);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', function () {
+      var vv = window.visualViewport, on = document.activeElement;
+      if (!realKeys || !on || on.tagName !== 'TEXTAREA' || vv.height > window.innerHeight * 0.67) { return; }
+      realKeys = false;
+      hintAll();
+    });
+  }
+
   /* And it grows the way every one does: a line at a time, with no
      scrollbar, up to fifteen lines, and only then a scrollbar, in the box's
      own colours (`workspace/.claude/skills/bb-chat-interface`). It stopped at
@@ -289,6 +330,7 @@
           startChat(sayBox.value);
         });
       }
+      keysPlaceholder(sayBox);
       sayBox.addEventListener('input', grow);
       window.addEventListener('resize', grow);
       sayBox.addEventListener('keydown', function (e) {

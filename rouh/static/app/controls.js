@@ -16,7 +16,7 @@ import { atBottom, closeAssistant, drawWaiting, drawWords, fitActs, keepEnd, new
   scrollDown, setBusy, showStop, stopTheTurn, T, transcriptEl, watchTheTurn } from 'app/transcript.js';
 import { CARDS_UP, cardsBackInPlace, cardsGoOut, cardsSettle, cardsUncover, layerOpen, LAYERS, paintCovered } from 'app/cards.js';
 import { askPageNow, canvasTask, growToLines, projectsClose, rowsFollowSidebar } from 'app/runs.js';
-import { chatById, CHATS, composerKey, forkBtnPaint, forkComeNow, FORKS, keysHintPaint, sendKeys, withSendKeys } from 'app/chats.js';
+import { chatById, CHATS, composerKey, forkBtnPaint, forkComeNow, FORKS, keysPlaceholder, sendTip } from 'app/chats.js';
 import { ADDR, addrChatIsShowing, addrTouch, freshChatFirst } from 'app/address.js';
 import { attReady, attUploading, clearAttachments, drawTurnFiles, PICS, sendPicture, unlockAudio } from 'app/attachments.js';
 
@@ -1819,8 +1819,8 @@ if (input) {
     if (does === 'fork') { sendTyped(true); return; }
     $('composer').requestSubmit ? $('composer').requestSubmit() : sendTyped();
   });
-  input.placeholder = withSendKeys(input.placeholder);
-  $('sendBtn').title = 'Send (' + sendKeys() + ')';
+  keysPlaceholder(/** @type {HTMLTextAreaElement} */ (input));
+  sendTip('Send');
 }
 
 // Anywhere on the block, including the empty space on the control line,

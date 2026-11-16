@@ -68,6 +68,46 @@ function isSendKey(e) {
   if (e.ctrlKey || e.metaKey) return true;
   return !e.shiftKey && !touchTyping();
 }
+/* Petar, 16 November 2026: "nowhere does it say SHIFT + ENTER is a new line". So an
+   empty box's grey words end with it, at a desk or once a keyboard of its own is seen,
+   and not on a phone's own keyboard, where Return is the new line already
+   (`keysPlaceholder` in Rouh's app/chats.js). The hint is put on, or taken off, whenever
+   the words are set and whenever the keyboard changes; when the on-screen keyboard
+   comes up again (the visible page shrinks by a third or more while a box has the
+   cursor), the real one has gone. */
+var NEW_LINE_SAID = " \u00b7 Shift+Enter for a new line";
+var HINTED = [], hintFor = null;
+var hintWatch = window.MutationObserver ? new MutationObserver(function (changes) {
+  changes.forEach(function (c) { hintPut(c.target); });
+}) : null;
+function hintPut(box) {
+  var was = box.getAttribute("placeholder") || "";
+  var words = was.slice(-NEW_LINE_SAID.length) === NEW_LINE_SAID ? was.slice(0, -NEW_LINE_SAID.length) : was;
+  var want = words && !touchTyping() ? words + NEW_LINE_SAID : words;
+  if (want !== was) { box.setAttribute("placeholder", want); }
+}
+function keysPlaceholder(box) {
+  if (!box || HINTED.indexOf(box) >= 0) { return; }
+  HINTED.push(box);
+  if (hintWatch) { hintWatch.observe(box, { attributes: true, attributeFilter: ["placeholder"] }); }
+  hintPut(box);
+}
+function hintAll() {
+  var t = touchTyping();
+  if (t === hintFor) { return; }
+  hintFor = t;
+  HINTED = HINTED.filter(function (b) { return document.contains(b); });
+  HINTED.forEach(hintPut);
+}
+document.addEventListener("keydown", hintAll, true);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", function () {
+    var vv = window.visualViewport, on = document.activeElement;
+    if (!REAL_KEYS || !on || on.tagName !== "TEXTAREA" || vv.height > window.innerHeight * 0.67) { return; }
+    REAL_KEYS = false;
+    hintAll();
+  });
+}
 var KEYS_SAID = window.matchMedia && window.matchMedia("(pointer: fine)").matches
   ? "Enter to send \u00b7 Shift+Enter new line" : "";
 
@@ -341,6 +381,7 @@ var tip    = root.querySelector("#askai-tip");
 var msgs   = root.querySelector("#askai-msgs");
 var quote  = root.querySelector("#askai-quote");
 var input  = root.querySelector("#askai-input");
+keysPlaceholder(input);
 var send   = root.querySelector("#askai-send");
 var note   = root.querySelector("#askai-note");
 /* What the line under the box says before an answer has sources to name, and

@@ -12,7 +12,7 @@ import { connect, S, send } from 'app/socket.js';
 import { A } from 'app/voice.js';
 import { holdAudioSession, makeSpeaker, pbFlush, silentTick, speakerReady, SPK } from 'app/playback.js';
 import { addPart, drawWords, ensureAssistant, fitActs, newTurn, scrollDown } from 'app/transcript.js';
-import { forkBtnPaint, sendKeys, withSendKeys } from 'app/chats.js';
+import { forkBtnPaint, sendTip, withSendKeys } from 'app/chats.js';
 import { freshChatFirst } from 'app/address.js';
 
 /* ----------------------------------------------------------------- 11c */
@@ -888,7 +888,7 @@ function pictureMode(on) {
   }
   $('composer').classList.toggle('picture-mode', on);
   input.placeholder = on ? withSendKeys('Describe the picture') : INPUT_SAID;
-  $('sendBtn').title = (on ? 'Make the picture' : 'Send') + ' (' + sendKeys() + ')';
+  sendTip(on ? 'Make the picture' : 'Send');
   $('sendBtn').setAttribute('aria-label', on ? 'Make the picture' : 'Send message');
   if (on) picFill();
   growInput();
