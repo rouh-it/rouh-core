@@ -49,6 +49,7 @@ from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, cal
 from .one_client import OneClient, OneRefused, OneUnavailable, describe_entries
 from . import incubator as _incubator
 from . import signups, tenancy
+from .google_api import doc_edits
 from .tree import describe_tree
 from .version import get_version
 
@@ -6992,7 +6993,7 @@ class ToolRegistry:
             "note, a text file, a sheet, a PDF or a Word, Excel or PowerPoint file - it "
             "reads that out instead, or says plainly why it cannot. Use it before "
             "answering anything about what a document says, and before edit_doc so you "
-            "change words that are really in it. It reads; it changes nothing.",
+            "change words and tables that are really in it. It reads; it changes nothing.",
             {
                 "type": "object",
                 "properties": {
@@ -7160,33 +7161,159 @@ class ToolRegistry:
         )
         self._own(
             "edit_doc",
-            "Changes the text of a real Google Doc that already exists. Every edit "
-            "happens in the document itself and there is no undo from here, so read "
-            "it with read_doc first and tell the person what you are about to change. "
-            "Three kinds of edit, given as a list so several happen in one go: append "
-            "text to the end, replace a piece of text wherever it appears, or insert "
-            "text under a heading.",
+            "Changes a real Google Doc that already exists: its words, its tables, its "
+            "formatting and its structure. Every edit happens in the document itself and "
+            "there is no undo from here, so read it with read_doc first and tell the person "
+            "what you are about to change. Give the edits as a list; they are found in one "
+            "fresh reading of the document and sent as one change, all or nothing, so if "
+            "any edit's words, heading, table, row or column is not there, or is there "
+            "more than once when one was meant, nothing changes and the answer says what "
+            "was found. Edits are found by words and names, never by position. Every edit "
+            "is found in the document as it is before the call: to change words this same "
+            "call puts in, style them on the edit that puts them in, or make a second call.\n"
+            "Text: append (to the end); insert (text, placed before or after some words, "
+            "under a heading, in a table cell, or at the start or end; new_paragraph to make "
+            "it a line of its own); replace (find and text: every match, or only "
+            "occurrence 2, last, first; within a heading's section or one table cell; "
+            "match_case false to ignore capitals); delete (find, optionally through later "
+            "words, whole_paragraphs to take the lines out); insert_at_heading.\n"
+            "Tables, numbered from 1 as read_doc shows them ('[Table 2: ...]', 'Row 3: a | "
+            "b'), each named by its number or by words in it; rows by number or by words in "
+            "a cell; columns by number or by the words at their top: insert_row (side above "
+            "or below a row, cells to fill it), delete_row, insert_column (side left or "
+            "right, cells top to bottom), delete_column, write_cell (replaces the cell's "
+            "words), clear_cell, merge_cells and unmerge_cells (row and column to to_row and "
+            "to_column), insert_table (rows as lists of cells, top row first, placed like "
+            "insert), delete_table.\n"
+            "Formatting: style (find, or heading, or a table's row, column or cell) with "
+            "bold, italic, underline, strikethrough, font_size, font, color, highlight, link, "
+            "paragraph_style (normal, title, subtitle, heading 1 to 6), align, and list "
+            "(bullet, numbered, checkbox, or none to take a list off); the same keys on "
+            "insert, write_cell and the table edits style what they put in.\n"
+            "Structure: page_break and image (an https:// picture address Google can fetch, "
+            "optional width in points), placed like insert; header and footer set their "
+            "text. tab edits one tab of a document with several. There is no horizontal "
+            "line in the Docs API. The answer says in words what changed.",
             {
                 "type": "object",
                 "properties": {
                     "document": {"type": "string",
-                                 "description": "The document id, or its name in Drive."},
+                                 "description": "The document id, its link, or its name in Drive."},
+                    "tab": {"type": "string",
+                            "description": "One tab of a document with several, by its title or "
+                                           "its id (t.abc123), as read_doc names them. Left out, "
+                                           "the first tab."},
                     "edits": {
                         "type": "array",
-                        "description": "The changes, in order.",
+                        "description": "The changes. Each is found in the document as it is "
+                                       "before the call.",
                         "items": {
                             "type": "object",
                             "properties": {
-                                "op": {"type": "string",
-                                       "enum": ["append", "replace", "insert_at_heading"]},
+                                "op": {"type": "string", "enum": list(doc_edits.OPS)},
                                 "text": {"type": "string",
-                                         "description": "The words to put in, for append, "
-                                                        "insert_at_heading, and as the replacement."},
+                                         "description": "The words to put in: for append, "
+                                                        "insert, insert_at_heading, "
+                                                        "write_cell, header, footer, and as "
+                                                        "the replacement."},
                                 "find": {"type": "string",
-                                         "description": "For replace: the text to look for."},
+                                         "description": "The words to replace, delete or "
+                                                        "style, exactly as read_doc shows them."},
+                                "occurrence": {"type": "string",
+                                               "description": "Which match of find, before or "
+                                                              "after: a number such as 2, "
+                                                              "first, last, or all."},
+                                "match_case": {"type": "boolean",
+                                               "description": "false to find the words in any "
+                                                              "capitals. Default true."},
+                                "within": {"type": "object",
+                                           "description": "Look only here: {\"heading\": "
+                                                          "\"Risks\"} for that heading's "
+                                                          "section, or {\"table\": 1, "
+                                                          "\"row\": 3, \"column\": 2} for "
+                                                          "one cell (or a row, or a table)."},
+                                "through": {"type": "string",
+                                            "description": "For delete and style: the passage "
+                                                           "runs from find to the end of these "
+                                                           "later words."},
+                                "whole_paragraphs": {"type": "boolean",
+                                                     "description": "For delete: take out the "
+                                                                    "whole lines the passage "
+                                                                    "is in."},
+                                "before": {"type": "string",
+                                           "description": "Place it just before these words."},
+                                "after": {"type": "string",
+                                          "description": "Place it just after these words."},
                                 "heading": {"type": "string",
-                                            "description": "For insert_at_heading: the heading to "
-                                                           "put the text under."},
+                                            "description": "Place it under this heading "
+                                                           "(insert, insert_at_heading, "
+                                                           "insert_table), or style this "
+                                                           "heading's line (style)."},
+                                "at": {"type": "string", "enum": ["start", "end"],
+                                       "description": "Place it at the start or end of the "
+                                                      "document. Default end."},
+                                "new_paragraph": {"type": "boolean",
+                                                  "description": "With before or after: put "
+                                                                 "it on a line of its own, "
+                                                                 "before or after the line "
+                                                                 "those words are in."},
+                                "table": {"type": "string",
+                                          "description": "Which table: its number as read_doc "
+                                                         "shows it, last, or words in it."},
+                                "row": {"type": "string",
+                                        "description": "Which row: a number from 1 (the top "
+                                                       "row), last, or words in one of its "
+                                                       "cells."},
+                                "column": {"type": "string",
+                                           "description": "Which column: a number from 1, last, "
+                                                          "or the words at its top."},
+                                "side": {"type": "string",
+                                         "enum": ["above", "below", "left", "right"],
+                                         "description": "insert_row: above or below the row "
+                                                        "(default below). insert_column: left "
+                                                        "or right (default right)."},
+                                "cells": {"type": "array", "items": {"type": "string"},
+                                          "description": "insert_row: the new row's cells, "
+                                                         "left to right. insert_column: the "
+                                                         "new column's cells, top to bottom."},
+                                "rows": {"type": "array",
+                                         "items": {"type": "array", "items": {"type": "string"}},
+                                         "description": "insert_table: every row's cells, "
+                                                        "the top row first."},
+                                "to_row": {"type": "string",
+                                           "description": "merge_cells, unmerge_cells: the "
+                                                          "last row of the block."},
+                                "to_column": {"type": "string",
+                                              "description": "merge_cells, unmerge_cells: the "
+                                                             "last column of the block."},
+                                "url": {"type": "string",
+                                        "description": "image: the picture's https:// address."},
+                                "width": {"type": "number",
+                                          "description": "image: its width in points."},
+                                "bold": {"type": "boolean"},
+                                "italic": {"type": "boolean"},
+                                "underline": {"type": "boolean"},
+                                "strikethrough": {"type": "boolean"},
+                                "font_size": {"type": "number", "description": "In points."},
+                                "font": {"type": "string", "description": "A font's name."},
+                                "color": {"type": "string",
+                                          "description": "The words' colour: #1a73e8 or a "
+                                                         "plain name; none to take it off."},
+                                "highlight": {"type": "string",
+                                              "description": "A highlight colour, or none."},
+                                "link": {"type": "string",
+                                         "description": "Make the words a link to this "
+                                                        "address; an empty string takes a "
+                                                        "link off."},
+                                "paragraph_style": {"type": "string",
+                                                    "description": "normal, title, subtitle, "
+                                                                   "or heading 1 to heading 6."},
+                                "align": {"type": "string",
+                                          "enum": ["left", "center", "right", "justify"]},
+                                "list": {"type": "string",
+                                         "enum": ["bullet", "numbered", "checkbox", "none"],
+                                         "description": "Make the lines a list, or none to "
+                                                        "take them out of one."},
                             },
                             "required": ["op"],
                         },
@@ -10494,6 +10621,22 @@ class ToolRegistry:
         if not edits:
             return "Say what to change in it."
         services = self.google.services()
+        tab = str(args.get("tab") or "").strip()
+        if doc_edits.wants_planner(edits, tab):
+            # Everything beyond the first three edits, found in one reading and sent as one
+            # batch (`rouh/google_api/doc_edits.py`).
+            try:
+                document_id, _ = await _find_doc(services.drive, named)
+                done = await doc_edits.apply(services.docs, document_id, edits, tab=tab)
+            except Exception as exc:
+                return _google_trouble(exc)
+            if not done["said"]:
+                return "Nothing was asked for, so that document is unchanged."
+            said = (f"Edited document {document_id}"
+                    + (f" ({done['title']})" if done["title"] else "") + done["where"] + ": "
+                    + "; ".join(done["said"]) + ".")
+            self.google.wrote("edit_doc", document_id, said)
+            return said
         did = []
         try:
             document_id, _ = await _find_doc(services.drive, named)
@@ -16615,7 +16758,7 @@ async def read_doc(google, named: str, tab: str = "", pictures: list | None = No
             try:
                 # Suggested edits marked, while Suggested edits read as suggestions is on
                 # (`rouh/doc_suggestions.py`).
-                found = await services.docs.read(document_id, tab=tab,
+                found = await services.docs.read(document_id, tab=tab, tables=True,
                                                  pictures=pictures is not None,
                                                  suggestions=await doc_suggestions.wanted(google))
             except GoogleSaidNo as refused:

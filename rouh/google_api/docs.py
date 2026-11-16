@@ -33,7 +33,7 @@ class Docs:
             self._who, "GET", self._url("/" + urllib.parse.quote(document_id)))
 
     async def read(self, document_id: str, tab: str = "", pictures: bool = False,
-                   suggestions: bool = False) -> dict:
+                   suggestions: bool = False, tables: bool = False) -> dict:
         """The document as a person would read it: every tab, with its links.
 
         `includeTabsContent` is what makes Google send every tab. Without it
@@ -46,7 +46,7 @@ class Docs:
             self._who, "GET", self._url("/" + urllib.parse.quote(document_id)),
             params={"includeTabsContent": "true"})
         return reading_of(body, document_id=body.get("documentId") or document_id, tab=tab,
-                          pictures=pictures, suggestions=suggestions)
+                          pictures=pictures, suggestions=suggestions, tables=tables)
 
     async def picture(self, address: str) -> bytes:
         """One picture of a document, from the address its reading gave (`reading_of`)."""
@@ -66,14 +66,29 @@ class Docs:
                 "link": f"https://docs.google.com/document/d/{document_id}/edit"
                         if document_id else ""}
 
-    async def batch_update(self, document_id: str, requests: list[dict]) -> dict:
-        """The one way a document is changed. Every edit below becomes one of these."""
+    async def document_with_tabs(self, document_id: str) -> dict:
+        """The document as Google sends it with every tab, for edits that name a tab
+        (`doc_edits.apply`), with the revision the edits are made against."""
+        return await self._clients.call(
+            self._who, "GET", self._url("/" + urllib.parse.quote(document_id)),
+            params={"includeTabsContent": "true"})
+
+    async def batch_update(self, document_id: str, requests: list[dict],
+                           revision: str | None = None) -> dict:
+        """The one way a document is changed. Every edit below becomes one of these.
+
+        Given the revision the edits were worked out on, Google refuses the whole batch
+        if the document has changed since, rather than applying it to moved words.
+        """
         if not requests:
             return {}
+        body: dict = {"requests": requests}
+        if revision:
+            body["writeControl"] = {"requiredRevisionId": revision}
         return await self._clients.call(
             self._who, "POST",
             self._url("/" + urllib.parse.quote(document_id) + ":batchUpdate"),
-            json_body={"requests": requests})
+            json_body=body)
 
     async def append(self, document_id: str, text: str) -> str:
         """Add text to the end of the document, on a new line of its own.
@@ -269,7 +284,7 @@ def _words(text: str) -> list[str]:
 
 
 def reading_of(document: dict, *, document_id: str = "", tab: str = "",
-               pictures: bool = False, suggestions: bool = False) -> dict:
+               pictures: bool = False, suggestions: bool = False, tables: bool = False) -> dict:
     """A document the way read_doc says it: every tab, links kept, cut to size.
 
     A document with one tab reads as its words and nothing else, the same as
@@ -297,11 +312,16 @@ def reading_of(document: dict, *, document_id: str = "", tab: str = "",
     counts them under "suggestions" (Suggested edits read as suggestions,
     `rouh/doc_suggestions.py`); without it a suggestion reads as if it were
     already in, and the words it would delete as if nobody had touched them.
+
+    `tables` shows each table as a table, numbered in its tab the way edit_doc counts
+    them, a row to a line with its cells between bars (`_Reading._table`); without it a
+    table is its cells' words, one cell to a line, as other readers compare them.
     """
     tabs = tabs_of(document)
     reading = _Reading(document_id or document.get("documentId") or "", tabs)
     reading.mark_pictures = pictures
     reading.mark_suggestions = suggestions
+    reading.mark_tables = tables
     chosen = pick_tab(tabs, tab) if (tab or "").strip() else None
     shown = [chosen] if chosen else tabs
     # Every tab shown is read, even one that will not fit, so the links in it
@@ -388,6 +408,9 @@ class _Reading:
         self.mark_suggestions = False
         self.inserted: set[str] = set()
         self.deleted: set[str] = set()
+        #: Whether tables are shown as tables, and how many this tab has had so far.
+        self.mark_tables = False
+        self._tables = 0
         self._tab: DocTab | None = None
 
     def _find_headings(self, tab_id: str, elements) -> None:
@@ -415,23 +438,61 @@ class _Reading:
         """
         out: list[str] = []
         self._tab = tab
+        self._tables = 0
 
-        def walk(elements, contents: bool) -> None:
+        def walk(elements, contents: bool, into: list[str]) -> None:
             for element in elements or ():
                 paragraph = element.get("paragraph")
                 if paragraph:
-                    out.append(self._paragraph(paragraph.get("elements"), contents))
+                    into.append(self._paragraph(paragraph.get("elements"), contents))
                 table = element.get("table")
-                if table:
+                if table and self.mark_tables:
+                    into.append(self._table(table, contents, walk))
+                elif table:
                     for row in table.get("tableRows") or ():
                         for cell in row.get("tableCells") or ():
-                            walk(cell.get("content"), contents)
+                            walk(cell.get("content"), contents, into)
                 section = element.get("tableOfContents")
                 if section:
-                    walk(section.get("content"), True)
+                    walk(section.get("content"), True, into)
 
-        walk((tab.body or {}).get("content"), False)
+        walk((tab.body or {}).get("content"), False, out)
         return "".join(out).strip()
+
+    def _table(self, table: dict, contents: bool, walk) -> str:
+        """One table as a table: "[Table 2: 4 rows, 3 columns]", then "Row 1: a | b | c".
+
+        Numbered in its tab in the order edit_doc counts them, a table inside a cell
+        after the table it is in, so "table 2, row 3" read here is the row edit_doc
+        changes. A cell of more than one paragraph has them joined with " / ", and a
+        table inside a cell is named in it and shown after its own table.
+        """
+        self._tables += 1
+        number = self._tables
+        rows = table.get("tableRows") or []
+        columns = int(table.get("columns") or 0) or max(
+            (len(r.get("tableCells") or []) for r in rows), default=0)
+        lines = [f"[Table {number}: {len(rows)} row{'s' if len(rows) != 1 else ''}, "
+                 f"{columns} column{'s' if columns != 1 else ''}]"]
+        nested: list[str] = []
+        for n, row in enumerate(rows, start=1):
+            cells = []
+            for cell in row.get("tableCells") or ():
+                parts: list[str] = []
+                for element in cell.get("content") or ():
+                    if element.get("paragraph"):
+                        parts.append(self._paragraph(element["paragraph"].get("elements"),
+                                                     contents))
+                    elif element.get("table"):
+                        inner: list[str] = []
+                        walk([element], contents, inner)
+                        nested.append("".join(inner))
+                        parts.append(f"[table {self._tables} inside]")
+                words = " / ".join(" ".join(p.split()) for p in parts if p.strip())
+                cells.append(words.replace("|", "\\|"))
+            lines.append(f"Row {n}: " + " | ".join(c if c else "(empty)" for c in cells))
+        lines.append(f"[End of table {number}]")
+        return "\n".join(lines) + "\n" + "".join(nested)
 
     def _paragraph(self, elements, contents: bool) -> str:
         """One paragraph's words, with a link's runs gathered back into one link.
