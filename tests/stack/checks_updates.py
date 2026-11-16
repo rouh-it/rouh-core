@@ -386,8 +386,11 @@ def updates_sensitive(s: Stack) -> None:
              "modeldefaults.put(o,'code_adapt',tier='cheaper',by='stack')\n"
              "modeldefaults.put(o,'code_adapt',lock=True,by='stack')")
     r3 = _release(s, 3, "printf \"GREETING='master greeting'\\ndef allowed(name): return name == 'owner'\\n\" > rouh/stack_access.py")
-    migration = ("from django.db import migrations\nclass Migration(migrations.Migration):\n"
-                 " dependencies=[('rouh'," + repr(_NEWEST_MIGRATION) + ")]\n"
+    # The newest migration is found when it runs, not named: a name such as 0255_permission_gates
+    # in the release's text made Rouh rightly treat it as a security change (code_evolution.SENSITIVE),
+    # which this database-only release is not (16 November 2026, task 187, step 187-03).
+    migration = ("import pathlib\nfrom django.db import migrations\nclass Migration(migrations.Migration):\n"
+                 " dependencies=[('rouh',sorted(p.stem for p in pathlib.Path(__file__).parent.glob('[0-9][0-9][0-9][0-9]_*.py') if p.stem<'9000')[-1])]\n"
                  " operations=[migrations.RunSQL('CREATE TABLE IF NOT EXISTS update_memory "
                  "(id integer PRIMARY KEY, body text); ALTER TABLE update_memory ADD COLUMN source text',"
                  "'ALTER TABLE update_memory DROP COLUMN source')]\n")
