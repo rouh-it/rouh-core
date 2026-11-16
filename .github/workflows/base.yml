@@ -305,6 +305,7 @@ jobs:
           docker buildx build --platform "linux/$ARCH" -f src/deploy/container/Dockerfile.base \
             --build-arg PYTHON_IMAGE="$(j python_image)" --build-arg NODE_IMAGE="$(j node_image)" \
             --build-arg CODEX_VERSION="$(j codex)" --build-arg PLAYWRIGHT_MCP_VERSION="$(j playwright_mcp)" \
+            --build-arg PGCLIENT_IMAGE="$(j postgres_image)" \
             --build-arg BASE_LINE="$LINE" --build-arg BASE_LEVEL="$LEVEL" \
             --label "org.opencontainers.image.source=$SOURCE" \
             --label "org.opencontainers.image.revision=$COMMIT" \

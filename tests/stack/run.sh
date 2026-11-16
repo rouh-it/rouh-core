@@ -59,6 +59,7 @@ if [ -z "$base" ] || [ -z "$guard" ]; then
     --build-arg PYTHON_IMAGE="$(pin python_image python:3.12.16-slim-trixie)" \
     --build-arg NODE_IMAGE="$(pin node_image node:24.22.1-trixie-slim)" \
     --build-arg CODEX_VERSION="$(pin codex 0.163.0)" --build-arg PLAYWRIGHT_MCP_VERSION="$(pin playwright_mcp 0.0.83)" \
+    --build-arg PGCLIENT_IMAGE="$postgres" \
     --build-arg BASE_LINE=test --build-arg BASE_LEVEL="test-$(git -C "$repo" rev-parse --short=8 HEAD)" \
     ${STACK_TEST_CACHE:+--cache-from "$STACK_TEST_CACHE"} \
     -t "$base" "$repo" || { say "the base did not build"; exit 1; }

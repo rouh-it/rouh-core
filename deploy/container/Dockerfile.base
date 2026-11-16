@@ -27,7 +27,11 @@
 
 ARG PYTHON_IMAGE=python:3.12.14-slim-trixie
 ARG NODE_IMAGE=node:24.22.1-trixie-slim
-ARG PGCLIENT_IMAGE=pgvector/pgvector:0.8.7-pg18-trixie@sha256:5895949dfcdf308eb0cd31c950c93c14895c77f33fbedfecf1fa511ab1d4bcd2
+# pg_dump and pg_restore, which the protected core runs before a database update, must be the
+# database server's own version: every build passes the line's postgres_image (line.json) here.
+# Until 16 November 2026 none did, so base 1.0.15 and 1.0.16 had PostgreSQL 18.6's tools beside an
+# 18.7 server, and the copy a database update is tried on could not be restored (task 187, 187-03).
+ARG PGCLIENT_IMAGE=pgvector/pgvector:0.8.7-pg18-trixie@sha256:ab49524d18df7200b74ac9a475e1db6297fc1eb57da4c214c63d10ecc4b754fa
 
 FROM ${PGCLIENT_IMAGE} AS pgclient
 RUN mkdir -p /opt/pg/bin /opt/pg/lib \

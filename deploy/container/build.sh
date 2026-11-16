@@ -47,6 +47,7 @@ echo "== ${prefix}rouh-base:$tag ($platform)"
 docker buildx build --platform "$platform" -f "$here/Dockerfile.base" \
   --build-arg PYTHON_IMAGE="$(pin python_image)" --build-arg NODE_IMAGE="$(pin node_image)" \
   --build-arg CODEX_VERSION="$(pin codex)" --build-arg PLAYWRIGHT_MCP_VERSION="$(pin playwright_mcp)" \
+  --build-arg PGCLIENT_IMAGE="$(pin postgres_image)" \
   --build-arg BASE_LINE=dev --build-arg BASE_LEVEL="dev-$tag" \
   --label "org.opencontainers.image.source=rouh" \
   -t "${prefix}rouh-base:$tag" -t "${prefix}rouh-base:latest" --load "$repo"
