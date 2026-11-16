@@ -171,6 +171,64 @@ def all_off_tells_nothing_personal() -> None:
     expect("Marta" not in said and "Kowalska" not in said, f"the owner's name is still in: {said}")
 
 
+@check("own", "Simple chat is told only who Rouh is, the clock, safety and the list of tools",
+       "on Simple chat (Memory and Your rules off, tools on demand) the system prompt put together from the "
+       "rules every Rouh starts with holds no built-in rule about the screen, the orb, mail, jobs or the "
+       "workspace and nothing about the person, while the one-line list of tools is still told so a tool "
+       "can be found; a rule told with its tool still goes with the tool")
+def simple_chat_is_light() -> None:
+    """16 November 2026 (Petar: "we still don't have quick chat mode"): Simple chat is the minimal prompt of
+    an all-off chat plus tools on demand (`rouh/reading.py`, `light`)."""
+    from rouh import prompting, reading, ruledefaults, rules
+
+    expect(reading.SIMPLE["memory"] is False and reading.SIMPLE["rules"] is False and reading.SIMPLE["tools"],
+           "Simple chat is not Memory off, Your rules off and Tools on")
+    doc = ruledefaults.fallback()
+    light = {"memory": False, "rules": False, "tools": True, "off": [], "light": True}
+    full = {"memory": True, "rules": True, "tools": True, "off": [], "light": False}
+    placed = []
+    for i, r in enumerate(doc["rules"]):
+        if "chats" not in rules.reach(r) or not r.get("place"):
+            continue
+        placed.append({"id": f"r{i}", "key": r["key"], "title": r.get("title") or r["key"], "text": r["text"],
+                       "when": rules.when_of(r), "place": r["place"], "group": r.get("group") or "",
+                       "fills": "{" in r["text"], "on": True, "made_at": i})
+    placed.sort(key=lambda r: (int(r["place"].get("position") or 0), r["made_at"]))
+    for r in placed:
+        src = reading.source_of(r)
+        if src == "tools":
+            expect(reading.rule_told(r, light) == bool(r["when"].get("with")),
+                   f"the built-in rule {r['key']} is told in Simple chat's prompt rather than with its tool")
+        if src in ("safety", "builtin"):
+            expect(reading.rule_told(r, light), f"the rule {r['key']} that is never turned off is off in Simple chat")
+    situation = prompting.Situation(tools=frozenset({"web_search", "web_fetch", "read_workspace"}),
+                                    provider="luna", flags=frozenset())
+    sizes = {}
+    for name, reads in (("simple", light), ("full", full)):
+        text = ""
+        for part in ("cached", "turn"):
+            got = prompting.Prompt(situation, part, {"name": "Luna", "model": "GPT-6 Luna", "company": "OpenAI"},
+                                   placed=[r for r in placed if r["place"].get("part", "cached") == part],
+                                   allow=lambda r, reads=reads: reading.rule_told(r, reads))
+            said, _segs = got.finish(say=lambda t: reading.anonymous(t, owner=None))
+            text += said + "\n\n"
+        sizes[name] = len(text)
+    expect(sizes["simple"] * 2 < sizes["full"],
+           f"Simple chat's prompt ({sizes['simple']} characters) is not well under Full's ({sizes['full']})")
+    expect(reading.context_told("catalogue", light), "Simple chat is not told the list of tools it finds one by")
+    from rouh import toolsearch
+
+    whole = "Your tools:\nHow to load one.\n\nGmail:\n- read_mail: Read one email, whole.\n- send_mail: Send an email."
+    short = toolsearch.shorten(whole)
+    expect("Gmail: read_mail, send_mail" in short and "Read one email" not in short,
+           f"Simple chat's list of tools is not names only: {short!r}")
+    expect({"synapse_find", "synapse_query"} <= reading.MEMORY_TOOLS,
+           "Synapse's search tools are still declared with Memory off, so the person can be looked up")
+    for key, _title, src, _what in reading.CONTEXT:
+        if src in ("memory", "tools") and key != "catalogue":
+            expect(not reading.context_told(key, light), f"{key} is told in Simple chat")
+
+
 @check("own", "a fork does not take up a turn stopped in the chat it came off",
        "what a fork carries of its parent has no stopped exchange in it - not the request, not what was said "
        "of it, not the stop note - and the parent's own messages keep all three")

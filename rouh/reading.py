@@ -24,6 +24,17 @@ draws them (`readingPaint` in app/reading.js):
   first lines) and the panel and the model are both told which (`plan`). Nothing is blown into the prompt
   blindly: a step of a million tokens is an outline.
 
+- **Modes** (Petar, 16 November 2026: "we still don't have quick chat mode, which we should, because most of
+  the times people will not know what to choose"): a chat is on one of three, picked at the top of Chat
+  Options like the model. *Simple chat* (`SIMPLE`) is Memory and Your rules off, and Tools on demand: the
+  system prompt is the minimal one of an all-off chat, the catalogue of tools, and each tool's own
+  instructions only once the model loads it (`light`), so a quick web search still works and the turn is fast
+  and cheap. It is not incognito: the chat is kept. *Full capabilities* is everything on, and in a task's chat
+  the task's default content. *Custom* is the switches one by one, as they were before; changing any of them
+  puts the chat on Custom by itself. General, forks and task chats start on Full, an incognito chat on Simple
+  (`incognito.start`), and the person's saved choice, when there is one, starts every new chat that is not
+  incognito.
+
 `block` is what a turn of a task's chat is told (`brain.Brain._system`), `switches` what the turn does with
 memory, rules and tools, `view` what the panel draws, and `strip` the one line under the chat's title that
 says in plain words what is being read.
@@ -41,10 +52,21 @@ log = logging.getLogger("rouh.reading")
 
 #: The defaults: memory, rules and tools on; a task's chat reads the task, its notes and pages, no subtasks,
 #: no chat histories.
-DEFAULTS = {"memory": True, "rules": True, "tools": True, "subtasks": "none", "picked": [], "md": True,
-            "html": True, "histories": False, "off": [], "keep": False}
-#: What a person can save as the start of every new chat (`saved`): the three switches and the items off.
-SAVED_KEYS = ("memory", "rules", "tools", "off")
+DEFAULTS = {"mode": "full", "memory": True, "rules": True, "tools": True, "subtasks": "none", "picked": [],
+            "md": True, "html": True, "histories": False, "off": [], "keep": False}
+#: The three modes, as the selector at the top of Chat Options names them.
+MODES = ("simple", "full", "custom")
+MODE_NAMES = {"simple": "Simple chat", "full": "Full capabilities", "custom": "Custom"}
+#: What Simple chat and Full capabilities set; Custom is whatever the switches say.
+SIMPLE = {"memory": False, "rules": False, "tools": True, "off": [], "md": False, "html": False,
+          "subtasks": "none", "picked": [], "histories": False}
+FULL = {"memory": True, "rules": True, "tools": True, "off": [], "md": True, "html": True,
+        "subtasks": "none", "picked": [], "histories": False}
+#: The switches a mode sets, and which Custom leaves to the person one by one.
+SWITCH_KEYS = ("memory", "rules", "tools", "off", "md", "html", "subtasks", "picked", "histories")
+#: What a person can save as the start of every new chat (`saved`): the mode, the three switches and the
+#: items off.
+SAVED_KEYS = ("mode", "memory", "rules", "tools", "off")
 #: The person's saved choices, a `UserSetting` of theirs.
 SAVED = "chat_options"
 SUBTASKS = ("none", "all", "some")
@@ -117,20 +139,47 @@ def _save(who, value: dict | None) -> None:
                   "updated_at": time.time()})
 
 
+def mode_of(stored: dict) -> str:
+    """The mode a stored set of choices is on. One kept before the modes (16 November 2026) has none: it is
+    Full when it changed nothing from the defaults, else Custom, so no switch the person set is lost."""
+    mode = stored.get("mode")
+    if mode in MODES:
+        return mode
+    differs = any(k in stored and stored[k] != DEFAULTS[k] for k in SWITCH_KEYS)
+    return "custom" if differs else "full"
+
+
+def _on_mode(got: dict) -> dict:
+    """The settings with what their mode sets put in: Simple and Full set every switch, Custom none."""
+    if got["mode"] == "simple":
+        got.update({k: (list(v) if isinstance(v, list) else v) for k, v in SIMPLE.items()})
+    elif got["mode"] == "full":
+        got.update({k: (list(v) if isinstance(v, list) else v) for k, v in FULL.items()})
+    return got
+
+
 def settings(chat_id: str, who=None) -> dict:
-    """This chat's settings: Rouh's defaults, under the person's saved choices, under what this chat set."""
+    """This chat's settings: Rouh's defaults, under the person's saved choices, under what this chat set, with
+    what its mode sets on top (`_on_mode`)."""
     row = _chat_row(chat_id) if chat_id else None
     got = dict(DEFAULTS)
     own = row.reading if row is not None and isinstance(row.reading, dict) else {}
     # An incognito chat is its own: nothing saved for ordinary chats reaches it.
     if not (row is not None and row.incognito):
-        got.update(saved(who))
+        kept = saved(who)
+        if kept:
+            got.update(kept)
+            got["mode"] = mode_of(kept)
     got.update({k: v for k, v in own.items() if k in DEFAULTS})
+    if own:
+        got["mode"] = mode_of(own) if "mode" in own or any(k in own for k in SWITCH_KEYS) else got["mode"]
+    if got["mode"] not in MODES:
+        got["mode"] = "full"
     if got["subtasks"] not in SUBTASKS:
         got["subtasks"] = "none"
     got["picked"] = [str(x) for x in got.get("picked") or []][:200]
     got["off"] = sorted({str(x) for x in got.get("off") or []})[:500]
-    return got
+    return _on_mode(got)
 
 
 def put(chat_id: str, change: dict, who=None) -> dict:
@@ -153,15 +202,27 @@ def put(chat_id: str, change: dict, who=None) -> dict:
     now = dict(row.reading or {}) if isinstance(row.reading, dict) else {}
     change = dict(change or {})
     if change.pop("reset", False):
-        # Rouh's defaults: everything on, nothing left out. An incognito chat still reads no memory until
-        # the person turns it on, as it started (`incognito.start`).
-        now = {"memory": False} if row.incognito else {}
+        # Rouh's defaults: Full capabilities, nothing left out. An incognito chat goes back to Simple chat,
+        # as it started (`incognito.start`).
+        now = {"mode": "simple"} if row.incognito else {"mode": "full"}
         Chat.objects.filter(id=chat_id).update(reading=now)
         if not row.incognito:
             _save(who, None)
         return settings(chat_id, who)
+    before = settings(chat_id, who)
+    mode = change.pop("mode", None)
+    if mode in MODES:
+        now["mode"] = mode
+        if mode == "custom":
+            # Custom starts from where the chat was, so its switches show what it was using.
+            now.update({k: before[k] for k in SWITCH_KEYS})
+    elif any(k in change for k in SWITCH_KEYS):
+        # A switch changed by hand puts the chat on Custom, starting from what its mode had set.
+        if before["mode"] != "custom":
+            now.update({k: before[k] for k in SWITCH_KEYS})
+        now["mode"] = "custom"
     for k, v in change.items():
-        if k not in DEFAULTS:
+        if k not in DEFAULTS or k == "mode":
             continue
         if k == "subtasks":
             if v in SUBTASKS:
@@ -595,6 +656,11 @@ def rule_told(r: dict, reads: dict) -> bool:
 
         # A rule of the person's told with its tools goes with them as well.
         return bool(reads["rules"]) and (bool(reads["tools"]) or not tool_rules.told_with_tools(r))
+    if src == "tools" and reads.get("light"):
+        from . import tool_rules
+
+        # Simple chat: a built-in rule about a tool comes only with the tool, never in the prompt.
+        return bool(reads["tools"]) and tool_rules.told_with_tools(r)
     return bool(reads[src])
 
 
@@ -605,6 +671,9 @@ def context_told(key: str, reads: dict) -> bool:
         return False
     if key in ("inboxes", "synapse"):   # about the person, and about the tools that read it
         return bool(reads["memory"]) and bool(reads["tools"])
+    if src == "tools" and reads.get("light"):
+        # Simple chat: of what goes with Tools, only the one-line list the model finds a tool by.
+        return key == "catalogue" and bool(reads["tools"])
     return src == "chat" or bool(reads[src])
 
 
@@ -641,10 +710,18 @@ def anonymous(text: str, who=None, *, owner=...) -> str:
 
 
 def switches(chat_id: str) -> dict:
-    """{"memory", "rules", "tools", "off"}: what a turn in this chat may use. An incognito chat's are its own."""
+    """{"memory", "rules", "tools", "off", "light"}: what a turn in this chat may use. An incognito chat's are
+    its own. `light` is Simple chat: tools only on demand, so no built-in rule about how the screen, the orb,
+    mail or jobs work is told in the prompt; a rule told with its tool still comes with the tool."""
     s = settings(chat_id) if chat_id else dict(DEFAULTS)
     return {"memory": bool(s["memory"]), "rules": bool(s["rules"]), "tools": bool(s["tools"]),
-            "off": list(s.get("off") or [])}
+            "off": list(s.get("off") or []), "light": s.get("mode") == "simple"}
+
+
+def _reads_of(s: dict) -> dict:
+    """What a turn does with these settings, as `switches` says it."""
+    return {"memory": bool(s["memory"]), "rules": bool(s["rules"]), "tools": bool(s["tools"]), "off": s["off"],
+            "light": s.get("mode") == "simple"}
 
 
 def _master_for(who=None):
@@ -674,7 +751,7 @@ def rules_listing(chat_id: str, who=None, s: dict | None = None) -> list[dict]:
         log.exception("the rules could not be listed for the panel")
         return []
     s = s or settings(chat_id, who)
-    reads = {"memory": bool(s["memory"]), "rules": bool(s["rules"]), "tools": bool(s["tools"]), "off": s["off"]}
+    reads = _reads_of(s)
     off = set(s["off"])
     out = []
     for r in every:
@@ -697,7 +774,7 @@ def context_listing(chat_id: str, who=None, s: dict | None = None) -> list[dict]
     """The live context a turn of this chat can be told, beside the rules: each with what it says now when
     there is something to say, else what it holds."""
     s = s or settings(chat_id, who)
-    reads = {"memory": bool(s["memory"]), "rules": bool(s["rules"]), "tools": bool(s["tools"]), "off": s["off"]}
+    reads = _reads_of(s)
     now = _context_now(chat_id, who)
     out = []
     for key, title, src, what in CONTEXT:
@@ -771,17 +848,18 @@ def _of_general(chat_id: str) -> bool:
 
 def strip(chat_id: str, s: dict | None = None, got: list[Item] | None = None, task=None,
           incognito: bool = False) -> str:
-    """The line under the chat's title: what is being read, in plain words."""
+    """The line under the chat's title: the mode, and on Custom what is being read, in plain words:
+    "Simple chat", "Full capabilities · Task 62 · 1 note", "Custom: Memory · Tools"."""
     s = s or settings(chat_id)
+    mode = s.get("mode") or "full"
     bits = []
-    if s["memory"] and not incognito:
-        bits.append("Memory")
-    if s["rules"]:
-        bits.append("Your rules")
+    if mode == "custom":
+        bits.append("Memory" if s["memory"] and not incognito else "No memory")
+        bits.append("Your rules" if s["rules"] else "No rules")
+        bits.append("Tools" if s["tools"] else "No tools")
+        bits[0] = "Custom: " + bits[0]
     else:
-        bits.append("Safety rules only")
-    if s["tools"]:
-        bits.append("Tools")
+        bits.append(MODE_NAMES[mode])
     if task is not None:
         bits.append(f"Task {_label(task).split(' · ')[0]}")
         if any(i.kind == "agents" for i in got or []):
@@ -814,6 +892,7 @@ def view(chat_id: str, who=None) -> dict:
     task, got, subs = items(chat_id, s)
     total = sum(i.tokens if i.how == "whole" else tokens(outline(i.text)) for i in got)
     out = {"chat": chat_id, "kind": kind_of(chat_id), "settings": s, "incognito": is_incognito,
+           "mode": s["mode"], "modes": [{"id": m, "name": MODE_NAMES[m]} for m in MODES],
            "items": [i.public() for i in got], "budget": BUDGET, "reads": total,
            "outlined": sum(1 for i in got if i.how == "outline"),
            "strip": strip(chat_id, s, got, task, is_incognito)}

@@ -981,7 +981,9 @@ class Brain:
             cached.context(f"Your own email address is {mine}.", "Rouh's own email address", "rouh/inbox.py")
         cached.at(CATALOGUE_AT)
         if plan is not None and plan.catalogue and reading.context_told("catalogue", reads):
-            cached.add(plan.catalogue, kind="catalogue", key="rouh/toolsearch.py", title="The tool catalogue",
+            # Simple chat names the tools and no more: each comes with its own instructions when loaded.
+            listing = toolsearch.shorten(plan.catalogue) if reads.get("light") else plan.catalogue
+            cached.add(listing, kind="catalogue", key="rouh/toolsearch.py", title="The tool catalogue",
                        why="made from the tool registry for this request's tools; never a rule")
         # The person's own rules and words, word for word, after every built-in rule they can overrule, and
         # before the turn marks, which are last on purpose: the rule about the very first character of every

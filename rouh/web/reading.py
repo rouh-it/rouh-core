@@ -1,7 +1,9 @@
 """What Rouh reads in a chat: the panel beside the composer, "What I'm reading" (`rouh/reading.py`).
 
     GET  /api/reading?chat=<id>     what the panel draws for that chat
-    POST /api/reading               {"chat", "change": {"memory"|"rules"|"tools"|"md"|"html"|"histories": bool,
+    POST /api/reading               {"chat", "change": {"mode": "simple"|"full"|"custom" (Simple chat, Full
+                                    capabilities, or the switches one by one),
+                                    "memory"|"rules"|"tools"|"md"|"html"|"histories": bool,
                                     "subtasks": "none"|"all"|"some", "picked": [task ids],
                                     "off": [item ids turned off one by one], "keep": bool (save for new chats),
                                     "reset": true (back to Rouh's defaults)}}; what it draws now

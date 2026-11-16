@@ -9,7 +9,8 @@ are locked on, shown as locked. Not changeable: everything in an incognito chat 
 What that is here:
 
 - **Starting one** (`start`) makes a new chat that belongs to General (`forks.belong`), marked
-  `Chat.incognito`, with memory off to begin with (it can be turned on: Synapse is then read, never written).
+  `Chat.incognito`, on Simple chat to begin with (memory and the person's rules off; Memory can be turned on in
+  Custom: Synapse is then read, never written).
   It is in no list of chats and no search (`hidden`), and is never named by the model.
 - **Ending one** (`end`) deletes it the way a person's Delete does, with everything it owns (`owning.remove`),
   and its transcript, cards and timelines (`memory.forget_chat`), and any reminder set in it. It ends when the
@@ -106,7 +107,8 @@ def start() -> str:
     from .models.objects import Chat
 
     chat_id = conversations.new_chat(TITLE)
-    Chat.objects.filter(id=chat_id).update(incognito=True, reading={"memory": False})
+    # Simple chat to begin with: no memory and none of the person's rules, tools on demand (`reading.SIMPLE`).
+    Chat.objects.filter(id=chat_id).update(incognito=True, reading={"mode": "simple"})
     _load()
     with _LOCK:
         _IDS.add(chat_id)

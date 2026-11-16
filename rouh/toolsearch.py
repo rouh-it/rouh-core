@@ -385,6 +385,29 @@ def catalogue(entries, *, mode: str, provider: str = "anthropic", always=()) -> 
     return "\n".join(lines)
 
 
+def shorten(text: str) -> str:
+    """The catalogue with each area's tools named on one line and no descriptions: Simple chat's
+    (`rouh/reading.py`, Petar, 16 November 2026: "something that switches off memory and rules off"), where
+    tools come only on demand. A search still finds each tool by its exact name, and its definition, with
+    its own instructions, arrives when it is loaded. About a sixth of the whole."""
+    out: list[str] = []
+    names: list[str] = []
+
+    def flush():
+        if names:
+            out[-1] = out[-1] + " " + ", ".join(names)
+            names.clear()
+
+    for line in (text or "").splitlines():
+        if line.startswith("- ") and ":" in line and out:
+            names.append(line[2:].split(":", 1)[0].strip())
+            continue
+        flush()
+        out.append(line)
+    flush()
+    return "\n".join(out)
+
+
 # --- the search this process runs itself ----------------------------------------
 
 _WORD = re.compile(r"[a-z0-9]+")
