@@ -19,12 +19,15 @@ import os
 import sys
 
 #: name -> port. The settings file of the stack test (tests/stack/settings.env) points Rouh at
-#: these, and the smoke test (tests/stack/smoke.py) reads what each one saw.
+#: these, and the smoke test (tests/stack/smoke.py) reads what each one saw. 9020 is the stand-in
+#: for GitHub, and 9021 is taken by the update checks' stand-in for rouh.land (checks_updates.py),
+#: which they start themselves: the MCP stand-in on 9021 made all three update checks read its 404
+#: as "rouh.land has no release" from 15 to 16 November 2026.
 PORTS = {
     "model": 9001, "openai": 9002, "compat": 9003, "carddav": 9004, "brevo": 9005,
     "apify": 9006, "voyage": 9007, "stripe": 9008, "cloudflare": 9009, "slack": 9010,
     "hue": 9011, "dreame": 9012, "voice": 9013, "telegram": 9014, "google": 9015,
-    "meetings": 9016, "shop": 9017, "youtube": 9018, "s3": 9019, "mcp": 9021,
+    "meetings": 9016, "shop": 9017, "youtube": 9018, "s3": 9019, "mcp": 9022,
 }
 
 #: The address the browser on the test machine comes back to after Google's consent page.

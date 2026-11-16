@@ -306,7 +306,7 @@ def mcp_servers(s: Stack) -> None:
     removed, and its tool gone. A bad address is refused in plain words and not kept."""
     code, got = post(s, "/api/settings/mcp/test", {"name": "nowhere", "kind": "http", "url": "http://standins:1/mcp"})
     expect(code == 200 and not got.get("ok") and "Nothing answered" in str(got.get("error")), f"a bad address: {code} {got}")
-    code, got = post(s, "/api/settings/mcp/save", {"name": "stack", "kind": "http", "url": "http://standins:9021/mcp",
+    code, got = post(s, "/api/settings/mcp/save", {"name": "stack", "kind": "http", "url": "http://standins:9022/mcp",
                                                    "headers": [{"name": "Authorization", "value": "Bearer stack-test-token-9876"}]})
     expect(code == 200 and "with no restart" in str(got.get("said")), f"Save refused the stand-in: {code} {got}")
     expect("stack-test-token-9876" not in json.dumps(got), "the token came back in full")
