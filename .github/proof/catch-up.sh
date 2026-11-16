@@ -6,7 +6,7 @@
 set -uo pipefail
 repo="$(cd "$(dirname "$0")/../.." && pwd)"
 out="${OUT:-$repo/.proof}"; mkdir -p "$out"
-OLD=45d74c79516866b1b813a35dda7caded9bdfc6ba
+OLD=287d2b9567b5b15e0c1ef646272133a23ecc82e2
 say() { echo "proof: $*"; }
 die() { say "FAILED: $*"; exit 1; }
 rel="$(curl -fsS https://rouh.land/mac/release/stable.json)"
@@ -35,10 +35,10 @@ docker run --rm --user 0:0 -v guardfiles:/opt/rouh-guard:ro -v "${project}_code:
   --entrypoint python "$base" -I /opt/rouh-guard/bin/rouh-code-install 2>&1 | tee "$out/install.log"
 grep -q "is now this Rouh's own code" "$out/install.log" || die "the 10 November install did not finish"
 
-# 2. A change of its own: a gene, and a line of SETUP.md the release also changes (a clash).
+# 2. A change of its own: a gene, and a line of AGENTS.md the release also changes (a clash).
 docker run --rm --user 10001:10001 -e HOME=/tmp -v "${project}_code:/code" --entrypoint bash "$base" -c '
   set -e; cd /code; mkdir -p docs; echo "A gene of this Rouh own." > docs/own-gene.md
-  sed -i "18s/.*/- Her own words on line 18./" SETUP.md; git add -A
+  sed -i "576s/.*/Her own words on line 576./" AGENTS.md; git add -A
   git -c user.name=Rouh -c user.email=rouh@localhost commit -qm "Its own gene and words" -m "Gene: own-gene"
   git log --oneline' | tee "$out/own.log"
 before="$(docker run --rm -v "${project}_code:/code" --entrypoint git "$base" -c safe.directory='*' -C /code rev-parse HEAD)"
@@ -80,9 +80,9 @@ for i in $(seq 1 60); do s=$(sha); [ -n "$s" ] && [ "$s" != "${before}" ] && [ "
 after="$(docker run --rm -v "${project}_code:/code" --entrypoint git "$base" -c safe.directory='*' -C /code rev-parse HEAD)"
 say "it answers again, at $(sha); /code is $after"
 docker run --rm -v "${project}_code:/code" --entrypoint bash "$base" -c '
-  cd /code; git -c safe.directory=* log --format="%h %s%n  %(trailers:key=Rouh-release)" -4; cat docs/own-gene.md; sed -n 18p SETUP.md; ls rouh/code_update.py' | tee "$out/after.txt"
+  cd /code; git -c safe.directory=* log --format="%h %s%n  %(trailers:key=Rouh-release)" -4; cat docs/own-gene.md; sed -n 576p AGENTS.md; ls rouh/code_update.py' | tee "$out/after.txt"
 grep -q "Rouh-release: cc492ed2\|Rouh-release: [0-9a-f]\{40\}" "$out/after.txt" || die "no Rouh-release line"
-grep -q "A gene of this Rouh own" "$out/after.txt" && grep -q "Her own words on line 18" "$out/after.txt" || die "its own change was lost"
+grep -q "A gene of this Rouh own" "$out/after.txt" && grep -q "Her own words on line 576" "$out/after.txt" || die "its own change was lost"
 grep -q "rouh/code_update.py" "$out/after.txt" || die "the new code is not there"
 
 # 5. The new code's own stack file applied, as Rouh for Mac does once the code changes.
