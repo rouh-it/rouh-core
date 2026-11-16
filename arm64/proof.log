@@ -1,0 +1,78 @@
+proof: release images: ghcr.io/rouh-land/rouh-base@sha256:8b2ffd4bae7ec838940cb89eb8e9539aa7c0f7a819d3eb2a04206f4be7fddf46 ghcr.io/rouh-land/rouh-guard@sha256:a5db2637272bada22fa9de666232f5c993e6de26d1f264333bf5fb76863e6dd9 pgvector/pgvector:0.8.7-pg18-trixie@sha256:ab49524d18df7200b74ac9a475e1db6297fc1eb57da4c214c63d10ecc4b754fa
+code-install: rouh.land could not say the newest commit (it could not be reached ([Errno 111] Connection refused)); installing the one the signed release names
+code-install: installing Rouh 287d2b9567b5, named by the signed release
+code-install: the base keeps its own version of: boto3 1.43.127 (main has 1.43.108); botocore 1.43.127 (main has 1.43.108); charset-normalizer 3.5.2 (main has 3.5.1); click 8.5.1 (main has 8.5.0); cryptography 50.0.2 (main has 50.0.1); django 5.2.19 (main has 5.2.17); pillow-heif 1.8.1 (main has 1.8.0); platformdirs 4.13.7 (main has 4.13.0); psycopg 3.3.9 (main has 3.3.6); pyasn1 0.6.5 (main has 0.6.4); s3transfer 0.19.3 (main has 0.19.2); sigstore 4.5.1 (main has 4.5.0); ...
+code-install: installing what the base does not have into /extra: pyopenssl==26.4.0
+code-install: /code is now this Rouh's own code: 93dd0e8 Rouh 287d2b9567b5 as installed
+9f493ac Its own gene and words
+93dd0e8 Rouh 287d2b9567b5 as installed
+proof: starting the 10 November Rouh on base 1.0.17
+ Container rouh-guard-1  Healthy
+ Container rouh-core-1  Starting
+ Container rouh-core-1  Started
+proof: it answers, at 9f493ac38b608b9360932a294afafca0d3b20872
+proof: setup address: http://127.0.0.1:8420/setup?code=...
+ok    first-run
+ok    tool.memory
+2 passed, 0 failed; 291 works, 2 broken, 3 manual, 2 replaced
+STACK-TEST {"ok": true, "checked": 2, "failed": [], "now_pass": [], "counts": {"works": 291, "broken": 2, "untested": 0, "manual": 3, "replaced": 2, "creator-only": 0}}
+browse before: Meta, Changes shows !Update to the newest Rouh
+proof: before: remembered 23, users ?, keys 3
+proof: running bin/rouh-catch-up-mac
+rouh-catch-up: copying the database first
+rouh-backup: copied the database into rouh-20261116-204832.dump, 865706 bytes; the newest 7 are kept (ROUH_BACKUP_KEEP)
+rouh-catch-up: this Rouh came from Rouh 287d2b9567b5 (its first install), with 1 change of its own; the newest release is cc492ed2483b of 16 November 2026.
+rouh-catch-up: downloading the release
+rouh-catch-up: laying the release over the one this Rouh came from
+rouh-catch-up: keeping this Rouh's own changes
+rouh-catch-up: kept as this Rouh had them, because the release changed the same lines: AGENTS.md
+rouh-catch-up: handing 4072df8e76f6 to the protected core; its checks take a minute or a few
+rouh-catch-up: done: undo point 2 is Rouh cc492ed2483b of 16 November 2026 with this Rouh's 1 own change; core, worker start again on it.
+rouh-catch-up: to undo: Anatomy, Meta, Changes, Put back on undo point 1; or rouh-guard undo 1 here.
+ROUH-CATCH-UP {"ok": true, "release": "cc492ed2483b7917815a313d05e7d4303912a4a3", "commit": "4072df8e76f64f593de49894f00b3410257e002a", "point": 2, "before": 1, "own": 1, "kept": ["AGENTS.md"]}
+rouh-catch-up: Rouh is starting again on it; give it a few minutes, then open Anatomy, Meta, Changes.
+rouh-catch-up: to undo it, paste:
+  curl -fsSL https://raw.githubusercontent.com/rouh-land/rouh-core/main/bin/rouh-catch-up-mac | bash -s undo 1 rouh-20261116-204832.dump
+proof: it answers again, at 4072df8e76f64f593de49894f00b3410257e002a; /code is 4072df8e76f64f593de49894f00b3410257e002a
+4072df8 Rouh cc492ed2483b, the release of 16 November 2026, with this Rouh's own changes kept
+  
+8d67733 Rouh cc492ed2483b, the release of 16 November 2026, as released
+  Rouh-release: cc492ed2483b7917815a313d05e7d4303912a4a3
+
+9f493ac Its own gene and words
+  
+93dd0e8 Rouh 287d2b9567b5 as installed
+  
+A gene of this Rouh own.
+Her own words on line 576.
+rouh/code_update.py
+proof: applying the new code's own stack file
+ Container rouh-postgres-1  Healthy
+ Container rouh-standins-1  Healthy
+ Container rouh-guard-1  Healthy
+browse after: Meta, Changes shows How new releases come, 16 November 2026
+proof: after: remembered 30, users ?
+2026-11-16 20:49:54,532 WARNING rouh.attachments no group called 'rouh-attachments' on this machine, so the one program's runs cannot open attachments; `python manage.py attachments_access` makes it
+2026-11-16 20:49:54,545 WARNING rouh.tools the tool linkedin_search was declared twice; the second is left out
+2026-11-16 20:49:54,545 WARNING rouh.tools the tool linkedin_profile was declared twice; the second is left out
+197 objects imported automatically (use -v 2 for details).
+
+{'how': 'update', 'release': 'cc492ed2483b7917815a313d05e7d4303912a4a3', 'local': '8d67733bc388fe24770b59bf11a2bfbc309810af'}
+proof: undo: bash -s undo 1 rouh-20261116-204832.dump
+rouh-catch-up: putting the code back to undo point 1
+  "core",
+  "worker"
+ ],
+ "said": "Put back to undo point 1 (9f493ac38b60), by a person, in the guard container."
+}
+rouh-catch-up: stopping Rouh to put the database back as it was in rouh-20261116-204832.dump
+rouh-backup: the database as it was just now is kept as rouh-20261116-204955.dump
+NOTICE:  database "rouh_restoring" does not exist, skipping
+NOTICE:  database "rouh_before_restore" does not exist, skipping
+rouh-backup: the database is as it was in rouh-20261116-204832.dump
+rouh-catch-up: done: Rouh starts again on the code and the database it had before the update.
+ Container rouh-standins-1  Healthy
+ Container rouh-guard-1  Healthy
+ Container rouh-postgres-1  Healthy
+browse undone: Meta, Changes shows !How new releases come
+proof: PASSED: catch-up from 9f493ac38b608b9360932a294afafca0d3b20872 to 4072df8e76f64f593de49894f00b3410257e002a, and back

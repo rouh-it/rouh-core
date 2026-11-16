@@ -1,0 +1,4 @@
+ok    first-run
+ok    tool.memory
+2 passed, 0 failed; 291 works, 2 broken, 3 manual, 2 replaced
+STACK-TEST {"ok": true, "checked": 2, "failed": [], "now_pass": [], "counts": {"works": 291, "broken": 2, "untested": 0, "manual": 3, "replaced": 2, "creator-only": 0}}

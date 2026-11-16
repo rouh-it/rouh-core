@@ -1,0 +1,36 @@
+{
+ "summary": {
+  "ok": true,
+  "checked": 2,
+  "failed": [],
+  "now_pass": [],
+  "counts": {
+   "works": 291,
+   "broken": 2,
+   "untested": 0,
+   "manual": 3,
+   "replaced": 2,
+   "creator-only": 0
+  }
+ },
+ "results": [
+  {
+   "id": "first-run",
+   "feature": "The setup address makes the owner and opens Rouh",
+   "before": "works",
+   "now": "works",
+   "result": "passed",
+   "why": "",
+   "seconds": 2.2
+  },
+  {
+   "id": "tool.memory",
+   "feature": "Remembering and the Rules page",
+   "before": "untested",
+   "now": "works",
+   "result": "passed",
+   "why": "",
+   "seconds": 0.7
+  }
+ ]
+}
