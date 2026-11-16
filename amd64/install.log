@@ -1,0 +1,5 @@
+code-install: rouh.land could not say the newest commit (it could not be reached ([Errno 111] Connection refused)); installing the one the signed release names
+code-install: installing Rouh 287d2b9567b5, named by the signed release
+code-install: the base keeps its own version of: boto3 1.43.127 (main has 1.43.108); botocore 1.43.127 (main has 1.43.108); charset-normalizer 3.5.2 (main has 3.5.1); click 8.5.1 (main has 8.5.0); cryptography 50.0.2 (main has 50.0.1); django 5.2.19 (main has 5.2.17); pillow-heif 1.8.1 (main has 1.8.0); platformdirs 4.13.7 (main has 4.13.0); psycopg 3.3.9 (main has 3.3.6); pyasn1 0.6.5 (main has 0.6.4); s3transfer 0.19.3 (main has 0.19.2); sigstore 4.5.1 (main has 4.5.0); ...
+code-install: installing what the base does not have into /extra: pyopenssl==26.4.0
+code-install: /code is now this Rouh's own code: 4f82806 Rouh 287d2b9567b5 as installed

@@ -1,0 +1,12 @@
+rouh-catch-up: putting the code back to undo point 1
+  "core",
+  "worker"
+ ],
+ "said": "Put back to undo point 1 (91d961c04f93), by a person, in the guard container."
+}
+rouh-catch-up: stopping Rouh to put the database back as it was in rouh-20261116-204844.dump
+rouh-backup: the database as it was just now is kept as rouh-20261116-205013.dump
+NOTICE:  database "rouh_restoring" does not exist, skipping
+NOTICE:  database "rouh_before_restore" does not exist, skipping
+rouh-backup: the database is as it was in rouh-20261116-204844.dump
+rouh-catch-up: done: Rouh starts again on the code and the database it had before the update.

@@ -1,0 +1,3 @@
+197 objects imported automatically (use -v 2 for details).
+
+{'how': 'update', 'release': 'cc492ed2483b7917815a313d05e7d4303912a4a3', 'local': '5c39ecb48431532105682ca10730ec5d6005bea6'}

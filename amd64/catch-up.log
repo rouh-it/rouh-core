@@ -1,0 +1,14 @@
+rouh-catch-up: copying the database first
+rouh-backup: copied the database into rouh-20261116-204844.dump, 816855 bytes; the newest 7 are kept (ROUH_BACKUP_KEEP)
+rouh-catch-up: this Rouh came from Rouh 287d2b9567b5 (its first install), with 1 change of its own; the newest release is cc492ed2483b of 16 November 2026.
+rouh-catch-up: downloading the release
+rouh-catch-up: laying the release over the one this Rouh came from
+rouh-catch-up: keeping this Rouh's own changes
+rouh-catch-up: kept as this Rouh had them, because the release changed the same lines: AGENTS.md
+rouh-catch-up: handing cdbd68ec0b4b to the protected core; its checks take a minute or a few
+rouh-catch-up: done: undo point 2 is Rouh cc492ed2483b of 16 November 2026 with this Rouh's 1 own change; core, worker start again on it.
+rouh-catch-up: to undo: Anatomy, Meta, Changes, Put back on undo point 1; or rouh-guard undo 1 here.
+ROUH-CATCH-UP {"ok": true, "release": "cc492ed2483b7917815a313d05e7d4303912a4a3", "commit": "cdbd68ec0b4b3f20189043c44f440354367f2540", "point": 2, "before": 1, "own": 1, "kept": ["AGENTS.md"]}
+rouh-catch-up: Rouh is starting again on it; give it a few minutes, then open Anatomy, Meta, Changes.
+rouh-catch-up: to undo it, paste:
+  curl -fsSL https://raw.githubusercontent.com/rouh-land/rouh-core/main/bin/rouh-catch-up-mac | bash -s undo 1 rouh-20261116-204844.dump
