@@ -1,13 +1,13 @@
 {
- "level": "1.0.18",
+ "level": "1.0.19",
  "line": "1.0",
- "from_level": "1.0.17",
+ "from_level": "1.0.18",
  "changed": true,
  "changes": [
   {
    "what": "Protected core",
-   "from": "rouh-it or rouh-land",
-   "to": "rouh-land only"
+   "from": "1.0.0",
+   "to": "1.1.0"
   }
  ],
  "security": [],
