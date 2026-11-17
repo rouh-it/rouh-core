@@ -41,7 +41,8 @@ POLL_REPLY = {"seq": ("int", 0, 10**9), "ops": ("list", MOST_BACK, ("op",)),
               "title?": ("text", 200), "state?": ("enum", ("live", "ended")), "more?": ("bool",),
               "standin?": ("str", 80), "epoch?": ("int", 0, 10**6)}
 OPS_REPLY = {"seq": ("int", 0, 10**9), "accepted": ("list", 600, ("id",)),
-             "refused": ("list", 600, ("obj", {"id": ("id",), "why": ("text", 300)}))}
+             "refused": ("list", 600, ("obj", {"id": ("id",), "why": ("text", 300)})),
+             "confirmed?": ("list", 600, ("op",))}
 JOIN_REPLY = {"space_id": ("id",), "kind": forms.KIND, "title": ("text", 200), "role": forms.ROLE,
               "members": ("list", 200, forms.MEMBER), "standin?": ("str", 80), "silo?": ("str", 40)}
 
@@ -140,7 +141,7 @@ async def get(org: str, sid: str) -> Live:
         raise LookupError("There is no such shared space here.")
     live = Live(org, row)
     live.ops, live.pending = await asyncio.to_thread(_load_ops, org, sid)
-    live.seq = max([o["seq"] for o in live.ops] or [row.seq or 0])
+    live.seq = (row.seq or 0) if not row.mine else max([o["seq"] for o in live.ops] or [row.seq or 0])
     live.recompute()
     _LIVE[key] = _LIVE.get(key) or live
     return _LIVE[key]
@@ -222,13 +223,14 @@ async def submit(org: str, sid: str, sender: str, ops: list[dict], *, holder_cod
     role = "owner" if sender == row.holder_label else role_of(row, sender)
     if not role:
         raise limits.No("You are not in that space.")
-    accepted, refused, fresh = [], [], []
+    accepted, refused, fresh, numbered = [], [], [], []
     rebuild = False
     known = {o["id"] for o in live.ops}
     async with live.lock:
         for op in ops:
             if op["id"] in known:
                 accepted.append(op["id"])
+                numbered.extend(o for o in live.ops if o["id"] == op["id"])
                 continue
             try:
                 limits.may_change(space_meta=row.meta or {}, doc=live.doc, op=op, sender_label=sender,
@@ -248,6 +250,7 @@ async def submit(org: str, sid: str, sender: str, ops: list[dict], *, holder_cod
                 _doc.apply(live.doc, op)
             accepted.append(op["id"])
             fresh.append(op)
+            numbered.append(op)
         if rebuild:
             live.recompute()
         if fresh:
@@ -259,7 +262,8 @@ async def submit(org: str, sid: str, sender: str, ops: list[dict], *, holder_cod
             await asyncio.to_thread(log.write, org, "change", _plain_change(fresh, names, people), peer="" if sender == row.holder_label else sender, space=sid)
         await live.changed()
         await _after(org, sid, live, row, fresh)
-    return {"seq": live.seq, "accepted": accepted, "refused": refused}
+    return {"seq": live.seq, "accepted": accepted, "refused": refused,
+            "confirmed": [_wire_op(o) | {"seq": o["seq"]} for o in numbered]}
 
 
 async def _after(org: str, sid: str, live: Live, row, fresh: list[dict]) -> None:
@@ -341,6 +345,20 @@ async def _send_pending(org: str, sid: str, live: Live, row) -> dict:
         return {"seq": live.seq, "accepted": [], "refused": [], "waiting": True}
     except (wire.Refusal, forms.Refused) as exc:
         reply = {"seq": live.seq, "accepted": [], "refused": [{"id": o["id"], "why": str(getattr(exc, "said", exc))} for o in batch]}
+    # The changes the room took, with their numbers: filed now, so none stays "waiting" if a poll
+    # passes it by. The copy's own number is not moved on: the next poll still brings what came between.
+    if reply.get("confirmed"):
+        async with live.lock:
+            known = {o["id"] for o in live.ops}
+            for op in reply["confirmed"]:
+                if op["id"] not in known:
+                    await asyncio.to_thread(_store, org, sid, op)
+                    live.ops.append(op)
+                    known.add(op["id"])
+            live.ops.sort(key=lambda o: o.get("seq", 0))
+            live.pending = [o for o in live.pending if o["id"] not in known]
+            live.recompute()
+        await live.changed()
     gone = {r["id"] for r in reply["refused"]}
     if gone:
         async with live.lock:
@@ -379,7 +397,8 @@ async def _take_confirmed(org: str, sid: str, live: Live, ops: list[dict], seq: 
             known.add(op["id"])
         live.ops.sort(key=lambda o: o.get("seq", 0))
         live.pending = [o for o in live.pending if o["id"] not in known]
-        live.seq = max(live.seq, seq, max([o.get("seq", 0) for o in live.ops] or [0]))
+        # Only what a poll covered moves the copy's number on (`seq` is the room's at that poll).
+        live.seq = max(live.seq, seq)
         if mine - {o["id"] for o in live.pending}:
             pass
         live.recompute()
