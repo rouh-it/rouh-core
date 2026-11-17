@@ -3228,6 +3228,62 @@
    "files": [
     "rouh/invite_answer.py"
    ]
+  },
+  "n46-share-twice": {
+   "name": "Not shared twice",
+   "what": "Before Rouh shares a file with somebody by name, it reads who can already open it: a person who can already do as much as asked, or more, is not shared it again, so Google sends them no second invitation and nobody's edit right is lowered.",
+   "switch": "share_twice",
+   "signals": {
+    "events": {
+     "held": "You asked Rouh to share a file with somebody who could already open it, and it was not shared again"
+    }
+   },
+   "files": [
+    "rouh/share_twice.py"
+   ]
+  },
+  "n46-access-asked": {
+   "name": "Asked to open a file",
+   "what": "When somebody asks Google for access to a file in Rouh's Drive, the request reaches Rouh's inbox, where nobody saw it; now you are told at once, with Let them in.",
+   "switch": "access_asked",
+   "signals": {
+    "events": {
+     "let_in": "You pressed Let them in on a notice that somebody asked to open a file in Rouh's Drive"
+    },
+    "runs": {
+     "told": "Somebody asked for access to a file in Rouh's Drive, and you were told in a notice"
+    }
+   },
+   "files": [
+    "rouh/access_asked.py",
+    "rouh/web/access_asked.py"
+   ]
+  },
+  "n46-take-off": {
+   "name": "Taken off your files",
+   "what": "Asked in words, Rouh takes a person, or everybody at a company, off one of your Drive files or off every one of your files shared with them, and says what each could do before.",
+   "switch": "take_off",
+   "signals": {
+    "events": {
+     "asked": "You asked Rouh to take somebody off your files, and it took them off"
+    }
+   },
+   "files": [
+    "rouh/take_off.py"
+   ]
+  },
+  "n46-link-access": {
+   "name": "A link they can open",
+   "what": "Before Rouh sends an email with a link to a Google Drive file, it checks that everybody it goes to can open the file; when somebody cannot, it is held and Rouh asks whether to share it with them first.",
+   "switch": "link_access",
+   "signals": {
+    "events": {
+     "held": "You asked Rouh to send an email with a link to a file somebody on it could not open, and it held it and asked"
+    }
+   },
+   "files": [
+    "rouh/link_access.py"
+   ]
   }
  }
 }

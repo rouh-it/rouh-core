@@ -155,7 +155,7 @@ OUTWARD = frozenset({
     "handle_email_again", "worker_outbox",
     "create_calendar_event", "update_calendar_event", "delete_calendar_event",
     "restore_calendar_event", "block_my_time", "add_shared_calendar", "create_calendar", "share_calendar",
-    "share_drive_file", "manage_drive_file", "upload_drive_file", "write_drive_file",
+    "share_drive_file", "take_off_files", "manage_drive_file", "upload_drive_file", "write_drive_file",
     "create_drive_folder", "create_doc", "edit_doc", "edit_sheet", "edit_slides", "copy_drive_file",
     "create_shared_drive",
     "add_shared_drive_members",

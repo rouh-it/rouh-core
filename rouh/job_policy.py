@@ -168,7 +168,7 @@ RISKS = frozenset({
     # Mail changed: marked, labelled, moved or binned; and how new mail is told.
     "modify_mail",
     # Sharing and publishing.
-    "share_drive_file", "manage_drive_file", "upload_drive_file", "edit_doc", "edit_sheet", "edit_slides",
+    "share_drive_file", "take_off_files", "manage_drive_file", "upload_drive_file", "edit_doc", "edit_sheet", "edit_slides",
     "copy_drive_file",
     "create_shared_drive", "add_shared_drive_members", "share_calendar", "add_shared_calendar",
     "create_calendar", "publish_task", "share_with_person", "slack_link",

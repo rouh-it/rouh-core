@@ -200,7 +200,7 @@ _DELETE_ACTIONS = re.compile(r"(^|_)(delete|remove|purge|erase|destroy|wipe|drop
 _SENDS = frozenset({"send_mail", "forward_mail", "forward_thread", "send_telegram", "slack_send",
                     "reply_to_doc_comment", "comment_on_doc", "handle_email_again",
                     "publish_task"})
-_ACCESS = frozenset({"share_drive_file", "share_calendar", "add_shared_calendar",
+_ACCESS = frozenset({"share_drive_file", "take_off_files", "share_calendar", "add_shared_calendar",
                      "add_shared_drive_members", "share_with_person", "slack_join"})
 _ACCESS_WORDS = re.compile(r"(^|_)(share|invite|member|members|permission|permissions|grant|"
                            r"token|tokens|credential|credentials|password|api_key|key|keys|"

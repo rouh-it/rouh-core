@@ -60,7 +60,7 @@ NAMED = {
     "send_telegram": "sending", "slack_send": "sending", "reply_to_doc_comment": "sending",
     "publish_task": "publishing", "comment_on_doc": "publishing",
     "share_granted_page": "sharing",
-    "share_drive_file": "sharing", "share_calendar": "sharing", "share_with_person": "sharing",
+    "share_drive_file": "sharing", "take_off_files": "sharing", "share_calendar": "sharing", "share_with_person": "sharing",
     "add_shared_drive_members": "sharing", "add_shared_calendar": "sharing",
     "delete_contact": "deleting", "delete_calendar_event": "deleting",
     "manage_drive_file": "deleting", "forget": "deleting", "synapse_delete": "deleting",

@@ -784,6 +784,15 @@ class Drive:
         return {"id": file_id, "email": address, "role": role,
                 "notified": bool(notify), "permission_id": made.get("id") or ""}
 
+    async def remove_permission(self, file_id: str, permission_id: str) -> None:
+        """Take one permission off a file: one person, group, company or the link (Taken off your
+        files, `rouh/take_off.py`). The owner's is never asked for here."""
+        await self._clients.call(
+            self._who, "DELETE",
+            self._url("/files/" + urllib.parse.quote(file_id) + "/permissions/"
+                      + urllib.parse.quote(permission_id)),
+            params=dict(self.SHARED), needs_scope=DRIVE_SCOPE)
+
     async def stop_link_sharing(self, file_id: str) -> dict:
         """Private again: take away the anyone-with-the-link permission.
 
@@ -1026,7 +1035,8 @@ def _a_permission(one: dict) -> dict:
         who = one.get("displayName") or email or kind or "somebody"
     return {"id": one.get("id") or "", "who": who, "kind": kind,
             "role": one.get("role") or "", "email": email,
-            "discoverable": bool(one.get("allowFileDiscovery"))}
+            "discoverable": bool(one.get("allowFileDiscovery")),
+            "domain": (one.get("domain") or "").lower()}
 
 
 def _a_listed_file(found: dict) -> dict:

@@ -429,6 +429,10 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `gene.rouh-invited` | Invited Rouh, not you | untested | works | an invitation that leaves the owner out is found to tell; one with the owner on it is not | not checked |
 | `gene.open-files` | Your files open to anyone | untested | works | a file open to anyone with the link and one shared outside are listed with who; one shared only inside is counted, not listed | not checked |
 | `gene.invite-answer` | Answer the invitation from the email | untested | works | an invitation on the owner's calendar is offered Yes, Maybe and No from its email; one on no calendar is not | not checked |
+| `gene.share-twice` | Not shared twice | untested | works | somebody who can already do as much as asked, or more, is found and not shared again; somebody asked for more than they have is shared | not checked |
+| `gene.access-asked` | Asked to open a file | untested | works | Google's request for access is read for who asked, which file and to do what; an email from anybody else is not | not checked |
+| `gene.take-off` | Taken off your files | untested | works | a person or everybody at a company is matched on a file's sharing; the owner and the link anyone can open never are | not checked |
+| `gene.link-access` | A link they can open | untested | works | an email linking a Drive file somebody it goes to cannot open is held with who and which file; one everybody can open is not | not checked |
 | `core.commands-open-credentials` | A command run in the core beside Rouh (`docker compose exec core python manage.py ...`) opens what Rouh sealed | broken | works | with Google connected, Python in the core opens the sealed refresh token with the key from the keys volume (`ROUH_ENCRYPTION_KEY_FILE`), and Google is still connected after. It was broken: only the core's start put the key in Rouh's environment, so a command beside it made a key of its own in `/data`, could open no credential, and marked the owner's Google to be connected again | not checked |
 
 ## Rouh on Windows

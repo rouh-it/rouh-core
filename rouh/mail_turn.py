@@ -121,7 +121,7 @@ EFFECTS: dict[str, str] = {
     "create_calendar": "time", "share_calendar": "third_party",
     "payments": "money", "stripe": "money",
     "publish_task": "publish", "share_with_person": "third_party",
-    "share_drive_file": "third_party", "create_shared_drive": "third_party",
+    "share_drive_file": "third_party", "take_off_files": "third_party", "create_shared_drive": "third_party",
     "add_shared_drive_members": "third_party",
     "delete_contact": "irreversible", "manage_drive_file": "irreversible",
     "modify_mail": "delete_mail", "browser": "irreversible",

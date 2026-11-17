@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 
 from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, calendar_away, clock, demo,
                composing, conversations, filing, imaging, inbox, inbox_grants, inboxes,
-               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, past_guard, open_files, rouh_invited, no_company, sent_twice, same_contact, draft_twice, contact_card, forward_twice, contact_changes, postal_address, related_people, meeting_hours, meet_link, no_place,
+               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, past_guard, open_files, share_twice, take_off, link_access, rouh_invited, no_company, sent_twice, same_contact, draft_twice, contact_card, forward_twice, contact_changes, postal_address, related_people, meeting_hours, meet_link, no_place,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer, reply_times,
                their_clock, their_hours, unread_lists, their_language, promised_to_you,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer,
@@ -6349,6 +6349,8 @@ class ToolRegistry:
                     "inbox": inboxes.INBOX_WRITE_ARG,
                     # A mistyped address caught (night 33, second run, `rouh/address_check.py`).
                     "address_checked": address_check.FIELD,
+                    # A link they can open (night 46, `rouh/link_access.py`).
+                    "links_checked": link_access.FIELD,
                     # A file promised, not attached (night 34, with night 35's said attached,
                     # nothing attached, `rouh/attach_promised.py`). `attachment_checked` is taken too.
                     "files_checked": attach_promised.FIELD,
@@ -6984,6 +6986,8 @@ class ToolRegistry:
         )
         # Your files open to anyone (night 45, `rouh/open_files.py`).
         self._own("open_files", open_files.DESCRIPTION, open_files.SCHEMA, self._open_files)
+        # Taken off your files (night 46, `rouh/take_off.py`).
+        self._own("take_off_files", take_off.DESCRIPTION, take_off.SCHEMA, self._take_off_files)
         # --- Docs --------------------------------------------------------------
         self._own(
             "read_doc",
@@ -8684,6 +8688,11 @@ class ToolRegistry:
             stop = await self._address_check(to, cc, bcc)
             if stop:
                 return untrusted.ours(stop)
+        if sending and not args.get("links_checked") and not (args.get("draft_id") or "").strip():
+            # A link they can open (night 46, `rouh/link_access.py`): a Drive file somebody cannot open.
+            stop = await self._link_access(to, cc, bcc, body)
+            if stop:
+                return untrusted.ours(stop)
         if turn is None or turn.from_owner:
             # A draft card already on the screen goes as the person sees it.
             on_card = sending and self._draft_card_for(self.memory.answering_chat(), args) is not None
@@ -8823,6 +8832,34 @@ class ToolRegistry:
         except Exception as exc:  # noqa: BLE001 - the draft stands without the line
             log.info("a file promised: the draft's check did not finish: %s", exc)
             return ""
+
+    async def _link_access(self, to: str, cc: str, bcc: str, body: str) -> str:
+        """A link they can open (night 46, `rouh/link_access.py`): why not, when somebody the email
+        goes to cannot open a Drive file it links to; "" when it is off, has no links or all is well."""
+        files = link_access.ids(body)
+        if not files:
+            return ""
+        who = self.google.person()
+        if not await asyncio.to_thread(link_access.on, who):
+            return ""
+        people = link_access.recipients(to, cc, bcc, own={(self.google.address() or "").lower()})
+        if not people:
+            return ""
+        drive = self.google.services().drive
+        read: list = []
+        for file_id in files:
+            try:
+                about = await drive.metadata(file_id)
+                read.append((about, await drive.permissions(file_id)))
+            except Exception as exc:  # noqa: BLE001 - a file that cannot be read lets it through
+                log.info("a link they can open: %s could not be read: %s", file_id, exc)
+        stop, shut = link_access.held_back(read, people)
+        if stop:
+            from . import evolution
+
+            await asyncio.to_thread(evolution.used, link_access.SWITCH, "held", who=who,
+                                    detail=f"{shut} recipient(s) could not open a linked file")
+        return stop
 
     async def _address_check(self, to: str, cc: str, bcc: str) -> str:
         """A mistyped address caught (night 33, second run, `rouh/address_check.py`): why not,
@@ -10211,11 +10248,22 @@ class ToolRegistry:
                 shared = await drive.share_with_link(file_id, wanted)
                 link, name = shared["link"], shared["name"]
                 did.append(f"anyone with the link can now {can(shared['role'])} it")
-            for one in args.get("people") or []:
-                if isinstance(one, str):
-                    one = {"email": one}
-                if not isinstance(one, dict):
-                    continue
+            people = [({"email": one} if isinstance(one, str) else one)
+                      for one in args.get("people") or []]
+            people = [one for one in people if isinstance(one, dict)]
+            held = await self._share_twice_held(drive, file_id) if people else None
+            for one in people:
+                if held is not None:
+                    # Not shared twice (night 46, `rouh/share_twice.py`): already able to.
+                    has = share_twice.already(held, one.get("email") or "", one.get("role") or "reader")
+                    if has:
+                        did.append(share_twice.said(one.get("email") or "", has))
+                        from . import evolution
+
+                        await asyncio.to_thread(evolution.used, share_twice.SWITCH, "held",
+                                                who=self.google.person(),
+                                                detail=f"not shared again: could already {has}")
+                        continue
                 given = await drive.share_with_person(
                     file_id, one.get("email") or "", one.get("role") or "reader",
                     notify=notify, message=(args.get("message") or "").strip())
@@ -10230,6 +10278,17 @@ class ToolRegistry:
         except Exception as exc:
             return did, link, name, _google_trouble(exc)
         return did, link, name, ""
+
+    async def _share_twice_held(self, drive, file_id: str) -> list[dict] | None:
+        """Not shared twice (night 46, `rouh/share_twice.py`): who can already open the file, read
+        once before people are named on it; None when it is off or cannot be read."""
+        if not await asyncio.to_thread(share_twice.on, self.google.person()):
+            return None
+        try:
+            return await drive.permissions(file_id)
+        except Exception as exc:  # noqa: BLE001 - shared as asked when it cannot be read
+            log.info("not shared twice: the file's sharing could not be read: %s", exc)
+            return None
 
     async def _share_drive_file(self, args, emit):
         blocked = self.google.not_ready_because()
@@ -10252,6 +10311,55 @@ class ToolRegistry:
                 + " - " + ", ".join(did) + f" - file id {file_id}")
         self.google.wrote("share_drive_file", file_id, said)
         return said + (f" - but then it stopped: {trouble}" if trouble else "")
+
+    async def _take_off_files(self, args, emit):
+        """Taken off your files (night 46, `rouh/take_off.py`)."""
+        blocked = self.google.not_ready_because()
+        if blocked:
+            return blocked
+        who = self.google.person()
+        if not await asyncio.to_thread(take_off.on, who):
+            return untrusted.ours("Taken off your files is switched off (in Evolution, Mutations), so Rouh "
+                                  "cannot take anybody off; share_drive_file can still turn a link off.")
+        if _in_case():
+            return untrusted.ours("Nobody is taken off the person's files in a contact's case.")
+        address, domain = take_off.target(str(args.get("who") or ""))
+        if not address and not domain:
+            return "Say who to take off: an email address, or a company's domain such as northwind.test."
+        whom = address or f"everybody at {domain}"
+        drive = self.google.services().drive
+        file_id = str(args.get("file_id") or "").strip()
+        try:
+            if file_id:
+                about = await drive.metadata(file_id)
+                files = [dict(about, permissions=await drive.permissions(file_id))]
+            else:
+                files = await drive.owned_and_shared(take_off.MOST)
+        except Exception as exc:
+            return _google_trouble(exc)
+        done: list = []
+        failed: list = []
+        for one in files:
+            gone = [p for p in one.get("permissions") or [] if take_off.theirs(p, address, domain)]
+            if not gone:
+                continue
+            taken = []
+            for p in gone:
+                try:
+                    await drive.remove_permission(one["id"], p["id"])
+                    taken.append(p)
+                except Exception as exc:  # noqa: BLE001 - said file by file
+                    failed.append((one, str(_google_trouble(exc))[:200]))
+                    break
+            if taken:
+                done.append((one, taken))
+                self.google.wrote("take_off_files", one["id"], f"took {whom} off {one.get('name') or one['id']}")
+        said = take_off.answer(whom, done, failed, one_file=bool(file_id))
+        from . import evolution
+
+        await asyncio.to_thread(evolution.used, take_off.SWITCH, "asked", who=who,
+                                detail=f"taken off {len(done)} file(s)" + (", one named" if file_id else ""))
+        return untrusted.ours(said)
 
     async def _open_files(self, args, emit):
         """Your files open to anyone (night 45, `rouh/open_files.py`)."""

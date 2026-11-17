@@ -3372,3 +3372,72 @@ print(json.dumps({{"there": there, "nowhere": nowhere}}))
 """))
     expect("not answered yet" in out and '"label": "Maybe"' in out and '"nowhere": null' in out,
            f"the invitation's answer was not offered as it should be: {out[-600:]}")
+
+
+@check("gene.share-twice")
+def share_twice(s: Stack) -> None:
+    """Somebody who can already do as much as asked is not shared again; somebody asked for more is."""
+    out = core_py(s, _owner_py("""
+from rouh import share_twice
+held = [{"kind": "user", "email": "Dana@stack-share.test", "role": "writer"},
+        {"kind": "user", "email": "lee@stack-share.test", "role": "reader"}]
+print(json.dumps({"dana": share_twice.already(held, "dana@stack-share.test", "reader"),
+                  "lee": share_twice.already(held, "lee@stack-share.test", "writer"),
+                  "said": share_twice.said("dana@stack-share.test", "writer")}))
+"""))
+    expect('"dana": "writer"' in out and '"lee": ""' in out and "not shared again" in out,
+           f"a person who could already open the file was not found as they should be: {out[-500:]}")
+
+
+@check("gene.access-asked")
+def access_asked(s: Stack) -> None:
+    """Google's request for access is read for who, which file and what; an email from anybody else is not."""
+    out = core_py(s, _owner_py("""
+from rouh import access_asked
+asked = {"from": "Bo Stack (via Google Docs) <drive-shares-dm-noreply@google.com>",
+         "reply_to": "Bo Stack <bo@stack-ask.test>", "subject": 'Share request for "Stack plan"',
+         "body": "Bo Stack (bo@stack-ask.test) is requesting edit access to the following document: "
+                 "https://docs.google.com/document/d/1StackPlanFileId0000/edit"}
+other = dict(asked, **{"from": "bo@stack-ask.test"})
+print(json.dumps({"asked": access_asked.request(asked, "rouh@stack-ask.test"),
+                  "other": access_asked.request(other, "rouh@stack-ask.test")}))
+"""))
+    expect('"email": "bo@stack-ask.test"' in out and '"file_id": "1StackPlanFileId0000"' in out
+           and '"role": "writer"' in out and '"other": null' in out,
+           f"a request for access was not read as it should be: {out[-500:]}")
+
+
+@check("gene.take-off")
+def take_off(s: Stack) -> None:
+    """A person or a company is matched on a file's sharing; the owner and the link never are."""
+    out = core_py(s, _owner_py("""
+from rouh import take_off
+perms = [{"kind": "user", "email": "owner@stack-off.test", "role": "owner"},
+         {"kind": "anyone", "email": "", "role": "reader"},
+         {"kind": "user", "email": "dana@stack-firm.test", "role": "writer"},
+         {"kind": "domain", "domain": "stack-firm.test", "role": "reader"}]
+address, domain = take_off.target("stack-firm.test")
+print(json.dumps({"company": [p["role"] for p in perms if take_off.theirs(p, address, domain)],
+                  "person": [p["email"] for p in perms if take_off.theirs(p, "dana@stack-firm.test", "")],
+                  "owner": take_off.theirs(perms[0], "owner@stack-off.test", "")}))
+"""))
+    expect('"company": ["writer", "reader"]' in out and '"person": ["dana@stack-firm.test"]' in out
+           and '"owner": false' in out, f"the people to take off were not matched as they should be: {out[-500:]}")
+
+
+@check("gene.link-access")
+def link_access(s: Stack) -> None:
+    """An email linking a file somebody cannot open is held with who; one everybody can open is not."""
+    out = core_py(s, _owner_py("""
+from rouh import link_access
+body = "The draft: https://docs.google.com/document/d/1StackDraftFileId000/edit"
+people = link_access.recipients("Lee Stack <lee@stack-link.test>", "", "", own={"rouh@stack-link.test"})
+shut = [({"id": "1StackDraftFileId000", "name": "Stack draft"},
+         [{"kind": "user", "email": "dana@stack-link.test", "role": "writer", "who": "Dana"}])]
+open_ = [({"id": "1StackDraftFileId000", "name": "Stack draft"}, [{"kind": "anyone", "role": "reader"}])]
+print(json.dumps({"ids": link_access.ids(body), "people": people,
+                  "held": link_access.held_back(shut, people)[0], "open": link_access.held_back(open_, people)[0]}))
+"""))
+    expect('"ids": ["1StackDraftFileId000"]' in out and "lee@stack-link.test" in out
+           and "cannot open" in out and '"open": ""' in out,
+           f"an email with a link somebody cannot open was not held as it should be: {out[-500:]}")

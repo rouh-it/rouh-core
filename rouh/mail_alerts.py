@@ -1978,6 +1978,21 @@ class MailAlerts:
                                    "with, and the run reads it there. No case, and nothing "
                                    "was sent.")
                 return
+            # Asked to open a file (night 46, `rouh/access_asked.py`): Google's request for access to a
+            # file in Rouh's Drive is told to the person before it is passed over, as junk all the same.
+            from . import access_asked
+
+            try:
+                alert = await self._db(self.store.alert, user_id, org_id)
+                asked = await access_asked.seen(who, message, self._clients.for_user(who),
+                                                mailbox=str(alert.get("mailbox") or ""))
+            except Exception:  # noqa: BLE001 - the email is handled all the same
+                log.exception("mail alert %s: the request for access could not be read", message_id)
+                asked = ""
+            if asked:
+                await self._db(self.store.record, user_id, org_id, message_id, stage=JUNK,
+                               why=f"{asked} No case, and nothing was sent.")
+                return
             # Did not arrive (night 34, `rouh/not_arrived.py`): a bounce of mail Rouh sent is told
             # to the person before it is passed over, as junk all the same.
             from . import not_arrived
