@@ -373,8 +373,9 @@ async def receive(env: dict, *, by_mailbox: bool = False) -> dict:
     words are safe to send back."""
     from . import me as _me
 
-    if not _HANDLERS:
-        _load_handlers()
+    # Every kind's handler, whichever modules this process happened to import first (one importing
+    # the room alone left `hello` unanswered on a live Rouh, 17 November 2026).
+    _load_handlers()
     head = seal.outside(env)
     org = await asyncio.to_thread(_me.org_for_label, head["to"])
     if org is None:
