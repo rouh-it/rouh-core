@@ -56,8 +56,13 @@ UPDATE_STEP = ("rouh/code_evolution.py", "rouh/github_org.py")
 #: never read as text: a vendored library, a minified file, a picture, a font.
 OPAQUE_LINE = 2000
 OPAQUE_SIZE = 512 * 1024
+#: Prose keeps a paragraph on one line (README.md has lines of 3,000 characters): a prose file is
+#: opaque by its lines only past this, so its lines still merge beside this Rouh's own.
+PROSE = (".md", ".markdown", ".txt", ".rst")
+OPAQUE_PROSE_LINE = 50000
 #: The ledger's classification of a change; a waiting row from before is classified again.
-CLASSIFIED = 2
+#: 3: a prose file's long paragraphs no longer make it opaque.
+CLASSIFIED = 3
 
 
 def ledger() -> dict:
@@ -217,7 +222,8 @@ def _bytes(repo: Path, *args: str) -> bytes:
 
 def opaque(repo: Path, revision: str, file: str) -> bool:
     """Whether a file at a revision can only be copied whole: binary, too large, or with a line
-    longer than OPAQUE_LINE (a vendored or minified library, a picture, a font)."""
+    longer than OPAQUE_LINE (a vendored or minified library, a picture, a font). A prose file's
+    paragraphs are long lines and still text: its limit is OPAQUE_PROSE_LINE."""
     blob = _blob_id(repo, revision, file)
     if not blob:
         return False
@@ -227,7 +233,8 @@ def opaque(repo: Path, revision: str, file: str) -> bool:
     data = _bytes(repo, "cat-file", "blob", blob)
     if b"\0" in data[:8000]:
         return True
-    return any(len(line) > OPAQUE_LINE for line in data.split(b"\n"))
+    limit = OPAQUE_PROSE_LINE if file.lower().endswith(PROSE) else OPAQUE_LINE
+    return any(len(line) > limit for line in data.split(b"\n"))
 
 
 def classify(sha: str, parent: str, all_files: list[str], message: str) -> dict:
