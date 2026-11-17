@@ -3235,7 +3235,7 @@
       return;
     }
     pane.appendChild(table(['Title', 'Kind', 'Area', 'Silos', 'Said', 'Tier', 'Sensitivity', 'Claims', 'Links', 'Readers', 'State'], S.items.map(function (i) {
-      return [titleCell(i), i.layer ? 'layer: ' + i.layer : (i.kind === 'person' ? add(el('span'), 'person ', originChip(i.origin)) : i.kind),
+      return [titleCell(i), i.layer ? 'layer: ' + i.layer : (i.kind === 'person' ? add(el('span'), i.is_pet ? 'pet' + (i.pet_species ? ' (' + i.pet_species + ') ' : ' ') : 'person ', originChip(i.origin)) : i.kind),
         areaCell(i), siloChips(i.silo_chips) || el('span', 'syn-dim', 'none yet'),
         day(i.said_at), i.tier_by === 'pending' ? 'pending' : i.tier, i.sensitivity, i.claims, i.links, (i.reader_names || []).join(', '), i.status];
     }), 'items'));

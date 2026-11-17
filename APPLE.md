@@ -285,3 +285,12 @@ Addresses beginning with an underscore stand in for the rest of the world: `/_ph
 
 What was exercised against real iCloud on 24 September 2026: its answer to a wrong Apple ID and app-specific password, with an Apple ID that does not exist; and then, read-only, with Petar's own Apple ID and app-specific password, discovery (6.4 seconds, the principal on `contacts.icloud.com` and the home on the partition host `p67-contacts.icloud.com:443`), a sync-collection of the whole book (2,045 cards, all vCard 3.0, 2,040 people and 5 groups), every card through multiget in 13.8 seconds, every card read by `vcard.read` and written back line for line unchanged, and an incremental sync with the token (nothing changed, 0.3 seconds).
 Writing, conflicts and deleting were exercised against the stand-in only, because a test write would change Petar's real address book.
+
+## Pets
+
+Asked for on 17 November 2026 (INC-552): a contact is a person or a pet (`rouh/pets.py`).
+A pet is a person of Synapse Master with `meta.pet`: its kind (`species`) and the contacts it belongs to (`owners`, their ids), kept on the pet only.
+It is Rouh's own contact and never goes to iCloud, so its card has no numbers, addresses, Call, Text or Send their card.
+A pet's card says its kind under its name and has Belongs to, each owner one press from their own card (`contact_open`); a person's card has Pets, each pet one press from its card, and Add a pet (`contact_note`, `pet_add`); Edit on a pet's card changes its name and kind (`pet`).
+From a chat it is `save_pet`; `search_contacts` finds pets by name and by kind, and says whose they are.
+A vet, records and photos go into the same `pet` dict later, without reshaping it. Its switch is `pet_contacts`.

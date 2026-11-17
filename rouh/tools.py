@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 
 from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, calendar_away, clock, demo,
                composing, conversations, filing, imaging, inbox, inbox_grants, inboxes,
-               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, past_guard, open_files, share_twice, take_off, link_access, rouh_invited, no_company, sent_twice, same_contact, draft_twice, contact_card, forward_twice, contact_changes, postal_address, related_people, meeting_hours, meet_link, no_place,
+               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, past_guard, open_files, share_twice, take_off, link_access, rouh_invited, no_company, sent_twice, same_contact, draft_twice, contact_card, pets, forward_twice, contact_changes, postal_address, related_people, meeting_hours, meet_link, no_place,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer, reply_times,
                their_clock, their_hours, unread_lists, their_language, promised_to_you,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer,
@@ -7790,6 +7790,8 @@ class ToolRegistry:
             },
             self._update_contact_profile,
         )
+        # A pet as a contact of its own, linked to its owners (`rouh/pets.py`).
+        self._own("save_pet", pets.DESCRIPTION, pets.SCHEMA, self._save_pet)
         self._own(
             "save_contact",
             "Writes to the person's real iCloud contacts, which are the ones on their "
@@ -8182,6 +8184,35 @@ class ToolRegistry:
         if block is None:
             return card, 0
         return dict(card, blocks=blocks + [block]), len(block.get("people") or [])
+
+    async def _save_pet(self, args, emit):
+        """A pet made or changed on the person's words, and its card drawn (`rouh/pets.py`)."""
+        turn = mail_turn.now()
+        if turn is not None and not turn.from_owner:
+            return untrusted.ours("Only ‹owner› says which pets ‹his› contacts have, so nothing was kept.")
+        who = self.contacts.person()
+        if who is None:
+            return untrusted.ours("Nobody is signed in, so there are no contacts to add a pet to.")
+        if not await asyncio.to_thread(pets.on, who):
+            return untrusted.ours("Pet contacts are switched off (pet_contacts), so nothing was kept.")
+        pet_id = str(args.get("contact_id") or "").strip()
+
+        def run():
+            return pets.save(who.user_id, who.org_id, pet_id=pet_id,
+                             name=None if args.get("name") is None else str(args.get("name")),
+                             species=None if args.get("species") is None else str(args.get("species")),
+                             add_owners=[str(x) for x in args.get("owner_ids") or []],
+                             remove_owners=[str(x) for x in args.get("remove_owner_ids") or []])
+
+        try:
+            person = await asyncio.to_thread(run)
+        except pets.Refused as exc:
+            return untrusted.ours(str(exc))
+        drawn = await self._show_contact({"contact_id": person.id}, emit)
+        number = str(drawn)[str(drawn).rindex("(Card "):] if "(Card " in str(drawn) else ""
+        verb = "Changed" if pet_id else "Added"
+        return untrusted.ours(f"{verb} the pet {person.name} (contact {person.id}), kept in Rouh and never sent "
+                              f"to iCloud. Its card is on the screen, and each owner's card lists it. {number}")
 
     async def _update_contact_profile(self, args, emit):
         """Rouh's own two fields on a contact, and the contact drawn again with them.

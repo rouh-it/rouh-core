@@ -1049,6 +1049,8 @@ function contactBlock(b) {
   if (b.was_name) name.appendChild(el('span', 'ct-tag is-changed', CONTACT_CHANGE.changed));
   who.appendChild(name);
   if (b.was_name) who.appendChild(contactWas(b.was_name));
+  // A pet says what kind under its name, so it is never taken for a person (rouh/pets.py).
+  if (b.pet) who.appendChild(el('span', 'ct-kind', petKindWord(b.pet.species)));
   head.appendChild(who);
   head.appendChild(el('span', 'ct-state', b.status || (saved ? 'Saved' : 'Not saved yet')));
   node.appendChild(head);
@@ -1102,6 +1104,11 @@ function contactBlock(b) {
     }
     node.appendChild(list);
   }
+  // A pet's owners come first: who it belongs to is what its card is for (rouh/pets.py).
+  if (b.pet && b.contact) {
+    node.appendChild(petOwners(b));
+    node.appendChild(petKind(b));
+  }
   if (b.share && b.contact) node.appendChild(contactShare(b));
   if (listed) {
     var addresses = window.RouhAddresses.list({ data: b.addresses, ds: b.people_ds, editable: !!b.contact });
@@ -1120,7 +1127,12 @@ function contactBlock(b) {
   // says which contact it is, because that is a card they can be written on.
   if (b.me && b.contact) node.appendChild(contactOwn(b, 'organisation', own.organisation || ''));
   ['relationship', 'research'].forEach(function (kind) {
+    // A pet has no research: nobody looks a dog up on the web.
+    if (kind === 'research' && b.pet) return;
     if (own[kind] || b.contact) node.appendChild(contactOwn(b, kind, own[kind] || ''));
+    // A person's pets sit under who they are, above the research (rouh/pets.py).
+    if (kind === 'relationship' && Array.isArray(b.pets) && b.contact
+        && b.state !== 'unsaved' && b.state !== 'declined') node.appendChild(contactPets(b));
   });
   if (silos !== null && b.contact) node.appendChild(contactSilos(b, silos));
   if (b.remark) node.appendChild(el('p', 'ct-remark', b.remark));
@@ -1335,6 +1347,196 @@ function contactAka(b) {
     }
   });
   return box;
+}
+
+/* ---------- pets, on a contact -----------------------------------------
+
+   Asked for on 17 November 2026 (INC-552): a pet is a contact of its own,
+   linked to the people it belongs to (rouh/pets.py). A pet's card says its
+   kind under its name and has Belongs to, each owner one press from their
+   own card; a person's card has Pets, each pet one press from its card, and
+   Add a pet. A press on a name sends `contact_open` and the contact's card
+   is drawn below; Add a pet and Edit send `contact_note` (fields `pet_add`
+   and `pet`) and the card comes back drawn as it now reads. Nothing here
+   goes to iCloud, and a pet's card offers no Call, Text or Send. */
+
+function petKindWord(species) {
+  var word = String(species || '').trim();
+  if (!word || word.toLowerCase() === 'other') return 'Pet';
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+function contactCardNumber(node) {
+  var card = node.closest('.card');
+  return card ? card.getAttribute('data-card') : null;
+}
+
+// One contact named on another's card, as a press that opens their own card.
+function contactLinkButton(b, one, box, detail) {
+  var press = el('button', 'ct-link');
+  press.type = 'button';
+  var face = one.photo ? personFace(one.photo, one.name, 'ct-link-face')
+    : el('span', 'ct-link-face', contactInitials(one.name));
+  face.setAttribute('aria-hidden', 'true');
+  press.appendChild(face);
+  var words = el('span', 'ct-link-words');
+  words.appendChild(el('span', 'ct-link-name', one.name || 'No name'));
+  if (detail) words.appendChild(el('span', 'ct-link-detail', detail));
+  press.appendChild(words);
+  press.setAttribute('aria-label', 'Open the contact ' + (one.name || '') + (detail ? ', ' + detail : ''));
+  press.addEventListener('click', function () {
+    var number = contactCardNumber(box);
+    if (!number) { box.__said('This card cannot open contacts here.'); return; }
+    press.disabled = true;
+    setTimeout(function () { press.disabled = false; }, 1500);
+    send({ type: 'contact_open', card: Number(number), contact: one.id });
+  });
+  return press;
+}
+
+function contactSection(cls, label) {
+  var box = el('section', 'ct-own ' + cls);
+  var head = el('div', 'ct-own-head');
+  head.appendChild(el('h5', 'ct-own-title', label));
+  box.appendChild(head);
+  var body = el('div', 'ct-own-body');
+  box.appendChild(body);
+  var said = el('p', 'ct-said');
+  said.hidden = true;
+  said.setAttribute('role', 'alert');
+  box.appendChild(said);
+  box.__said = function (why) {
+    said.textContent = why || 'That was not kept.';
+    said.hidden = false;
+    box.querySelectorAll('button').forEach(function (x) { x.disabled = false; });
+    var saving = box.querySelector('.ct-save');
+    if (saving) saving.textContent = 'Save';
+  };
+  return { box: box, head: head, body: body, said: said };
+}
+
+// A small form of a name and a kind, for Add a pet and for Edit on a pet's card.
+function petForm(b, s, start, label, onDone) {
+  var form = el('div', 'ct-petform');
+  var listId = 'ctKinds' + Math.random().toString(36).slice(2, 9);
+  var nameBox = el('label', 'ct-field');
+  nameBox.appendChild(el('span', null, 'Name'));
+  var nameIn = el('input', 'ct-in');
+  nameIn.type = 'text';
+  nameIn.value = start.name || '';
+  nameIn.maxLength = 120;
+  nameIn.autocomplete = 'off';
+  nameBox.appendChild(nameIn);
+  var kindBox = el('label', 'ct-field');
+  kindBox.appendChild(el('span', null, 'Kind'));
+  var kindIn = el('input', 'ct-in');
+  kindIn.type = 'text';
+  kindIn.value = start.species || '';
+  kindIn.placeholder = 'dog, cat, horse...';
+  kindIn.maxLength = 40;
+  kindIn.autocomplete = 'off';
+  kindIn.setAttribute('list', listId);
+  var kinds = el('datalist');
+  kinds.id = listId;
+  ((b.pet && b.pet.kinds) || b.pet_kinds || []).forEach(function (k) {
+    var o = document.createElement('option');
+    o.value = k;
+    kinds.appendChild(o);
+  });
+  kindBox.appendChild(kindIn);
+  kindBox.appendChild(kinds);
+  var row = el('div', 'ct-edit-row');
+  var save = el('button', 'ct-save', 'Save');
+  save.type = 'button';
+  var cancel = el('button', 'ct-cancel', 'Cancel');
+  cancel.type = 'button';
+  row.appendChild(save);
+  row.appendChild(cancel);
+  form.appendChild(nameBox);
+  form.appendChild(kindBox);
+  form.appendChild(row);
+  function keep() {
+    var name = nameIn.value.trim();
+    if (!name) { s.box.__said('Give the pet a name.'); nameIn.focus(); return; }
+    var number = contactCardNumber(s.box);
+    if (!number) { s.box.__said('This card cannot be written on here.'); return; }
+    save.disabled = cancel.disabled = true;
+    save.textContent = 'Saving\u2026';
+    s.said.hidden = true;
+    send({ type: 'contact_note', card: Number(number), contact: b.contact, field: label,
+           value: { name: name, species: kindIn.value.trim() } });
+  }
+  save.addEventListener('click', keep);
+  cancel.addEventListener('click', onDone);
+  form.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onDone(); return; }
+    if (e.key === 'Enter' && e.target instanceof HTMLInputElement) { e.preventDefault(); keep(); }
+  });
+  setTimeout(function () { nameIn.focus(); }, 0);
+  return form;
+}
+
+/** @param {import('./protocol').BlockOf<'contact'>} b */
+function petOwners(b) {
+  var s = contactSection('is-owners', 'Belongs to');
+  var owners = (b.pet && b.pet.owners) || [];
+  if (!owners.length) {
+    s.body.appendChild(el('p', 'ct-own-empty', 'Nobody yet. Tell Rouh whose it is.'));
+    return s.box;
+  }
+  var list = el('div', 'ct-links');
+  owners.forEach(function (o) { list.appendChild(contactLinkButton(b, o, s.box, '')); });
+  s.body.appendChild(list);
+  return s.box;
+}
+
+/** @param {import('./protocol').BlockOf<'contact'>} b */
+function petKind(b) {
+  var s = contactSection('is-pet', 'Pet');
+  var edit = el('button', 'ct-edit', 'Edit');
+  edit.type = 'button';
+  edit.setAttribute('aria-label', 'Edit the pet\'s name and kind');
+  s.head.appendChild(edit);
+  function show() {
+    edit.hidden = false;
+    s.body.textContent = '';
+    s.body.appendChild(el('p', 'ct-rel', petKindWord(b.pet && b.pet.species)
+      + '. A pet is never called or messaged.'));
+  }
+  edit.addEventListener('click', function () {
+    edit.hidden = true;
+    s.body.textContent = '';
+    s.body.appendChild(petForm(b, s, { name: b.name, species: b.pet && b.pet.species }, 'pet', show));
+  });
+  show();
+  return s.box;
+}
+
+/** @param {import('./protocol').BlockOf<'contact'>} b */
+function contactPets(b) {
+  var s = contactSection('is-pets', 'Pets');
+  var pets = b.pets || [];
+  var add = el('button', 'ct-edit', 'Add a pet');
+  add.type = 'button';
+  s.head.appendChild(add);
+  function show() {
+    add.hidden = false;
+    s.body.textContent = '';
+    if (!pets.length) {
+      s.body.appendChild(el('p', 'ct-own-empty', 'No pets known.'));
+      return;
+    }
+    var list = el('div', 'ct-links');
+    pets.forEach(function (p) { list.appendChild(contactLinkButton(b, p, s.box, petKindWord(p.species))); });
+    s.body.appendChild(list);
+  }
+  add.addEventListener('click', function () {
+    add.hidden = true;
+    s.body.textContent = '';
+    s.body.appendChild(petForm(b, s, {}, 'pet_add', show));
+  });
+  show();
+  return s.box;
 }
 
 // Why a change on a contact card was not kept, under the box it was typed in.

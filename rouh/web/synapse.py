@@ -739,6 +739,8 @@ def _items(ds: dict, q: str, kind: str, origin: str = "") -> dict:
         "i.meta->>'from' AS sender, i.meta->>'thread' AS thread, i.meta->>'area' AS area, i.meta->>'layer' AS layer, "
         "i.meta->>'title_by' AS title_by, i.meta->>'area_proposed' AS area_proposed, "
         "i.meta->>'origin' AS origin, (i.meta->>'value')::float AS value, "
+        # A pet (rouh/pets.py) is told apart from a person in the list.
+        "(i.meta ? 'pet') AS is_pet, i.meta->'pet'->>'species' AS pet_species, "
         "(SELECT string_agg(o->>'contact_id', ' ') FROM jsonb_array_elements(coalesce(i.meta->'old', '[]'::jsonb)) o) AS old_ids, "
         "jsonb_array_length(coalesce(i.meta->'likely_same', '[]'::jsonb)) AS likely_same, "
         "(i.dataset_id <> %s) AS from_people_set, "
@@ -997,8 +999,18 @@ def _person(ds: dict, item: dict) -> dict:
             "linked": linked, "embedded": db.value("SELECT count(*) FROM synapse.passage WHERE item_id = %s AND "
                                                    "vec IS NOT NULL", (pid,)),
             "never_synced": meta.get("origin") == "synapse",
-            "fields": {k: meta.get(k) for k in ("organisation", "birthday", "relationship", "research",
-                                                "research_confirmed", "known", "handle") if meta.get(k) not in (None, "")}}
+            "fields": {**({"pet": _pet_said(ds, meta)} if isinstance(meta.get("pet"), dict) else {}),
+                       **{k: meta.get(k) for k in ("organisation", "birthday", "relationship", "research",
+                                                   "research_confirmed", "known", "handle") if meta.get(k) not in (None, "")}}}
+
+
+def _pet_said(ds: dict, meta: dict) -> str:
+    """A pet's kind and owners in words, for its person card in the lab (`rouh/pets.py`)."""
+    from rouh import pets
+
+    names = {str(k): v for k, v in people.names(pets.owner_ids(meta)).items()}
+    owners = ", ".join(names.get(x, "(gone)") for x in pets.owner_ids(meta)) or "nobody"
+    return f"{pets.said_species(pets.species_of(meta))}, belonging to {owners}; never synced to iCloud"
 
 
 def _aka_view(ds: dict, pid) -> dict | None:

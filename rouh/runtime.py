@@ -6234,6 +6234,10 @@ class Session:
             # iCloud's, and only ever the signed-in person's own contacts.
             await self.contact_noted(msg)
 
+        elif kind == "contact_open":
+            # A pet or an owner pressed on a contact card (`rouh/pets.py`): their own card, drawn below.
+            await self.contact_open(msg)
+
         elif kind == "pin_thread":
             # Mark a loose conversation as one to keep in view, or take the
             # mark off. Nothing is deleted or archived on a clock any more, so
@@ -7135,6 +7139,28 @@ class Session:
         for other in [s for s in list(Hub.sockets)
                       if s is not self and not s.closed and s.session_id == self.session_id]:
             await other.emit(drawn)
+
+    async def contact_open(self, msg: dict) -> None:
+        """Open the card of a pet or an owner pressed on a contact card, as a new card in this thread.
+
+        Nothing is asked of a model: the contact is read and drawn, kept like any card so it can be said back
+        by its number. Why it could not be opened comes back as `contact_note_said`, under the card pressed."""
+        from .tenancy import speaker
+
+        card = msg.get("card")
+        spec = await asyncio.to_thread(contact_opened, card, str(msg.get("contact") or ""), speaker())
+        if isinstance(spec, str):
+            await self.emit({"type": "contact_note_said", "card": card, "why": spec})
+            return
+        chat = self.session_id
+
+        def keep() -> dict:
+            with memory_mod.answering_in(chat):
+                _number, drawn = tools._keep(spec)
+            return drawn
+
+        drawn = await asyncio.to_thread(keep)
+        await self.redraw_card(drawn, chat)
 
     # --- a card the person writes in -------------------------------------------
 
@@ -8193,9 +8219,10 @@ def contact_note(card, contact: str, field: str, value, who) -> dict | str:
         return "Sign in again: this page does not know who you are any more."
     if contacts is None:
         return "Contacts are switched off on this server."
-    if field not in ("relationship", "research", "silos", "refresh", "organisation"):
+    if field not in ("relationship", "research", "silos", "refresh", "organisation", "pet_add", "pet"):
         return "Only the relationship, the research and the silos can be changed here."
-    text = str(value if value is not None and field != "silos" else "")
+    text = str(value if value is not None and field not in ("silos", "pet_add", "pet") else "")
+    renamed = False
     picked = None
     if field == "silos":
         # The whole set as pressed, by silo key (`rouh/silos.py`); none is in no silo.
@@ -8220,6 +8247,30 @@ def contact_note(card, contact: str, field: str, value, who) -> dict | str:
         # The company is changed here on the person's own card only (About You, Contact card);
         # anybody else's is their card's, changed by asking Rouh.
         return "The company can be changed here on your own card only."
+    if field in ("pet_add", "pet"):
+        # A pet (`rouh/pets.py`): Add a pet on a person's card makes one of theirs, and Edit on a pet's own card
+        # changes its name or kind. The card is drawn again, the person's with the pet in its Pets.
+        from . import pets
+
+        if not pets.on(who):
+            return "Pet contacts are switched off."
+        got = value if isinstance(value, dict) else {}
+        try:
+            if field == "pet_add":
+                if person.is_pet:
+                    return "A pet cannot own a pet."
+                pets.save(who.user_id, who.org_id, name=str(got.get("name") or ""),
+                          species=str(got.get("species") or ""), add_owners=[person.id], by="contact card")
+            else:
+                person = pets.save(who.user_id, who.org_id, pet_id=person.id,
+                                   name=str(got.get("name") or "") or None,
+                                   species=None if got.get("species") is None else str(got.get("species")),
+                                   by="contact card")
+        except pets.Refused as exc:
+            return str(exc)
+        renamed = field == "pet"
+        field = "refresh"
+        person = contacts.people.person(who.user_id, who.org_id, person.id) or person
     # A refresh writes nothing: its "Also known as" changed on the card (`personlinks.js`), and it is
     # drawn again as it now reads.
     try:
@@ -8237,10 +8288,37 @@ def contact_note(card, contact: str, field: str, value, who) -> dict | str:
         return str(exc)
     fresh = apple_contacts.profile_card(person, state=block.get("state") or "shown",
                                         status=block.get("status") or "")
-    revised = artifacts.revise(card, title=shown.get("title"), description=shown.get(
-        "description"), blocks=[fresh["blocks"][0] if b is block else b for b in blocks],
+    revised = artifacts.revise(card, title=fresh["title"] if renamed else shown.get("title"),
+        description=fresh["description"] if renamed else shown.get("description"), blocks=[fresh["blocks"][0] if b is block else b for b in blocks],
         root=config.assistant_repo)
     return revised or "The card could not be drawn again, but the change was kept."
+
+
+def contact_opened(card, contact: str, who) -> dict | str:
+    """The contact card of a pet or an owner pressed on another contact's card, ready to be kept and drawn.
+
+    Answers the new card's spec, or a sentence saying why not. The press has to come from a contact card
+    that names that very contact as one of its pets or its owners (`rouh/pets.py`), and the contact has to
+    be the signed-in person's own (`People.person` is scoped by both ids)."""
+    from . import apple_contacts
+
+    if who is None:
+        return "Sign in again: this page does not know who you are any more."
+    if contacts is None:
+        return "Contacts are switched off on this server."
+    shown = artifacts.read(card) if artifacts.enabled() else None
+    block = next((b for b in (shown or {}).get("blocks") or []
+                  if isinstance(b, dict) and b.get("block") == "contact"), None)
+    named = set()
+    if block is not None:
+        named = {str(p.get("id")) for p in block.get("pets") or [] if isinstance(p, dict)}
+        named |= {str(o.get("id")) for o in (block.get("pet") or {}).get("owners") or [] if isinstance(o, dict)}
+    if not contact or contact not in named:
+        return "That card does not name this contact any more. Ask Rouh to show the contact again."
+    person = contacts.people.person(who.user_id, who.org_id, contact)
+    if person is None:
+        return "That contact is not there any more."
+    return apple_contacts.profile_card(person)
 
 
 async def open_email_chat(was: str, title: str) -> str:

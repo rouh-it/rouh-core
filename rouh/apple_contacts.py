@@ -1424,6 +1424,8 @@ def profile_card(person, *, state: str = SHOWN, status: str = "") -> dict:
         "name": person.name, "organisation": person.organisation, "phones": [], "emails": [
             {"address": one, "label": ""} for one in person.emails],
         "birthday": "", "note": ""}
+    if person.is_pet and person.card is None:
+        return pet_card(person, state=state)
     name = fields["name"] or "(no name)"
     rows = _rows(fields, None)
     block = {"block": "contact", "state": state, "new": False, "name": name,
@@ -1449,6 +1451,8 @@ def profile_card(person, *, state: str = SHOWN, status: str = "") -> dict:
         _with_profile(block, person)
     _with_aka(block, person)
     _with_addresses(block, person)
+    # Their pets (`rouh/pets.py`): each one press from its own card, and Add a pet.
+    _with_pets(block, person)
     from . import card_call, card_directions
 
     card_call.mark(block)
@@ -1509,6 +1513,7 @@ def contact_card(after, before, state: str, *, remark: str = "", person=None,
         if person is not None:
             _with_aka(block, person)
             _with_addresses(block, person)
+            _with_pets(block, person)
     if picture:
         _with_picture(block, picture, had_picture, state)
     # Call from their contact card (night 42, `rouh/card_call.py`): its numbers one press from ringing.
@@ -1612,6 +1617,12 @@ def _known_said(person, *, whole: bool = False) -> str:
         lines = [f"{person.name or '(no name)'} - Rouh's own contact, not in iCloud"]
         if person.emails:
             lines.append("  " + "; ".join(person.emails))
+    lines += _pets_said(person)
+    if person.is_pet:
+        lines.append("  my relationship, in the person's own words: "
+                     + (person.relationship if person.relationship else "not said yet"))
+        lines.append(f"  id {person.id}")
+        return "\n".join(lines)
     if person.card is not None and person.own_emails:
         lines.append("  also known to Rouh: " + "; ".join(person.own_emails))
     if person.is_me:
@@ -1637,6 +1648,79 @@ def _known_said(person, *, whole: bool = False) -> str:
         lines.append("  has a picture, drawn on their contact card")
     lines.append(f"  id {person.id}")
     return "\n".join(lines)
+
+
+def _pets_said(person) -> list[str]:
+    """A pet's kind and owners, or a person's pets, for the model (`rouh/pets.py`); none while it is off."""
+    from . import pets
+
+    try:
+        uid, oid = person.account()
+        if not uid or not pets.on(_Org(oid)):
+            return []
+        return pets.said(uid, oid, person)
+    except Exception:  # noqa: BLE001 - the contact is still the contact
+        log.exception("contacts: the pets of %s could not be read", person.id)
+        return []
+
+
+class _Org:
+    """Just enough of a person for a switch: its organisation."""
+
+    def __init__(self, org_id: str):
+        self.org_id = org_id
+
+
+def _with_pets(block: dict, person) -> dict:
+    """A pet's kind and who it belongs to, or a person's pets, on their contact card (`rouh/pets.py`).
+
+    `pet` on a pet's card: {species, owners: [{id, name, photo}]}, drawn as its kind in the head and a
+    Belongs to section, each owner one press from their own card. `pets` on a person's card: every pet of
+    theirs, {id, name, species, photo}, drawn as a Pets section with Add a pet; an empty list still draws
+    the section, so a pet can be added from there. Nothing is added while the switch is off."""
+    if person is None or not person.id:
+        return block
+    from . import pets
+
+    try:
+        uid, oid = person.account()
+        if not uid or not pets.on(_Org(oid)):
+            return block
+        if person.is_pet:
+            block["pet"] = {"species": str(person.pet.get("species") or ""),
+                            "owners": pets.owners(uid, oid, {"pet": person.pet}),
+                            "kinds": list(pets.SPECIES)}
+        else:
+            block["pets"] = pets.of_owner(uid, oid, person.id)
+            block["pet_kinds"] = list(pets.SPECIES)
+    except Exception:  # noqa: BLE001 - the card is still the card
+        log.exception("contacts: the pets of %s could not be read", person.id)
+    return block
+
+
+def pet_card(person, *, state: str = SHOWN) -> dict:
+    """A pet's contact card: its name and face, its kind, who it belongs to, and who it is to the person.
+
+    No numbers, addresses, silos, Also known as, research, Call, Text or Send their card: a pet is not
+    rung, written to or passed on, and never goes to iCloud (`rouh/pets.py`)."""
+    from . import pets
+
+    name = person.name or "(no name)"
+    kind = str(person.pet.get("species") or "")
+    rows = []
+    if person.relationship:
+        rows.append({"kind": "relationship", "label": RELATIONSHIP_LABEL, "value": person.relationship})
+    block = {"block": "contact", "state": state, "new": False, "name": name,
+             "status": "Pet", "rows": rows, "contact": person.id,
+             "foot": "A pet is Rouh's own contact: it never goes to iCloud or your phone. Change it here, or "
+                     "tell Rouh."}
+    if person.photo:
+        block["photo"] = person.photo
+    _with_pets(block, person)
+    said = pets.said_species(kind)
+    return {"title": f"Pet: {name}",
+            "description": f"the contact {name}, {said}, with who it belongs to",
+            "blocks": [block]}
 
 
 def _many(count: int, thing: str) -> str:

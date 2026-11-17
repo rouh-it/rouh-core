@@ -3140,6 +3140,14 @@
     "rouh/related_people.py"
    ]
   },
+  "pet-contacts": {
+   "name": "Pet contacts",
+   "what": "A contact is a person or a pet. A pet has its kind and the contacts it belongs to; its card says who it belongs to and its owners' cards list it, each one press from the other. A pet is Rouh's own contact and never goes to iCloud, so it is never called or messaged.",
+   "switch": "pet_contacts",
+   "files": [
+    "rouh/pets.py"
+   ]
+  },
   "n44-card-share": {
    "name": "Send their contact card",
    "what": "A saved contact on a card in the chat has Send their card: on a phone it opens the share sheet with their contact card, so it goes into Telegram, Messages or Mail; at a desk it downloads the card.",

@@ -126,7 +126,7 @@ TOOLS_SAID = {
     "assistant_job": "job", "worker_outbox": "job note", "send_mail": "send mail",
     "look_into": "helper (look_into)", "read_workspace": "workspace", "show_canvas": "canvas",
     "decisions": "decisions", "publish_task": "publish task", "one_runs": "one program",
-    "reply_to_task": "reply to a job", "update_contact_profile": "contacts",
+    "reply_to_task": "reply to a job", "update_contact_profile": "contacts", "save_pet": "contacts",
     "meeting_people": "meeting guests", "send_telegram": "Telegram", "slack_send": "Slack",
 }
 

@@ -3265,6 +3265,33 @@ print(json.dumps({"apple": "_$!<Assistant>!$_" in text, "read": read, "left": vc
            and '"left": []' in out, f"the related name did not go on and off the card: {out[-500:]}")
 
 
+@check("gene.pet-contacts")
+def pet_contacts(s: Stack) -> None:
+    """A pet is made owned by a contact; its owner's card lists it, its card names the owner and offers no Call or
+    Send; and a pet cannot own a pet."""
+    out = core_py(s, _owner_py("""
+from rouh import pets, people, apple_contacts
+from rouh.synapse.sources import contacts
+ds = contacts.master_of(who.user_id, who.org_id)
+desk = people.People()
+maria = desk.write(who.user_id, who.org_id, None, name="Maria Stack", address="maria@pets.test")
+clara = pets.save(who.user_id, who.org_id, name="Clara", species="Dog", add_owners=[maria.id])
+mine = apple_contacts.profile_card(desk.person(who.user_id, who.org_id, maria.id))["blocks"][0]
+hers = apple_contacts.profile_card(clara)["blocks"][0]
+try:
+    pets.save(who.user_id, who.org_id, name="Flea", species="other", add_owners=[clara.id])
+    refused = False
+except pets.Refused:
+    refused = True
+print(json.dumps({"listed": [p["name"] for p in mine.get("pets") or []],
+                  "owners": [o["name"] for o in (hers.get("pet") or {}).get("owners") or []],
+                  "kind": (hers.get("pet") or {}).get("species"), "call": bool(hers.get("call") or hers.get("share")),
+                  "refused": refused}))
+"""))
+    expect('"listed": ["Clara"]' in out and '"owners": ["Maria Stack"]' in out and '"kind": "dog"' in out
+           and '"call": false' in out and '"refused": true' in out, f"the pet was not linked to its owner: {out[-500:]}")
+
+
 @check("gene.card-share")
 def card_share(s: Stack) -> None:
     """A saved contact card is marked for Send their card, one not saved yet is not, and the card sent leaves

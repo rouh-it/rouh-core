@@ -919,6 +919,11 @@ def _link_person(a):
     return f"{what} a person's Slack, address or name", _arg(a, "other") or _arg(a, "person")
 
 
+@_step("save_pet")
+def _save_pet(a):
+    return ("Changing a pet" if (a or {}).get("contact_id") else "Adding a pet"), _arg(a, "name")
+
+
 @_step("update_contact_profile")
 def _update_contact_profile(a):
     who = _arg(a, "contact_id") or _arg(a, "email")

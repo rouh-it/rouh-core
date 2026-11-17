@@ -122,6 +122,8 @@ REGISTRY: dict[str, Kind] = {
             F("relationship_at", _number, "when the relationship was written, epoch seconds"),
             F("researched_at", _number, "when the research was written, epoch seconds"),
             F("is_me", _bool, "true for the owner's own person"),
+            F("pet", lambda v: isinstance(v, dict) and isinstance(v.get("owners", []), list),
+              "a pet, not a person: {species, owners: [person ids], since} (rouh/pets.py)"),
         ),
         rules=(
             (lambda m: m.get("origin") != "icloud" or bool(m.get("old") or m.get("icloud") or m.get("icloud_gone")),

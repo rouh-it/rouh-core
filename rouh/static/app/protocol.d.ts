@@ -232,6 +232,8 @@ export interface ClientMessages {
   conflict_answer: { id: any; choice: any; };
   card_ask: { card: any; choice: any; /** Where the person is, when the card asked for it (`locate`). */ given?: any; };
   contact_note: { card: any; contact: any; field: any; value: any; };
+  /** A pet or an owner pressed on a contact card: their own card, drawn below (rouh/pets.py). */
+  contact_open: { card: any; contact: any; };
   card_pick: { card: any; pick: any; };
   card_compose: { card: any; do: any; edits: any; };
   card_inbox: { token: any; do: any; rid: any; id?: any; mode?: any; edits?: any; keep?: any; when?: any; };
@@ -334,7 +336,11 @@ export interface Blocks {
              /** Each postal address drawn with Directions, while Directions from their contact card is on (rouh/card_directions.py). */
              directions?: boolean;
              /** Send their card under the rows, while Send their contact card is on (rouh/card_share.py). */
-             share?: boolean; };
+             share?: boolean;
+             /** A pet's card: its kind, and the contacts it belongs to (rouh/pets.py). */
+             pet?: { species?: string; owners?: Array<{ id: string; name: string; photo?: string; }>; kinds?: string[]; };
+             /** A person's card: their pets, each one press from its own card, and the kinds offered for a new one. */
+             pets?: Array<{ id: string; name: string; species?: string; photo?: string; }>; pet_kinds?: string[]; };
   /** One email, whole (rouh/mail_alerts.py). `from_photo` is the sender's face when they are a contact. */
   email: { from?: string; to?: string; cc?: string; date?: string; subject?: string; body?: string; filed?: any;
            files?: Array<{ name: string; [field: string]: any; }>; checked?: any; from_photo?: string; };

@@ -424,6 +424,7 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `gene.address-saved` | Their address saved with them | untested | works | the postal address in a signature is read for a new contact, and a signature with none gives none |
 | `gene.sig-address` | A new address in their signature | untested | works | a signature's postal address is told only when the card has another one; the same address, a new company or a card with no address is not |
 | `gene.related-people` | The people around a contact | untested | works | a related name is written to a card with Apple's label, read back with it, and taken off by name |
+| `gene.pet-contacts` | Pet contacts | untested | works | a pet is made in Synapse Master owned by a contact, its owner's card lists it and its card names the owner, with no Call or Send; a pet cannot own a pet | not checked |
 | `gene.card-share` | Send their contact card | untested | works | a saved contact card is marked for Send their card, one not saved yet is not, and the card sent leaves its photo out | not checked |
 | `gene.past-guard` | Not booked in the past | untested | works | a meeting asked for at a time already gone is held with the time it most likely meant (next week, or next year); one still to come is not | not checked |
 | `gene.rouh-invited` | Invited Rouh, not you | untested | works | an invitation that leaves the owner out is found to tell; one with the owner on it is not | not checked |

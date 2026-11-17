@@ -128,6 +128,16 @@ class Person:
         return bool(self._p("is_me", False))
 
     @property
+    def pet(self) -> dict:
+        """A pet's own field, {species, owners, since} (`rouh/pets.py`), or {} for a person."""
+        got = (self.profile or {}).get("pet")
+        return dict(got) if isinstance(got, dict) else {}
+
+    @property
+    def is_pet(self) -> bool:
+        return bool(self.pet)
+
+    @property
     def silos(self) -> list[str]:
         """The person's silos they belong to, as keys (`rouh/silos.py`): one, several or none, which is
         not known. Rouh's own, beside the relationship, and never written to iCloud."""
@@ -205,7 +215,8 @@ def _profile(row: dict, me_id: str = "") -> dict:
             "apple_uid": ((meta.get("icloud") or {}).get("uid") or ""),
             "linkedin": dict(meta.get("linkedin") or {}), "photo": _photo_url(row),
             "silos": list(row.get("silos") or []), "silos_by": row.get("silos_by") or "",
-            "silos_why": row.get("silos_why") or "", "dataset_id": str(row.get("dataset_id") or "")}
+            "silos_why": row.get("silos_why") or "", "dataset_id": str(row.get("dataset_id") or ""),
+            "pet": dict(meta["pet"]) if isinstance(meta.get("pet"), dict) else None}
 
 
 def _photo_url(row: dict) -> str:
@@ -318,14 +329,16 @@ class People:
             return []
         ds = self._ds(user_id, org_id)
         rows = self._rows(ds, "AND (coalesce(meta->>'relationship', '') <> '' OR meta->>'is_me' = 'true' "
-                              "OR (NOT meta ? 'icloud' AND meta->>'origin' = 'icloud') "
+                              "OR (NOT meta ? 'icloud' AND meta->>'origin' = 'icloud') OR meta ? 'pet' "
                               "OR coalesce(meta->>'research', '') <> '') ORDER BY stored_at")
         out: list[Person] = []
         for row in rows:
             one = _person(row)
             if one is None or not one.id or one.id in skip:
                 continue
-            said = " ".join([one.name, one.relationship, *one.emails, "me myself" if one.is_me else ""])
+            said = " ".join([one.name, one.relationship, *one.emails, "me myself" if one.is_me else "",
+                             # A pet (`rouh/pets.py`) is found by its kind too: "dog", "pet".
+                             f"pet {one.pet.get('species') or ''}" if one.is_pet else ""])
             hay = vcard.normalise(said) + " " + vcard.latin(said)
             if all(w in hay or vcard.latin(w) in hay for w in words):
                 out.append(one)

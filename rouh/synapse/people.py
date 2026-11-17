@@ -281,6 +281,10 @@ def identities(scope: str, pid: str) -> list[dict]:
 def person_text(meta: dict, owner_name: str = "the owner") -> str:
     """The person's searchable text, made by code from what is known about them."""
     lines = [meta.get("name") or ""]
+    pet = meta.get("pet") if isinstance(meta.get("pet"), dict) else None
+    if pet is not None:
+        # A pet (`rouh/pets.py`): what kind, so "Maria's dog" or "the cat" finds it.
+        lines.append(f"A pet: {pet.get('species') or 'pet'}")
     if meta.get("organisation"):
         lines.append(f"Organisation: {meta['organisation']}")
     if meta.get("emails"):
