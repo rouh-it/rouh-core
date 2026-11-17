@@ -14,15 +14,16 @@ draws them (`readingPaint` in app/reading.js):
   rules, and tools. Each on unless the person turns it off for this chat. Rules about permission, privacy and
   safety are never turned off with the rest (`locked`): turning "Your rules" off leaves them, and Rouh's own
   built-in rules, as they are.
-- **In a task's chat** (or a step's, which is a task inside a task), what the task is: its record (number,
+- **In a task's chat** (or a subtask's, which is a task inside a task), what the task is: its record (number,
   name, status, summary, meta), the goal when the task is one (`goal.md`), its `AGENTS.md`, and its notes
-  (`.md`) and pages (`.html`), read from its folder in the workspace. No step by default. The person can
-  add every step or chosen ones, of each everything, its notes only or its pages only, the steps' chat
-  histories, and the folder's other files, in the strip's panel (below).
+  (`.md`) and pages (`.html`), read from its folder in the workspace. No subtask by default. The person can
+  add every subtask or chosen ones, of each everything, its notes only or its pages only, the subtasks'
+  chat histories, and the folder's other files, in the strip's panel (below). The panel says "subtasks"
+  since 17 November 2026 (Petar: "rename steps to subtasks"); the keys kept on a chat still say steps.
 - **Sizes**: each item is labelled short, long or very long from its tokens (`size_word`). What is included
   is read whole up to `BUDGET` tokens; past it, the largest items are read as an outline (their headings and
   first lines) and the panel and the model are both told which (`plan`). Nothing is blown into the prompt
-  blindly: a step of a million tokens is an outline.
+  blindly: a subtask of a million tokens is an outline.
 
 - **Modes** (Petar, 16 November 2026: "we still don't have quick chat mode, which we should, because most of
   the times people will not know what to choose"): a chat is on one of three, picked at the top of Chat
@@ -42,8 +43,8 @@ draws them (`readingPaint` in app/reading.js):
 use to control the contents ... while bottom includes rules, tools, memory, this should control the other
 content"). Chat Options, by the box, is how Rouh works: the mode, memory, rules and tools (`SWITCH_KEYS`). The
 strip under the chat's title is what the chat is about (`CONTENT_KEYS`), with a panel of its own: This task
-(on), Other files in the folder (off), Steps (off; all or chosen; everything, notes only or pages only),
-Steps' chat histories (off); in a step's chat Parent task (on, `subtasknotes.background`) and Parent task's
+(on), Other files in the folder (off), Subtasks (off; all or chosen; everything, notes only or pages only),
+Subtasks' chat histories (off); in a subtask's chat Parent task (on, `subtasknotes.background`) and Parent task's
 chat history (off); in a fork Parent chat history (on, `carries_parent`, read by `memory.Memory._window`).
 A mode never changes what the chat is about, and Reset to defaults leaves it. Each choice is listed with its
 size whether it is on or not; what is left out is sized from the file or the database and never read
@@ -66,7 +67,7 @@ log = logging.getLogger("rouh.reading")
 
 #: The defaults. How Rouh works (Chat Options, beside the box): Full capabilities, memory, rules and tools on.
 #: What the chat is about (the strip under its title, since 17 November 2026): the task whole, its other
-#: files, steps and their chats left out; a step's chat reads its parent task as background and not the
+#: files, subtasks and their chats left out; a subtask's chat reads its parent task as background and not the
 #: parent's chats; a fork carries the conversation it came off, as it always has (`memory.Memory._window`).
 DEFAULTS = {"mode": "full", "memory": True, "rules": True, "tools": True, "off": [],
             "task": True, "others": False, "subtasks": "none", "picked": [], "steps_what": "all",
@@ -85,7 +86,7 @@ SWITCH_KEYS = ("memory", "rules", "tools", "off")
 CONTENT_KEYS = ("task", "others", "subtasks", "picked", "steps_what", "step_histories", "parent_task",
                 "parent_task_history", "fork_history")
 SUBTASKS = ("none", "all", "some")
-#: Of each step that is read: everything, its notes (.md) only, or its pages (.html) only.
+#: Of each subtask that is read: everything, its notes (.md) only, or its pages (.html) only.
 STEPS_WHAT = ("all", "md", "html")
 #: What the included items may take of a turn, in tokens, before the largest are read as outlines.
 BUDGET = 60_000
@@ -649,7 +650,7 @@ def items(chat_id: str, s: dict | None = None) -> tuple[object, list[Item], list
         picked = set(s["picked"])
         steps_on = s["subtasks"] != "none"
         for sub in subs:
-            # Every step is listed, with its size; a step not chosen is in a group of its own, so Steps
+            # Every subtask is listed, with its size; one not chosen is in a group of its own, so Subtasks
             # says the size of what it brings in.
             chosen = s["subtasks"] != "some" or sub.id in picked
             label = subtasknotes.step_number(sub) or str(sub.number or "")
@@ -1039,9 +1040,9 @@ def _of_general(chat_id: str) -> bool:
 GROUPS = (
     ("task", "This task", "The task, its goal, AGENTS.md, its notes (.md) and its pages (.html)"),
     ("others", "Other files in the folder", "The task's other text files: lists, data, scripts"),
-    ("steps", "Steps", "What the task's steps hold"),
-    ("step_histories", "Steps' chat histories", "What was said in the steps' own chats"),
-    ("parent_task", "Parent task", "Its AGENTS.md, what it says this step is, and what its other steps sent up"),
+    ("steps", "Subtasks", "What the task's subtasks hold"),
+    ("step_histories", "Subtasks' chat histories", "What was said in the subtasks' own chats"),
+    ("parent_task", "Parent task", "Its AGENTS.md, what it says this subtask is, and what its other subtasks sent up"),
     ("parent_task_history", "Parent task's chat history", "What was said in the parent task's chats"),
     ("fork_history", "Parent chat history", "The conversation this chat was forked from, up to the fork"),
 )
@@ -1053,7 +1054,7 @@ def _plural(n: int, one: str, many: str = "") -> str:
 
 def content(chat_id: str, s: dict, got: list[Item], task, subs: list) -> dict:
     """What the strip's panel draws: each choice this chat has, with whether it is on, its size, and how many
-    things it brings in. A choice with nothing to bring in is not drawn (no Steps in a task without steps);
+    things it brings in. A choice with nothing to bring in is not drawn (no Subtasks in a task without subtasks);
     a chat with no choice at all (General, a chat of its own) has an empty list, and no panel."""
     groups = []
     for key, title, sub in GROUPS:
@@ -1083,7 +1084,7 @@ def content(chat_id: str, s: dict, got: list[Item], task, subs: list) -> dict:
 def strip(chat_id: str, s: dict | None = None, got: list[Item] | None = None, task=None,
           incognito: bool = False, subs: list | None = None) -> str:
     """The line under the chat's title: what this chat is about, in a few plain words: "Task 130 · 2 notes ·
-    3 pages · steps left out", "Step 130-02 · 1 note · parent task", "Forked from General · history included".
+    3 pages · subtasks left out", "Subtask 130-02 · 1 note · parent task", "Forked from General · history included".
     "" when the chat has nothing to choose (General, or a chat of its own), and no strip is drawn. How Rouh
     works (the mode) is said on the Chat Options button, never here."""
     from . import subtasknotes
@@ -1096,7 +1097,7 @@ def strip(chat_id: str, s: dict | None = None, got: list[Item] | None = None, ta
     fork = next((i for i in got if i.kind == "fork"), None)
     if task is not None:
         step = subtasknotes.parent_of(task.id) is not None
-        name = (f"Step {subtasknotes.step_number(task)}" if step and subtasknotes.step_number(task)
+        name = (f"Subtask {subtasknotes.step_number(task)}" if step and subtasknotes.step_number(task)
                 else f"Task {_label(task).split(' · ')[0]}")
         if not s["task"]:
             bits.append(f"{name} left out")
@@ -1114,13 +1115,13 @@ def strip(chat_id: str, s: dict | None = None, got: list[Item] | None = None, ta
             bits.append(_plural(others, "other file"))
         if subs:
             if s["subtasks"] == "none":
-                bits.append("steps left out")
+                bits.append("subtasks left out")
             else:
                 n = len({i.owner for i in on if i.group == "steps" and i.kind == "task"})
                 what = {"md": " (notes)", "html": " (pages)"}.get(s["steps_what"], "")
-                bits.append(_plural(n, "step") + what)
+                bits.append(_plural(n, "subtask") + what)
         if any(i.group == "step_histories" for i in on):
-            bits.append("steps' chats")
+            bits.append("subtasks' chats")
         if any(i.group == "parent_task" for i in on):
             bits.append("parent task")
         if any(i.group == "parent_task_history" for i in on):

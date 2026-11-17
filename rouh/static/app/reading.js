@@ -4,11 +4,12 @@
  *
  * - **Chat Options**, the button beside the model: how Rouh works here. Below.
  * - **The strip under the chat's title**: what this chat is about, in a few words ("Task 130 · 2 pages ·
- *   no steps", "Forked from General · history included"), and pressed, its own panel (`contentPaint`):
- *   This task, Other files in the folder, Steps (all or chosen; everything, notes only or pages only),
- *   Steps' chat histories, and for a step's chat Parent task and its chat history, for a fork Parent
+ *   subtasks left out", "Forked from General · history included"), and pressed, its own panel (`contentPaint`):
+ *   This task, Other files in the folder, Subtasks (all or chosen; everything, notes only or pages only),
+ *   Subtasks' chat histories, and for a subtask's chat Parent task and its chat history, for a fork Parent
  *   chat history, each a switch with its size in words and in tokens (`kTokens`), counted on what the model
- *   is sent (rouh/tokencount.py), and what is read now with what is read as an outline.
+ *   is sent (rouh/tokencount.py), and what is read now with what is read as an outline. "Subtasks" since
+ *   17 November 2026 (Petar: "rename steps to subtasks"); the keys the server keeps still say steps.
  *   Only the choices a chat has are drawn; a chat with none (General, a chat of its own) has no strip,
  *   and an incognito chat's is a quiet line. On a phone the panel is a sheet from the bottom.
  *
@@ -302,11 +303,11 @@ function contentPaint(d) {
     if (g.key !== 'steps' || !g.on) return;
     var subs = d.subtasks || [];
     var more = el('div', 'content-more');
-    more.appendChild(el('p', '', 'Which steps'));
-    more.appendChild(seg('subtasks', s.subtasks === 'some' ? 'some' : 'all', 'Which steps',
+    more.appendChild(el('p', '', 'Which subtasks'));
+    more.appendChild(seg('subtasks', s.subtasks === 'some' ? 'some' : 'all', 'Which subtasks',
       [['all', 'All ' + subs.length], ['some', 'Chosen']]));
-    more.appendChild(el('p', '', 'Of each step'));
-    more.appendChild(seg('steps_what', s.steps_what || 'all', 'What of each step',
+    more.appendChild(el('p', '', 'Of each subtask'));
+    more.appendChild(seg('steps_what', s.steps_what || 'all', 'What of each subtask',
       [['all', 'Everything'], ['md', 'Notes only'], ['html', 'Pages only']]));
     list.appendChild(more);
     if (s.subtasks === 'some') {
