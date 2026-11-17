@@ -112,8 +112,15 @@ class Refusal(Exception):
 
 
 async def post_envelope(address: str, env: dict, timeout: float = TIMEOUT) -> dict:
-    """The envelope the other Rouh answered with, Refusal, or Unreachable."""
+    """The envelope the other Rouh answered with, Refusal, or Unreachable. An address this Rouh may
+    not dial (`peers.dialable`) is unreachable: the mailbox carries it."""
     import httpx
+
+    from . import peers
+
+    address = peers.dialable(address)
+    if not address:
+        raise Unreachable("this Rouh is reached by the mailbox only")
 
     try:
         async with _client(timeout) as c:

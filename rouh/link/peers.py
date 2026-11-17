@@ -41,6 +41,40 @@ def _hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def dialable(address: str) -> str:
+    """The address to post to, or "" when this Rouh must never dial it and reaches that Rouh through
+    the mailbox only. Only https to a public name is dialled: never a private, loopback or link-local
+    address, so a card cannot point this Rouh at its own machine or its network. Loopback is allowed
+    only to a Rouh that is itself on loopback (a test world on this machine)."""
+    import ipaddress
+    import socket
+
+    from . import me as _me
+
+    p = urlsplit(str(address or ""))
+    host = (p.hostname or "").lower()
+    if not host:
+        return ""
+    mine = urlsplit(_me.own_address()).hostname or ""
+    if mine in ("127.0.0.1", "localhost") and host in ("127.0.0.1", "localhost") and p.scheme in ("http", "https"):
+        return f"{p.scheme}://{p.netloc}"
+    if p.scheme != "https" or p.username or p.password:
+        return ""
+    try:
+        ip = ipaddress.ip_address(host)
+        infos = [ip]
+    except ValueError:
+        if "." not in host or host.endswith((".local", ".internal", ".localhost")):
+            return ""
+        try:
+            infos = {ipaddress.ip_address(i[4][0]) for i in socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)}
+        except OSError:
+            return f"https://{p.netloc}"   # not resolvable now: tried later, refused then if private
+    if any(not i.is_global for i in infos):
+        return ""
+    return f"https://{p.netloc}"
+
+
 def peer_row(org: str, label: str):
     from rouh.models import LinkPeer
 
@@ -137,6 +171,8 @@ async def accept(org: str, link: str, *, trust_level: str = "known", silo: str =
     from . import me as _me
 
     address, token = parse_link(link)
+    if not dialable(address):
+        raise Problem("That link does not point at a Rouh's public address.")
     return await _say_hello(org, address, token=token, trust_level=trust_level, silo=silo,
                             contact_id=contact_id, via="link", me_mod=_me, asyncio=asyncio)
 
@@ -149,6 +185,8 @@ async def connect_address(org: str, address: str, *, trust_level: str = "known",
     from . import me as _me
 
     address = normal_address(address)
+    if not dialable(address):
+        raise Problem("That is not a Rouh's public address.")
     return await _say_hello(org, address, token="", trust_level=trust_level, silo=silo,
                             contact_id=contact_id, via=via, me_mod=_me, asyncio=asyncio)
 
@@ -190,7 +228,7 @@ async def _say_hello(org, address, *, token, trust_level, silo, contact_id, via,
 
     def keep():
         LinkPeer.objects.update_or_create(org_id=org, label=part["label"], defaults=dict(
-            name=f"{part['name']} ·{part['tag']}", address=part["address"] or address, card=part,
+            name=f"{part['name']} ·{part['tag']}", address=dialable(part["address"] or address), card=part,
             daily_key=part["daily_key"], link_key=part["link_key"], trust=trust.valid(trust_level),
             silo=silo, state="waiting" if not token else "connected", via=via,
             contact_id=contact_id or (existing.contact_id if existing else ""),
@@ -282,7 +320,7 @@ def _hello(ctx, form) -> dict:
             raise limits.No("This Rouh connects only by a connect link from its person, or from a contact.")
         level, via = "stranger", "stranger"
     LinkPeer.objects.update_or_create(org_id=org, label=part["label"], defaults=dict(
-        name=f"{part['name']} ·{part['tag']}", address=part["address"], card=part,
+        name=f"{part['name']} ·{part['tag']}", address=dialable(part["address"]), card=part,
         daily_key=part["daily_key"], link_key=part["link_key"],
         trust=existing.trust if existing is not None and existing.state == "connected" else level,
         silo=existing.silo if existing is not None and existing.silo else silo, state=state, via=via,

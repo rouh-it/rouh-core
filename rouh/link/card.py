@@ -192,7 +192,10 @@ def check(card: dict, *, label: str = "") -> dict:
 
 async def fetch(address: str, *, label: str = "") -> tuple[dict, dict]:
     """(card, its Rouh part) from an address, checked."""
-    from . import wire
+    from . import peers, wire
 
+    address = peers.dialable(address)
+    if not address:
+        raise wire.Unreachable("not a Rouh's public address")
     card = await wire.get_json(address.rstrip("/") + WELL_KNOWN)
     return card, check(card, label=label)
