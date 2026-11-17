@@ -45,6 +45,7 @@ from .rest import (AppleConnection, AskEdit, AskMessage, AskThread,
                    RequesterShare, TelegramAccount, Thought, Box, BoxHandover,
                    UserSetting, WorkerNote)
 from .silos import Silo, SiloRule
+from .relations import ContactRelation, RelationType
 from .demo import DemoApproval, DemoEvent, DemoState
 from .dreame import DreameConnection
 from .servicekeys import ServiceCheck, ServiceKey
@@ -62,6 +63,7 @@ from .trust import (CapabilityGrant, CapabilityGrantEvent, CapabilityUse, Contac
                     TrustedContact)
 
 __all__ = [
+    "ContactRelation", "RelationType",
     "ServiceCheck", "ServiceKey",
     "LeanApplied", "LeanChoice", "LeanState",
     "PermissionGate",

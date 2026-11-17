@@ -55,7 +55,7 @@ from rouh.web import (apple, assets, auth, boxes, brief, changes as changes_web,
                       evolution as evolution_web, incubator as incubator_web, nightly_run as nightly_run_web, trials as trials_web, gene_therapy, genelog as genelog_web, genepool as genepool_web, genes as genes_web,
                       heartbeat, payments, quests, receipts, services, shipping, signups, stats, thoughts,
                       google,
-                      guests, highlights, location, reading, mail_alerts, mailboxes, mycard, offline, people, profile, reset,
+                      guests, highlights, location, reading, mail_alerts, mailboxes, mycard, offline, people, profile, relationships as relationships_web, reset,
                       rules,
                       signatures, sources, vocabulary,
                       
@@ -493,6 +493,9 @@ urlpatterns = [
     path("api/people/<str:person_id>/photo", people.photo),
     path("api/people/<str:person_id>/addresses", people.addresses),
     path("api/people/<str:person_id>/addresses/silo", people.address_silo),
+    # Relationships between contacts, on the contact card (rouh/relationships.py).
+    path("api/people/<str:person_id>/relationships", relationships_web.relations),
+    path("api/people/<str:person_id>/relationships/find", relationships_web.find),
     path("api/settings/profile", profile.settings_profile),
     path("api/settings/profile/password", profile.password),
     path("api/settings/my-card", mycard.settings_my_card),

@@ -3295,6 +3295,16 @@
    "files": [
     "rouh/link_access.py"
    ]
+  },
+  "contact-relationships": {
+   "name": "Relationships between contacts",
+   "what": "A contact can be linked to another contact or to you with a named type - wife of, brother of, friend of, coworker of, tennis buddy of, pet of, stranger to, or one you make up - shown on both contacts' cards worded from each side, changed on the card or by telling Rouh.",
+   "files": [
+    "rouh/relationships.py",
+    "rouh/models/relations.py",
+    "rouh/web/relationships.py",
+    "rouh/static/personrelations.*"
+   ]
   }
  }
 }

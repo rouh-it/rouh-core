@@ -331,6 +331,9 @@ export interface Blocks {
              /** Every address of theirs as one list, with label, source, silo and mailbox state
               *  (rouh/person_addresses.py, personaddresses.js). */
              addresses?: { person: string; rows: any[]; silos: any[]; me: boolean; };
+             /** Their relationships with other contacts and with the person, worded from their side, and the
+              *  types to pick from (rouh/relationships.py, personrelations.js). `person` is "me" on their own card. */
+             relationships?: { person: string; rows: any[]; types: any[]; };
              /** Each number drawn with Call and Text, while Call from their contact card is on (rouh/card_call.py). */
              call?: boolean;
              /** Each postal address drawn with Directions, while Directions from their contact card is on (rouh/card_directions.py). */

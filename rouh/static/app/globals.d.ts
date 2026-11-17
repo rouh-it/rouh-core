@@ -43,6 +43,8 @@ interface Window {
   RouhPersonLinks?: { section(opts: Record<string, any>): HTMLElement & { __said(why: string): void } };
   /** A person's email addresses as one list (personaddresses.js, rouh/person_addresses.py). */
   RouhAddresses?: { list(opts: Record<string, any>): HTMLElement & { __redraw(data?: any): void } };
+  /** A contact's relationships with other contacts and with the person (personrelations.js, rouh/relationships.py). */
+  RouhRelations?: { list(opts: { data: any; name?: string; editable?: boolean }): HTMLElement };
   RouhBrief?: any;
   RouhHeartbeat?: any;
   RouhBeats?: any;

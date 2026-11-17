@@ -1390,6 +1390,23 @@ def _with_addresses(block: dict, person) -> dict:
     return block
 
 
+def _with_relationships(block: dict, person) -> dict:
+    """The contact's relationships with other contacts and with the person (`rouh/relationships.py`), each
+    worded from this contact's side, and the types to pick from. The page draws them with Add, Change and
+    Remove (`personrelations.js`)."""
+    if person is None or not person.id:
+        return block
+    try:
+        from . import relationships
+
+        uid, oid = person.account()
+        if uid:
+            block["relationships"] = relationships.view(uid, oid, person)
+    except Exception:  # noqa: BLE001 - the card is still the card
+        log.exception("contacts: the relationships of %s could not be read", person.id)
+    return block
+
+
 def _with_aka(block: dict, person) -> dict:
     """The contact's "Also known as" (`rouh/synapse/aka.py`): every identifier they hold beyond the iCloud
     card - Slack members, names written in mail and notes, the addresses Rouh knows - each with Unlink, and a
@@ -1453,6 +1470,7 @@ def profile_card(person, *, state: str = SHOWN, status: str = "") -> dict:
     _with_addresses(block, person)
     # Their pets (`rouh/pets.py`): each one press from its own card, and Add a pet.
     _with_pets(block, person)
+    _with_relationships(block, person)
     from . import card_call, card_directions
 
     card_call.mark(block)
@@ -1514,6 +1532,7 @@ def contact_card(after, before, state: str, *, remark: str = "", person=None,
             _with_aka(block, person)
             _with_addresses(block, person)
             _with_pets(block, person)
+            _with_relationships(block, person)
     if picture:
         _with_picture(block, picture, had_picture, state)
     # Call from their contact card (night 42, `rouh/card_call.py`): its numbers one press from ringing.
@@ -1646,6 +1665,8 @@ def _known_said(person, *, whole: bool = False) -> str:
                      "show_contact, each with a Research button that keeps the one picked here")
     if person.photo:
         lines.append("  has a picture, drawn on their contact card")
+    if whole:
+        lines += _relationships_said(person)
     lines.append(f"  id {person.id}")
     return "\n".join(lines)
 
@@ -1721,6 +1742,24 @@ def pet_card(person, *, state: str = SHOWN) -> dict:
     return {"title": f"Pet: {name}",
             "description": f"the contact {name}, {said}, with who it belongs to",
             "blocks": [block]}
+
+
+def _relationships_said(person) -> list[str]:
+    """Their relationships with other contacts and with the person, as their card lists them."""
+    try:
+        from . import relationships
+
+        uid, oid = person.account()
+        rows = relationships.of(uid, oid, relationships.ME if person.is_me else person.id) if uid else []
+    except Exception:  # noqa: BLE001 - the rest of what is known still reads
+        log.exception("contacts: the relationships of %s could not be read", person.id)
+        return []
+    if not rows:
+        return ["  relationships with other contacts: none yet (contact_relationships adds one)"]
+    return ["  relationships with other contacts (contact_relationships changes them):"] + [
+        f"    {r['is']}: {r['other']['name']} (relationship {r['id']}"
+        + (f", contact id {r['other']['id']}" if not r["other"]["me"] else ", the person themselves") + ")"
+        for r in rows]
 
 
 def _many(count: int, thing: str) -> str:

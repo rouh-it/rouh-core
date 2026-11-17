@@ -1115,6 +1115,13 @@ function contactBlock(b) {
     addresses.classList.add('ct-own', 'is-addresses');
     node.appendChild(addresses);
   }
+  // Relationships with other contacts and with the person (personrelations.js, rouh/relationships.py).
+  if (b.relationships && window.RouhRelations && b.state !== 'unsaved' && b.state !== 'declined') {
+    var relations = window.RouhRelations.list({ data: b.relationships, name: b.me ? 'You' : (b.name || 'This contact'),
+      editable: !!b.relationships.person });
+    relations.classList.add('ct-own', 'is-relationships');
+    node.appendChild(relations);
+  }
   var aka = contactAka(b);
   if (aka) node.appendChild(aka);
   // A guest of this Rouh's: the owner's two ways to get them back in (signinpage.js).
