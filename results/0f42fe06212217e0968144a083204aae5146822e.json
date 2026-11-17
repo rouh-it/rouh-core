@@ -1,0 +1,8 @@
+{
+  "commit": "0f42fe06212217e0968144a083204aae5146822e",
+  "ref": "proof/stack-callbacks-187-full",
+  "ok": false,
+  "result": "failure",
+  "at": "2026-11-17T11:58:59Z",
+  "run": "https://github.com/rouh-land/rouh-core/actions/runs/44071242356"
+}
