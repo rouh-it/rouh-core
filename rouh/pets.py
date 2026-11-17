@@ -49,11 +49,13 @@ DESCRIPTION = (
     "for 'Maria has a dog called Clara', 'Clara is a cat', 'Clara also belongs to Ivan'. A pet is Rouh's "
     "own contact and never goes to iCloud or the phone, so it needs no yes. First find each owner with "
     "search_contacts and pass their ids in owner_ids; to change a pet, pass its id as contact_id (a search "
-    "finds pets too). The pet's card is put on the screen, saying who it belongs to, and each owner's card "
+    "finds pets too). A contact already there that is really a pet (a card on the phone named Clara) is made "
+    "one by passing its contact_id with owner_ids, rather than adding a second. The pet's card is put on the screen, saying who it belongs to, and each owner's card "
     "lists it. Only ever on the person's own words in this conversation.")
 
 SCHEMA = {"type": "object", "properties": {
-    "contact_id": {"type": "string", "description": "The pet's id, to change a pet that is already there."},
+    "contact_id": {"type": "string", "description": "The pet's id, to change a pet that is already there, or "
+                                                    "a contact already there to make into a pet."},
     "name": {"type": "string", "description": "The pet's name, such as Clara."},
     "species": {"type": "string", "description": "What kind of animal: dog, cat, horse, rabbit, bird, fish, "
                                                  "or the person's own word."},
@@ -216,7 +218,15 @@ def save(user_id: str, org_id: str, *, pet_id: str = "", name: str | None = None
         meta = dict(row.get("meta") or {})
         pet = of(meta)
         if not pet:
-            raise Refused(f"{row.get('title') or pet_id} is a person, not a pet.")
+            # A contact already there - a card on the phone, say - said to be a pet: it becomes one, keeping
+            # everything else it has. It needs an owner, and is never the person's own contact.
+            if meta.get("is_me"):
+                raise Refused("Your own contact cannot be a pet.")
+            if not found:
+                raise Refused(f"To make {row.get('title') or pet_id} a pet, say who it belongs to (owner_ids).")
+            if of_owner(user_id, org_id, str(row["id"])):
+                raise Refused(f"{row.get('title') or pet_id} has pets of their own, so they are not made a pet.")
+            pet = {"species": "", "owners": [], "since": time.time()}
         if str(row["id"]) in found:
             raise Refused("A pet cannot belong to itself.")
         held = owner_ids(meta)
