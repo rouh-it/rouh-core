@@ -52,6 +52,17 @@ Rouh Link is part of Rouh's core (`rouh/link/`, gene `rouh-link`, no off switch)
 
 **Held off for every Rouh**: the strangers switch cannot be turned on until `ROUH_LINK_OPEN=1` (rouh.land's terms covering the relay and Rouhs talking); with it held, a Rouh with no link is refused. Test worlds lift it with `ROUH_TEST_LINK_OPEN=1`.
 
+## Phase 5: the open network (built, held off)
+
+| Piece | Where | What |
+|---|---|---|
+| Found by email, opt-in | `open_network.set_findable`; rouh.land `relay/findable`, `relay/find` (rouh-land 0d86d27) | The owner turns it on; the Rouh tells rouh.land, signed with its key. rouh.land then answers one exact email at a time with that Rouh's address, holds each network to a few looks a minute, and answers the same for nobody and for someone who did not choose it. There is no directory of people. |
+| Finding someone | `open_network.find`, Connections | Asks rouh.land for one email; a found address fills Ask to connect, and the other side sees a stranger's request unless its person knows it. |
+| Spaces with many members | `me.DEFAULTS["most_members"]`, Connections | The owner chooses how many Rouhs a space holds: 5, 10, 25 or 50. |
+| Other makers' agents | `/link/a2a`, `open_network.a2a_endpoint` | Any A2A agent may send `message/send` (JSON-RPC). It is read as a Stranger's note and less: its text parts only, by code, into one fixed form (`a2a.note`) kept for the person to read; it is answered with one fixed sentence; 20 a minute from one network. Nothing it says is obeyed. |
+
+**Held off for every Rouh**, like phase 4: the open network and being found by email cannot be turned on until `ROUH_LINK_OPEN=1`.
+
 ## The pages
 
 - `/link`, Connections: who this Rouh is connected to and how far each is trusted (change it, cut, block, read the log), requests, a connect link with its QR code, bringing someone's link, a contact's Rouh, the live spaces, and what is off for now.

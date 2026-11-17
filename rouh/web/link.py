@@ -365,6 +365,12 @@ async def api_settings(request):
 
             raise peers.Problem("Only an administrator of this Rouh changes these.")
         try:
+            if "findable_by_email" in b:
+                from rouh.link import open_network
+
+                await sync_to_async(open_network.set_findable)(str(me.org_id), bool(b["findable_by_email"]))
+            if "most_members" in b:
+                b["most_members"] = max(2, min(50, int(b.get("most_members") or 5)))
             return await sync_to_async(_me.set_settings)(str(me.org_id), **{k: v for k, v in b.items() if k in _me.DEFAULTS})
         except ValueError as exc:
             from rouh.link import peers
@@ -384,6 +390,16 @@ async def api_contact(request):
         if b.get("connect"):
             return await peers.connect_address(org, row["address"], contact_id=str(b.get("contact_id") or ""))
         return row
+    return await _guard(request, go)
+
+
+@only("POST")
+async def api_find(request):
+    """Find a Rouh by one exact email through rouh.land (the open network; off unless turned on)."""
+    from rouh.link import open_network
+
+    async def go(me, b):
+        return await open_network.find(str(me.org_id), str(b.get("email") or ""))
     return await _guard(request, go)
 
 

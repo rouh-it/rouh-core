@@ -193,6 +193,7 @@ urlpatterns = [
     path("api/link/settings", link_web.api_settings),
     path("api/link/grant", link_web.api_grant),
     path("api/link/handoff", link_web.api_handoff),
+    path("api/link/find", link_web.api_find),
     path("link/money/<str:hid>", link_web.money_page),
     path("api/link/contact", link_web.api_contact),
     path("api/link/contact/<str:contact_id>", link_web.api_contact_line),

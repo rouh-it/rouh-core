@@ -98,6 +98,11 @@
             <input id="contactAddress" type="text" placeholder="cherry-kelp-vdh3.rouh.page">
             <div><button type="submit">Ask to connect</button></div>
           </form>
+          <form id="findEmail" class="stack" style="margin-top:12px">
+            <label for="findWho">Or find their Rouh by their email, through rouh.land</label>
+            <input id="findWho" type="email" placeholder="name@example.com">
+            <div class="row"><button type="submit">Find</button><span id="findSaid" class="small dim"></span></div>
+          </form>
         </section>
         <section class="box">
           <header><h2>Off for now</h2></header>
@@ -106,6 +111,8 @@
             <label class="row"><input id="strangers" type="checkbox"> Rouhs you do not know may introduce themselves and hand over a brief</label>
             <label class="row"><input id="openNet" type="checkbox"> Other makers’ agents may reach your Rouh</label>
             <label class="row"><input id="findable" type="checkbox"> People can find your Rouh by your email, through rouh.land</label>
+            <div class="row"><label for="mostMembers" style="margin:0">A live space holds at most</label>
+              <select id="mostMembers" style="width:auto"><option value="5">5 Rouhs</option><option value="10">10 Rouhs</option><option value="25">25 Rouhs</option><option value="50">50 Rouhs</option></select></div>
           </div>
         </section>
       </div>

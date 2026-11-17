@@ -189,6 +189,8 @@
     $('openNet').checked = !!st.open_network;
     $('findable').checked = !!st.findable_by_email;
     ['strangers', 'openNet', 'findable'].forEach(function (id) { $(id).disabled = !!st.held; });
+    $('mostMembers').value = String(st.most_members || 5);
+    $('findEmail').hidden = !st.open_network;
     $('heldWhy').textContent = st.held ? st.held_why : 'You choose. Each stays off until you turn it on.';
   }
 
@@ -234,6 +236,8 @@
         } else row.appendChild(el('span', { class: 'small dim', text: h.said || h.state }));
       } else if (h.kind === 'handoff.quote') {
         row.appendChild(el('p', { class: 'small' }, [el('strong', { text: 'A quote from ' + peerName(h.peer) + ': ' }), f.amount + ' ' + f.currency + (f.words ? ', ' + f.words : '')]));
+      } else if (h.kind === 'a2a.note') {
+        row.appendChild(el('p', { class: 'small' }, [el('strong', { text: 'A note from an agent outside (' + (f.from_agent || 'unnamed') + '): ' }), String(f.text || '')]));
       } else if (h.kind === 'money.proposal') {
         row.appendChild(el('p', { class: 'small' }, [el('strong', { text: peerName(h.peer) + ' proposes ' + f.amount + ' ' + f.currency + ': ' }), String(f.for || '')]));
         row.appendChild(el('a', { href: '/link/money/' + encodeURIComponent(h.id), text: h.state === 'agreed' ? 'You agreed' : 'Read it' }));
@@ -297,6 +301,19 @@
       API.post('/api/link/accept', { link: link, trust: $('bringTrust').value }).then(function (p) {
         $('bringLink').value = ''; toast('Connected to ' + p.name + '.'); load();
       }).catch(fail).then(function () { $('bringGo').disabled = false; });
+    });
+    $('mostMembers').addEventListener('change', function () {
+      API.post('/api/link/settings', { most_members: +$('mostMembers').value }).then(function () { toast('Spaces hold at most ' + $('mostMembers').value + ' Rouhs now.'); load(); }).catch(fail);
+    });
+    $('findEmail').addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var e = $('findWho').value.trim(); if (!e) return;
+      $('findSaid').textContent = 'Asking rouh.land…';
+      API.post('/api/link/find', { email: e }).then(function (got) {
+        if (!got.found) { $('findSaid').textContent = 'No Rouh that chose to be found by that email.'; return; }
+        $('findSaid').textContent = 'Found ' + got.address.replace(/^https:\/\//, '') + '.';
+        $('contactAddress').value = got.address; $('contactAddress').focus();
+      }).catch(function (e2) { $('findSaid').textContent = e2.message; });
     });
     $('briefForm').addEventListener('submit', function (ev) {
       ev.preventDefault();
