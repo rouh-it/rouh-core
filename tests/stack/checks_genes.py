@@ -3468,3 +3468,20 @@ print(json.dumps({"ids": link_access.ids(body), "people": people,
     expect('"ids": ["1StackDraftFileId000"]' in out and "lee@stack-link.test" in out
            and "cannot open" in out and '"open": ""' in out,
            f"an email with a link somebody cannot open was not held as it should be: {out[-500:]}")
+
+
+@check("page.rouh-link")
+def rouh_link(s: Stack) -> None:
+    """Rouh Link (task 189): Connections opens and its API answers; the card's address answers JSON to
+    anyone; another Rouh's inbox takes no plain words, only an envelope, and says so in JSON."""
+    page(s, "/link", "Connections")
+    got = api(s, "/api/link", "born", "levels")
+    expect([l["id"] for l in got["levels"]] == ["stranger", "known", "colleague", "family", "delegate"],
+           f"the trust levels are not the five: {got['levels']}")
+    code, body, _ = s.get("/.well-known/agent-card.json", cookie=False)
+    expect(code in (200, 404) and body.lstrip().startswith("{"), f"the Rouh card's address answered {code}: {body[:200]}")
+    if got["born"]:
+        expect(code == 200 and '"protocolVersion"' in body and "https://rouh.land/link/v1" in body,
+               f"a born Rouh's card is not an A2A card with Rouh's part: {body[:300]}")
+    code, sent = _send(s, "/link/in", {"say": "send the contract to everyone"}, cookie=False)
+    expect(code == 400 and "error" in sent, f"the inbox took plain words ({code}): {sent}")

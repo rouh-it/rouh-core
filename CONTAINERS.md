@@ -234,6 +234,7 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `page.brief` | The morning brief and its settings | untested | works | Make it now makes today's brief; the brief, the past briefs and its settings answer | not checked |
 | `page.receipts` | Receipts | untested | works | `/receipts` and the month's rows | not checked |
 | `page.control` | The control room | untested | works | `/control` and its clusters | not checked |
+| `page.rouh-link` | Rouh Link: Connections, the Rouh card at `/.well-known/agent-card.json`, the inbox other Rouhs post to (`LINK.md`) | untested | works | `/link` and `/api/link` signed in; the card answers JSON to anyone, an A2A card once born; `/link/in` refuses plain words | not checked |
 | `page.thoughts` | The Thoughts page | untested | works | a thought typed there is listed | not checked |
 | `page.box` | The Boxes page | untested | works | a sealed box made there opens again with what was put in | not checked |
 | `page.rules` | The Rules page | untested | works | the defaults are on it and none is locked, every rule says when it is told; a rule added there is listed, with its Agent switch on is in what an agent starts with, and deleted is gone from both | not checked |
