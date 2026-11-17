@@ -7,7 +7,8 @@
  *   no steps", "Forked from General · history included"), and pressed, its own panel (`contentPaint`):
  *   This task, Other files in the folder, Steps (all or chosen; everything, notes only or pages only),
  *   Steps' chat histories, and for a step's chat Parent task and its chat history, for a fork Parent
- *   chat history, each a switch with its size, and what is read now with what is read as an outline.
+ *   chat history, each a switch with its size in words and in tokens (`kTokens`), counted on what the model
+ *   is sent (rouh/tokencount.py), and what is read now with what is read as an outline.
  *   Only the choices a chat has are drawn; a chat with none (General, a chat of its own) has no strip,
  *   and an incognito chat's is a quiet line. On a phone the panel is a sheet from the bottom.
  *
@@ -62,10 +63,11 @@ import { notify } from 'app/notices.js';
  *              count: number, outlined: number }} ContentGroup */
 /** @typedef {{ chat: string, kind: string, incognito: boolean, settings: Record<string, any>,
  *              mode?: string, content?: ContentGroup[],
- *              items: ReadItem[], subtasks?: {id: string, label: string, on: boolean, size?: string}[],
+ *              items: ReadItem[], subtasks?: {id: string, label: string, on: boolean, size?: string, tokens?: number}[],
  *              task?: {id: string, label: string}, rules: ReadRule[], context?: ReadRule[], strip: string,
  *              outlined: number, reads: number, budget: number, kept?: string,
- *              synapse?: {text: string, on: boolean}, sources?: Record<string, string> }} ReadView */
+ *              synapse?: {text: string, on: boolean}, sources?: Record<string, string>,
+ *              last?: {tokens: number, cached: number, requests: number, ts: number} | null }} ReadView */
 
 var btn = /** @type {HTMLButtonElement | null} */ ($('readingBtn'));
 var pop = $('readingPop');
@@ -229,14 +231,27 @@ function paintStrip(d) {
   if (quiet && cpop && !cpop.hidden) openContent(false);
 }
 
+/** Tokens said short: 840, 3.1k, 74k, 1.2M. @param {number} n */
+function kTokens(n) {
+  n = Math.max(0, Math.round(n || 0));
+  if (n < 1000) return String(n);
+  if (n < 10000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+  if (n < 1e6) return Math.round(n / 1000) + 'k';
+  return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+}
+
+/** A size beside a choice: its word and its tokens, "long · 12k", with the whole number on hover.
+    @param {string} word @param {number | undefined} n */
+function sizeTag(word, n) {
+  var z = el('span', 'reading-size', typeof n === 'number' ? word + ' · ' + kTokens(n) : word);
+  if (typeof n === 'number') z.title = 'About ' + n.toLocaleString() + ' tokens, as the model is sent it';
+  return z;
+}
+
 /** One choice of the strip's panel: a switch with its size beside it. @param {ContentGroup} g */
 function contentRow(g) {
   var b = row('c:' + g.key, g.on, g.title, g.sub, 'content');
-  if (g.size) {
-    var z = el('span', 'reading-size', g.size);
-    z.title = 'About ' + g.tokens.toLocaleString() + ' tokens';
-    b.insertBefore(z, b.lastChild);
-  }
+  if (g.size) b.insertBefore(sizeTag(g.size, g.tokens), b.lastChild);
   return b;
 }
 
@@ -297,7 +312,7 @@ function contentPaint(d) {
     if (s.subtasks === 'some') {
       subs.forEach(function (sub) {
         var r = row('sub:' + sub.id, sub.on, sub.label, '', 'sub');
-        if (sub.size) r.insertBefore(el('span', 'reading-size', sub.size), r.lastChild);
+        if (sub.size) r.insertBefore(sizeTag(sub.size, sub.tokens), r.lastChild);
         list.appendChild(r);
       });
     }
@@ -319,7 +334,7 @@ function contentPaint(d) {
       var n = el('span', 'n', it.owner && it.group !== 'task' && it.group !== 'others' ? it.owner + ' · ' + it.label : it.label);
       n.title = it.path || it.label;
       li.appendChild(n);
-      li.appendChild(el('span', 'z', it.size));
+      li.appendChild(el('span', 'z', it.size + ' · ' + kTokens(it.tokens)));
       if (it.how === 'outline') li.appendChild(el('span', 'o', 'outline'));
       ul.appendChild(li);
     });
@@ -436,6 +451,15 @@ function paintPop(d) {
   link.appendChild(words);
   link.appendChild(icon('M9 6l6 6-6 6', 14));
   foot.appendChild(link);
+  // What the last message really came to, from the provider's own count: rules, tools, memory, the history
+  // and the message together (`reading.last_turn`).
+  if (d.last && d.last.tokens) {
+    var last = el('p', 'reading-last', 'Last message: ' + kTokens(d.last.tokens) + ' tokens in'
+      + (d.last.cached ? ' · ' + kTokens(d.last.cached) + ' from the cache' : ''));
+    last.title = d.last.tokens.toLocaleString() + ' tokens went to the model with the first request of the last turn'
+      + (d.last.requests > 1 ? ', which took ' + d.last.requests + ' requests' : '') + '.';
+    foot.appendChild(last);
+  }
   side.appendChild(foot);
   if (READ.oops) {
     var oops = el('p', 'reading-oops', READ.oops);

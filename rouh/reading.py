@@ -210,8 +210,11 @@ def put(chat_id: str, change: dict, who=None) -> dict:
 
 
 def tokens(text: str) -> int:
-    """About how many tokens: four characters each, which is what every model here comes to on prose."""
-    return (len(text or "") + 3) // 4
+    """How many tokens these words are when they are sent (`tokencount.text`, fitted on the model's own
+    count; until 17 November 2026 a quarter of the characters, which was a third out)."""
+    from . import tokencount
+
+    return tokencount.text(text or "")
 
 
 def size_word(n: int) -> str:
@@ -299,9 +302,15 @@ class Item:
     #: never in `block` and never counted against `BUDGET`: listed only for its size.
     elsewhere: bool = False
 
+    @property
+    def sent(self) -> int:
+        """The tokens of what is sent of it: its outline when it is read as one, else all of it. A choice
+        left out is sized as what it would send."""
+        return tokens(outline(self.text)) if self.how == "outline" and self.text else self.tokens
+
     def public(self) -> dict:
         return {"id": self.id, "kind": self.kind, "label": self.label, "owner": self.owner, "path": self.path,
-                "size": size_word(self.tokens), "tokens": self.tokens, "on": self.on, "how": self.how,
+                "size": size_word(self.sent), "tokens": self.sent, "on": self.on, "how": self.how,
                 "group": self.group}
 
 
@@ -455,39 +464,54 @@ def _others(task, owner: str, root: Path | None, read: bool) -> list[Item]:
     return [_file("other", p, folder, root, owner, "others", read) for p in _files(folder, OTHER_SUFFIXES)]
 
 
-def _histories(task, owner: str, *, group: str, read: bool, skip: str = "") -> list[Item]:
-    """The words of the chats a task owns, but `skip`: the chat being read in already sends its own. Left
-    out, each is only sized, from the database."""
-    from django.db.models import Count, Sum
-    from django.db.models.functions import Length
+#: The words of a chat as a task's chat is told them, by (chat, its newest message, how many): read once until
+#: something is said in it, so a history is sized by the very words it would send, on or off.
+_SAID: dict[tuple, str] = {}
 
-    from . import conversations
+
+def _said(chat_id: str) -> str:
+    """The newest `HISTORY_ROWS` messages of a chat as a turn is told them: "Person: ..." and "Rouh: ...", one a
+    line. "" when nothing is said in it."""
+    from django.db.models import Count, Max
+
     from .models.objects import ChatMessage
+
+    mark = ChatMessage.objects.filter(chat_id=chat_id).aggregate(n=Count("id"), last=Max("seq"))
+    if not mark["n"]:
+        return ""
+    key = (chat_id, mark["last"], mark["n"])
+    got = _SAID.get(key)
+    if got is None:
+        rows = list(ChatMessage.objects.filter(chat_id=chat_id).order_by("-seq")
+                    .values_list("role", "body")[:HISTORY_ROWS])
+        rows.reverse()
+        got = "\n".join(f"{'Person' if r == 'user' else 'Rouh'}: {' '.join(str(b or '').split())}"
+                        for r, b in rows)
+        if len(_SAID) > 2_000:
+            _SAID.clear()
+        _SAID[key] = got
+    return got
+
+
+def _histories(task, owner: str, *, group: str, read: bool, skip: str = "") -> list[Item]:
+    """The words of the chats a task owns, but `skip`: the chat being read in already sends its own. Sized by
+    the words they would send, whether they are read or left out (`_said`)."""
+    from . import conversations
 
     st = conversations.store()
     out = []
     for _kind, chat_id in st.children_of("task", task.id, "chat"):
         if skip and chat_id == skip:
             continue
+        said = _said(chat_id)
+        if not said:
+            continue
         chat = st.get_chat(chat_id)
         name = (chat.title if chat and chat.title else "a chat").strip()
         it = Item(id=f"history:{chat_id}", kind="history", label=f"Chat: {name}", owner=owner, group=group,
-                  on=read)
+                  on=read, tokens=tokens(said))
         if read:
-            rows = list(ChatMessage.objects.filter(chat_id=chat_id).order_by("-seq")
-                        .values_list("role", "body")[:HISTORY_ROWS])
-            if not rows:
-                continue
-            rows.reverse()
-            it.text = "\n".join(f"{'Person' if r == 'user' else 'Rouh'}: {' '.join(str(b or '').split())}"
-                                for r, b in rows)
-            it.tokens = tokens(it.text)
-        else:
-            got = ChatMessage.objects.filter(chat_id=chat_id).aggregate(n=Count("id"), chars=Sum(Length("body")))
-            if not got["n"]:
-                continue
-            chars = int(got["chars"] or 0) * min(1.0, HISTORY_ROWS / got["n"])
-            it.tokens = max(1, int(chars) // 4)
+            it.text = said
         out.append(it)
     return out
 
@@ -536,26 +560,73 @@ def _step_parent(chat_id: str):
     return (task, parent) if parent is not None else (None, None)
 
 
-def _fork_item(chat_id: str, on: bool) -> Item | None:
-    """The conversation a fork carries above its own words (`memory.Memory._window`), sized from the parent's
-    messages up to the fork; None when the chat carries none."""
-    from django.db.models import Sum
-    from django.db.models.functions import Length
+#: What a fork's carried conversation comes to, in tokens, by what it is made of (`_carried_tokens`): worked out
+#: once, and again only when something is said or tried again in the fork or in what it carries.
+_CARRIED: dict[tuple, int] = {}
 
-    from . import conversations, forks
+
+def _runtime():
+    """(the server's memory, its attachment store), or a memory of its own and no store outside the server."""
+    try:
+        from . import runtime
+
+        return runtime.memory, getattr(runtime, "files", None)
+    except Exception:  # noqa: BLE001 - sized without the files' places rather than not at all
+        from .memory import Memory
+
+        return Memory(), None
+
+
+def _carried_tokens(chat_id: str, parent: str, at: int) -> int:
+    """The tokens of what a fork is sent of the chat it came off: the very messages a turn sends
+    (`memory.Memory.carried_sent`: for a fork of General its window of `history_turns` up to the fork, for any
+    other chat all of it, up the chain of forks; repaired, earlier tool results as stubs and older pictures as
+    lines), with the files that go whole read as they are sent, counted by `tokencount`. General's running
+    summary is told in General alone (`brain._general_summary_block`), so it is not part of it."""
+    from django.db.models import Count, Max, Q
+
+    from . import attachments, chatkinds, tokencount
     from .models.memory import TranscriptMessage
+
+    limit = chatkinds.profile(chat_id).history
+    own = TranscriptMessage.objects.filter(session_id=chat_id).aggregate(
+        last=Max("id"), live=Count("id", filter=Q(live=True)))
+    above = TranscriptMessage.objects.filter(session_id=parent, id__lte=at).aggregate(
+        live=Count("id", filter=Q(live=True)))
+    key = (chat_id, own["last"], own["live"], parent, at, above["live"], limit,
+           chatkinds.profile(parent).history)
+    got = _CARRIED.get(key)
+    if got is None:
+        memory, store = _runtime()
+        sent = memory.carried_sent(chat_id, limit, limit_of=lambda c: chatkinds.profile(c).history, files=store)
+        if store is not None:
+            sent = attachments.hydrate(sent, store)
+        got = tokencount.messages(sent)
+        if len(_CARRIED) > 500:
+            _CARRIED.clear()
+        _CARRIED[key] = got
+    return got
+
+
+def _fork_item(chat_id: str, on: bool) -> Item | None:
+    """The conversation a fork carries above its own words (`memory.Memory._window`), sized as it is sent
+    (`_carried_tokens`); None when the chat carries none."""
+    from . import conversations, forks
 
     got = forks.carried(chat_id)
     if got is None:
         return None
     parent, at = got
-    chars = (TranscriptMessage.objects.filter(session_id=parent, live=True, notice=False, id__lte=at)
-             .aggregate(n=Sum(Length("content")))["n"] or 0)
+    try:
+        n = _carried_tokens(chat_id, parent, at)
+    except Exception:  # noqa: BLE001 - a size is never worth the panel
+        log.exception("what chat %s carries of %s could not be sized", chat_id, parent)
+        n = 0
     name = "General" if parent == conversations.GENERAL else ""
     if not name:
         chat = conversations.store().get_chat(parent)
         name = (chat.title if chat and chat.title else "").strip() or "the chat above"
-    return Item(id=f"fork:{parent}", kind="fork", label=name, tokens=max(1, int(chars) // 4), group="fork_history",
+    return Item(id=f"fork:{parent}", kind="fork", label=name, tokens=max(1, n), group="fork_history",
                 on=on, elsewhere=True)
 
 
@@ -996,7 +1067,7 @@ def content(chat_id: str, s: dict, got: list[Item], task, subs: list) -> dict:
         elif not of:
             continue
         on = bool(s[key]) if key != "steps" else s["subtasks"] != "none"
-        n = sum(i.tokens for i in of)
+        n = sum(i.sent for i in of)
         if not of and key != "steps":
             sub = "Nothing said in them yet"
         g = {"key": key, "title": title, "sub": sub, "on": on, "tokens": n, "size": size_word(n) if of else "",
@@ -1063,6 +1134,27 @@ def strip(chat_id: str, s: dict | None = None, got: list[Item] | None = None, ta
     return " · ".join(bits)
 
 
+def last_turn(chat_id: str) -> dict | None:
+    """What this chat's last message really came to, from the provider's own numbers (`memory.note_spend`):
+    the tokens its first request went out with (input, read from the cache and written to it; the window
+    `context_editing.window_tokens` measures), the part of them read from the cache, and how many requests
+    the turn took. None before anything was answered here."""
+    from .models.memory import Spend
+
+    row = (Spend.objects.filter(session_id=chat_id).order_by("-ts")
+           .values("calls", "input_tokens", "cache_read", "cache_write", "ts").first())
+    if row is None:
+        return None
+    calls = [c for c in (row["calls"] or []) if isinstance(c, dict)]
+    first = calls[0] if calls else {"input": row["input_tokens"], "cache_read": row["cache_read"],
+                                    "cache_write": row["cache_write"]}
+    tokens_in = sum(int(first.get(k) or 0) for k in ("input", "cache_read", "cache_write"))
+    if not tokens_in:
+        return None
+    return {"tokens": tokens_in, "cached": int(first.get("cache_read") or 0), "requests": max(1, len(calls)),
+            "ts": row["ts"]}
+
+
 def view(chat_id: str, who=None) -> dict:
     """Everything the panel draws for this chat."""
     from .models.objects import Chat
@@ -1072,7 +1164,7 @@ def view(chat_id: str, who=None) -> dict:
     s = settings(chat_id, who)
     task, got, subs = items(chat_id, s)
     read = [i for i in got if i.on and not i.elsewhere]
-    total = sum(i.tokens if i.how == "whole" else tokens(outline(i.text)) for i in read)
+    total = sum(i.sent for i in read)
     told = content(chat_id, s, got, task, subs)
     out = {"chat": chat_id, "kind": kind_of(chat_id), "settings": s, "incognito": is_incognito,
            "mode": s["mode"], "modes": [{"id": m, "name": MODE_NAMES[m]} for m in MODES],
@@ -1080,6 +1172,10 @@ def view(chat_id: str, who=None) -> dict:
            "items": [i.public() for i in got if i.on], "budget": BUDGET, "reads": total,
            "outlined": sum(1 for i in read if i.how == "outline"),
            "content": told["groups"], "strip": told["summary"]}
+    try:
+        out["last"] = last_turn(chat_id)
+    except Exception:  # noqa: BLE001 - a number on a panel
+        log.exception("chat %s's last turn could not be read", chat_id)
     if task is not None:
         from . import subtasknotes
 
@@ -1088,11 +1184,11 @@ def view(chat_id: str, who=None) -> dict:
         sizes: dict[str, int] = {}
         for i in got:
             if i.group in ("steps", "steps_not_chosen"):
-                sizes[i.owner] = sizes.get(i.owner, 0) + i.tokens
+                sizes[i.owner] = sizes.get(i.owner, 0) + i.sent
         out["subtasks"] = []
         for sub in subs:
             n = sizes.get(subtasknotes.step_number(sub) or str(sub.number or ""), 0)
-            out["subtasks"].append({"id": sub.id, "label": subtasknotes.label(sub), "size": size_word(n),
+            out["subtasks"].append({"id": sub.id, "label": subtasknotes.label(sub), "size": size_word(n), "tokens": n,
                                     "on": s["subtasks"] == "all" or (s["subtasks"] == "some" and sub.id in picked)})
     if is_incognito:
         from . import incognito

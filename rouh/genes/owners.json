@@ -493,6 +493,7 @@
     "rouh/chatkinds.py",
     "rouh/general_summary.py",
     "rouh/reading.py",
+    "rouh/tokencount.py",
     "rouh/incognito.py",
     "rouh/page_in_chat.py",
     "rouh/web/reading.py",
