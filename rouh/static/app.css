@@ -6562,6 +6562,11 @@ ol.sources-list .src-where {
   font-size: 14px; line-height: 1.45; overflow-wrap: anywhere;
 }
 .ct-row.is-note .ct-val { white-space: pre-line; font-size: 13px; }
+/* A picture going on the card (rouh/contact_picture.py): the very square that is saved, round like the phone draws it. */
+.ct-pic {
+  width: 88px; height: 88px; border-radius: 50%; object-fit: cover; display: block;
+  border: 1px solid var(--line); background: var(--panel-2);
+}
 .ct-row.is-added {
   border-left-color: var(--good); background: color-mix(in srgb, var(--good) 8%, transparent);
 }

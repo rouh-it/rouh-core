@@ -1216,6 +1216,7 @@
    "files": [
     "rouh/apple_contacts.py",
     "rouh/contact_photos.py",
+    "rouh/contact_picture.py",
     "rouh/person_addresses.py",
     "rouh/static/personaddresses.*",
     "rouh/carddav.py",

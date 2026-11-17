@@ -707,6 +707,8 @@ class Changes:
     #: Related names (night 44, `related_people`): each {"name", "label"}.
     add_related: list[dict] = field(default_factory=list)
     remove_related: list[str] = field(default_factory=list)
+    #: A new picture for the card, as the JPEG bytes to carry (`contact_picture`), or None to leave it.
+    photo: bytes | None = None
 
     def scalars(self) -> dict[str, str]:
         """The single-valued fields this sets, by `Person`'s own names."""
@@ -718,12 +720,14 @@ class Changes:
     def empty(self) -> bool:
         return not (self.scalars() or self.add_phones or self.remove_phones
                     or self.add_emails or self.remove_emails or self.add_addresses
-                    or self.remove_addresses or self.add_related or self.remove_related)
+                    or self.remove_addresses or self.add_related or self.remove_related
+                    or bool(self.photo))
 
 
 def apply(card: Card, changes: Changes) -> list[str]:
     """Make the changes on the card, and say each one that really happened."""
     said: list[str] = []
+    had_photo = bool(photo_of(card))
     if changes.name is not None:
         name = changes.name.strip()
         if not name:
@@ -788,7 +792,25 @@ def apply(card: Card, changes: Changes) -> list[str]:
         name, label = str(one.get("name") or ""), str(one.get("label") or "")
         if add_related(card, name, label):
             said.append(f"added {' '.join(name.split())} as their {label or 'related name'}")
+    if changes.photo:
+        if set_photo(card, changes.photo):
+            said.append("the picture is replaced" if had_photo else "the picture is added")
     return said
+
+
+def set_photo(card: Card, jpeg: bytes) -> bool:
+    """The card's picture made this JPEG, carried in the card the way vCard 3.0 carries one
+    (`PHOTO;ENCODING=b;TYPE=JPEG:`), in place of whatever it had: a picture inside the card, one at an
+    address, and Apple's crop of the old one, which would cut the wrong part of the new one. Whether it
+    changed anything."""
+    import base64
+
+    value = base64.b64encode(jpeg).decode("ascii")
+    was = card.first("PHOTO")
+    if was is not None and was.value.strip() == value:
+        return False
+    card.set("PHOTO", value, [("ENCODING", "b"), ("TYPE", "JPEG")])
+    return True
 
 
 def new_card(uid: str, changes: Changes) -> tuple[Card, list[str]]:
@@ -803,7 +825,8 @@ def new_card(uid: str, changes: Changes) -> tuple[Card, list[str]]:
                                birthday=changes.birthday or None, note=changes.note or None,
                                title=changes.title or None,
                                add_phones=changes.add_phones, add_emails=changes.add_emails,
-                               add_addresses=changes.add_addresses, add_related=changes.add_related))
+                               add_addresses=changes.add_addresses, add_related=changes.add_related,
+                               photo=changes.photo))
     card.props.append(Prop(name="UID", value=uid))
     return card, said
 

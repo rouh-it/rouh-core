@@ -1852,6 +1852,20 @@ PICTURE_PROMPT = "You write the description a picture is drawn from."
 PICTURE_PROMPT_FILE = "picture-prompt-"
 
 
+#: How a contact's picture has its face found (`rouh/contact_picture.py`).
+CONTACT_PICTURE = "You find the face in a photo that is about to be a contact's picture."
+CONTACT_PICTURE_FILE = "contact-picture-"
+
+
+def is_contact_picture(body: dict) -> bool:
+    return says(CONTACT_PICTURE, _flat(body.get("system")))
+
+
+def a_contact_picture(body: dict) -> str:
+    """A face in the upper middle of the picture, as a model that sees one says it."""
+    return '{"face": [0.14, 0.08, 0.83, 0.82]}'
+
+
 def is_picture_prompt(body: dict) -> bool:
     return says(PICTURE_PROMPT, _flat(body.get("system")))
 
@@ -3072,6 +3086,7 @@ def build_app(record_dir: str) -> FastAPI:
             (geneasking, GENE_ASK_FILE, a_gene_answer),
             (listening, PAGE_LISTEN_FILE, a_narration),
             (picturing, PICTURE_PROMPT_FILE, a_picture_prompt),
+            (is_contact_picture(body), CONTACT_PICTURE_FILE, a_contact_picture),
             (genelogging, GENE_LOG_FILE, a_gene_log_answer),
             (meetingpick, MEETING_PICK_FILE, a_meeting_pick),
             (recallpick, RECALL_PICK_FILE, a_recall_pick),

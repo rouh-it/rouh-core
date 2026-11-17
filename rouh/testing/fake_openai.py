@@ -407,7 +407,8 @@ def claude_errand(body: dict, words: str) -> str:
     asked = {"system": str(body.get("instructions") or ""), "messages": [{"role": "user", "content": words}]}
     for is_it, answer in ((fake_model.is_page_listen, fake_model.a_narration),
                           (fake_model.is_answered, fake_model.an_answered),
-                          (fake_model.is_picture_prompt, fake_model.a_picture_prompt)):
+                          (fake_model.is_picture_prompt, fake_model.a_picture_prompt),
+                          (fake_model.is_contact_picture, fake_model.a_contact_picture)):
         if is_it(asked):
             return answer(asked)
     return ""

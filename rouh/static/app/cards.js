@@ -1084,6 +1084,14 @@ function contactBlock(b) {
         value.appendChild(contactCall(b, r));
       } else if (b.directions && r.kind === 'postal' && change !== 'removed' && r.value) {
         value.appendChild(contactDirections(b, r));
+      } else if (r.kind === 'photo' && pictureSrc(r.src)) {
+        // A picture going on the card (rouh/contact_picture.py): the square that is saved, shown before it is.
+        var pic = document.createElement('img');
+        pic.className = 'ct-pic';
+        pic.alt = 'The new picture for ' + (b.name || 'this contact');
+        pic.src = /** @type {string} */ (pictureSrc(r.src));
+        value.appendChild(pic);
+        value.appendChild(el('span', 'ct-val', r.value == null ? '' : r.value));
       } else {
         value.appendChild(el(change === 'removed' ? 's' : 'span', 'ct-val', r.value == null ? '' : r.value));
       }

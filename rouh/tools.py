@@ -7811,7 +7811,10 @@ class ToolRegistry:
             "person. Every field left out stays as it is, and an empty string clears it. "
             "Numbers and addresses are added or removed one by one, never replaced as a "
             "list. If the card was changed on another device at the same time, both "
-            "versions are kept and the answer says so.",
+            "versions are kept and the answer says so.\n\n"
+            "A picture or photo dropped into this conversation can be the contact's picture: "
+            "name it in photo. It is cut square round the face and shown on the card before it "
+            "is saved, in place of any picture the contact had.",
             {
                 "type": "object",
                 "properties": {
@@ -7874,6 +7877,10 @@ class ToolRegistry:
                     "remove_related": {"type": "array", "items": {"type": "string"},
                                        "description": "Related names to take off, each by the "
                                                       "name the contact shows."},
+                    "photo": {"type": "string", "description": (
+                        "A picture dropped into this conversation to be the contact's picture, "
+                        "by its name, its id or the path you were told. Pass it again, the "
+                        "same, with confirmed.")},
                     "even_if_known": {"type": "boolean",
                                       "description": "true only when the person said the new "
                                                      "contact is somebody else than the card "
@@ -7989,8 +7996,12 @@ class ToolRegistry:
             return untrusted.ours(unrelated)
         chat = self.memory.answering_chat()
         key = apple_contacts.key_for(args)
+        # A picture dropped into the chat (`rouh/contact_picture.py`), named by its whole path from here on.
+        args, photo, unpictured = await self._contact_photo(args, chat or "")
+        if unpictured:
+            return untrusted.ours(unpictured)
         if not confirmed:
-            said = await self.contacts.look(args)
+            said = await self.contacts.look(dict(args, _photo=photo))
             if said.card is None:
                 return said.text
             card = said.card
@@ -8006,7 +8017,7 @@ class ToolRegistry:
             twice = self._added_already(chat, key)
             if twice:
                 return untrusted.ours(twice)
-            said = await self.contacts.save(args)
+            said = await self.contacts.save(dict(args, _photo=photo))
             if said.card is None:
                 return said.text
             number = await self._contact_card(chat, key, said.card, emit, saved=True)
@@ -8036,16 +8047,32 @@ class ToolRegistry:
         if unrelated:
             return asking.Done(False, unrelated)
         args.pop("confirmed", None)
+        args, photo, unpictured = await self._contact_photo(args, press.chat or "")
+        if unpictured:
+            return asking.Done(False, unpictured)
         async with self._contact_saving:
             twice = self._added_already(press.chat, key)
             if twice:
                 return asking.Done(False, twice)
-            said = await self.contacts.save(args)
+            said = await self.contacts.save(dict(args, _photo=photo))
             if said.card is None:
                 return asking.Done(False, str(said.text))
             self._contact_cards.pop((press.chat, key), None)
             self._added(press.chat, key, press.card)
         return asking.Done(True, str(said.text), said.card)
+
+    async def _contact_photo(self, args: dict, chat: str) -> tuple[dict, bytes | None, str]:
+        """save_contact's `photo`, a picture dropped into a conversation, as the JPEG for the card
+        (`rouh/contact_picture.py`): (the arguments with it named by its whole path, the JPEG or None,
+        why not). Found the way one_say's attachments are (`runfiles.one`)."""
+        from . import contact_picture
+
+        try:
+            args, made = await contact_picture.resolve(args, chat, _files_store(),
+                                                       who=self.contacts.person())
+        except contact_picture.Refused as exc:
+            return args, None, f"{exc} Nothing was shown or saved."
+        return args, (made.jpeg if made else None), ""
 
     def _added_already(self, chat: str, key: str) -> str:
         """Why not, if this new contact was added in this thread a moment ago."""

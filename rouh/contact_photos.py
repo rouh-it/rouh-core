@@ -227,4 +227,11 @@ async def keep_faces(dav, who, *, most: int = PER_SYNC) -> int:
     return kept
 
 
-__all__ = ["keep_faces", "gone_from_cards", "wanted"]
+def keep_now(who, pid: str, photo: dict, body: bytes) -> bool:
+    """A picture Rouh itself just wrote to the person's card (`save_contact`, `contact_picture`), kept as
+    their face at once rather than at the next sync. `photo` is the card's own `vcard.photo_of`, so the
+    sync finds it kept already. `who` is anything with `user_id` and `org_id`."""
+    return _keep(who, pid, photo, body)
+
+
+__all__ = ["keep_faces", "keep_now", "gone_from_cards", "wanted"]

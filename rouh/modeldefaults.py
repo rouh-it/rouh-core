@@ -288,6 +288,13 @@ USES: tuple[Use, ...] = (
         "Writes the description a picture is drawn from, out of what was asked and the chat "
         "before it, so \u201cnow make it blue\u201d keeps the subject and style already settled.",
         purposes=("picture_prompt",)),
+    # Petar, 17 November 2026: a picture dropped into the chat put on a contact, cut square round the face
+    # (`rouh/contact_picture.py`).
+    Use("contact_picture", "Chats", "Contact pictures",
+        "Finds the face in a picture put on a contact, a person's or an animal's, so the square kept "
+        "on their card is round it. Off, or when it cannot be asked, the square is the picture's middle.",
+        can_be_off=True, off_said="Off: a contact's picture is cut from the middle of the picture.",
+        purposes=("contact_picture",)),
     Use("task_icon", "Chats", "Task icons",
         "Picks the emoji in front of each new task's title, from its title, many tasks to a "
         "question.", purposes=("task_icon",)),

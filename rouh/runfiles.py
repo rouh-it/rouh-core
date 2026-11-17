@@ -72,6 +72,42 @@ def find(names, chat: str, store) -> list[dict]:
     return out
 
 
+def one(named, chat: str, store, *, kind: str = "file") -> dict:
+    """The record of one file dropped into a conversation, by its name, its id or its path, the
+    way `one_say` finds its attachments: for any tool of Rouh's that takes such a file (a contact's
+    picture, `contact_picture`), so a picture the person dropped into the chat is never one Rouh can
+    see and its tools cannot use. `kind` is what the file is to the tool, for what is said when the
+    name finds nothing."""
+    try:
+        wanted = mailfiles.names_of([named] if isinstance(named, str) else named)
+    except mailfiles.Refused as exc:
+        raise Refused(str(exc)) from None
+    if len(wanted) != 1:
+        raise Refused(f"Name one {kind}, by the name it was dropped with, its id or its path.")
+    if os.path.isabs(wanted[0]) or wanted[0].startswith("~"):
+        record = mailfiles._record_at(os.path.realpath(os.path.expanduser(wanted[0])), store) \
+            if store is not None else None
+        if record is None:
+            raise Refused(f"{wanted[0]} is not a file dropped into a conversation, so it cannot be "
+                          f"used as the {kind}.")
+        return record
+    return _record(wanted[0], chat, store)
+
+
+def picture(record: dict, store) -> bytes:
+    """A file dropped into a conversation as a picture's bytes Pillow opens: itself, or the copy the
+    model is shown for a .heic and the like (`Attachments.for_model`). Refused when it is no picture."""
+    media = str(record.get("media_type") or "")
+    name = str(record.get("name") or "That file")
+    if media in PICTURES or media in attachments.MODEL_PICTURES:
+        return store.read(record)
+    seen = (media in attachments.CONVERTIBLE or record.get("kind") == "image") \
+        and store.for_model(record)
+    if seen:
+        return seen["data"] if isinstance(seen["data"], bytes) else base64.b64decode(seen["data"])
+    raise Refused(f"{name} is not a picture.")
+
+
 def wire(files: list[dict]) -> list[dict]:
     """The files as the program's `say` takes them: the data in base64."""
     return [{"name": f["name"], "type": f["type"],

@@ -821,7 +821,7 @@ class ContactDesk:
             if not contact_id:
                 card, _ = vcard.new_card("LOOK", changes)
                 after = _fields(vcard.read(card.text()))
-                shown = contact_card(after, None, UNSAVED)
+                shown = contact_card(after, None, UNSAVED, picture=changes.photo)
                 details = "; ".join(f"{row['label']} {' '.join(row['value'].split())}"
                                     for row in shown["blocks"][0]["rows"]).rstrip(".")
                 return Said(
@@ -849,7 +849,7 @@ class ContactDesk:
         return Said(
             ours(f"Nothing is changed yet. On the screen now, marked not saved, with each "
                  f"change marked: {row['name']}, {'; '.join(said)}. {ASK_FIRST}"),
-            contact_card(after, row, UNSAVED), key_for(args))
+            contact_card(after, row, UNSAVED, picture=changes.photo), key_for(args))
 
     async def save(self, args: dict, who: Identity | None = None) -> Said:
         """Write the contact to iCloud, and the contact as iCloud kept it for the screen.
@@ -997,12 +997,14 @@ class ContactDesk:
 
         card, said = vcard.new_card(str(uuid.uuid4()).upper(), changes)
         row = await self._write_new(dav, held, place, card)
+        await self._face_kept(held, row, changes)
         details = f": {', '.join(said)}" if said else ""
         text = f"Added {row['name']} to the iCloud contacts{details}. Id {row['id']}."
         self._wrote("save_contact", row["name"], text, held)
         return Said(ours(text + " It reaches the phone when the phone next syncs with "
                          "iCloud. " + SHOWN_SAVED),
-                    contact_card(row, None, SAVED, person=await self._person_of(held, row)))
+                    contact_card(row, None, SAVED, person=await self._person_of(held, row),
+                                 picture=changes.photo))
 
     async def _update(self, dav: CardDAV, held: Held, place: Place, row: dict,
                       changes: vcard.Changes) -> Said:
@@ -1020,10 +1022,11 @@ class ContactDesk:
         except Changed:
             return await self._both(dav, held, place, row, changes, mine)
         fresh = await self._read_back(dav, held, place, row["href"])
+        await self._face_kept(held, fresh, changes)
         text = f"Changed {fresh['name']} in the iCloud contacts: {'; '.join(said)}. Id {row['id']}."
         self._wrote("save_contact", fresh["name"], text, held)
         return Said(ours(f"{text} {SHOWN_SAVED}"), contact_card(
-            fresh, row, SAVED, person=await self._person_of(held, fresh)))
+            fresh, row, SAVED, person=await self._person_of(held, fresh), picture=changes.photo))
 
     async def _both(self, dav: CardDAV, held: Held, place: Place, row: dict,
                     changes: vcard.Changes, mine: vcard.Card) -> Said:
@@ -1066,6 +1069,7 @@ class ContactDesk:
                 clash = ["whole card"]
             else:
                 now = await self._read_back(dav, held, place, row["href"])
+                await self._face_kept(held, now, changes)
                 text = (f"{name} had also been changed on another device since I last read "
                         f"it. That change is kept, and mine is made on top of it: "
                         f"{'; '.join(said) or 'nothing more was needed'}. Id {now['id']}.")
@@ -1074,7 +1078,7 @@ class ContactDesk:
                 # marked is this change and not theirs.
                 return Said(ours(f"{text} {SHOWN_SAVED}"), contact_card(
                     now, _fields(theirs), SAVED, person=await self._person_of(held, now),
-                    remark=("It had also been changed on another device. That change is "
+                    picture=changes.photo, remark=("It had also been changed on another device. That change is "
                             "kept, and this one is made on top of it.")))
         second = vcard.Card.parse(mine.text())
         note = second.value("NOTE").strip()
@@ -1098,6 +1102,20 @@ class ContactDesk:
             remark=(f"It was changed on another device at the same time, in the {fields}, "
                     "so both were kept: this is the second card with this name, and the "
                     "other device's is the first. Merge the two on the phone.")))
+
+    async def _face_kept(self, held: Held, row: dict, changes: vcard.Changes) -> None:
+        """A picture just written to a card, kept at once as the face Rouh draws for them, rather than
+        at the next sync (`contact_photos`), so every card and list shows the new one straight away."""
+        if not changes.photo:
+            return
+        from . import contact_photos
+
+        try:
+            photo = vcard.photo_of(vcard.Card.parse(row["vcard"]))
+            if photo:
+                await self._db(contact_photos.keep_now, held, str(row["id"]), photo, changes.photo)
+        except Exception:  # noqa: BLE001 - iCloud has it; the next sync keeps the face all the same
+            log.exception("contacts: the new picture of %s was not kept here yet", row.get("id"))
 
     async def _person_of(self, held: Held, row: dict):
         """A card just written, as Rouh knows it: with its relationship and research."""
@@ -1144,6 +1162,10 @@ def _changes_from(args: dict) -> vcard.Changes:
     from . import related_people
 
     changes.add_related, changes.remove_related = related_people.to_changes(args)
+    # A picture dropped into the chat, made square round the face (`rouh/contact_picture.py`): the tool
+    # hands its JPEG in as `_photo`, never anything the model wrote.
+    if isinstance(args.get("_photo"), (bytes, bytearray)) and args.get("_photo"):
+        changes.photo = bytes(args["_photo"])
     if changes.birthday:
         vcard.check_birthday(changes.birthday)            # said before anything is sent
     for phone in changes.add_phones:
@@ -1442,7 +1464,8 @@ def profile_card(person, *, state: str = SHOWN, status: str = "") -> dict:
             "blocks": [block]}
 
 
-def contact_card(after, before, state: str, *, remark: str = "", person=None) -> dict:
+def contact_card(after, before, state: str, *, remark: str = "", person=None,
+                 picture: bytes | None = None) -> dict:
     """A contact as the screen shows it: a card of one `contact` block.
 
     `after` is the contact as a save would leave it, or as iCloud kept it;
@@ -1452,6 +1475,7 @@ def contact_card(after, before, state: str, *, remark: str = "", person=None) ->
     both changeable on the card. The page draws the block (`contactBlock` in
     app.js), and a step it is filed into keeps it whole (`steps.block_text`).
     """
+    had_picture = _has_picture(before)
     after = _fields(after)
     before = _fields(before) if before is not None else None
     name = after["name"] or "(no name)"
@@ -1485,6 +1509,8 @@ def contact_card(after, before, state: str, *, remark: str = "", person=None) ->
         if person is not None:
             _with_aka(block, person)
             _with_addresses(block, person)
+    if picture:
+        _with_picture(block, picture, had_picture, state)
     # Call from their contact card (night 42, `rouh/card_call.py`): its numbers one press from ringing.
     from . import card_call, card_directions
 
@@ -1496,6 +1522,48 @@ def contact_card(after, before, state: str, *, remark: str = "", person=None) ->
 
     card_share.mark(block, person)
     return {"title": title, "description": description, "blocks": [block]}
+
+
+def _has_picture(card) -> bool:
+    """Whether a contact as it was had a picture: a row of the table, its card's text, or a `Person`."""
+    if card is None:
+        return False
+    if isinstance(card, dict):
+        if card.get("vcard"):
+            try:
+                return bool(vcard.photo_of(vcard.Card.parse(card["vcard"])))
+            except vcard.BadField:
+                return False
+        return bool(card.get("photo"))
+    return bool(getattr(card, "photo", None))
+
+
+def _with_picture(block: dict, picture: bytes, had: bool, state: str) -> None:
+    """The new picture drawn on the card, in the head and as a row of its own marked like any change,
+    before it is saved and once it is (`rouh/contact_picture.py`)."""
+    from . import contact_picture
+
+    try:
+        shown = contact_picture.data_url(picture)
+    except Exception:  # noqa: BLE001 - the row still says a picture goes on the card
+        log.exception("contacts: the new picture could not be drawn")
+        shown = ""
+    if state == SAVED:
+        value = "Saved to iCloud" + (", in place of the old one" if had else "")
+    else:
+        value = "New picture" + (", in place of the old one" if had else "")
+    row = {"kind": "photo", "label": "picture", "value": value}
+    if block.get("new") is False:
+        row["change"] = "changed" if had else "added"
+    if shown:
+        row["src"] = shown
+        block["photo"] = shown
+    block["rows"] = [row] + list(block.get("rows") or [])
+    if row.get("change") and isinstance(block.get("foot"), str):
+        # The count of changes in the foot counts the picture too.
+        block["foot"] = re.sub(r"^(\d+) changes? marked",
+                               lambda m: _many(int(m.group(1)) + 1, "change") + " marked",
+                               block["foot"])
 
 
 def _person_said(row: dict) -> str:
