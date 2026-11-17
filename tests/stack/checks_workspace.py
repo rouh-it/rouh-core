@@ -150,7 +150,11 @@ def callbacks_tasks(s: Stack) -> None:
     expect("in-progress" in run["task"].lower() or "in progress" in run["task"].lower(),
            f"rouh-task in a run: {run['task'][-400:]}")
     try:
-        _until(s, "core", "ls -d /data/workspace/*/*made-by-a-run* 2>/dev/null", "made-by-a-run", 240,
+        # At any depth: Rouh files a task made straight under a project that has categories into one of
+        # them (private/misc/), and it does so on its own time, so two levels down passed or failed
+        # by which came first (8 of 20 jobs failed on the last ten commits, 17 November 2026).
+        _until(s, "core", "find /data/workspace -maxdepth 4 -type d -name '*made-by-a-run*' 2>/dev/null",
+               "made-by-a-run", 240,
                "the task the run made never reached Rouh's workspace")
     except Failed as e:
         # Said whole, so a failure can be read from the run's annotations alone: until 17 November
