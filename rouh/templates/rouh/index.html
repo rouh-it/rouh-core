@@ -1019,16 +1019,19 @@ with {% asset %}, which gives it its hashed address.
            card is a block list with several, so both are drawn by the same
            renderer and both are read here. The canvas is what a card is opened
            on when it wants the width. {% endcomment %}
-      {% comment %} What this chat reads, in plain words, under its head: "Reading Memory · Your rules ·
-           Tools · Task 62 · 1 note". Petar, 15 November 2026 (Chat Change Planning): "a thin strip under
-           the chat title saying in plain words what is loaded", and the same control everywhere. Pressing
-           it opens the same panel as the open book beside the model (app/reading.js, `rouh/reading.py`).
-           In an incognito chat it says what is kept instead. {% endcomment %}
-      <button id="readingStrip" class="reading-strip" type="button" aria-controls="readingPop"
+      {% comment %} What this chat is about, in plain words, under its head: "Reading Task 130 · 2 pages · no
+           steps", "Reading Forked from General · history included". Petar, 16 November 2026: "I hate duplicate
+           stuff ... the bar on the top we can use to control the contents"; so pressing it opens its own
+           panel, what this chat reads (`contentPop`, app/reading.js `contentPaint`), and Chat Options beside
+           the model is how Rouh works. None in General; a quiet line in an incognito chat. {% endcomment %}
+      <button id="readingStrip" class="reading-strip" type="button" aria-controls="contentPop" aria-haspopup="dialog"
               aria-expanded="false" hidden>
         <span class="reading-strip-mark" id="readingStripMark" aria-hidden="true"></span>
         <span class="reading-strip-words" id="readingStripWords"></span>
+        <span class="reading-strip-chev" id="readingStripChev" aria-hidden="true"></span>
       </button>
+      <div class="reading-pop content-pop" id="contentPop" role="dialog" aria-labelledby="contentHead" hidden></div>
+      <div class="content-back" id="contentBack" hidden></div>
       <div id="transcript" class="transcript" role="log" aria-live="polite" aria-relevant="additions text" tabindex="0">
         {% comment %} The chat's own name, at the very top of its own conversation and
              nowhere else. It used to be in the row above, beside the project,

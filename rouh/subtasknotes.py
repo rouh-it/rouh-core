@@ -218,7 +218,30 @@ def prompt_block(chat_id: str) -> str:
         return ""
 
 
+def background(parent, task, root=None) -> str:
+    """The parent task as a step's chat is told it: what the parent says the step is, the head of its
+    `AGENTS.md`, and what its other steps sent up. "Parent task" in the strip's panel turns it off for a chat
+    (`reading.parent_told`), which sizes it from this too."""
+    root = root if root is not None else conversations._root()
+    parts = []
+    about = _what_the_parent_says_of(parent, task, root)
+    if about:
+        parts.append(f"What the parent task says this subtask is: {about}")
+    if root and parent.folder:
+        head = _read_head(instructions.in_folder(Path(root) / parent.folder), MAX_BACKGROUND)
+        if head:
+            parts.append(f"The parent task's own notes ({parent.folder}/"
+                         f"{instructions.NAME}), from the top:\n{head}")
+    others = _notes_lines(notes_for(parent.id, limit=NOTES_IN_PROMPT * 2), skip_subtask=task.id)
+    if others:
+        parts.append("Sent up to the parent task from its other subtasks, newest first:\n"
+                     + others)
+    return "\n\n".join(parts)
+
+
 def _prompt_block(chat_id: str) -> str:
+    from . import reading
+
     task = conversations.task_of(chat_id)
     if task is None:
         return ""
@@ -237,19 +260,14 @@ def _prompt_block(chat_id: str) -> str:
         " does not have to repeat what it is about. When something decided here matters"
         " to the whole task, the person can send it up with Send to the task at the top"
         " of this chat; say so when a decision like that is made."]
-    about = _what_the_parent_says_of(parent, task, root)
-    if about:
-        parts.append(f"What the parent task says this subtask is: {about}")
-    if root and parent.folder:
-        head = _read_head(instructions.in_folder(Path(root) / parent.folder), MAX_BACKGROUND)
-        if head:
-            parts.append(f"The parent task's own notes ({parent.folder}/"
-                         f"{instructions.NAME}), from the top:\n{head}")
+    if reading.parent_told(chat_id):
+        more = background(parent, task, root)
+        if more:
+            parts.append(more)
+    else:
+        parts.append("The person turned the parent task's background off for this chat: read the parent's"
+                     " files with read_workspace only when they ask about it.")
     notes = notes_for(parent.id, limit=NOTES_IN_PROMPT * 2)
-    others = _notes_lines(notes, skip_subtask=task.id)
-    if others:
-        parts.append("Sent up to the parent task from its other subtasks, newest first:\n"
-                     + others)
     mine = _notes_lines([n for n in notes if n["subtask"] == task.id])
     if mine:
         parts.append("Already sent up to the parent task from this subtask:\n" + mine)

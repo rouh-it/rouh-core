@@ -11190,6 +11190,49 @@ html:not(.demo) .demo-dot:not(.keep) { display: none; }
 .reading-strip-words { min-width: 0; }
 .reading-strip-words b { color: var(--text); font-weight: 600; margin-right: 4px; }
 .reading-strip-bit { white-space: nowrap; }
+/* The whole line is the target: 32 pixels on a desk, 44 on a phone. */
+.reading-strip:not(.quiet) { min-height: 32px; align-items: center; }
+@media (max-width: 899px) { .reading-strip:not(.quiet) { min-height: 44px; } }
+.reading-strip-chev { flex: 0 0 auto; display: inline-grid; place-items: center; height: 18px; color: var(--dim); }
+.reading-strip[aria-expanded="true"] .reading-strip-chev { transform: rotate(180deg); }
+/* Incognito, or a chat with nothing to choose: a line that says, not a control. */
+.reading-strip.quiet { cursor: default; }
+.reading-strip.quiet:hover { color: var(--dim); }
+.reading-strip-words.pending { opacity: 0.55; }
+/* The strip's panel, what this chat reads (app/reading.js `contentPaint`): under the strip on a desk, placed
+   by the script, and a sheet from the bottom on a phone. */
+.reading-pop.content-pop {
+  position: fixed; right: auto; bottom: auto; z-index: 70; max-height: 70vh;
+}
+.reading-pop.content-pop.sheet {
+  left: 0; right: 0; top: auto; bottom: 0; width: auto; max-height: 82vh;
+  border-radius: 16px 16px 0 0; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+.content-back { position: fixed; inset: 0; z-index: 69; background: rgba(0, 0, 0, 0.45); }
+.content-back[hidden] { display: none; }
+.content-pop .reading-top { padding-left: 10px; }
+.content-x {
+  appearance: none; flex: 0 0 auto; display: grid; place-items: center; width: 44px; height: 44px;
+  border: 0; border-radius: 8px; background: none; color: var(--dim); cursor: pointer;
+}
+.content-x:hover { color: var(--text); background: var(--panel); }
+.content-x:focus-visible, .content-pop .reading-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.content-hint { margin: 2px 10px 6px; }
+.content-groups { border-top: 0; margin-top: 0; padding-top: 0; }
+/* Each choice's size, in plain words beside its switch. */
+.reading-size { flex: 0 0 auto; font-size: 12px; color: var(--dim); white-space: nowrap; }
+/* Steps' own choices, under Steps and set in from it, so the rows after them read as choices again. */
+.content-more { display: grid; gap: 6px; margin: 0 0 4px 22px; padding: 2px 10px 8px; }
+.content-more > p { margin: 4px 0 0; font-size: 12px; font-weight: 600; color: var(--dim); }
+.content-more .reading-seg { justify-self: start; flex-wrap: wrap; }
+.content-pop .reading-row.sub { margin-left: 22px; width: calc(100% - 22px); min-height: 44px; }
+.content-pop .reading-row.sub .reading-row-t b { font-size: 13px; font-weight: 500; }
+.reading-items.pending { opacity: 0.55; }
+body.chat-incognito .content-pop { --accent: var(--incog); --accent-ink: var(--incog-ink); --accent-soft: var(--incog-soft); }
+@media (max-width: 599px) {
+  .content-pop .reading-row-t b { font-size: 15px; }
+  .content-pop .reading-row-t span { font-size: 13px; }
+}
 .reading-pop {
   position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 50;
   max-height: min(62vh, 580px); overflow: auto; overscroll-behavior: contain;

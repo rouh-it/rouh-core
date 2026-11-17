@@ -1861,6 +1861,13 @@ class Memory:
         room = _room(limit, len(rows))
         if fork and limit_of is not None:
             room = _least(room, limit_of(fork["parent_id"]))
+        if fork and fork["at"] is not None and depth == 0:
+            # Parent chat history, in the strip's panel: on unless the person turned it off for this chat
+            # (`reading.carries_parent`); a fork above carries its own as it always has.
+            from . import reading
+
+            if not reading.carries_parent(session_id):
+                fork = None
         if fork and fork["at"] is not None and room != 0 and depth < forks.DEEP:
             msgs = drop_carried_stops(self._window(fork["parent_id"], room, upto=int(fork["at"]),
                                                    depth=depth + 1, limit_of=limit_of)) + msgs

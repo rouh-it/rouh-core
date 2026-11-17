@@ -1,21 +1,30 @@
-/* Chat Options: the one control for what Rouh uses in the chat on screen (rouh/reading.py).
+/* A chat's two controls (rouh/reading.py), each with one job (Petar, 16 November 2026: "I hate duplicate
+ * stuff ... the bar on the top we can use to control the contents ... while bottom includes rules,
+ * tools, memory, this should control the other content"):
+ *
+ * - **Chat Options**, the button beside the model: how Rouh works here. Below.
+ * - **The strip under the chat's title**: what this chat is about, in a few words ("Task 130 · 2 pages ·
+ *   no steps", "Forked from General · history included"), and pressed, its own panel (`contentPaint`):
+ *   This task, Other files in the folder, Steps (all or chosen; everything, notes only or pages only),
+ *   Steps' chat histories, and for a step's chat Parent task and its chat history, for a fork Parent
+ *   chat history, each a switch with its size, and what is read now with what is read as an outline.
+ *   Only the choices a chat has are drawn; a chat with none (General, a chat of its own) has no strip,
+ *   and an incognito chat's is a quiet line. On a phone the panel is a sheet from the bottom.
+ *
+ * Chat Options, until 17 November 2026 the one control for both:
  *
  * Petar, 15 November 2026 (Chat Change Planning): "context controls should be unified everywehre.
  * same icon, same location, same interface ... a button next to the smart". So a button beside the
  * model on the composer's line, in every chat (sliders since 16 November 2026: "this is book
- * doesn't make sense to me"), and a thin strip under the chat's head that says in plain words what
- * is read ("Reading Memory · Your rules · Tools · Task 62 · 1 note"); pressing either opens one
- * panel above the box, headed "Chat Options" and nothing more:
+ * doesn't make sense to me"); pressing it opens one panel above the box, headed "Chat Options":
  *
  * - while the chat is incognito, that it is and what is kept (Incognito is a button of its own,
  *   `incogBtn`, beside this one);
- * - in a task's chat, what is read now, each item with its size (short, long, very long) and
- *   "outline" when it is too much to read whole;
  * - the mode, three rows like the model's (Petar, 16 November 2026: "it can be a selector like the
  *   smart/cheap"): Simple chat, Full capabilities and Custom (`modes`), each with one line of what it
  *   means, and the one sentence that permission, privacy and safety cannot be turned off;
- * - on Custom only, memory, the person's rules and tools, and in a task's chat notes, pages, chat
- *   histories and the subtasks (none, all, some); a switch pressed anywhere puts the chat on Custom;
+ * - on Custom only, memory, the person's rules and tools; a switch pressed anywhere puts the chat on
+ *   Custom. What the chat is about is never here, and a mode never changes it;
  * - a link to everything this chat is told, full screen (`fullOpen`).
  *
  * Reset to defaults is a button at the right of the panel's title bar (Petar, 16 November 2026: "reset
@@ -46,12 +55,14 @@ import { ASK } from 'app/runs.js';
 import { notify } from 'app/notices.js';
 
 /** @typedef {{ id: string, kind: string, label: string, owner: string, path: string, size: string,
- *              tokens: number, on: boolean, how: string }} ReadItem */
+ *              tokens: number, on: boolean, how: string, group?: string }} ReadItem */
 /** @typedef {{ id: string, title: string, text: string, source: string, locked: boolean, own?: boolean,
  *              on: boolean, off: boolean, with?: string, when?: string, live?: boolean, fills?: string }} ReadRule */
+/** @typedef {{ key: string, title: string, sub: string, on: boolean, tokens: number, size: string,
+ *              count: number, outlined: number }} ContentGroup */
 /** @typedef {{ chat: string, kind: string, incognito: boolean, settings: Record<string, any>,
- *              mode?: string,
- *              items: ReadItem[], subtasks?: {id: string, label: string, on: boolean}[],
+ *              mode?: string, content?: ContentGroup[],
+ *              items: ReadItem[], subtasks?: {id: string, label: string, on: boolean, size?: string}[],
  *              task?: {id: string, label: string}, rules: ReadRule[], context?: ReadRule[], strip: string,
  *              outlined: number, reads: number, budget: number, kept?: string,
  *              synapse?: {text: string, on: boolean}, sources?: Record<string, string> }} ReadView */
@@ -59,6 +70,13 @@ import { notify } from 'app/notices.js';
 var btn = /** @type {HTMLButtonElement | null} */ ($('readingBtn'));
 var pop = $('readingPop');
 var strip = /** @type {HTMLButtonElement | null} */ ($('readingStrip'));
+/** The strip's own panel: what this chat is about. On the page itself, like the full list. */
+var cpop = $('contentPop');
+var cback = $('contentBack');
+if (cpop && cpop.parentElement !== document.body) document.body.appendChild(cpop);
+if (cback && cback.parentElement !== document.body) document.body.appendChild(cback);
+var LAYERS = 'M4 7l8-4 8 4-8 4-8-4zM4 12l8 4 8-4M4 17l8 4 8-4';
+var CHEV = 'M6 9l6 6 6-6';
 var incogBtn = /** @type {HTMLButtonElement | null} */ ($('incogBtn'));
 var full = $('toldFull');
 // On the page itself, so no box around the composer can hold it inside its own bounds.
@@ -83,7 +101,7 @@ var LOCK = 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1
 /** The three modes, as the selector says them (rouh/reading.py `MODES`), each with one line of what it means. */
 var MODES = [
   ['simple', 'Simple chat', 'Fast and cheap: no memory, none of your rules, tools only when needed.'],
-  ['full', 'Full capabilities', 'Everything on: memory, your rules, tools, and a task’s notes and pages.'],
+  ['full', 'Full capabilities', 'Everything on: memory, your rules and tools.'],
   ['custom', 'Custom', 'Choose each of them yourself.']
 ];
 var SAFETY = 'Permission, privacy and safety cannot be turned off.';
@@ -172,40 +190,192 @@ function paintStrip(d) {
       : 'Incognito: a new chat where nothing is kept, deleted when you leave it';
   }
   if (!strip) return;
-  strip.hidden = !d;
-  if (!d) return;
   var words = $('readingStripWords'), stripMark = $('readingStripMark');
   if (!words || !stripMark) return;
+  var groups = (d && d.content) || [];
+  // The page open on the canvas beside the chat, which every message is told (`rouh/page_in_chat.py`).
+  var bits = d && d.strip ? d.strip.split(' · ') : [];
+  if (d && ASK.doc) bits.push('This page');
+  READ.doc = ASK.doc;
+  // Nothing to choose and nothing to say (General, a chat of its own): no strip at all.
+  strip.hidden = !d || (!d.incognito && !bits.length);
+  if (strip.hidden) { if (cpop && !cpop.hidden) openContent(false); return; }
+  // Incognito, or nothing to choose: a quiet line, never a press that opens an empty panel.
+  var quiet = !groups.length;
+  strip.disabled = quiet;
+  strip.classList.toggle('quiet', quiet);
   words.textContent = '';
   stripMark.textContent = '';
-  stripMark.appendChild(icon(d.incognito ? HAT : SLIDERS, 15));
-  if (d.incognito) {
+  stripMark.appendChild(icon(d && d.incognito ? HAT : LAYERS, 15));
+  if (d && d.incognito) {
     words.appendChild(el('b', '', 'Incognito:'));
     words.appendChild(document.createTextNode('nothing here is kept'));
-    // What it is on, after the one thing that matters most in it.
-    words.appendChild(document.createTextNode(' · '));
-    words.appendChild(el('span', 'reading-strip-bit', d.strip));
+    if (bits.length) words.appendChild(document.createTextNode(' · '));
   } else {
     words.appendChild(el('b', '', 'Reading'));
-    // The page open on the canvas beside the chat, which every message is told (`rouh/page_in_chat.py`).
-    var bits = d.strip.split(' · ');
-    if (ASK.doc) bits.push('This page');
-    READ.doc = ASK.doc;
-    bits.forEach(function (bit, i) {
-      if (i) words.appendChild(document.createTextNode(' · '));
-      words.appendChild(el('span', 'reading-strip-bit', bit));
-    });
   }
-  var says = (d.incognito ? 'Incognito chat, nothing is kept: ' + d.strip + '. ' : 'Reading: ' + d.strip + '. ') + 'Press for Chat Options.';
+  bits.forEach(function (bit, i) {
+    if (i) words.appendChild(document.createTextNode(' · '));
+    words.appendChild(el('span', 'reading-strip-bit', bit));
+  });
+  // Faded while a choice made here is being saved: the summary is the server's.
+  words.classList.toggle('pending', READ.pending && !!(cpop && !cpop.hidden));
+  var chev = $('readingStripChev');
+  if (chev) { chev.textContent = ''; chev.hidden = quiet; if (!quiet) chev.appendChild(icon(CHEV, 12)); }
+  var says = (d && d.incognito ? 'Incognito chat, nothing is kept' + (bits.length ? ': ' + bits.join(', ') : '') + '.'
+    : 'Reading: ' + bits.join(', ') + '.') + (quiet ? '' : ' Press to choose what this chat reads.');
   strip.title = says;
   strip.setAttribute('aria-label', says);
+  if (quiet && cpop && !cpop.hidden) openContent(false);
+}
+
+/** One choice of the strip's panel: a switch with its size beside it. @param {ContentGroup} g */
+function contentRow(g) {
+  var b = row('c:' + g.key, g.on, g.title, g.sub, 'content');
+  if (g.size) {
+    var z = el('span', 'reading-size', g.size);
+    z.title = 'About ' + g.tokens.toLocaleString() + ' tokens';
+    b.insertBefore(z, b.lastChild);
+  }
+  return b;
+}
+
+/** A row of buttons, one pressed. @param {string} key @param {string} now @param {string} label
+    @param {string[][]} opts */
+function seg(key, now, label, opts) {
+  var g = el('span', 'reading-seg');
+  g.setAttribute('role', 'group');
+  g.setAttribute('aria-label', label);
+  opts.forEach(function (o) {
+    var b = el('button', '', o[1]);
+    b.type = 'button';
+    b.dataset.cseg = key + ':' + o[0];
+    b.setAttribute('aria-pressed', now === o[0] ? 'true' : 'false');
+    g.appendChild(b);
+  });
+  return g;
+}
+
+/** The strip's panel: what this chat is about. @param {ReadView} d */
+function contentPaint(d) {
+  if (!cpop) return;
+  var s = d.settings;
+  cpop.textContent = '';
+  var bar = el('div', 'reading-top');
+  var h = el('h2', '', 'What this chat reads');
+  h.id = 'contentHead';
+  h.tabIndex = -1;
+  bar.appendChild(h);
+  var x = el('button', 'content-x');
+  x.type = 'button';
+  x.dataset.close = '1';
+  x.setAttribute('aria-label', 'Close');
+  x.appendChild(icon('M6 6l12 12M18 6L6 18', 18));
+  bar.appendChild(x);
+  cpop.appendChild(bar);
+  cpop.appendChild(el('p', 'reading-verdict content-hint',
+    'What Rouh is given with each message. How it works, memory, rules and tools, is in Chat Options by the box.'));
+  // A save that failed is said where the switches are, not under the list.
+  if (READ.oops) {
+    var oops = el('p', 'reading-oops', READ.oops);
+    oops.setAttribute('role', 'status');
+    cpop.appendChild(oops);
+  }
+  var list = el('div', 'reading-sec content-groups');
+  (d.content || []).forEach(function (g) {
+    list.appendChild(contentRow(g));
+    if (g.key !== 'steps' || !g.on) return;
+    var subs = d.subtasks || [];
+    var more = el('div', 'content-more');
+    more.appendChild(el('p', '', 'Which steps'));
+    more.appendChild(seg('subtasks', s.subtasks === 'some' ? 'some' : 'all', 'Which steps',
+      [['all', 'All ' + subs.length], ['some', 'Chosen']]));
+    more.appendChild(el('p', '', 'Of each step'));
+    more.appendChild(seg('steps_what', s.steps_what || 'all', 'What of each step',
+      [['all', 'Everything'], ['md', 'Notes only'], ['html', 'Pages only']]));
+    list.appendChild(more);
+    if (s.subtasks === 'some') {
+      subs.forEach(function (sub) {
+        var r = row('sub:' + sub.id, sub.on, sub.label, '', 'sub');
+        if (sub.size) r.insertBefore(el('span', 'reading-size', sub.size), r.lastChild);
+        list.appendChild(r);
+      });
+    }
+  });
+  cpop.appendChild(list);
+
+  // What is read now: what the choices bring in, each with its size, and what is too much to read whole.
+  var read = (d.items || []).filter(function (it) { return it.kind !== 'fork' && it.kind !== 'parent'; });
+  if (read.length) {
+    var sec2 = sec(d.outlined ? 'What is read now · ' + d.outlined + ' of ' + read.length + ' as outlines'
+      : 'What is read now · all ' + read.length + ' read whole');
+    if (d.outlined) sec2.appendChild(el('p', 'reading-verdict', 'Too much to read whole together, so the longest are read as outlines: their headings and first lines.'));
+    var ul = el('ul', 'reading-items' + (READ.pending ? ' pending' : ''));
+    var order = read.slice().sort(function (a, b) {
+      return (a.how === 'outline' ? 0 : 1) - (b.how === 'outline' ? 0 : 1) || b.tokens - a.tokens;
+    });
+    (READ.more ? order : order.slice(0, 4)).forEach(function (it) {
+      var li = el('li', '');
+      var n = el('span', 'n', it.owner && it.group !== 'task' && it.group !== 'others' ? it.owner + ' · ' + it.label : it.label);
+      n.title = it.path || it.label;
+      li.appendChild(n);
+      li.appendChild(el('span', 'z', it.size));
+      if (it.how === 'outline') li.appendChild(el('span', 'o', 'outline'));
+      ul.appendChild(li);
+    });
+    sec2.appendChild(ul);
+    if (read.length > 4) {
+      var more2 = el('button', 'reading-more', READ.more ? 'Show fewer' : 'Show all ' + read.length);
+      more2.type = 'button';
+      more2.dataset.more = '1';
+      sec2.appendChild(more2);
+    }
+    cpop.appendChild(sec2);
+  }
+}
+
+/** Under the strip on a desk; a sheet from the bottom on a phone. */
+function contentPlace() {
+  if (!cpop || cpop.hidden || !strip) return;
+  var sheet = window.innerWidth < 600;
+  cpop.classList.toggle('sheet', sheet);
+  if (cback) cback.hidden = !sheet;
+  if (sheet) { cpop.style.left = cpop.style.top = cpop.style.width = cpop.style.maxHeight = ''; return; }
+  var r = strip.getBoundingClientRect();
+  var w = Math.min(460, Math.max(300, r.width - 16));
+  cpop.style.left = Math.round(Math.min(r.left + 8, window.innerWidth - w - 8)) + 'px';
+  cpop.style.top = Math.round(r.bottom + 2) + 'px';
+  cpop.style.width = w + 'px';
+  // Down to the composer and no further: the box stays in sight under it.
+  var box = $('composerBox');
+  var floor = box ? box.getBoundingClientRect().top - 8 : window.innerHeight - 24;
+  cpop.style.maxHeight = Math.max(200, Math.round(floor - r.bottom - 2)) + 'px';
+}
+
+/** Open or close the strip's panel. @param {boolean} on */
+function openContent(on) {
+  if (!cpop || !strip) return;
+  if (on && pop && !pop.hidden) openPop(false);
+  if (on) composerPopsClose();
+  var was = !cpop.hidden;
+  cpop.hidden = !on;
+  strip.setAttribute('aria-expanded', on ? 'true' : 'false');
+  document.body.classList.toggle('content-open', on);
+  if (!on) {
+    if (cback) cback.hidden = true;
+    if (was && cpop.contains(document.activeElement)) strip.focus();
+    return;
+  }
+  if (READ.data) contentPaint(READ.data);
+  contentPlace();
+  var head = $('contentHead');
+  if (head) head.focus();
 }
 
 /** The panel. @param {ReadView} d */
 function paintPop(d) {
   if (!pop) return;
   var s = d.settings;
-  var task = d.kind === 'task';
   var custom = s.mode === 'custom';
   pop.textContent = '';
   pop.classList.toggle('custom', custom);
@@ -237,33 +407,6 @@ function paintPop(d) {
   mode.appendChild(el('p', 'reading-safety', SAFETY));
   main.appendChild(mode);
 
-  if (task && d.items.length) {
-    var list = sec(d.outlined ? 'What is read now · ' + d.outlined + ' of ' + d.items.length + ' as outlines'
-      : 'What is read now · all ' + d.items.length + ' read whole');
-    var ul = el('ul', 'reading-items');
-    // What is cut to an outline first, then the largest: the short list shows what matters.
-    var order = d.items.slice().sort(function (a, b) {
-      return (a.how === 'outline' ? 0 : 1) - (b.how === 'outline' ? 0 : 1) || b.tokens - a.tokens;
-    });
-    (READ.more ? order : order.slice(0, 3)).forEach(function (it) {
-      var li = el('li', '');
-      var n = el('span', 'n', it.label);
-      n.title = it.path || it.label;
-      li.appendChild(n);
-      li.appendChild(el('span', 'z', it.size));
-      if (it.how === 'outline') li.appendChild(el('span', 'o', 'outline'));
-      ul.appendChild(li);
-    });
-    list.appendChild(ul);
-    if (d.items.length > 3) {
-      var more = el('button', 'reading-more', READ.more ? 'Show fewer' : 'Show all ' + d.items.length);
-      more.type = 'button';
-      more.dataset.more = '1';
-      list.appendChild(more);
-    }
-    main.appendChild(list);
-  }
-
   // Incognito is a button of its own (`incogBtn`); here, while it is on, what it means and a way out.
   if (d.incognito) {
     var top = sec('');
@@ -279,36 +422,6 @@ function paintPop(d) {
     side.appendChild(every);
   }
 
-  if (task && d.task && custom) {
-    var t = sec('Task ' + d.task.label.split(' · ')[0]);
-    t.appendChild(row('md', !!s.md, 'Notes', 'The task’s .md files'));
-    t.appendChild(row('html', !!s.html, 'Pages', 'The task’s pages, as their words'));
-    t.appendChild(row('histories', !!s.histories, 'Chat histories', 'What was said in the task’s other chats'));
-    var subs = d.subtasks || [];
-    if (subs.length) {
-      var r = el('div', 'reading-row locked');
-      var rt = el('span', 'reading-row-t');
-      rt.appendChild(el('b', '', 'Subtasks'));
-      rt.appendChild(el('span', '', subs.length + ' in this task'));
-      r.appendChild(rt);
-      var seg = el('span', 'reading-seg');
-      seg.setAttribute('role', 'group');
-      seg.setAttribute('aria-label', 'Which subtasks are read');
-      [['none', 'None'], ['all', 'All'], ['some', 'Some']].forEach(function (p) {
-        var b = el('button', '', p[1]);
-        b.type = 'button';
-        b.dataset.seg = p[0];
-        b.setAttribute('aria-pressed', s.subtasks === p[0] ? 'true' : 'false');
-        seg.appendChild(b);
-      });
-      r.appendChild(seg);
-      t.appendChild(r);
-      if (s.subtasks === 'some') {
-        subs.forEach(function (sub) { t.appendChild(row('sub:' + sub.id, sub.on, sub.label, '', 'sub')); });
-      }
-    }
-    side.appendChild(t);
-  }
   // Everything this chat is told is a link to the full list, never a list of its own here.
   var foot = sec('');
   var n = toldCount(d);
@@ -448,7 +561,7 @@ function fullPaint(d) {
     if (r.locked) {
       var lk = el('span', 'reading-lock');
       lk.appendChild(icon(LOCK, 12));
-      lk.appendChild(document.createTextNode(r.source === 'chat' ? 'set above' : 'cannot be turned off'));
+      lk.appendChild(document.createTextNode(r.source === 'chat' ? 'set by what the chat is' : 'cannot be turned off'));
       top.appendChild(lk);
     } else {
       var b = el('button', 'cot-sw' + (!r.on && !r.off ? ' follows' : ''));
@@ -519,7 +632,7 @@ function selectorOf(t) {
   if (b.id) return '#' + b.id;
   return d.key ? '[data-key="' + d.key + '"]' : d.seg ? '[data-seg="' + d.seg + '"]' : d.mode ? '[data-mode="' + d.mode + '"]'
     : d.item ? '[data-item="' + d.item + '"]' : d.filter ? '[data-filter="' + d.filter + '"]' : d.more ? '[data-more]'
-    : d.reset ? '[data-reset]' : d.full ? '[data-full]' : '';
+    : d.reset ? '[data-reset]' : d.full ? '[data-full]' : d.cseg ? '[data-cseg="' + d.cseg + '"]' : '';
 }
 
 /** @param {ReadView | null} d */
@@ -528,7 +641,8 @@ function paint(d) {
   // What has the focus in the panel or the full list keeps it, however often they are drawn again.
   var at = document.activeElement;
   var inPop = !!(pop && at && pop.contains(at)), inFull = !!(full && at && full.contains(at));
-  var keep = READ.focus || ((inPop || inFull) ? selectorOf(at) : '');
+  var inContent = !!(cpop && at && cpop.contains(at));
+  var keep = READ.focus || ((inPop || inFull || inContent) ? selectorOf(at) : '');
   paintStrip(d);
   if (d && full && !full.hidden) {
     var scrolled = full.querySelector('.cot-body');
@@ -547,6 +661,14 @@ function paint(d) {
     READ.painted = d.chat;
     var again = keep && (inPop || READ.focus) ? /** @type {HTMLElement | null} */ (pop.querySelector(keep)) : null;
     if (again) again.focus();
+  }
+  if (d && cpop && !cpop.hidden) {
+    var ctop = cpop.scrollTop;
+    contentPaint(d);
+    contentPlace();
+    cpop.scrollTop = READ.painted === d.chat ? ctop : 0;
+    var back = keep && inContent ? /** @type {HTMLElement | null} */ (cpop.querySelector(keep)) : null;
+    if (back) back.focus();
   }
   READ.focus = '';
 }
@@ -617,9 +739,12 @@ var NEXT = [];
 
 /** The switches a mode sets (rouh/reading.py `SIMPLE` and `FULL`); Custom sets none. */
 var MODE_SETS = /** @type {Record<string, Record<string, any>>} */ ({
-  simple: { memory: false, rules: false, tools: true, off: [], md: false, html: false, subtasks: 'none', picked: [], histories: false },
-  full: { memory: true, rules: true, tools: true, off: [], md: true, html: true, subtasks: 'none', picked: [], histories: false }
+  simple: { memory: false, rules: false, tools: true, off: [] },
+  full: { memory: true, rules: true, tools: true, off: [] }
 });
+/** What the chat is about (rouh/reading.py `CONTENT_KEYS`): set in the strip's panel, never by a mode. */
+var CONTENT_KEYS = ['task', 'others', 'subtasks', 'picked', 'steps_what', 'step_histories', 'parent_task',
+                    'parent_task_history', 'fork_history'];
 
 /** What the panel will say once this change is saved, as far as it can be told without the server: the
     settings, the mode, and each subtask's switch. Counts are left as they were (`READ.pending`).
@@ -633,9 +758,15 @@ function guess(d, wanted) {
     if (MODE_SETS[wanted.mode]) Object.assign(s, MODE_SETS[wanted.mode]);
   } else {
     Object.keys(wanted).forEach(function (k) { s[k] = wanted[k]; });
-    s.mode = 'custom';
+    if (Object.keys(wanted).some(function (k) { return CONTENT_KEYS.indexOf(k) < 0; })) s.mode = 'custom';
   }
   var g = /** @type {ReadView} */ (Object.assign({}, d, { settings: s, mode: s.mode }));
+  if (d.content) {
+    g.content = d.content.map(function (c) {
+      var on = c.key === 'steps' ? s.subtasks !== 'none' : !!s[c.key];
+      return on === c.on ? c : Object.assign({}, c, { on: on });
+    });
+  }
   if (d.subtasks) {
     var picked = s.picked || [];
     g.subtasks = d.subtasks.map(function (x) {
@@ -805,6 +936,17 @@ function pressed(t) {
   if (!READ.data) return;
   if (t.dataset.reset) { change({ reset: true }); return; }
   if (t.dataset.seg) { change({ subtasks: t.dataset.seg }); return; }
+  if (t.dataset.cseg) {
+    var cs = t.dataset.cseg.split(':');
+    if (t.getAttribute('aria-pressed') === 'true') return;
+    var c0 = /** @type {Record<string, any>} */ ({});
+    c0[cs[0]] = cs[1];
+    // Chosen starts with the steps that are read now: none is dropped by the press itself.
+    if (cs[0] === 'subtasks' && cs[1] === 'some') c0.picked = (READ.data.settings.picked || []).length
+      ? READ.data.settings.picked : (READ.data.subtasks || []).map(function (x) { return x.id; });
+    change(c0);
+    return;
+  }
   if (t.dataset.mode) {
     if (t.getAttribute('aria-checked') === 'true') return;
     change({ mode: t.dataset.mode });
@@ -816,6 +958,14 @@ function pressed(t) {
   if (key === 'incognito') {
     if (incognitoTo) incognitoTo(on);
     else notify('Incognito is not ready on this page yet.', { tone: 'error' });
+    return;
+  }
+  if (key.indexOf('c:') === 0) {
+    var ck = key.slice(2);
+    var cc = /** @type {Record<string, any>} */ ({});
+    if (ck === 'steps') cc.subtasks = on ? 'all' : 'none';
+    else cc[ck] = on;
+    change(cc);
     return;
   }
   if (key.indexOf('sub:') === 0) {
@@ -841,10 +991,23 @@ if (btn && pop) {
     e.stopPropagation();
     openPop(pop.hidden);
   });
-  if (strip) strip.addEventListener('click', function (e) {
-    e.stopPropagation();
-    openPop(pop.hidden);
-  });
+  // The strip opens its own panel, what this chat is about; never Chat Options (Petar, 16 November 2026:
+  // "I hate duplicate stuff").
+  if (strip && cpop) {
+    strip.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (strip && strip.disabled) return;
+      openContent(cpop ? cpop.hidden : false);
+    });
+    cpop.addEventListener('click', function (e) {
+      var t = /** @type {HTMLElement} */ (e.target).closest('button');
+      if (!t || !READ.data) return;
+      if (t.dataset.close) { openContent(false); return; }
+      if (t.dataset.more) { READ.more = !READ.more; paint(READ.data); return; }
+      pressed(t);
+    });
+    if (cback) cback.addEventListener('click', function () { openContent(false); });
+  }
   pop.addEventListener('keydown', modeKeys);
   if (full) full.addEventListener('keydown', modeKeys);
   pop.addEventListener('click', function (e) {
@@ -897,9 +1060,10 @@ if (btn && pop) {
     if (incognitoTo) incognitoTo(on);
   });
   document.addEventListener('pointerdown', function (e) {
-    if (pop.hidden || (full && !full.hidden)) return;
     var t = /** @type {Node} */ (e.target);
-    if (pop.contains(t) || btn.contains(t) || (strip && strip.contains(t)) || (incogBtn && incogBtn.contains(t))) return;
+    if (cpop && !cpop.hidden && !cpop.contains(t) && !(strip && strip.contains(t)) && !(cback && cback.contains(t))) openContent(false);
+    if (pop.hidden || (full && !full.hidden)) return;
+    if (pop.contains(t) || btn.contains(t) || (incogBtn && incogBtn.contains(t))) return;
     openPop(false);
   }, true);
   window.addEventListener('keydown', function (e) {
@@ -908,6 +1072,13 @@ if (btn && pop) {
       e.preventDefault();
       e.stopPropagation();
       fullOpen(false);
+      return;
+    }
+    if (cpop && !cpop.hidden) {
+      e.preventDefault();
+      e.stopPropagation();
+      openContent(false);
+      if (strip) strip.focus();
       return;
     }
     if (pop.hidden) return;
@@ -927,6 +1098,7 @@ if (btn && pop) {
   document.addEventListener('visibilitychange', function () { if (!document.hidden) READ.chat = ''; });
   window.addEventListener('rouh:reading-again', function () { READ.chat = ''; });
   window.addEventListener('resize', place);
+  window.addEventListener('resize', contentPlace);
 }
 
 export { onIncognito, openPop as readingOpen, READ };

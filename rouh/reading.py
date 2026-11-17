@@ -16,9 +16,9 @@ draws them (`readingPaint` in app/reading.js):
   built-in rules, as they are.
 - **In a task's chat** (or a step's, which is a task inside a task), what the task is: its record (number,
   name, status, summary, meta), the goal when the task is one (`goal.md`), its `AGENTS.md`, and its notes
-  (`.md`) and pages (`.html`), read from its folder in the workspace. No subtask by default. The person can
-  add every subtask or chosen ones, keep only notes or only pages, and add the chat histories of what is
-  included.
+  (`.md`) and pages (`.html`), read from its folder in the workspace. No step by default. The person can
+  add every step or chosen ones, of each everything, its notes only or its pages only, the steps' chat
+  histories, and the folder's other files, in the strip's panel (below).
 - **Sizes**: each item is labelled short, long or very long from its tokens (`size_word`). What is included
   is read whole up to `BUDGET` tokens; past it, the largest items are read as an outline (their headings and
   first lines) and the panel and the model are both told which (`plan`). Nothing is blown into the prompt
@@ -38,9 +38,20 @@ draws them (`readingPaint` in app/reading.js):
   Nothing is saved for new chats any more: "Start new chats like this" is gone, and the choices it saved
   were forgotten (`0256_forget_saved_chat_options`).
 
+**Two controls, one job each** (Petar, 16 November 2026: "I hate duplicate stuff ... the bar on the top we can
+use to control the contents ... while bottom includes rules, tools, memory, this should control the other
+content"). Chat Options, by the box, is how Rouh works: the mode, memory, rules and tools (`SWITCH_KEYS`). The
+strip under the chat's title is what the chat is about (`CONTENT_KEYS`), with a panel of its own: This task
+(on), Other files in the folder (off), Steps (off; all or chosen; everything, notes only or pages only),
+Steps' chat histories (off); in a step's chat Parent task (on, `subtasknotes.background`) and Parent task's
+chat history (off); in a fork Parent chat history (on, `carries_parent`, read by `memory.Memory._window`).
+A mode never changes what the chat is about, and Reset to defaults leaves it. Each choice is listed with its
+size whether it is on or not; what is left out is sized from the file or the database and never read
+(`items`, `GROUPS`, `content`).
+
 `block` is what a turn of a task's chat is told (`brain.Brain._system`), `switches` what the turn does with
-memory, rules and tools, `view` what the panel draws, and `strip` the one line under the chat's title that
-says in plain words what is being read.
+memory, rules and tools, `view` what the panels draw, and `strip` the one line under the chat's title that
+says in plain words what the chat is about.
 """
 from __future__ import annotations
 
@@ -53,21 +64,29 @@ from pathlib import Path
 
 log = logging.getLogger("rouh.reading")
 
-#: The defaults: memory, rules and tools on; a task's chat reads the task, its notes and pages, no subtasks,
-#: no chat histories.
-DEFAULTS = {"mode": "full", "memory": True, "rules": True, "tools": True, "subtasks": "none", "picked": [],
-            "md": True, "html": True, "histories": False, "off": []}
+#: The defaults. How Rouh works (Chat Options, beside the box): Full capabilities, memory, rules and tools on.
+#: What the chat is about (the strip under its title, since 17 November 2026): the task whole, its other
+#: files, steps and their chats left out; a step's chat reads its parent task as background and not the
+#: parent's chats; a fork carries the conversation it came off, as it always has (`memory.Memory._window`).
+DEFAULTS = {"mode": "full", "memory": True, "rules": True, "tools": True, "off": [],
+            "task": True, "others": False, "subtasks": "none", "picked": [], "steps_what": "all",
+            "step_histories": False, "parent_task": True, "parent_task_history": False, "fork_history": True}
 #: The three modes, as the selector at the top of Chat Options names them.
 MODES = ("simple", "full", "custom")
 MODE_NAMES = {"simple": "Simple chat", "full": "Full capabilities", "custom": "Custom"}
-#: What Simple chat and Full capabilities set; Custom is whatever the switches say.
-SIMPLE = {"memory": False, "rules": False, "tools": True, "off": [], "md": False, "html": False,
-          "subtasks": "none", "picked": [], "histories": False}
-FULL = {"memory": True, "rules": True, "tools": True, "off": [], "md": True, "html": True,
-        "subtasks": "none", "picked": [], "histories": False}
+#: What Simple chat and Full capabilities set; Custom is whatever the switches say. A mode is how Rouh works
+#: and nothing about what the chat is about (Petar, 16 November 2026: "while bottom includes rules, tools,
+#: memory, this should control the other content").
+SIMPLE = {"memory": False, "rules": False, "tools": True, "off": []}
+FULL = {"memory": True, "rules": True, "tools": True, "off": []}
 #: The switches a mode sets, and which Custom leaves to the person one by one.
-SWITCH_KEYS = ("memory", "rules", "tools", "off", "md", "html", "subtasks", "picked", "histories")
+SWITCH_KEYS = ("memory", "rules", "tools", "off")
+#: What the chat is about: set in the strip's panel, never by a mode, kept with the chat.
+CONTENT_KEYS = ("task", "others", "subtasks", "picked", "steps_what", "step_histories", "parent_task",
+                "parent_task_history", "fork_history")
 SUBTASKS = ("none", "all", "some")
+#: Of each step that is read: everything, its notes (.md) only, or its pages (.html) only.
+STEPS_WHAT = ("all", "md", "html")
 #: What the included items may take of a turn, in tokens, before the largest are read as outlines.
 BUDGET = 60_000
 #: Short, long and very long: under 2,000 tokens, under 20,000, and the rest.
@@ -118,6 +137,8 @@ def settings(chat_id: str, who=None) -> dict:
         got["mode"] = "full"
     if got["subtasks"] not in SUBTASKS:
         got["subtasks"] = "none"
+    if got["steps_what"] not in STEPS_WHAT:
+        got["steps_what"] = "all"
     got["picked"] = [str(x) for x in got.get("picked") or []][:200]
     got["off"] = sorted({str(x) for x in got.get("off") or []})[:500]
     return _on_mode(got)
@@ -126,8 +147,9 @@ def settings(chat_id: str, who=None) -> dict:
 def put(chat_id: str, change: dict, who=None) -> dict:
     """Change some of this chat's settings; what it is now. Unknown keys are ignored.
 
-    `reset` puts the chat back on Rouh's defaults. Every choice is this chat's own: none is kept for new
-    chats (the model beside it works the same way)."""
+    `reset` puts how Rouh works back on Rouh's defaults (Chat Options' Reset to defaults) and leaves what the
+    chat is about as it was. Every choice is this chat's own: none is kept for new chats (the model beside it
+    works the same way). A choice of what the chat is about never moves the mode."""
     from .models.objects import Chat
 
     row = _chat_row(chat_id)
@@ -145,7 +167,9 @@ def put(chat_id: str, change: dict, who=None) -> dict:
     if change.pop("reset", False):
         # Rouh's defaults: Full capabilities, nothing left out. An incognito chat goes back to Simple chat,
         # as it started (`incognito.start`).
+        content = {k: v for k, v in now.items() if k in CONTENT_KEYS}
         now = {"mode": "simple"} if row.incognito else {"mode": "full"}
+        now.update(content)
         Chat.objects.filter(id=chat_id).update(reading=now)
         return settings(chat_id, who)
     before = settings(chat_id, who)
@@ -166,6 +190,9 @@ def put(chat_id: str, change: dict, who=None) -> dict:
         if k == "subtasks":
             if v in SUBTASKS:
                 now[k] = v
+        elif k == "steps_what":
+            if v in STEPS_WHAT:
+                now[k] = v
         elif k == "picked":
             now[k] = [str(x) for x in (v or [])][:200]
         elif k == "off":
@@ -173,6 +200,8 @@ def put(chat_id: str, change: dict, who=None) -> dict:
         else:
             now[k] = bool(v)
     now.pop("keep", None)   # the old "Start new chats like this", gone since 16 November 2026
+    for old in ("md", "html", "histories"):   # the task's switches in Chat Options until 17 November 2026
+        now.pop(old, None)
     Chat.objects.filter(id=chat_id).update(reading=now)
     return settings(chat_id, who)
 
@@ -253,10 +282,10 @@ def outline(text: str) -> str:
 
 @dataclass
 class Item:
-    """One thing a task's chat may read."""
+    """One thing a chat may read about what it is about."""
 
     id: str
-    kind: str            # task, goal, agents, md, html, history
+    kind: str            # task, goal, agents, md, html, other, history, parent, fork
     label: str
     owner: str = ""      # the task it is part of, as "68" or "68-01"
     path: str = ""       # in the workspace, for a file
@@ -264,10 +293,16 @@ class Item:
     on: bool = True
     how: str = "whole"   # whole, outline, or off
     text: str = field(default="", repr=False)
+    #: Which choice in the strip's panel brings it in (`GROUPS`).
+    group: str = "task"
+    #: Told by another part of the prompt (the parent task's background, a fork's carried conversation), so
+    #: never in `block` and never counted against `BUDGET`: listed only for its size.
+    elsewhere: bool = False
 
     def public(self) -> dict:
         return {"id": self.id, "kind": self.kind, "label": self.label, "owner": self.owner, "path": self.path,
-                "size": size_word(self.tokens), "tokens": self.tokens, "on": self.on, "how": self.how}
+                "size": size_word(self.tokens), "tokens": self.tokens, "on": self.on, "how": self.how,
+                "group": self.group}
 
 
 def _root() -> Path | None:
@@ -301,14 +336,23 @@ def _record(task) -> str:
     return "\n".join(lines)
 
 
-def _files(folder: Path, suffix: str) -> list[Path]:
-    """The files of a kind in a task's own folder and its own subfolders that are not steps, by name."""
+#: "Other files in the folder": the text files of a task's folder that are neither notes nor pages.
+OTHER_SUFFIXES = (".txt", ".csv", ".tsv", ".json", ".yml", ".yaml", ".toml", ".ini", ".xml", ".py", ".js",
+                  ".mjs", ".ts", ".css", ".sql", ".sh", ".log", ".tex", ".rst")
+
+
+def _files(folder: Path, suffixes) -> list[Path]:
+    """The files of these kinds in a task's own folder and its own subfolders that are not steps, by name."""
     from . import subtasknotes
 
+    if isinstance(suffixes, str):
+        suffixes = (suffixes,)
     out: list[Path] = []
     if not folder.is_dir():
         return out
-    for p in sorted(folder.rglob(f"*{suffix}")):
+    for p in sorted(folder.rglob("*")):
+        if p.suffix.lower() not in suffixes or not p.is_file():
+            continue
         rel = p.relative_to(folder)
         parts = rel.parts[:-1]
         # A step's folder is a subtask's, read only when the subtask is; scratch and hidden folders never.
@@ -316,6 +360,8 @@ def _files(folder: Path, suffix: str) -> list[Path]:
                for x in parts):
             continue
         if p.name.upper() == "AGENTS.MD" and not parts:
+            continue
+        if p.name.startswith("."):
             continue
         out.append(p)
         if len(out) >= MOST_FILES:
@@ -333,65 +379,117 @@ def _read(path: Path) -> str:
         return ""
 
 
-def _task_items(task, owner: str, s: dict, root: Path | None, *, main: bool) -> list[Item]:
+#: The tokens of a file left out, by (path, its size, when it changed): what a choice would bring in is sized
+#: the same whether it is on or off, and a file is read for it once until it changes.
+_SIZED: dict[tuple, int] = {}
+
+
+def _sized(path: Path, page: bool = False) -> int:
+    """How many tokens a file left out comes to: the same count as when it is read (a page's words, not its
+    markup), kept until the file changes, so it is worked out once."""
+    try:
+        st = path.stat()
+    except OSError:
+        return 0
+    key = (str(path), st.st_size, st.st_mtime_ns)
+    got = _SIZED.get(key)
+    if got is None:
+        raw = _read(path)
+        got = tokens(html_text(raw) if page else raw)
+        if len(_SIZED) > 20_000:
+            _SIZED.clear()
+        _SIZED[key] = got
+    return got
+
+
+def _file(kind: str, p: Path, folder: Path, root: Path, owner: str, group: str, read: bool) -> Item:
+    rel = str(p.relative_to(root))
+    it = Item(id=f"{kind}:{rel}", kind=kind, label=str(p.relative_to(folder)), owner=owner, path=rel,
+              group=group, on=read)
+    if read:
+        raw = _read(p)
+        it.text = html_text(raw) if kind == "html" else raw
+        it.tokens = tokens(it.text)
+    else:
+        it.tokens = _sized(p, page=kind == "html")
+    return it
+
+
+def _task_items(task, owner: str, root: Path | None, *, main: bool, group: str, read: bool,
+                what: str = "all") -> list[Item]:
+    """A task's record, goal, AGENTS.md, notes and pages, as one choice brings them in: everything, or (of a
+    step) its notes only or its pages only. Read when `read`, else only sized."""
     from . import goals, instructions
 
-    items = [Item(id=f"task:{task.id}", kind="task", label=("This task" if main else f"Task {owner}"),
-                  owner=owner, text=_record(task))]
+    record = _record(task)
+    items = [Item(id=f"task:{task.id}", kind="task", label=("The task's record" if main else f"Task {owner}"),
+                  owner=owner, text=record if read else "", tokens=tokens(record), group=group, on=read)]
     folder = (root / task.folder) if (root and task.folder) else None
-    if folder is not None and folder.is_dir():
-        goal = folder / goals.ABOUT_FILE
-        if goal.is_file():
-            items.append(Item(id=f"goal:{task.id}", kind="goal", label="The goal", owner=owner,
-                              path=str(goal.relative_to(root)), text=_read(goal)))
-        agents = instructions.in_folder(folder)
-        if agents.is_file():
-            items.append(Item(id=f"agents:{task.id}", kind="agents", label=agents.name, owner=owner,
-                              path=str(agents.relative_to(root)), text=_read(agents)))
-        if s["md"]:
-            for p in _files(folder, ".md"):
-                if p.name == goals.ABOUT_FILE and p.parent == folder:
-                    continue
-                rel = str(p.relative_to(root))
-                items.append(Item(id=f"md:{rel}", kind="md", label=str(p.relative_to(folder)), owner=owner,
-                                  path=rel, text=_read(p)))
-        if s["html"]:
-            for p in _files(folder, ".html"):
-                rel = str(p.relative_to(root))
-                items.append(Item(id=f"html:{rel}", kind="html", label=str(p.relative_to(folder)), owner=owner,
-                                  path=rel, text=html_text(_read(p))))
-    if s["histories"]:
-        items += _histories(task, owner, skip_main=main)
-    for it in items:
-        it.tokens = tokens(it.text)
+    if folder is None or not folder.is_dir():
+        return items
+    notes, pages = what in ("all", "md"), what in ("all", "html")
+    goal = folder / goals.ABOUT_FILE
+    if what == "all" and goal.is_file():
+        items.append(_file("goal", goal, folder, root, owner, group, read))
+        items[-1].label = "The goal"
+    agents = instructions.in_folder(folder)
+    if notes and agents.is_file():
+        items.append(_file("agents", agents, folder, root, owner, group, read))
+        items[-1].label = agents.name
+    if notes:
+        for p in _files(folder, ".md"):
+            if p.name == goals.ABOUT_FILE and p.parent == folder:
+                continue
+            items.append(_file("md", p, folder, root, owner, group, read))
+    if pages:
+        for p in _files(folder, ".html"):
+            items.append(_file("html", p, folder, root, owner, group, read))
     return items
 
 
-def _histories(task, owner: str, *, skip_main: bool) -> list[Item]:
-    """The words of the chats a task owns. The chat being read in already sends its own."""
+def _others(task, owner: str, root: Path | None, read: bool) -> list[Item]:
+    """The task's other text files: data, scripts, lists, neither notes nor pages."""
+    folder = (root / task.folder) if (root and task.folder) else None
+    if folder is None or not folder.is_dir():
+        return []
+    return [_file("other", p, folder, root, owner, "others", read) for p in _files(folder, OTHER_SUFFIXES)]
+
+
+def _histories(task, owner: str, *, group: str, read: bool, skip: str = "") -> list[Item]:
+    """The words of the chats a task owns, but `skip`: the chat being read in already sends its own. Left
+    out, each is only sized, from the database."""
+    from django.db.models import Count, Sum
+    from django.db.models.functions import Length
+
     from . import conversations
     from .models.objects import ChatMessage
 
     st = conversations.store()
     out = []
-    for kind, chat_id in st.children_of("task", task.id, "chat"):
-        if skip_main and chat_id == _CURRENT.get(""):
+    for _kind, chat_id in st.children_of("task", task.id, "chat"):
+        if skip and chat_id == skip:
             continue
-        rows = list(ChatMessage.objects.filter(chat_id=chat_id).order_by("-seq")
-                    .values_list("role", "body")[:HISTORY_ROWS])
-        if not rows:
-            continue
-        rows.reverse()
         chat = st.get_chat(chat_id)
         name = (chat.title if chat and chat.title else "a chat").strip()
-        text = "\n".join(f"{'Person' if r == 'user' else 'Rouh'}: {' '.join(str(b or '').split())}" for r, b in rows)
-        out.append(Item(id=f"history:{chat_id}", kind="history", label=f"Chat: {name}", owner=owner, text=text))
+        it = Item(id=f"history:{chat_id}", kind="history", label=f"Chat: {name}", owner=owner, group=group,
+                  on=read)
+        if read:
+            rows = list(ChatMessage.objects.filter(chat_id=chat_id).order_by("-seq")
+                        .values_list("role", "body")[:HISTORY_ROWS])
+            if not rows:
+                continue
+            rows.reverse()
+            it.text = "\n".join(f"{'Person' if r == 'user' else 'Rouh'}: {' '.join(str(b or '').split())}"
+                                for r, b in rows)
+            it.tokens = tokens(it.text)
+        else:
+            got = ChatMessage.objects.filter(chat_id=chat_id).aggregate(n=Count("id"), chars=Sum(Length("body")))
+            if not got["n"]:
+                continue
+            chars = int(got["chars"] or 0) * min(1.0, HISTORY_ROWS / got["n"])
+            it.tokens = max(1, int(chars) // 4)
+        out.append(it)
     return out
-
-
-import contextvars  # noqa: E402 - beside the one thing that uses it
-
-_CURRENT: contextvars.ContextVar[str] = contextvars.ContextVar("reading_chat", default="")
 
 
 def task_of(chat_id: str):
@@ -422,29 +520,90 @@ def subtasks(task) -> list:
     return out
 
 
-def items(chat_id: str, s: dict | None = None) -> tuple[object, list[Item], list]:
-    """(the task, every item it may read with how it is read, its subtasks), or (None, [], [])."""
-    s = s or settings(chat_id)
-    task = task_of(chat_id)
+def _step_parent(chat_id: str):
+    """(the step, its parent task) when this is a step's own chat, else (None, None). A fork of a step's chat
+    is told the step's task, not its parent's background (`subtasknotes.prompt_block` asks the same)."""
+    from . import conversations, subtasknotes
+
+    task = conversations.task_of(chat_id)
     if task is None:
-        return None, [], []
+        held = conversations.draft(chat_id) or {}
+        if held.get("task"):
+            task = conversations.store().get_task(held["task"])
+    if task is None:
+        return None, None
+    parent = subtasknotes.parent_of(task.id)
+    return (task, parent) if parent is not None else (None, None)
+
+
+def _fork_item(chat_id: str, on: bool) -> Item | None:
+    """The conversation a fork carries above its own words (`memory.Memory._window`), sized from the parent's
+    messages up to the fork; None when the chat carries none."""
+    from django.db.models import Sum
+    from django.db.models.functions import Length
+
+    from . import conversations, forks
+    from .models.memory import TranscriptMessage
+
+    got = forks.carried(chat_id)
+    if got is None:
+        return None
+    parent, at = got
+    chars = (TranscriptMessage.objects.filter(session_id=parent, live=True, notice=False, id__lte=at)
+             .aggregate(n=Sum(Length("content")))["n"] or 0)
+    name = "General" if parent == conversations.GENERAL else ""
+    if not name:
+        chat = conversations.store().get_chat(parent)
+        name = (chat.title if chat and chat.title else "").strip() or "the chat above"
+    return Item(id=f"fork:{parent}", kind="fork", label=name, tokens=max(1, int(chars) // 4), group="fork_history",
+                on=on, elsewhere=True)
+
+
+def items(chat_id: str, s: dict | None = None) -> tuple[object, list[Item], list]:
+    """(the task, every item this chat may read about what it is about with whether it does and how, the
+    task's subtasks). What a choice leaves out is listed with its size and never read. The task is None for
+    a chat that is no task's, whose only item can be a fork's carried conversation."""
     from . import subtasknotes
 
+    s = s or settings(chat_id)
+    task = task_of(chat_id)
+    got: list[Item] = []
+    subs: list = []
     root = _root()
-    token = _CURRENT.set(chat_id)
-    try:
-        got = _task_items(task, str(task.number) if task.number is not None else subtasknotes.step_number(task),
-                          s, root, main=True)
+    if task is not None:
+        number = str(task.number) if task.number is not None else subtasknotes.step_number(task)
+        got += _task_items(task, number, root, main=True, group="task", read=bool(s["task"]))
+        got += _others(task, number, root, read=bool(s["others"]))
         subs = subtasks(task)
-        if s["subtasks"] != "none":
-            picked = set(s["picked"])
-            for sub in subs:
-                if s["subtasks"] == "all" or sub.id in picked:
-                    got += _task_items(sub, subtasknotes.step_number(sub) or str(sub.number or ""), s, root,
-                                       main=False)
-    finally:
-        _CURRENT.reset(token)
-    plan(got)
+        picked = set(s["picked"])
+        steps_on = s["subtasks"] != "none"
+        for sub in subs:
+            # Every step is listed, with its size; a step not chosen is in a group of its own, so Steps
+            # says the size of what it brings in.
+            chosen = s["subtasks"] != "some" or sub.id in picked
+            label = subtasknotes.step_number(sub) or str(sub.number or "")
+            got += _task_items(sub, label, root, main=False, group="steps" if chosen else "steps_not_chosen",
+                               read=steps_on and chosen, what=s["steps_what"])
+        for sub in subs:
+            if s["subtasks"] == "some" and sub.id not in picked:
+                continue
+            label = subtasknotes.step_number(sub) or str(sub.number or "")
+            got += _histories(sub, label, group="step_histories", read=bool(s["step_histories"]))
+        step, parent = _step_parent(chat_id)
+        if parent is not None:
+            background = subtasknotes.background(parent, step, root)
+            got.append(Item(id=f"parent:{parent.id}", kind="parent", label=f"Task {_label(parent)}",
+                            owner=str(parent.number or ""), tokens=tokens(background), group="parent_task",
+                            on=bool(s["parent_task"]), elsewhere=True))
+            got += _histories(parent, str(parent.number or ""), group="parent_task_history",
+                              read=bool(s["parent_task_history"]))
+    fork = _fork_item(chat_id, bool(s["fork_history"]))
+    if fork is not None:
+        got.append(fork)
+    for it in got:
+        if not it.on:
+            it.how = "off"
+    plan([i for i in got if i.on and not i.elsewhere])
     return task, got, subs
 
 
@@ -452,10 +611,10 @@ def plan(got: list[Item]) -> int:
     """Read whole what fits `BUDGET`, the rest as outlines: a subtask's items first, then the task's own
     notes, pages and chat histories, and its goal and AGENTS.md last, the largest first within each. The
     tokens it comes to."""
-    main = got[0].owner if got else ""
+    main = got[0].owner if got and got[0].group == "task" else ""
 
     def order(i: Item):
-        rank = 0 if i.owner != main else (2 if i.kind in ("agents", "goal") else 1)
+        rank = 0 if i.owner != main or i.group != "task" else (2 if i.kind in ("agents", "goal") else 1)
         return (rank, -i.tokens)
 
     total = sum(i.tokens for i in got)
@@ -473,13 +632,14 @@ def plan(got: list[Item]) -> int:
 def block(chat_id: str) -> str:
     """What a turn of a task's chat is told about the task, as the person set it, or ""."""
     try:
-        task, got, _subs = items(chat_id)
+        task, every, _subs = items(chat_id)
     except Exception:  # noqa: BLE001 - a line of context is never worth a turn
         log.exception("what chat %s reads could not be put together", chat_id)
         return ""
+    got = [i for i in every if i.on and not i.elsewhere]
     if task is None or not got:
         return ""
-    head = (f"What the person has this chat reading, as they set it in Chat Options beside the box "
+    head = (f"What the person has this chat reading, as they set it in the strip under the chat's title "
             f"(task {_label(task)}). It is the task's own material, read from its folder in the workspace just "
             "now; a page's words are its text without its markup.")
     outlined = [i for i in got if i.how == "outline"]
@@ -493,6 +653,28 @@ def block(chat_id: str) -> str:
         tag = "" if it.how == "whole" else " [outline]"
         parts.append(f"=== {it.label}{where}{tag} ===\n{body.strip()}")
     return "\n\n".join(parts)
+
+
+def carries_parent(chat_id: str) -> bool:
+    """Whether a fork is sent the conversation it came off (`memory.Memory._window`): yes, unless the person
+    turned Parent chat history off for it in the strip's panel."""
+    try:
+        row = _chat_row(chat_id) if chat_id else None
+    except Exception:  # noqa: BLE001 - a turn is never lost to its settings: carried, as always
+        log.exception("whether chat %s carries its parent could not be read", chat_id)
+        return True
+    own = row.reading if row is not None and isinstance(row.reading, dict) else {}
+    return bool(own.get("fork_history", True))
+
+
+def parent_told(chat_id: str) -> bool:
+    """Whether a step's chat is told its parent task as background (`subtasknotes.prompt_block`)."""
+    try:
+        row = _chat_row(chat_id) if chat_id else None
+    except Exception:  # noqa: BLE001
+        return True
+    own = row.reading if row is not None and isinstance(row.reading, dict) else {}
+    return bool(own.get("parent_task", True))
 
 
 # --- memory, rules and tools: where everything a chat is told comes from --------------------------
@@ -544,7 +726,8 @@ CONTEXT = (
     ("general-summary", "What General said before", "chat",
      "General's running summary of what fell out of its window. Only in General."),
     ("task", "This chat's task", "chat",
-     "In a task's chat: the task, its goal, AGENTS.md, notes and pages, as set under the task above."),
+     "In a task's chat: the task, its goal, AGENTS.md, notes and pages, as set in the strip under the chat's "
+     "title."),
     ("page", "The page beside the chat", "chat", "The page open on the canvas, and what you selected on it."),
 )
 _CONTEXT_SOURCE = {k: src for k, _t, src, _w in CONTEXT}
@@ -781,39 +964,102 @@ def _of_general(chat_id: str) -> bool:
         return False
 
 
+#: The choices of the strip's panel, in its order: (key, title, what it brings in, the chats it is for).
+GROUPS = (
+    ("task", "This task", "The task, its goal, AGENTS.md, its notes (.md) and its pages (.html)"),
+    ("others", "Other files in the folder", "The task's other text files: lists, data, scripts"),
+    ("steps", "Steps", "What the task's steps hold"),
+    ("step_histories", "Steps' chat histories", "What was said in the steps' own chats"),
+    ("parent_task", "Parent task", "Its AGENTS.md, what it says this step is, and what its other steps sent up"),
+    ("parent_task_history", "Parent task's chat history", "What was said in the parent task's chats"),
+    ("fork_history", "Parent chat history", "The conversation this chat was forked from, up to the fork"),
+)
+
+
+def _plural(n: int, one: str, many: str = "") -> str:
+    return f"{n} {one if n == 1 else (many or one + 's')}"
+
+
+def content(chat_id: str, s: dict, got: list[Item], task, subs: list) -> dict:
+    """What the strip's panel draws: each choice this chat has, with whether it is on, its size, and how many
+    things it brings in. A choice with nothing to bring in is not drawn (no Steps in a task without steps);
+    a chat with no choice at all (General, a chat of its own) has an empty list, and no panel."""
+    groups = []
+    for key, title, sub in GROUPS:
+        of = [i for i in got if i.group == key]
+        # A history choice is drawn wherever it belongs, even before there is anything said to bring in.
+        belongs = {"steps": bool(subs), "step_histories": bool(subs),
+                   "parent_task_history": any(i.group == "parent_task" for i in got)}
+        if key in belongs:
+            if not belongs[key]:
+                continue
+        elif not of:
+            continue
+        on = bool(s[key]) if key != "steps" else s["subtasks"] != "none"
+        n = sum(i.tokens for i in of)
+        if not of and key != "steps":
+            sub = "Nothing said in them yet"
+        g = {"key": key, "title": title, "sub": sub, "on": on, "tokens": n, "size": size_word(n) if of else "",
+             "count": len(of), "outlined": sum(1 for i in of if i.how == "outline")}
+        if key == "fork_history" and of:
+            g["sub"] = f"The conversation in {of[0].label}, up to where this chat was forked from it"
+        if key == "parent_task" and of:
+            g["title"] = f"Parent task: {of[0].label.removeprefix('Task ')}"
+        groups.append(g)
+    return {"groups": groups, "summary": strip(chat_id, s, got, task, subs=subs)}
+
+
 def strip(chat_id: str, s: dict | None = None, got: list[Item] | None = None, task=None,
-          incognito: bool = False) -> str:
-    """The line under the chat's title: the mode, and on Custom what is being read, in plain words:
-    "Simple chat", "Full capabilities · Task 62 · 1 note", "Custom: Memory · Tools"."""
+          incognito: bool = False, subs: list | None = None) -> str:
+    """The line under the chat's title: what this chat is about, in a few plain words: "Task 130 · 2 notes ·
+    3 pages · steps left out", "Step 130-02 · 1 note · parent task", "Forked from General · history included".
+    "" when the chat has nothing to choose (General, or a chat of its own), and no strip is drawn. How Rouh
+    works (the mode) is said on the Chat Options button, never here."""
+    from . import subtasknotes
+
     s = s or settings(chat_id)
-    mode = s.get("mode") or "full"
+    if got is None:
+        task, got, subs = items(chat_id, s)
+    on = [i for i in got if i.on]
     bits = []
-    if mode == "custom":
-        bits.append("Memory" if s["memory"] and not incognito else "No memory")
-        bits.append("Your rules" if s["rules"] else "No rules")
-        bits.append("Tools" if s["tools"] else "No tools")
-        bits[0] = "Custom: " + bits[0]
-    else:
-        bits.append(MODE_NAMES[mode])
+    fork = next((i for i in got if i.kind == "fork"), None)
     if task is not None:
-        bits.append(f"Task {_label(task).split(' · ')[0]}")
-        if any(i.kind == "agents" for i in got or []):
-            bits.append("AGENTS.md")
-        notes = sum(1 for i in got or [] if i.kind == "md")
-        pages = sum(1 for i in got or [] if i.kind == "html")
-        subs = len({i.owner for i in got or [] if i.kind == "task"}) - 1
-        hist = sum(1 for i in got or [] if i.kind == "history")
-        if notes:
-            bits.append(f"{notes} note{'s' if notes != 1 else ''}")
-        if pages:
-            bits.append(f"{pages} page{'s' if pages != 1 else ''}")
-        if subs > 0:
-            bits.append(f"{subs} subtask{'s' if subs != 1 else ''}")
-        if hist:
-            bits.append(f"{hist} chat histor{'ies' if hist != 1 else 'y'}")
-        cut = sum(1 for i in got or [] if i.how == "outline")
+        step = subtasknotes.parent_of(task.id) is not None
+        name = (f"Step {subtasknotes.step_number(task)}" if step and subtasknotes.step_number(task)
+                else f"Task {_label(task).split(' · ')[0]}")
+        if not s["task"]:
+            bits.append(f"{name} left out")
+        else:
+            bits.append(name)
+            mine = [i for i in on if i.group == "task"]
+            notes = sum(1 for i in mine if i.kind == "md")
+            pages = sum(1 for i in mine if i.kind == "html")
+            if notes:
+                bits.append(_plural(notes, "note"))
+            if pages:
+                bits.append(_plural(pages, "page"))
+        others = sum(1 for i in on if i.group == "others")
+        if others:
+            bits.append(_plural(others, "other file"))
+        if subs:
+            if s["subtasks"] == "none":
+                bits.append("steps left out")
+            else:
+                n = len({i.owner for i in on if i.group == "steps" and i.kind == "task"})
+                what = {"md": " (notes)", "html": " (pages)"}.get(s["steps_what"], "")
+                bits.append(_plural(n, "step") + what)
+        if any(i.group == "step_histories" for i in on):
+            bits.append("steps' chats")
+        if any(i.group == "parent_task" for i in on):
+            bits.append("parent task")
+        if any(i.group == "parent_task_history" for i in on):
+            bits.append("parent's chats")
+        cut = sum(1 for i in on if i.how == "outline")
         if cut:
             bits.append(f"{cut} as outlines")
+    if fork is not None:
+        said = "history included" if fork.on else "history left out"
+        bits.append(f"Forked from {fork.label} · {said}" if task is None else f"forked, {said}")
     return " · ".join(bits)
 
 
@@ -825,20 +1071,29 @@ def view(chat_id: str, who=None) -> dict:
     is_incognito = bool(row and row["incognito"])
     s = settings(chat_id, who)
     task, got, subs = items(chat_id, s)
-    total = sum(i.tokens if i.how == "whole" else tokens(outline(i.text)) for i in got)
+    read = [i for i in got if i.on and not i.elsewhere]
+    total = sum(i.tokens if i.how == "whole" else tokens(outline(i.text)) for i in read)
+    told = content(chat_id, s, got, task, subs)
     out = {"chat": chat_id, "kind": kind_of(chat_id), "settings": s, "incognito": is_incognito,
            "mode": s["mode"], "modes": [{"id": m, "name": MODE_NAMES[m]} for m in MODES],
-           "items": [i.public() for i in got], "budget": BUDGET, "reads": total,
-           "outlined": sum(1 for i in got if i.how == "outline"),
-           "strip": strip(chat_id, s, got, task, is_incognito)}
+           # What is read now, of what the chat is about: what its choices bring in, with how.
+           "items": [i.public() for i in got if i.on], "budget": BUDGET, "reads": total,
+           "outlined": sum(1 for i in read if i.how == "outline"),
+           "content": told["groups"], "strip": told["summary"]}
     if task is not None:
         from . import subtasknotes
 
         out["task"] = {"id": task.id, "label": _label(task)}
         picked = set(s["picked"])
-        out["subtasks"] = [{"id": sub.id, "label": subtasknotes.label(sub),
-                            "on": s["subtasks"] == "all" or (s["subtasks"] == "some" and sub.id in picked)}
-                           for sub in subs]
+        sizes: dict[str, int] = {}
+        for i in got:
+            if i.group in ("steps", "steps_not_chosen"):
+                sizes[i.owner] = sizes.get(i.owner, 0) + i.tokens
+        out["subtasks"] = []
+        for sub in subs:
+            n = sizes.get(subtasknotes.step_number(sub) or str(sub.number or ""), 0)
+            out["subtasks"].append({"id": sub.id, "label": subtasknotes.label(sub), "size": size_word(n),
+                                    "on": s["subtasks"] == "all" or (s["subtasks"] == "some" and sub.id in picked)})
     if is_incognito:
         from . import incognito
 

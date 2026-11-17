@@ -1,12 +1,14 @@
-"""What Rouh reads in a chat: the panel beside the composer, "What I'm reading" (`rouh/reading.py`).
+"""What Rouh reads in a chat: Chat Options beside the composer, and the strip under the chat's title (`rouh/reading.py`).
 
     GET  /api/reading?chat=<id>     what the panel draws for that chat
-    POST /api/reading               {"chat", "change": {"mode": "simple"|"full"|"custom" (Simple chat, Full
-                                    capabilities, or the switches one by one),
-                                    "memory"|"rules"|"tools"|"md"|"html"|"histories": bool,
-                                    "subtasks": "none"|"all"|"some", "picked": [task ids],
-                                    "off": [item ids turned off one by one],
-                                    "reset": true (back to Rouh's defaults)}}; what it draws now
+    POST /api/reading               {"chat", "change": {
+                                    how Rouh works (Chat Options): "mode": "simple"|"full"|"custom",
+                                    "memory"|"rules"|"tools": bool, "off": [item ids turned off one by one],
+                                    "reset": true (how Rouh works back to Rouh's defaults);
+                                    what the chat is about (the strip's panel, never moving the mode):
+                                    "task"|"others"|"step_histories"|"parent_task"|"parent_task_history"|
+                                    "fork_history": bool, "subtasks": "none"|"all"|"some", "picked": [task ids],
+                                    "steps_what": "all"|"md"|"html"}}; what both draw now
 
 The owner's own chats, so anybody signed in to this Rouh, and nobody a page was only shared with: a reader of a
 shared page is served by `rouh/web/guests.py` and never reaches here.

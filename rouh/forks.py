@@ -397,7 +397,8 @@ def make(parent_id: str, before: int | None = None, *,
     # should be like smart/cheap selection"); a parent that set nothing leaves the fork on Full.
     parent = Chat.objects.filter(id=parent_id).values("reading", "incognito").first() or {}
     reading = parent.get("reading") if isinstance(parent.get("reading"), dict) and not parent.get("incognito") else {}
-    reading = {k: v for k, v in (reading or {}).items() if k != "keep"}
+    # Parent chat history is the fork's own choice, and starts on: it is what makes it a fork.
+    reading = {k: v for k, v in (reading or {}).items() if k not in ("keep", "fork_history")}
     with transaction.atomic():
         chat_id = conversations.new_chat(fork=True)
         ChatFork.objects.create(chat_id=chat_id, parent_id=parent_id, at=at,
