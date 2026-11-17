@@ -79,7 +79,7 @@ def master_repo() -> Path:
 
 def sources() -> list[str]:
     """Where shared main is fetched from, in the order to try: ROUH_CODE_MASTER, else rouh-core on
-    GitHub under either name of its organisation (rouh/github_org.py)."""
+    GitHub (rouh/github_org.py)."""
     return github_org.every(os.environ.get("ROUH_CODE_MASTER") or "https://github.com/{org}/rouh-core.git")
 
 

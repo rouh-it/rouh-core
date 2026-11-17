@@ -1,5 +1,5 @@
 {
- "base": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+ "base": "ghcr.io/rouh-land/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
  "reference": "good-edge-as-released",
  "cases": {
   "good-edge-as-released": {

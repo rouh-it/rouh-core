@@ -195,28 +195,15 @@ def _verified_code_commit() -> tuple[str, int]:
     return commit, int(payload.get("version") or 0)
 
 
-#: The GitHub organisations rouh-core may be under: rouh-land, its name since 16 November 2026, and
-#: rouh-it, the old one (task 187). GitHub sends the old name on after the rename unless a repository
-#: of the same name is made under it again, so the updater finds its code under either.
-ORGS = ("rouh-land", "rouh-it")
-
-
 def _fetch_commit(commit: str) -> None:
-    """commit into this checkout from origin; if origin is rouh-core on GitHub and cannot give it,
-    from rouh-core under the other name of its organisation, which then becomes origin. The commit
-    is the signed one (_verified_code_commit) and is checked out by its hash, so where it was
-    fetched from decides nothing."""
+    """commit into this checkout from origin (rouh-land/rouh-core on GitHub). The commit is the
+    signed one (_verified_code_commit) and is checked out by its hash, so where it was fetched from
+    decides nothing. A checkout cloned before the rename still names rouh-it, which GitHub forwards
+    to rouh-land (task 187)."""
     git = ["git", "-C", str(CORE)]
     r = run([*git, "fetch", "-q", "--depth", "1", "origin", commit], timeout=600)
     if r.returncode == 0:
         return
-    origin = (run([*git, "config", "--get", "remote.origin.url"], timeout=30).stdout or b"").decode().strip()
-    found = re.match(r"^(https://github\.com/|git@github\.com:)(" + "|".join(ORGS) + r")/rouh-core(\.git)?$", origin)
-    for org in ([o for o in ORGS if o != found.group(2)] if found else []):
-        other = f"{found.group(1)}{org}/rouh-core.git"
-        if run([*git, "fetch", "-q", "--depth", "1", other, commit], timeout=600).returncode == 0:
-            run([*git, "remote", "set-url", "origin", other], timeout=30)
-            return
     said = ((r.stderr or b"") + (r.stdout or b"")).decode(errors="replace").strip()
     raise Stop("git fetch failed" + (f": {said[-400:]}" if said else ""))
 
@@ -533,7 +520,7 @@ def _recreate_core() -> None:
 
 def cmd_relay(a) -> int:
     """Which relay a Connected Rouh's phone address goes through: rouh.land's (rouh.page) by default,
-    or one the owner runs (rouh-it/rouh-relay; INSTALL-LINUX.md, "A relay of your own")."""
+    or one the owner runs (rouh-land/rouh-relay; INSTALL-LINUX.md, "A relay of your own")."""
     need_docker()
     if a.off:
         set_settings(ROUH_RELAY="0")

@@ -2,7 +2,7 @@
 
 Task 98, step 98-23, built on 24 October 2026.
 The small set of safety and repair parts that leave a Rouh's own code, so the Rouh can use them and not edit them, and Rouh's makers can still fix them.
-It ships as its own image, `ghcr.io/rouh-it/rouh-guard`, named by digest in the same signed release on rouh.land as the base.
+It ships as its own image, `ghcr.io/rouh-land/rouh-guard`, named by digest in the same signed release on rouh.land as the base.
 
 Why: a Rouh's code is its own (`/code`, a git repository each Rouh changes itself and no update touches).
 Until this, everything that kept a Rouh safe and repairable lived there too, so a Rouh could rewrite its own safety parts, and no fix of ours could reach them.
@@ -19,7 +19,7 @@ Petar's rule since this day: **a gene may change Rouh in any way except the prot
 | `rouh_guard/changes.py` | The change step: a proposed commit checked, then made the code that runs, with an undo point kept where the Rouh cannot reach it. |
 | `rouh_guard/doctor.py` | The doctor: puts `/code` back to the last undo point when Rouh stops answering right after a change. |
 | `rouh_guard/geneverify.py` | The signature checks on a shared gene (moved from `rouh/genelab.py`). |
-| `rouh_guard/stackpolicy.py`, `policy/` | The stack check: what a Rouh's own stack file may and may not ask for. `policy/stack-policy.json` is the one allow-list: each release signs this commit's copy of it, and both checks read the release's. A Linux machine runs this file out of the release's guard image (`deploy/container/linux_stack.py`). Rouh for Mac's `StackPolicy.swift` (in `rouh-it/rouh-mac`) is its twin; both are held to `policy/fixtures/`, and Rouh for Mac's build stops while its copy of these files is not the one the live release names (`check_sha256`). No file of the machine may reach a stack: `include`, `extends` and `label_file` are refused in the stack file's text, an `env_file` must be the release's settings file or one of the stack's own folder, and Linux resolves the Rouh's own stack sealed; `policy/fixtures/host_files.py` proves it on real Docker on every push to main. |
+| `rouh_guard/stackpolicy.py`, `policy/` | The stack check: what a Rouh's own stack file may and may not ask for. `policy/stack-policy.json` is the one allow-list: each release signs this commit's copy of it, and both checks read the release's. A Linux machine runs this file out of the release's guard image (`deploy/container/linux_stack.py`). Rouh for Mac's `StackPolicy.swift` (in `rouh-land/rouh-mac`) is its twin; both are held to `policy/fixtures/`, and Rouh for Mac's build stops while its copy of these files is not the one the live release names (`check_sha256`). No file of the machine may reach a stack: `include`, `extends` and `label_file` are refused in the stack file's text, an `env_file` must be the release's settings file or one of the stack's own folder, and Linux resolves the Rouh's own stack sealed; `policy/fixtures/host_files.py` proves it on real Docker on every push to main. |
 | `bin/rouh-core-entrypoint`, `bin/rouh-workers-entrypoint`, `bin/rouh-guard-run` | How the core and the worker start: the core asks the guard first (`verify`), and both run their program under `rouh-guard-run`, which starts it again when the guard puts other code in place. |
 | `rouh_guard/deploywait.py`, `bin/rouh-deploy-wait` | No deploy cuts a chat answer: before a restart, wait until Rouh says no answer is in progress (`rouh/answers_now.py` keeps the count), ten minutes at most; `rouh-guard-run` runs it in the containers and `update-all.sh` on a server (below). |
 | `bin/rouh-propose` | For a run in the worker: hands the commits of its clone of the code to the guard through Rouh, and waits for the answer. |
@@ -78,12 +78,12 @@ Proven on 24 October 2026 in this server's Docker, with every step driven in a r
 
 Every Rouh instance stops at "restart": a checked change is live as an undo point and goes nowhere
 else. The Creator Rouh, Petar's own, where Rouh's code is made, sets one more setting in its
-settings file, `ROUH_GUARD_UPSTREAM=git@github.com:rouh-it/rouh-core.git`, and makes the key once:
+settings file, `ROUH_GUARD_UPSTREAM=git@github.com:rouh-land/rouh-core.git`, and makes the key once:
 
     docker compose exec guard python -I /opt/rouh-guard/bin/rouh-guard upstream-key
 
 which prints only the public half; it goes on rouh-core as a deploy key with write access
-(GitHub's API, `repos/rouh-it/rouh-core/keys`), so it can write to that one repository and no
+(GitHub's API, `repos/rouh-land/rouh-core/keys`), so it can write to that one repository and no
 other. The private half stays in the guard's own volume, which nothing else mounts.
 
 From then on (`rouh_guard/upstream.py`) the guard pushes a change to rouh-core's main only after

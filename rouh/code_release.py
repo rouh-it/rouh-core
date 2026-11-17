@@ -1,4 +1,4 @@
-"""Released changes of shared rouh-core main (rouh-it, being renamed rouh-land: rouh/github_org.py), after the early-test Rouhs' day with them.
+"""Released changes of shared rouh-core main (rouh-land/rouh-core: rouh/github_org.py), after the early-test Rouhs' day with them.
 
 Task 140, steps 140-18 and 140-19 (11 November 2026). The source is shared main, including changes
 published by collaborators. A release boundary has passed master's checks and has run on an

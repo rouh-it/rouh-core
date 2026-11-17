@@ -51,7 +51,7 @@ def main() -> int:
         root.mkdir()
         (root / ".env").write_text("POSTGRES_PASSWORD=x\nROUH_PORT=8420\n")
         m = linux_stack.Machine(root)
-        images = {"base": "ghcr.io/rouh-it/rouh-base@sha256:" + "1" * 64, "guard": a.guard,
+        images = {"base": "ghcr.io/rouh-land/rouh-base@sha256:" + "1" * 64, "guard": a.guard,
                   "postgres": "pgvector/pgvector:0.8.2-pg18-trixie@sha256:" + "3" * 64}
         m.release_env.write_text(m.release_env_text({"version": 1, "level": "test", "images": images}, m.settings))
         m.reference.write_text(reference)

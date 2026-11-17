@@ -29,9 +29,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 REFERENCE = REPO / "deploy" / "stack" / "compose.yml"
-BASE = "ghcr.io/rouh-it/rouh-base@sha256:" + "1" * 64
+BASE = "ghcr.io/rouh-land/rouh-base@sha256:" + "1" * 64
 RELEASE_ENV = (f"ROUH_BASE_IMAGE={BASE}\n"
-               f"ROUH_GUARD_IMAGE=ghcr.io/rouh-it/rouh-guard@sha256:{'2' * 64}\n"
+               f"ROUH_GUARD_IMAGE=ghcr.io/rouh-land/rouh-guard@sha256:{'2' * 64}\n"
                f"ROUH_POSTGRES_IMAGE=pgvector/pgvector:0.8.2-pg18-trixie@sha256:{'3' * 64}\n")
 STACK_ENV = "POSTGRES_PASSWORD=fixture-password\nROUH_PORT=8420\n"
 #: A file of the machine's own, which no stack file may read: its words must never reach a fixture.

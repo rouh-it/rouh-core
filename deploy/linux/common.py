@@ -333,7 +333,7 @@ def release() -> dict | None:
     import mac_release
 
     try:
-        return mac_release.check_release(json.loads(f.read_bytes()))
+        return mac_release.check_release(json.loads(f.read_bytes()), kept=True)
     except (ValueError, KeyError, json.JSONDecodeError):
         return {"bad": True}
 

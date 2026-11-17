@@ -6,7 +6,7 @@ anywhere. The Creator Rouh, the maker's own, is where Rouh's code is made, so fo
 one setting adds what used to be land.sh's push:
 
     ROUH_GUARD_UPSTREAM   the repository a checked change is pushed to, such as
-                          git@github.com:rouh-it/rouh-core.git. Blank, as in every Rouh instance:
+                          git@github.com:rouh-land/rouh-core.git. Blank, as in every Rouh instance:
                           all of this is off, and the guard behaves exactly as before.
 
 With it on, the guard:

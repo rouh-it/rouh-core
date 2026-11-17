@@ -15,7 +15,7 @@ Never edit these by hand.
 A new level comes from the Creator Rouh's nightly patch job (the maker's own Rouh, `rouh/base_patches.py`), as a pull request on main that `.github/workflows/base.yml` tests on Intel and Arm and merges by itself only when every check passes; a new line comes from that workflow run by hand with `cut`.
 `deploy/container/base_patch.py` says how each file is made.
 
-What a build made is not kept here or anywhere else in git: how the check went on each platform, what was published, the signed release, and every Debian package in the images are on that level's GitHub Release, `https://github.com/rouh-it/rouh-core/releases/tag/base-<level>`.
+What a build made is not kept here or anywhere else in git: how the check went on each platform, what was published, the signed release, and every Debian package in the images are on that level's GitHub Release, `https://github.com/rouh-land/rouh-core/releases/tag/base-<level>`.
 
 Until 30 October 2026 these files lived on a branch of their own, `base`, with the build records beside them.
 That branch is kept, read-only, as `archive/base-branch-until-2026-10`; nothing reads it.

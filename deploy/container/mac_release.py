@@ -76,7 +76,7 @@ of this release's guard image.
         the ones built from it; base.yml runs it before it publishes
 
 Standard library only, and openssl (3.x) for Ed25519, so it runs on GitHub's runners and on
-the signing machine as it is. Change PUBLIC_KEYS together with Rouh for Mac's StackRelease.trustedKeys (rouh-it/rouh-mac) and
+the signing machine as it is. Change PUBLIC_KEYS together with Rouh for Mac's StackRelease.trustedKeys (rouh-land/rouh-mac) and
 rouh.land's MAC_STACK_KEYS.
 """
 import argparse
@@ -107,17 +107,22 @@ KEY_FILE = Path(os.environ.get("ROUH_MAC_STACK_SIGNING_KEY_FILE") or "/root/.con
 POSTGRES = "pgvector/pgvector:0.8.2-pg18-trixie"
 #: The first version of Rouh for Mac that reads base releases and checks them before switching.
 MIN_APP_BASE = "0.3.3"
-#: The GitHub organisations whose images a release may name: rouh-it, and rouh-land, the name it is
-#: being renamed to (task 187). Both are accepted until every Rouh and every Mac reads both; then
-#: the organisation is renamed, and only after that is rouh-it taken out (stage 4 of task 187).
-#: Change it together with Rouh for Mac's StackRelease (rouh-mac) and guard/bin/rouh-code-install.
-ORGS = ("rouh-it", "rouh-land")
-_ORG = "(?:" + "|".join(re.escape(o) for o in ORGS) + ")"
+#: The GitHub organisation whose images a release may name (task 187). Change it together with Rouh
+#: for Mac's ReleaseCheck (rouh-mac) and guard/bin/rouh-code-install.
+ORG = "rouh-land"
+_ORG = re.escape(ORG)
+#: The organisation's name until 16 November 2026, accepted only in a release a machine already
+#: keeps on disk (check_release(kept=True): linux_stack.py's current.json and previous.json), so a
+#: Linux Rouh still on base 1.0.15 or older can read the release it is on and move off it. A new
+#: release, from rouh.land or about to be signed, must name rouh-land. It can go once no machine
+#: keeps a release of rouh-it images as its current or previous one: two base updates after 1.0.17.
+KEPT_ORGS = (ORG, "rouh-it")
+_KEPT_ORG = "(?:" + "|".join(re.escape(o) for o in KEPT_ORGS) + ")"
 
 
 def _ours(names: dict) -> dict:
-    """{"rouh-base": "base", ...} as {"ghcr.io/<org>/rouh-base": "base", ...} for every org of ORGS."""
-    return {f"ghcr.io/{org}/{name}": kind for org in ORGS for name, kind in names.items()}
+    """{"rouh-base": "base", ...} as {"ghcr.io/rouh-land/rouh-base": "base", ...}."""
+    return {f"ghcr.io/{ORG}/{name}": kind for name, kind in names.items()}
 
 
 BASE_KINDS = {**_ours({"rouh-base": "base", "rouh-code": "code"}), "pgvector/pgvector": "postgres"}
@@ -404,9 +409,15 @@ REPO = HERE.parents[1]
 #: The first version of Rouh for Mac that reads releases of format 2, applies a Rouh's own stack
 #: file after its check, and runs the protected core.
 MIN_APP_RELEASE = "0.3.4"
-RELEASE_IMAGES = {"base": re.compile(rf"^ghcr\.io/{_ORG}/rouh-base@sha256:[0-9a-f]{{64}}$"),
-                  "guard": re.compile(rf"^ghcr\.io/{_ORG}/rouh-guard@sha256:[0-9a-f]{{64}}$"),
-                  "postgres": re.compile(r"^pgvector/pgvector:[0-9a-z.\-]+@sha256:[0-9a-f]{64}$")}
+def _release_images(org: str) -> dict:
+    return {"base": re.compile(rf"^ghcr\.io/{org}/rouh-base@sha256:[0-9a-f]{{64}}$"),
+            "guard": re.compile(rf"^ghcr\.io/{org}/rouh-guard@sha256:[0-9a-f]{{64}}$"),
+            "postgres": re.compile(r"^pgvector/pgvector:[0-9a-z.\-]+@sha256:[0-9a-f]{64}$")}
+
+
+RELEASE_IMAGES = _release_images(_ORG)
+#: As RELEASE_IMAGES, for a release kept on disk from before the rename (KEPT_ORGS).
+KEPT_RELEASE_IMAGES = _release_images(_KEPT_ORG)
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 #: What check_sha256 covers: the stack check's code, its allow-list and its fixtures. Rouh for Mac
@@ -442,8 +453,9 @@ def _guard_facts() -> dict:
     return {"version": mod.VERSION, "contracts": mod.CONTRACTS}
 
 
-def check_release(envelope: dict) -> dict:
-    """The app's checks for a release of format 2, in Python."""
+def check_release(envelope: dict, *, kept: bool = False) -> dict:
+    """The app's checks for a release of format 2, in Python. kept: a release this machine already
+    keeps on disk, which may still name the organisation's old name (KEPT_ORGS)."""
     r = _signed(envelope)
     if r.get("kind") != "rouh-release" or r.get("format") != 2:
         raise ValueError("not a Rouh release of format 2")
@@ -453,7 +465,8 @@ def check_release(envelope: dict) -> dict:
         if hashlib.sha256(str(r.get(key, "")).encode()).hexdigest() != r.get(f"{key}_sha256"):
             raise ValueError(f"the {key} does not match its SHA-256")
     images = r.get("images") or {}
-    if set(images) != set(RELEASE_IMAGES) or any(not RELEASE_IMAGES[k].match(v) for k, v in images.items()):
+    allowed = KEPT_RELEASE_IMAGES if kept else RELEASE_IMAGES
+    if set(images) != set(allowed) or any(not allowed[k].match(v) for k, v in images.items()):
         raise ValueError("it must name base, guard and postgres, each pinned by its digest")
     json.loads(r["policy"])
     for var in ("${ROUH_BASE_IMAGE", "${ROUH_GUARD_IMAGE", "${ROUH_POSTGRES_IMAGE"):
@@ -636,8 +649,8 @@ def main():
     rb.add_argument("version", type=int)
     rb.add_argument("--key")
     bp = sub.add_parser("base-pin")
-    bp.add_argument("--base", required=True, help="ghcr.io/rouh-it/rouh-base@sha256:...")
-    bp.add_argument("--code", required=True, help="ghcr.io/rouh-it/rouh-code@sha256:...")
+    bp.add_argument("--base", required=True, help="ghcr.io/rouh-land/rouh-base@sha256:...")
+    bp.add_argument("--code", required=True, help="ghcr.io/rouh-land/rouh-code@sha256:...")
     bp.add_argument("--postgres", required=True, help=f"{POSTGRES}@sha256:..., the line's own pin (line.json)")
     bp.add_argument("--commit", default="")
     bp.add_argument("--source", required=True, help="a format-1 stack file (compose.ghcr.yml before 24 October 2026)")
@@ -662,9 +675,9 @@ def main():
     br.add_argument("version", type=int)
     br.add_argument("--key")
     bg = sub.add_parser("bridge")
-    bg.add_argument("--code-as-core", required=True, help="ghcr.io/rouh-it/rouh-core@sha256:... (the code image)")
-    bg.add_argument("--base-as-workers", required=True, help="ghcr.io/rouh-it/rouh-workers@sha256:... (the base)")
-    bg.add_argument("--base-as-keyproxy", required=True, help="ghcr.io/rouh-it/rouh-keyproxy@sha256:... (the base)")
+    bg.add_argument("--code-as-core", required=True, help="ghcr.io/rouh-land/rouh-core@sha256:... (the code image)")
+    bg.add_argument("--base-as-workers", required=True, help="ghcr.io/rouh-land/rouh-workers@sha256:... (the base)")
+    bg.add_argument("--base-as-keyproxy", required=True, help="ghcr.io/rouh-land/rouh-keyproxy@sha256:... (the base)")
     bg.add_argument("--postgres", required=True)
     bg.add_argument("--commit", default="")
     bg.add_argument("--source", required=True)

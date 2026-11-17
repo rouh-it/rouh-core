@@ -38,7 +38,7 @@ trap 'rm -f "$ONE_INSTALL_COPY"' EXIT
 
 APP=/srv/one/app
 VENV=/srv/one/venv
-REPO=${ONE_REPO:-git@github.com:rouh-it/rouh-core.git}
+REPO=${ONE_REPO:-git@github.com:rouh-land/rouh-core.git}
 UPDATE=0
 [ "${1:-}" = "--update" ] && UPDATE=1
 

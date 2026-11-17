@@ -26,7 +26,7 @@
   "touches": {
     "permissions": [
       "reads rouh.land's public release of Rouh's code (/mac/code/release.json): every half hour while it rides along, or on a press; a Rouh on its own asks only on a press",
-      "reads released changes from shared rouh-it/rouh-core main in order, copies untouched files exactly, and adapts diverged code through a frontier model and protected checks",
+      "reads released changes from shared rouh-land/rouh-core main in order, copies untouched files exactly, and adapts diverged code through a frontier model and protected checks",
       "adds the libraries a release needs to /extra, with the protected core's own installer, held to the base's pins",
       "keeps code backups; the protected core makes fresh full database backups and rehearses migrations on real-data copies, verifying counts and preservation before applying atomically",
       "on the Creator Rouh only: writes down which commit runs, and once a day publishes the newest commit that ran a day with nothing put back as rouh.land's release, signed with this Rouh's daily key",

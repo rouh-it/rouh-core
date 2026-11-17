@@ -54,7 +54,7 @@ MOST_DAYS = 92
 MOST_SAID = 80
 TIMEOUT = 20
 REDIRECTS = 3
-USER_AGENT = "Rouh calendar reader (+https://rouh.it)"
+USER_AGENT = "Rouh calendar reader (+https://rouh.land)"
 
 DESCRIPTION = (
     "Reads a calendar somebody published or shared as a link - an .ics address, a webcal:// "

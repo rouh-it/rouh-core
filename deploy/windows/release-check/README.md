@@ -20,6 +20,6 @@ A person adds, on the same computer, what a script cannot: a restart of Windows 
 Rouh's recommendation, as of 14 November 2026 (to be priced when it is bought):
 
 - **A small Windows 11 Pro PC**, about 400 to 600 euros: an Intel or AMD processor with virtualisation (VT-x or AMD-V) in its firmware, 4 cores or more, **16 GB of memory** (Rouh's Linux takes half), **a 512 GB SSD**, wired Ethernet, and a firmware setting to power on after a power cut. Windows 11 Pro rather than Home only for Remote Desktop, so a job can be watched; WSL2 runs on both.
-- It stays on, signed in to a local account made for it, and runs GitHub's self-hosted runner as a service with the labels `self-hosted, windows, wsl2` (Settings, Actions, Runners, New self-hosted runner, in rouh-it/rouh-core).
+- It stays on, signed in to a local account made for it, and runs GitHub's self-hosted runner as a service with the labels `self-hosted, windows, wsl2` (Settings, Actions, Runners, New self-hosted runner, in rouh-land/rouh-core).
 - **Later, for Arm:** a Snapdragon X laptop, or a cloud Arm Windows machine by the hour, before Arm is called supported.
 - **Instead, by the hour:** a cloud Windows 11 machine that allows nested virtualisation (for example Azure's Dv5 or Ev5 sizes) works for one check at a time, but sleep and wake cannot be tested on it, and it costs every time it is used.

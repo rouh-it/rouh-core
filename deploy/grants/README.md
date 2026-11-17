@@ -193,7 +193,7 @@ On the host, the servers' list (`/usr/local/lib/rouh-grant/servers`) starts empt
 On the Mac, once, from a copy of this repository (`gh` signed in):
 
 ```bash
-rm -rf ~/.rouh-grants && mkdir ~/.rouh-grants && gh api repos/rouh-it/rouh-core/tarball/main | tar -xz -C ~/.rouh-grants --strip-components=1
+rm -rf ~/.rouh-grants && mkdir ~/.rouh-grants && gh api repos/rouh-land/rouh-core/tarball/main | tar -xz -C ~/.rouh-grants --strip-components=1
 bash ~/.rouh-grants/deploy/grants/install-from-mac.sh
 ```
 
@@ -230,7 +230,7 @@ The next `linux_stack.py update` or `apply` writes the release's own image back.
 /code/bin/rouh-github setup         # once per worker home
 /code/bin/rouh-github status        # "GitHub grant open until ... as <user>; GitHub answered 200"
 gh api user --jq .login             # the owner's GitHub user
-git ls-remote https://github.com/rouh-it/rouh-core.git HEAD
+git ls-remote https://github.com/rouh-land/rouh-core.git HEAD
 
 ssh rouh-land true                  # while rouh-open is open (the proxy grant and rouh.land's own)
 ssh relay true                      # the same, for the relay

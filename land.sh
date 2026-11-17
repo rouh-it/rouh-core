@@ -482,7 +482,7 @@ fi
 # A branch from before the split
 #
 # Rouh's code and the person's workspace were once one repository, and were
-# split: the code went on as rouh-it/rouh-core and the workspace as a private
+# split: the code went on as rouh-core (rouh-land/rouh-core) and the workspace as a private
 # repository of its own, both with a history that starts at the split. A
 # branch made before then - a run that was working while it happened, or one
 # left open and given a follow-up later - shares no history with either, and

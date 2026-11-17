@@ -125,13 +125,13 @@ def clean_env(*prefixes: str) -> dict[str, str]:
     # And rouh.land, where the model standard is fetched from and the day's counts of how each
     # model did would go (`rouh/modelstandard.py`, `rouh/modeloutcomes.py`): nothing a world
     # does reaches it. A world that wants a standard points this at a stand-in of its own.
-    env["ROUH_MODEL_STANDARD_URL"] = "http://127.0.0.1:1/no-rouh-it/standard.json"
-    env["ROUH_MODEL_OUTCOMES_URL"] = "http://127.0.0.1:1/no-rouh-it/outcomes"
+    env["ROUH_MODEL_STANDARD_URL"] = "http://127.0.0.1:1/no-rouh-land/standard.json"
+    env["ROUH_MODEL_OUTCOMES_URL"] = "http://127.0.0.1:1/no-rouh-land/outcomes"
     env["ROUH_MODEL_OUTCOMES_SEND"] = "0"
     # And the rule defaults a new Rouh takes in from rouh.land (`rouh/ruledefaults.py`): a world starts with the
     # two it would have offline, unless ROUH_TEST_RULE_DEFAULTS_URL points it at a stand-in of its own.
     env["ROUH_RULE_DEFAULTS_URL"] = os.environ.get("ROUH_TEST_RULE_DEFAULTS_URL",
-                                                   "http://127.0.0.1:1/no-rouh-it/rules.json")
+                                                   "http://127.0.0.1:1/no-rouh-land/rules.json")
     # And the installation's own settings, which are blank until an installer
     # sets them (`rouh/config.py`, SETUP.md): Rouh's own mailbox, the address
     # its letters come from and the clock a person starts on, the same in every

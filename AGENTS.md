@@ -609,7 +609,7 @@ Run it on a throwaway database only (it refuses one that holds accounts): `guard
 
 ## Rouh for Mac is its own repository
 
-Rouh for Mac, the menu-bar app that runs Rouh on a Mac, is `rouh-it/rouh-mac` since 27 October 2026 (task 140, step 140-09), on Petar's word: "The Mac app is a separate thing and should be separated." From 22 to 27 October it was `mac/` here; its history went with it.
+Rouh for Mac, the menu-bar app that runs Rouh on a Mac, is `rouh-land/rouh-mac` since 27 October 2026 (task 140, step 140-09), on Petar's word: "The Mac app is a separate thing and should be separated." From 22 to 27 October it was `mac/` here; its history went with it.
 What ties the two together is rouh.land, never a build: this repository signs the releases a Mac follows (`deploy/container/mac_release.py`, `.github/workflows/base.yml`) and the app reads them from rouh.land.
 One thing is shared as files: `guard/policy/` (the stack check's allow-list and its fixtures), which the app's `StackPolicy.swift` is held to through a copy in `rouh-mac/rouh-core/guard/policy/`. When you change `guard/policy/`, say so in your last message: the copy is brought up with that repository's `scripts/sync-rouh-core.sh`.
 

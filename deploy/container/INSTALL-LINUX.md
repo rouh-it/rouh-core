@@ -96,7 +96,7 @@ rouh relay --off         # no phone address at all
 ```
 
 Rouh claims its address at `<URL>claim` and dials out to the relay that answers (`rouh/relay.py`, `PROTOCOL.md`, "The relay").
-**Not yet possible:** the relay's own server (rouh-it/rouh-relay: frps and its judge, relayd) and the claim endpoint, which today is part of rouh.land's birth service, are not public, so there is no relay to run yourself yet. Until they are, an Independent Rouh with your own domain gives the same: your own address, with nothing between you and your Rouh.
+**Not yet possible:** the relay's own server (rouh-land/rouh-relay: frps and its judge, relayd) and the claim endpoint, which today is part of rouh.land's birth service, are not public, so there is no relay to run yourself yet. Until they are, an Independent Rouh with your own domain gives the same: your own address, with nothing between you and your Rouh.
 
 ## Firewall
 
@@ -175,7 +175,7 @@ If you signed Docker in to `ghcr.io` for an earlier install, sign it out (`docke
 It and `mac_release.py` beside it decide which releases are trusted, so take them from the commit a release names, not from a `main` nobody has checked:
 
 ```bash
-git clone https://github.com/rouh-it/rouh-core.git ~/rouh-core   # Rouh's code, public since 7 November 2026
+git clone https://github.com/rouh-land/rouh-core.git ~/rouh-core   # Rouh's code, public since 7 November 2026
 commit="$(curl -fsS https://rouh.land/release/stable.json | python3 -c 'import json,sys; print(json.loads(json.load(sys.stdin)["payload"])["commit"])')"
 git -C ~/rouh-core checkout -q "$commit"
 [ -f ~/rouh-core/deploy/container/linux_stack.py ] || git -C ~/rouh-core checkout -q main   # a release made before linux_stack.py existed has none: the one time main is used

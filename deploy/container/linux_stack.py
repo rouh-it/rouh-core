@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Rouh on a Linux machine: a signed release from rouh.land, checked, and put in place by one command.
 
-What Rouh for Mac's updater does by itself (StackUpdater, in rouh-it/rouh-mac), for a Linux machine
+What Rouh for Mac's updater does by itself (StackUpdater, in rouh-land/rouh-mac), for a Linux machine
 the person looks after (task 158). Until 29 October 2026 that was steps 4, 6 and 7 of
 INSTALL-LINUX.md done by hand, and nothing stopped a stack that failed its check from starting.
 
@@ -135,7 +135,7 @@ class Machine:
             return None
         data = f.read_bytes()
         try:
-            return mac_release.check_release(json.loads(data)), data
+            return mac_release.check_release(json.loads(data), kept=True), data
         except (ValueError, KeyError, json.JSONDecodeError) as e:
             raise Stop(f"releases/{name} is not a release this trusts ({e}); nothing changed")
 
@@ -487,7 +487,7 @@ def update(m: Machine, release_file: str | None) -> int:
         # A machine set up by hand (INSTALL-LINUX.md before this): its release, if it is one, is the one in use.
         data = (m.root / "release.json").read_bytes()
         try:
-            cur = mac_release.check_release(json.loads(data)), data
+            cur = mac_release.check_release(json.loads(data), kept=True), data
             say(f"Taken as the release in use: release.json, base {cur[0]['level']}")
         except (ValueError, KeyError, json.JSONDecodeError):
             cur = None

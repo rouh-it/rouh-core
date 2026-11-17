@@ -138,7 +138,7 @@
     ],
     "timeout": "5s"
    },
-   "image": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "image": "ghcr.io/rouh-land/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
    "init": true,
    "logging": {
     "driver": "local",
@@ -245,7 +245,7 @@
    "healthcheck": {
     "disable": true
    },
-   "image": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "image": "ghcr.io/rouh-land/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
    "logging": {
     "driver": "local",
     "options": {
@@ -359,7 +359,7 @@
     ],
     "timeout": "5s"
    },
-   "image": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "image": "ghcr.io/rouh-land/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
    "init": true,
    "logging": {
     "driver": "local",
@@ -513,7 +513,7 @@
     ],
     "timeout": "10s"
    },
-   "image": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "image": "ghcr.io/rouh-land/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
    "init": true,
    "logging": {
     "driver": "local",
@@ -589,7 +589,7 @@
    "healthcheck": {
     "disable": true
    },
-   "image": "ghcr.io/rouh-it/rouh-guard@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+   "image": "ghcr.io/rouh-land/rouh-guard@sha256:2222222222222222222222222222222222222222222222222222222222222222",
    "logging": {
     "driver": "local",
     "options": {
@@ -638,7 +638,7 @@
     ],
     "timeout": "5s"
    },
-   "image": "ghcr.io/rouh-it/rouh-guard@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+   "image": "ghcr.io/rouh-land/rouh-guard@sha256:2222222222222222222222222222222222222222222222222222222222222222",
    "init": true,
    "logging": {
     "driver": "local",
@@ -789,7 +789,7 @@
     ],
     "timeout": "5s"
    },
-   "image": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "image": "ghcr.io/rouh-land/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
    "init": true,
    "logging": {
     "driver": "local",
@@ -875,7 +875,7 @@
    "healthcheck": {
     "disable": true
    },
-   "image": "ghcr.io/rouh-it/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "image": "ghcr.io/rouh-land/rouh-base@sha256:1111111111111111111111111111111111111111111111111111111111111111",
    "logging": {
     "driver": "local",
     "options": {

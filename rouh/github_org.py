@@ -1,68 +1,45 @@
-"""Rouh's GitHub organisation, under either of its names (task 187, 15 November 2026).
+"""Rouh's GitHub organisation, rouh-land (task 187).
 
-The organisation that holds rouh-core and the images is being renamed from rouh-it to rouh-land,
-in four stages: everything accepts both names (this module), every Rouh and every Mac moves onto
-a release that does, the organisation is renamed and an empty rouh-it is made to hold the old
-name, and only then is rouh-it taken out of the code.
+The organisation that holds rouh-core and the images was called rouh-it until 16 November 2026,
+when it was renamed rouh-land. For the rename every reader of GitHub took both names for a while
+(stages 1 to 3); stage 4, on 17 November 2026, took the old name out of the code, so rouh-land is
+the only one asked. GitHub still forwards rouh-it's addresses to rouh-land, because the owner holds
+the old name with an empty organisation and no repository of ours is ever made in it: that is what
+a Rouh on code from before the rename uses to reach its next update, which then knows rouh-land.
 
-So every place that reads rouh-core on GitHub asks ``every`` for the addresses to try, in order,
-and takes the first that answers: rouh-land first, since the organisation was renamed on 16
-November 2026 (until then the old name was first, as the only one that existed), and rouh-it after
-it, which GitHub forwards to rouh-land while no repository of the same name is made under it. A name that answers "not found" is passed over; any other failure is the answer, so a
-GitHub that cannot be reached is never taken for a repository that is not there.
-
-``ROUH_GITHUB_ORG`` names the organisation tried first, and the one written where a single name
-is needed (a link); the other is tried after it. A machine can be moved over with that setting,
-before the code says rouh-land everywhere.
+Every place that reads rouh-core on GitHub asks ``every`` for the address, with ``{org}`` filled in,
+and ``read_json`` for a JSON answer.
 """
 from __future__ import annotations
 
 import json
-import os
 import re
-import urllib.error
 import urllib.request
 
-#: The two names, the new one first since the rename (16 November 2026); rouh-it, which GitHub
-#: forwards, stays the fallback until stage 4.
-NAMES = ("rouh-land", "rouh-it")
-#: Either name, for a regular expression.
-ANY = "(?:" + "|".join(re.escape(n) for n in NAMES) + ")"
-
-
-def orgs() -> tuple[str, ...]:
-    """Both names, the one to try first first: ROUH_GITHUB_ORG when it is one of them."""
-    first = (os.environ.get("ROUH_GITHUB_ORG") or "").strip().lower()
-    return (first, *(n for n in NAMES if n != first)) if first in NAMES else NAMES
+#: The organisation's name.
+NAME = "rouh-land"
+#: The name, for a regular expression.
+ANY = re.escape(NAME)
 
 
 def org() -> str:
-    """The name written where only one can be: a link a person follows."""
-    return orgs()[0]
+    """The name written where one is needed: a link a person follows, an address to fetch."""
+    return NAME
 
 
 def every(template: str) -> list[str]:
-    """template with {org} as each name, in the order to try them; as it is without {org}."""
-    return [template.replace("{org}", o) for o in orgs()] if "{org}" in template else [template]
+    """template with {org} filled in, as a list of the one address to try; as it is without {org}."""
+    return [template.replace("{org}", NAME)]
 
 
 def is_ours(remote: str, repo: str = "rouh-core") -> bool:
-    """Whether a git remote names rouh-core (or repo) under either name."""
+    """Whether a git remote names rouh-core (or repo) on GitHub."""
     return bool(re.search(rf"{ANY}/{re.escape(repo)}(\.git)?/?$", remote.strip()))
 
 
 def read_json(template: str, *, headers: dict | None = None, timeout: float = 30,
               most: int = 4 * 1024 * 1024):
-    """The JSON at the first address of every(template) that is found. "Not found" passes on to
-    the next name; any other failure is raised as it is, and so is the last "not found"."""
-    last: Exception | None = None
-    for url in every(template):
-        req = urllib.request.Request(url, headers=headers or {})
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                return json.loads(response.read(most))
-        except urllib.error.HTTPError as e:
-            if e.code != 404:
-                raise
-            last = e
-    raise last or LookupError(template)
+    """The JSON at template, {org} filled in. Any failure is raised as it is."""
+    req = urllib.request.Request(every(template)[0], headers=headers or {})
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        return json.loads(response.read(most))

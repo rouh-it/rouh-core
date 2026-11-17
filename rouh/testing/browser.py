@@ -459,13 +459,13 @@ def start(root, with_voice: bool = False, luna: bool = False, anthropic: bool = 
         CLOUDFLARE_ROUH_IS_TOKEN="",
         # rouh.land, for the model standard and the counts of how each model did: never
         # reached from a world (`rouh/modelstandard.py`, `rouh/modeloutcomes.py`).
-        ROUH_MODEL_STANDARD_URL="http://127.0.0.1:1/no-rouh-it/standard.json",
-        ROUH_MODEL_OUTCOMES_URL="http://127.0.0.1:1/no-rouh-it/outcomes",
+        ROUH_MODEL_STANDARD_URL="http://127.0.0.1:1/no-rouh-land/standard.json",
+        ROUH_MODEL_OUTCOMES_URL="http://127.0.0.1:1/no-rouh-land/outcomes",
         ROUH_MODEL_OUTCOMES_SEND="0",
         # And the rule defaults (`rouh/ruledefaults.py`): the two a Rouh starts with offline, unless
         # ROUH_TEST_RULE_DEFAULTS_URL points the world at a stand-in of its own.
         ROUH_RULE_DEFAULTS_URL=os.environ.get("ROUH_TEST_RULE_DEFAULTS_URL",
-                                              "http://127.0.0.1:1/no-rouh-it/rules.json"),
+                                              "http://127.0.0.1:1/no-rouh-land/rules.json"),
         # Slack is a stand-in of this world's own, started below (`rouh/testing/fake_slack.py`).
         # Left pointed at slack.com, a world would send whatever token was pasted into Settings
         # to Slack, and post in a real workspace with it.

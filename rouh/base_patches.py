@@ -86,7 +86,7 @@ WHAT = ("Look for patch-level fixes to what Rouh runs on, build and check a new 
         "and publish it only if every check passes")
 AT = "00:40"
 #: Rouh's release repository, as a git remote names it.
-#: Either name of its organisation (rouh/github_org.py, task 187).
+#: Its organisation is rouh/github_org.py's.
 RELEASE_REPO = re.compile(rf"{github_org.ANY}/rouh-core(\.git)?$")
 #: The version list, in main.
 STATE = Path("deploy") / "container" / "base"

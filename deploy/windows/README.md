@@ -10,5 +10,5 @@ Task 186. `deploy/container/INSTALL-WINDOWS.md` is the whole account; this is wh
 | Its signed record | `wsl_image.py` | each file's SHA-256, signed with Rouh's release key; rouh.land serves it at `/windows/wsl/stable.json` |
 | Built at GitHub | `../../.github/workflows/wsl-image.yml` | x64 and Arm; on main, released as `wsl-<version>` and signed (the release-signing environment's Approve) |
 | The installer | rouh-land `rouhit/install/install.ps1` | `irm https://rouh.land/install.ps1 \| iex` |
-| The tray app | `rouh-it/rouh-windows` | Tauri, `.msi`, carries the installer |
+| The tray app | `rouh-land/rouh-windows` | Tauri, `.msi`, carries the installer |
 | The release check | `release-check/` | what a real Windows computer proves before rouh.land offers Windows |

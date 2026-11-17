@@ -13,8 +13,7 @@ replaces code-init and the rouh-code image (task 98, step 98-23, 24 October 2026
     Rouh's main branch that passed its tests, as rouh.land's public /mac/code/newest.json says it
     with its signed record (checked here with the release key); if rouh.land cannot be reached or
     its record does not check, the commit the signed release names (``ROUH_RELEASE_COMMIT``). Its
-    tarball comes straight from the public rouh-core on GitHub, under the organisation rouh-land or,
-    when that cannot give it, rouh-it, its name until 16 November 2026 (``ORGS``, task 187),
+    tarball comes straight from the public rouh-core on GitHub, under the organisation rouh-land (``ORG``, task 187),
     and must say it is that very commit. An install code (``ROUH_INSTALL_CODE``, from an account on rouh.land) is an optional
     extra kept for installs that have one: it is tried first, and when rouh.land refuses it or
     cannot be reached the free way is taken; nothing depends on it. Release tools that a
@@ -31,7 +30,7 @@ An install is made safe to stop half way: a marker file is written first and rem
 
 Settings, all optional: ROUH_RELEASE_COMMIT (the commit the signed release names: the pin when
 rouh.land cannot say a newer one), ROUH_SITE_URL (https://rouh.land), ROUH_CODE_TARBALL (where one
-commit's tarball is, {commit} filled in, and {org}, if it has it, tried as each of ``ORGS``; the
+commit's tarball is, {commit} filled in, and {org}, if it has it, as ``ORG``; the
 public GitHub repository), ROUH_INSTALL_CODE and
 ROUH_INSTALL_URL (https://rouh.land/mac/code/install), the optional install code. A code "free"
 is the same as none: Rouh for Mac 0.3.19 writes it so that a protected core older than this one,
@@ -58,10 +57,9 @@ MARK = CODE / ".rouh-filling"
 WORK = CODE / ".rouh-fill"
 URL = os.environ.get("ROUH_INSTALL_URL", "https://rouh.land/mac/code/install")
 SITE = (os.environ.get("ROUH_SITE_URL") or "https://rouh.land").strip().rstrip("/")
-#: The GitHub organisations rouh-core may be under, tried in this order: rouh-land, its name since
-#: 16 November 2026, and rouh-it, the old one, which GitHub forwards (task 187). A tarball must still say it is the very commit asked for
-#: (_unpack), so where it came from decides nothing. Change it with mac_release.py's ORGS.
-ORGS = ("rouh-land", "rouh-it")
+#: The GitHub organisation rouh-core is under (task 187). A tarball must still say it is the very
+#: commit asked for (_unpack), so where it came from decides nothing. Change it with mac_release.py's ORG.
+ORG = "rouh-land"
 TARBALL = os.environ.get("ROUH_CODE_TARBALL") or "https://codeload.github.com/{org}/rouh-core/tar.gz/{commit}"
 #: The public half of the key that signs releases and "this commit passed" records: the same as
 #: deploy/container/mac_release.py's PUBLIC_KEYS, Rouh for Mac's StackRelease.trustedKeys and
@@ -186,24 +184,19 @@ def _which(release: str) -> tuple[str, str, str]:
 
 
 def _tarball(commit: str) -> str:
-    """Where commit's tarball is, with {org} left in for _download to try as each of ORGS."""
-    return TARBALL.replace("{commit}", commit)
+    """Where commit's tarball is."""
+    return TARBALL.replace("{commit}", commit).replace("{org}", ORG)
 
 
 def _download(url: str) -> bytes:
-    """The tarball at url; with {org} in it, from the first organisation of ORGS that gives it."""
-    why = ""
-    for one in ([url.replace("{org}", org) for org in ORGS] if "{org}" in url else [url]):
-        req = urllib.request.Request(one, headers={"User-Agent": UA})
-        try:
-            with urllib.request.urlopen(req, timeout=300) as r:
-                data = r.read(MOST + 1)
-            break
-        except (urllib.error.URLError, OSError) as e:
-            why = f"{why}; " if why else ""
-            why += f"{one.split('/')[3] if one.count('/') > 3 else one}: {getattr(e, 'reason', e)}"
-    else:
-        fail(f"Rouh's code could not be downloaded ({why}). Nothing was changed.")
+    """The tarball at url ({org}, if rouh.land's answer has it, as ORG)."""
+    url = url.replace("{org}", ORG)
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    try:
+        with urllib.request.urlopen(req, timeout=300) as r:
+            data = r.read(MOST + 1)
+    except (urllib.error.URLError, OSError) as e:
+        fail(f"Rouh's code could not be downloaded ({getattr(e, 'reason', e)}). Nothing was changed.")
     if len(data) > MOST:
         fail("Rouh's code is larger than an install takes. Nothing was changed.")
     return data

@@ -48,7 +48,7 @@ What is new is only the Windows wrapper around it, in three parts:
    | `uninstall -Wipe` | Wipe my data: removed for good, after typing WIPE (`-Yes` does not ask) |
 
    `$env:ROUH_DRY_RUN='1'` says every change it would make and makes none. Run with `irm ... | iex` it lives in a module of its own: it leaves the PowerShell window as it was, and never closes it.
-3. **Rouh for Windows**, the tray app (`rouh-it/rouh-windows`, private for now): Tauri 2, an `.msi` for x64 and Arm built at GitHub. It carries the same `install.ps1` (its build refuses one that is not rouh.land's), starts at sign-in, holds Rouh's Linux awake itself, runs the installer in a window the first time, and has Open Rouh, Update, Back to the release before, Compact disk, Uninstall (Keep my data or Wipe my data) and Quit in its menu. Its builds are not signed until there is a signing account.
+3. **Rouh for Windows**, the tray app (`rouh-land/rouh-windows`, private for now): Tauri 2, an `.msi` for x64 and Arm built at GitHub. It carries the same `install.ps1` (its build refuses one that is not rouh.land's), starts at sign-in, holds Rouh's Linux awake itself, runs the installer in a window the first time, and has Open Rouh, Update, Back to the release before, Compact disk, Uninstall (Keep my data or Wipe my data) and Quit in its menu. Its builds are not signed until there is a signing account.
 
 The release Windows follows is the one Linux follows, at the neutral address `https://rouh.land/release/<line>.json` (the same file as `/mac/release/<line>.json`, which every Mac keeps reading). `linux_stack.py` reads `/release/` and falls back to `/mac/release/` while rouh.land does not answer it.
 

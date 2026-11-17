@@ -3,8 +3,8 @@
 
 Task 187, 16 November 2026. A Rouh installed before 11 November 2026 (task 140, step 140-18) has no
 "Update to the newest Rouh" on Meta, Changes and never rides along, because the code that does it is
-not in its code, and a base update never changes /code. Its built-in source, rouh-it/rouh-core, is
-also gone since the organisation became rouh-land. This does, once, what an update of 140-18 does,
+not in its code, and a base update never changes /code. Its built-in source names the organisation by
+its name before 16 November 2026, which is now rouh-land. This does, once, what an update of 140-18 does,
 from outside that code: in the Rouh's protected core, which has /code, the internet through the key
 proxy, and the change step with its undo points.
 
@@ -15,7 +15,7 @@ proxy, and the change step with its undo points.
      release it came from: its first install (.git/rouh-installed.json and one first commit, as
      rouh-code-install writes them) or an earlier update (a Rouh-release: line).
   2. The newest release, as rouh.land's /mac/code/release.json names it; its tarball from the public
-     rouh-core on GitHub, under rouh-land and then rouh-it, which must say it is that very commit.
+     rouh-core on GitHub (rouh-land), which must say it is that very commit.
   3. In a clone, the release's files are committed on top of the release this Rouh came from, with a
      Rouh-release: line (so from then on its own updates know where it stands), and this Rouh's own
      commits are merged on top; a file where its own change and the release changed the same lines
@@ -53,8 +53,7 @@ from pathlib import Path
 CODE = Path(os.environ.get("ROUH_APP_DIR", "/code"))
 SITE = (os.environ.get("ROUH_SITE_URL") or "https://rouh.land").strip().rstrip("/")
 RELEASE_URL = os.environ.get("ROUH_CODE_RELEASE_URL") or f"{SITE}/mac/code/release.json"
-ORGS = ("rouh-land", "rouh-it")
-TARBALL = os.environ.get("ROUH_CODE_TARBALL") or "https://codeload.github.com/{org}/rouh-core/tar.gz/{commit}"
+TARBALL = os.environ.get("ROUH_CODE_TARBALL") or "https://codeload.github.com/rouh-land/rouh-core/tar.gz/{commit}"
 GUARD = Path(os.environ.get("ROUH_GUARD_BIN", "/opt/rouh-guard/bin")) / "rouh-guard"
 #: As rouh-code-install and rouh/code_update.py: release tools a Rouh never runs.
 LEFT_OUT = ("guard", "mac", ".github", "deploy/container")
@@ -134,19 +133,14 @@ def newest() -> dict:
 
 
 def download(commit: str) -> bytes:
-    said = []
-    for org in ORGS if "{org}" in TARBALL else ("",):
-        url = TARBALL.format(org=org, commit=commit)
-        try:
-            return fetch(url, MOST)
-        except urllib.error.HTTPError as e:
-            said.append(f"{org or url}: {e.code}")
-            if e.code != 404:
-                break
-        except (urllib.error.URLError, OSError) as e:
-            said.append(f"{org or url}: {getattr(e, 'reason', e)}")
-            break
-    raise Refused("the release could not be downloaded (" + "; ".join(said) + ").")
+    url = TARBALL.replace("{org}", "rouh-land").format(commit=commit)
+    try:
+        return fetch(url, MOST)
+    except urllib.error.HTTPError as e:
+        said = f"{url}: {e.code}"
+    except (urllib.error.URLError, OSError) as e:
+        said = f"{url}: {getattr(e, 'reason', e)}"
+    raise Refused(f"the release could not be downloaded ({said}).")
 
 
 def unpack(data: bytes, into: Path, commit: str) -> None:
