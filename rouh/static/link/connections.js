@@ -72,6 +72,7 @@
     drawSpaces();
     drawInvites();
     drawOff();
+    drawHandoffs();
     if (window.LINK_ACCEPT && !draw.accepted) { draw.accepted = true; $('bringLink').value = window.LINK_ACCEPT; $('bringLink').focus(); }
   }
 
@@ -93,7 +94,9 @@
       var level = 'known';
       box.appendChild(el('div', { class: 'peer' }, [
         el('span', { class: 'av rouh c-1', 'aria-hidden': 'true', text: initials(p.name) }),
-        el('div', {}, [el('div', { text: p.name + ' asks to connect.' }), el('div', { class: 'small dim', text: p.address })]),
+        el('div', {}, [el('div', { text: p.name + (p.via === 'stranger' ? ', a Rouh you do not know,' : '') + ' asks to connect.' }),
+          el('div', { class: 'small dim', text: p.address || 'reached by the mailbox' }),
+          p.note ? el('div', { class: 'small', text: p.note }) : null]),
         el('div', { class: 'acts' }, [
           levelSelect(p, function (v) { level = v; }),
           el('button', { class: 'primary', text: 'Connect', onclick: function () { peerAct(p.label, { act: 'yes', level: level }, 'Connected to ' + p.name + '.'); } }),
@@ -206,6 +209,42 @@
     box.appendChild(f);
   }
 
+  function peerName(label) {
+    var p = (S.peers || []).filter(function (x) { return x.label === label; })[0];
+    return p ? p.name : label;
+  }
+
+  function drawHandoffs() {
+    var box = clear($('handoffs'));
+    var list = S.handoffs || [];
+    if (!list.length) box.appendChild(el('p', { class: 'dim small', text: 'Nothing handed over yet.' }));
+    list.forEach(function (h) {
+      var f = h.form || {}, row = el('div', { class: 'grant' });
+      if (h.kind === 'handoff.brief') {
+        row.appendChild(el('p', { class: 'small' }, [el('strong', { text: 'A brief from ' + peerName(h.peer) + ': ' }), String(f.need || ''),
+          ' (budget: ' + (f.budget_band || 'ask') + (f.by_when ? ', by ' + f.by_when : '') + ')']));
+        if (h.state === 'new') {
+          var amount = el('input', { type: 'text', inputmode: 'decimal', 'aria-label': 'Amount', placeholder: 'Amount', style: 'width:110px' });
+          var cur = el('select', { 'aria-label': 'Currency', style: 'width:auto' });
+          ['EUR', 'BGN', 'USD', 'GBP'].forEach(function (c) { cur.appendChild(el('option', { value: c, text: c })); });
+          row.appendChild(el('form', { class: 'row', onsubmit: function (ev) { ev.preventDefault();
+            API.post('/api/link/handoff', { act: 'quote', brief_id: h.id.split(':')[1], amount: parseFloat(amount.value) || 0, currency: cur.value })
+              .then(function () { toast('Quote sent. A person decides on it there.'); load(); }).catch(fail); } },
+            [amount, cur, el('button', { type: 'submit', text: 'Send a quote' })]));
+        } else row.appendChild(el('span', { class: 'small dim', text: h.said || h.state }));
+      } else if (h.kind === 'handoff.quote') {
+        row.appendChild(el('p', { class: 'small' }, [el('strong', { text: 'A quote from ' + peerName(h.peer) + ': ' }), f.amount + ' ' + f.currency + (f.words ? ', ' + f.words : '')]));
+      } else if (h.kind === 'money.proposal') {
+        row.appendChild(el('p', { class: 'small' }, [el('strong', { text: peerName(h.peer) + ' proposes ' + f.amount + ' ' + f.currency + ': ' }), String(f.for || '')]));
+        row.appendChild(el('a', { href: '/link/money/' + encodeURIComponent(h.id), text: h.state === 'agreed' ? 'You agreed' : 'Read it' }));
+      }
+      box.appendChild(row);
+    });
+    var sel = clear($('briefTo'));
+    (S.peers || []).filter(function (p) { return p.state === 'connected'; }).forEach(function (p) { sel.appendChild(el('option', { value: p.label, text: p.name })); });
+    $('briefForm').hidden = !sel.options.length;
+  }
+
   function makeLink() {
     var body = { trust: $('newTrust').value, for_label: $('newFor').value.trim(), silo: $('newSide').value };
     API.post('/api/link/invite', body).then(function (got) {
@@ -258,6 +297,12 @@
       API.post('/api/link/accept', { link: link, trust: $('bringTrust').value }).then(function (p) {
         $('bringLink').value = ''; toast('Connected to ' + p.name + '.'); load();
       }).catch(fail).then(function () { $('bringGo').disabled = false; });
+    });
+    $('briefForm').addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var need = $('briefNeed').value.trim(); if (!need) return;
+      API.post('/api/link/handoff', { act: 'brief', label: $('briefTo').value, need: need, budget_band: $('briefBudget').value })
+        .then(function () { $('briefNeed').value = ''; toast('Brief handed over, in its fixed form.'); load(); }).catch(fail);
     });
     $('fromContact').addEventListener('submit', function (ev) {
       ev.preventDefault();

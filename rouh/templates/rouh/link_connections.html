@@ -30,6 +30,18 @@
           <header><h2>Your connections</h2></header>
           <div id="peers"></div>
         </section>
+        <section class="box" id="handoffBox">
+          <header><h2>Hand-offs</h2></header>
+          <p class="small dim">Briefs, quotes and proposals of money between Rouhs, in fixed forms, for you to read. No Rouh pays, signs or books by itself.</p>
+          <div id="handoffs" class="stack"></div>
+          <form id="briefForm" class="stack" style="margin-top:10px">
+            <label for="briefTo">Hand a brief to</label><select id="briefTo"></select>
+            <label for="briefNeed">What is needed</label><textarea id="briefNeed" rows="3" maxlength="1200"></textarea>
+            <div class="row"><label class="hidden" for="briefBudget">Budget</label>
+              <select id="briefBudget" style="width:auto"><option value="ask">Budget: ask me</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select>
+              <button type="submit">Hand over</button></div>
+          </form>
+        </section>
         <section class="box">
           <header><h2>Live spaces</h2></header>
           <div id="spaces"></div>

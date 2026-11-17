@@ -136,6 +136,9 @@ def clean_env(*prefixes: str) -> dict[str, str]:
     # ROUH_TEST_LINK_MAILBOX points a world at a stand-in mailbox of its own (the relay's own
     # mailbox.py, run on this machine).
     env["ROUH_LINK_MAILBOX"] = os.environ.get("ROUH_TEST_LINK_MAILBOX", "http://127.0.0.1:1/no-mailbox/")
+    # Strangers and the open network are held off (`rouh/link/me.py`); ROUH_TEST_LINK_OPEN=1 lifts the
+    # hold in a world, to prove what is built behind it.
+    env["ROUH_LINK_OPEN"] = os.environ.get("ROUH_TEST_LINK_OPEN", "0")
     # And the installation's own settings, which are blank until an installer
     # sets them (`rouh/config.py`, SETUP.md): Rouh's own mailbox, the address
     # its letters come from and the clock a person starts on, the same in every

@@ -1,0 +1,19 @@
+{% extends "rouh/signin_base.html" %}
+{% comment %}A money proposal from another Rouh (Rouh Link phase 4, `rouh/link/handoff.py`): a page with no AI
+   on it, no chat and no assistant, where only the person's own press agrees. Nothing is paid.{% endcomment %}
+{% block title %}A proposal of money{% endblock %}
+{% block body %}
+ <h2>{{ f.amount|floatformat:"-2" }} {{ f.currency }}</h2>
+ <p>Proposed by the Rouh <strong>{{ peer }}</strong>, for: {{ f.for }}</p>
+ <p>Nothing is paid by agreeing, here or anywhere in Rouh Link. Agreeing says yes to the proposal, in your words, signed into the log both sides can read. If you want to pay, you do that yourself.</p>
+ {% if row.state == "agreed" %}
+ <p><strong>You agreed.</strong> Nothing was paid: paying, if you want to, is yours to do.</p>
+ {% elif row.state == "declined" %}
+ <p>You said no to this.</p>
+ {% else %}
+ <form method="post">{% csrf_token %}
+  <button type="submit">I agree</button>
+ </form>
+ <p><a href="/link">Back to Connections</a> (leaving it unanswered says no).</p>
+ {% endif %}
+{% endblock %}

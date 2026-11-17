@@ -40,6 +40,18 @@ Rouh Link is part of Rouh's core (`rouh/link/`, gene `rouh-link`, no off switch)
 | Delegate grants | `rouh/link/grants.py`, Connections | Written to a connection trusted as Delegate: what (meetings), limits (longest meeting, weekdays, hours, most a week; money always 0), its words, an end, signed. Sent to the other side (`grant.shown`) and shown on both Connections pages. The delegate's person says yes for the granter (`grant.decide`); the granter's own code checks the grant is in force, of this kind, and every limit, then records the yes as the granter's, "by grant", or refuses, saying which limit. Withdraw is one press; from then on every decision is refused and the other side is told. |
 | Work and Personal apart | `trust.silo_ok`, `spaces.invite`, `meeting.my_busy`, Connections | Each connection and each space has a side. A space of one side is never offered to, joined by or kept with a connection of the other (a change of side or level takes it out at once); a meeting reads only the calendars of the space's side; a space is started with its side. |
 
+## Phase 4: strangers and hand-offs (built, held off)
+
+| Piece | Where | What |
+|---|---|---|
+| Checked identity | `rouh/link/identity.py` | For a Rouh asking to connect with no link: its card's signature and key chain, its name from its birth key, its keys against rouh.land's signed public list of dead keys (`/registry/birth/api/revoked`, the "still valid?" list of task 123's design), and its address on rouh.page. Said in plain words beside the request; the person decides. |
+| A stranger's Rouh | `trust.py`, `peers._hello` | With the owner's strangers switch on, a Rouh with no link may ask; once accepted it is a Stranger: it may introduce itself, hand over a brief or a quote, propose money, and in a space only watch or comment (an invitation as editor is held to commenter). Limits per sender: 20 messages a minute at the Rouh (`limits.rate`), and the mailbox's own per sender key, per network address and per receiver. |
+| Hand-offs in fixed forms | `rouh/link/handoff.py`, Connections | A brief (what is needed, by when, a budget band, how to answer) and a quote (amount, currency, until when, words), each a fixed form; kept for a person to read on Connections, never given to a model that can act. |
+| Money only as a proposal | `handoff.send_money`, `/link/money/<id>` | A proposal of money is shown on a page of its own with no AI on it; only the person's own press says "I agree", signed into the log. Nothing is ever paid by Rouh Link. |
+| Block in one press | Connections | Blocked: every message from that Rouh is refused before it is read. |
+
+**Held off for every Rouh**: the strangers switch cannot be turned on until `ROUH_LINK_OPEN=1` (rouh.land's terms covering the relay and Rouhs talking); with it held, a Rouh with no link is refused. Test worlds lift it with `ROUH_TEST_LINK_OPEN=1`.
+
 ## The pages
 
 - `/link`, Connections: who this Rouh is connected to and how far each is trusted (change it, cut, block, read the log), requests, a connect link with its QR code, bringing someone's link, a contact's Rouh, the live spaces, and what is off for now.

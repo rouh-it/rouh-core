@@ -180,6 +180,7 @@ async def _state(me) -> dict:
     from rouh.link import card as _card
     from rouh.link import me as _me
     from rouh.link import grants as _grants
+    from rouh.link import handoff as _handoff
     from rouh.link import peers, spaces, trust
 
     org = str(me.org_id)
@@ -196,6 +197,7 @@ async def _state(me) -> dict:
         "invites": await sync_to_async(peers.invites)(org),
         "spaces": await sync_to_async(spaces.listing)(org),
         "grants": await sync_to_async(_grants.listing)(org),
+        "handoffs": await sync_to_async(_handoff.listing)(org),
     })
     return out
 
@@ -303,6 +305,54 @@ async def api_grant(request):
                                                 given_limits=b.get("limits") if isinstance(b.get("limits"), dict) else None,
                                                 days=int(b.get("days") or 90))
     return await _guard(request, go)
+
+
+@only("POST")
+async def api_handoff(request):
+    """A brief to a connection, a quote back on a brief, or no: {"act": "brief"|"quote"|"decline", ...}."""
+    from rouh.link import handoff
+
+    async def go(me, b):
+        org, act = str(me.org_id), str(b.get("act") or "")
+        if act == "brief":
+            return await sync_to_async(handoff.send_brief)(org, str(b.get("label") or ""), str(b.get("need") or ""),
+                                                           str(b.get("by_when") or ""), str(b.get("budget_band") or "ask"))
+        if act == "quote":
+            return await sync_to_async(handoff.send_quote)(org, str(b.get("brief_id") or ""), float(b.get("amount") or 0),
+                                                           str(b.get("currency") or "EUR"), str(b.get("words") or ""))
+        if act == "decline":
+            return await sync_to_async(handoff.decline)(org, str(b.get("id") or ""))
+        if act == "money":
+            return await sync_to_async(handoff.send_money)(org, str(b.get("label") or ""), float(b.get("amount") or 0),
+                                                           str(b.get("currency") or "EUR"), str(b.get("for") or ""))
+        from rouh.link import peers
+
+        raise peers.Problem("What should happen to that hand-off?")
+    return await _guard(request, go)
+
+
+async def money_page(request: HttpRequest, hid: str):
+    """A money proposal from another Rouh, on a page with no AI on it: the person reads it and, only
+    if they want to, presses I agree. Nothing is paid, here or anywhere in Rouh Link."""
+    from rouh.link import handoff
+
+    me = await _me_or_none(request)
+    if me is None:
+        return HttpResponse(status=401)
+    row = await sync_to_async(handoff.one)(str(me.org_id), hid[:120])
+    if row is None or row.kind != "money.proposal":
+        return HttpResponse("There is no such proposal.", status=404, content_type="text/plain")
+    said = ""
+    if request.method == "POST":
+        await sync_to_async(handoff.agree_money)(str(me.org_id), row.msg_id, f"account {me.user_id}")
+        row = await sync_to_async(handoff.one)(str(me.org_id), hid[:120])
+        said = "You agreed. Nothing was paid: paying, if you want to, is yours to do."
+    f = (row.envelope or {}).get("form") or {}
+    from rouh.link import peers
+
+    p = await sync_to_async(peers.peer_row)(str(me.org_id), row.peer_label)
+    return render(request, "rouh/link_money.html", {"f": f, "row": row, "said": said,
+                                                    "peer": p.name if p is not None else row.peer_label})
 
 
 @only("POST")

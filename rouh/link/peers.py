@@ -319,11 +319,17 @@ def _hello(ctx, form) -> dict:
         if not _me.settings(org)["strangers"]:
             raise limits.No("This Rouh connects only by a connect link from its person, or from a contact.")
         level, via = "stranger", "stranger"
+    note = ""
+    if via == "stranger":
+        from . import identity
+
+        note = identity.check(part)["said"][:600]
     LinkPeer.objects.update_or_create(org_id=org, label=part["label"], defaults=dict(
         name=f"{part['name']} ·{part['tag']}", address=dialable(part["address"]), card=part,
         daily_key=part["daily_key"], link_key=part["link_key"],
         trust=existing.trust if existing is not None and existing.state == "connected" else level,
         silo=existing.silo if existing is not None and existing.silo else silo, state=state, via=via,
+        **({"note": note} if note else {}),
         created_at=existing.created_at if existing is not None else now, updated_at=now, last_seen_at=now))
     name = f"{part['name']} ·{part['tag']}"
     log.write(org, "hello", f"{name} connected, by a connect link, at {trust.WORDS[level]}." if state == "connected"
