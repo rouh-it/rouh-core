@@ -1,0 +1,473 @@
+"""Rouh Link's addresses (`rouh/link/`, task 189).
+
+Open to everybody, because other Rouhs and other agents are not signed in here; each checks what it
+is handed itself:
+
+    GET  /.well-known/agent-card.json   the Rouh card (A2A agent card), signed
+    GET  /.well-known/agent.json        the same, at A2A's older address
+    POST /link/in                       another Rouh's locked envelope; answered with one
+    GET  /link/join/<secret>            a connect link opened in a browser: says what it is
+    POST /link/a2a                      another maker's A2A agent (phase 5; off by a setting)
+
+Signed in, the person's own:
+
+    GET  /link                          Connections: Rouhs, links, requests, live spaces
+    GET  /link/accept?link=...          bring someone's connect link to your own Rouh
+    GET  /link/space/<id>               a live shared space
+    /api/link/...                       what those pages ask
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+
+from asgiref.sync import sync_to_async
+from django.http import HttpRequest, HttpResponse
+from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
+
+from .common import answer, body_of, only, refuse, who
+
+log = logging.getLogger("rouh.link")
+NO_STORE = {"Cache-Control": "no-store"}
+
+
+def _org_for_request(request: HttpRequest) -> str | None:
+    from rouh.link import me as _me
+
+    host = (request.headers.get("host") or "").split(":")[0].lower()
+    label = host.split(".")[0] if host.count(".") >= 2 else ""
+    if label:
+        org = _me.org_for_label(label)
+        if org:
+            return org
+    return _me.only_org()
+
+
+# --- open to everybody --------------------------------------------------------------------------------
+
+
+@only("GET")
+async def agent_card(request: HttpRequest):
+    from rouh.link import card
+
+    org = await sync_to_async(_org_for_request)(request)
+    if org is None:
+        return refuse("There is no born Rouh here.", 404)
+    try:
+        doc = await sync_to_async(card.build)(org)
+    except Exception as exc:  # noqa: BLE001
+        log.info("no card: %s", exc)
+        return refuse("There is no born Rouh here.", 404)
+    return answer(doc, headers={"Cache-Control": "max-age=60", "Access-Control-Allow-Origin": "*"})
+
+
+@csrf_exempt
+@only("POST")
+async def inbox(request: HttpRequest):
+    """Another Rouh's envelope. Its words never reach a model; see `rouh/link/wire.py`."""
+    from rouh.link import limits, seal, wire
+
+    if len(request.body or b"") > seal.MAX_BYTES * 2:
+        return refuse("Too big.", 413)
+    try:
+        env = json.loads(request.body or b"null")
+    except ValueError:
+        return refuse("Not a Rouh Link envelope.", 400)
+    try:
+        got = await wire.receive(env)
+    except limits.No as exc:
+        return refuse(str(exc), 403)
+    except seal.Refused as exc:
+        return refuse(str(exc), 400)
+    except LookupError as exc:
+        return refuse(str(exc), 404)
+    except Exception as exc:  # noqa: BLE001 - said plainly, never the trace
+        from rouh.link import forms
+
+        if isinstance(exc, forms.Refused):
+            return refuse(f"That did not fit its form: {exc}", 400)
+        log.exception("the link inbox failed")
+        return refuse("This Rouh could not take that in.", 500)
+    return answer(got, headers=NO_STORE)
+
+
+@only("GET")
+async def join_page(request: HttpRequest, token: str):
+    from rouh.link import me as _me
+
+    org = await sync_to_async(_org_for_request)(request)
+    name = ""
+    if org is not None:
+        try:
+            name = (await sync_to_async(_me.me)(org)).tagged
+        except Exception:  # noqa: BLE001
+            name = ""
+    link = request.build_absolute_uri(request.path)
+    return render(request, "rouh/link_join.html", {"name": name, "link": link}, status=200 if name else 404)
+
+
+@csrf_exempt
+@only("POST")
+async def a2a(request: HttpRequest):
+    from rouh.link import open_network
+
+    return await open_network.a2a_endpoint(request)
+
+
+# --- the person's pages ------------------------------------------------------------------------------
+
+
+async def _me_or_none(request):
+    return await sync_to_async(who)(request)
+
+
+@only("GET")
+async def connections_page(request: HttpRequest):
+    me = await _me_or_none(request)
+    if me is None:
+        return HttpResponse(status=401)
+    return render(request, "rouh/link_connections.html", {})
+
+
+@only("GET")
+async def accept_page(request: HttpRequest):
+    me = await _me_or_none(request)
+    if me is None:
+        return HttpResponse(status=401)
+    return render(request, "rouh/link_connections.html", {"accept_link": str(request.GET.get("link") or "")[:400]})
+
+
+@only("GET")
+async def space_page(request: HttpRequest, sid: str):
+    me = await _me_or_none(request)
+    if me is None:
+        return HttpResponse(status=401)
+    return render(request, "rouh/link_space.html", {"space_id": sid[:40]})
+
+
+# --- the person's API ---------------------------------------------------------------------------------
+
+
+def _problem(exc) -> HttpResponse:
+    from rouh.link import forms, limits, me as _me, peers, wire
+
+    if isinstance(exc, (peers.Problem, limits.No, forms.Refused, _me.NotBorn)):
+        return refuse(str(exc), 400)
+    if isinstance(exc, wire.Refusal):
+        return refuse(f"The other Rouh said: {exc.said}", 400)
+    if isinstance(exc, wire.Unreachable):
+        return refuse("The other Rouh did not answer; it may be off. Try again later.", 503)
+    if isinstance(exc, LookupError):
+        return refuse(str(exc), 404)
+    log.exception("a link request failed")
+    return refuse("That did not work. It is written down.", 500)
+
+
+async def _guard(request, fn):
+    me = await _me_or_none(request)
+    if me is None:
+        return refuse("sign in", 401)
+    try:
+        got = await fn(me, body_of(request) if request.method == "POST" else {})
+    except Exception as exc:  # noqa: BLE001
+        return _problem(exc)
+    return answer(got, headers=NO_STORE)
+
+
+async def _state(me) -> dict:
+    from rouh.link import card as _card
+    from rouh.link import me as _me
+    from rouh.link import peers, spaces, trust
+
+    org = str(me.org_id)
+    born = await sync_to_async(_me.born)(org)
+    out = {"born": born, "levels": [{"id": k, "word": trust.WORDS[k], "says": trust.SAYS[k]} for k in trust.LEVELS]}
+    if not born:
+        return out
+    who_ = await sync_to_async(_me.me)(org)
+    out.update({
+        "me": {"name": who_.tagged, "label": who_.label, "address": who_.address,
+               "card": who_.address + _card.WELL_KNOWN if who_.address else ""},
+        "settings": await sync_to_async(_me.settings)(org),
+        "peers": await sync_to_async(peers.listing)(org),
+        "invites": await sync_to_async(peers.invites)(org),
+        "spaces": await sync_to_async(spaces.listing)(org),
+    })
+    return out
+
+
+@only("GET")
+async def api_state(request):
+    return await _guard(request, lambda me, b: _state(me))
+
+
+@only("POST")
+async def api_invite(request):
+    from rouh.link import peers
+
+    async def go(me, b):
+        return await sync_to_async(peers.invite)(str(me.org_id), trust_level=str(b.get("trust") or "known"),
+                                                 silo=str(b.get("silo") or ""), for_label=str(b.get("for_label") or ""),
+                                                 note=str(b.get("note") or ""))
+    return await _guard(request, go)
+
+
+@only("POST")
+async def api_invite_withdraw(request):
+    from rouh.link import peers
+
+    async def go(me, b):
+        await sync_to_async(peers.withdraw_invite)(str(me.org_id), int(b.get("id") or 0))
+        return {"ok": True}
+    return await _guard(request, go)
+
+
+@only("POST")
+async def api_accept(request):
+    from rouh.link import peers
+
+    async def go(me, b):
+        return await peers.accept(str(me.org_id), str(b.get("link") or ""), trust_level=str(b.get("trust") or "known"),
+                                  silo=str(b.get("silo") or ""), contact_id=str(b.get("contact_id") or ""))
+    return await _guard(request, go)
+
+
+@only("POST")
+async def api_connect(request):
+    from rouh.link import peers
+
+    async def go(me, b):
+        return await peers.connect_address(str(me.org_id), str(b.get("address") or ""),
+                                           trust_level=str(b.get("trust") or "known"), silo=str(b.get("silo") or ""),
+                                           contact_id=str(b.get("contact_id") or ""))
+    return await _guard(request, go)
+
+
+@only("POST")
+async def api_peer(request, label: str):
+    """One press on a connection: trust, side, cut, block, unblock, say yes to a request."""
+    from rouh.link import peers
+
+    async def go(me, b):
+        org, act = str(me.org_id), str(b.get("act") or "")
+        if act == "trust":
+            return await sync_to_async(peers.set_trust)(org, label, str(b.get("level") or "known"))
+        if act == "silo":
+            return await sync_to_async(peers.set_silo)(org, label, str(b.get("silo") or ""))
+        if act == "cut":
+            return await sync_to_async(peers.cut)(org, label)
+        if act == "block":
+            return await sync_to_async(peers.cut)(org, label, block=True)
+        if act == "unblock":
+            return await sync_to_async(peers.unblock)(org, label)
+        if act == "yes":
+            return await sync_to_async(peers.accept_request)(org, label, str(b.get("level") or "known"),
+                                                             str(b.get("silo") or ""))
+        if act == "contact":
+            return await sync_to_async(peers.link_contact)(org, label, str(b.get("contact_id") or ""))
+        raise peers.Problem("What should happen to that connection?")
+    return await _guard(request, go)
+
+
+@only("GET")
+async def api_peer_log(request, label: str):
+    from rouh.link import log as _log
+    from rouh.link import peers
+
+    async def go(me, b):
+        org = str(me.org_id)
+        mine = await sync_to_async(_log.entries)(org, peer=label, most=200)
+        try:
+            theirs = await peers.their_log(org, label)
+            said = ""
+        except Exception as exc:  # noqa: BLE001
+            theirs, said = [], f"Their side could not be read now ({type(exc).__name__})."
+        return {"mine": mine, "theirs": theirs, "theirs_said": said}
+    return await _guard(request, go)
+
+
+@only("POST")
+async def api_settings(request):
+    from rouh.link import me as _me
+
+    async def go(me, b):
+        if not getattr(me, "is_admin", False):
+            from rouh.link import peers
+
+            raise peers.Problem("Only an administrator of this Rouh changes these.")
+        try:
+            return await sync_to_async(_me.set_settings)(str(me.org_id), **{k: v for k, v in b.items() if k in _me.DEFAULTS})
+        except ValueError as exc:
+            from rouh.link import peers
+
+            raise peers.Problem(str(exc)) from None
+    return await _guard(request, go)
+
+
+@only("POST")
+async def api_contact(request):
+    """A contact's "their Rouh" line: note it, and connect when asked."""
+    from rouh.link import peers
+
+    async def go(me, b):
+        org = str(me.org_id)
+        row = await sync_to_async(peers.note_contact)(org, str(b.get("contact_id") or ""), str(b.get("address") or ""))
+        if b.get("connect"):
+            return await peers.connect_address(org, row["address"], contact_id=str(b.get("contact_id") or ""))
+        return row
+    return await _guard(request, go)
+
+
+@only("GET")
+async def api_contact_line(request, contact_id: str):
+    from rouh.link import peers
+
+    async def go(me, b):
+        return {"line": await sync_to_async(peers.contact_line)(str(me.org_id), contact_id)}
+    return await _guard(request, go)
+
+
+# --- spaces -------------------------------------------------------------------------------------------
+
+
+def _task_seed(me, source: str) -> dict:
+    """A task's title and steps, to start a live task page from (its folder, as the task page knows it)."""
+    import re
+
+    from rouh import taskmeta
+
+    folder = source.strip("/").split("/")[-1]
+    m = re.match(r"^(\d+)[.-](.*)$", folder)
+    words = (m.group(2) if m else folder).replace("-", " ").strip()
+    title = (f"{m.group(1)}. " if m else "") + (words[:1].upper() + words[1:])
+    steps = []
+    try:
+        meta = taskmeta.read(source) or {}
+    except Exception:  # noqa: BLE001 - a task with no meta starts with no steps
+        meta = {}
+    for _k, st in list((meta.get("steps") or {}).items())[:30]:
+        if isinstance(st, dict) and st.get("title"):
+            steps.append(str(st["title"])[:300])
+    return {"title": title[:200], "steps": steps, "notes": ""}
+
+
+@only("POST")
+async def api_space_new(request):
+    from rouh.link import spaces
+
+    async def go(me, b):
+        org = str(me.org_id)
+        title = " ".join(str(b.get("title") or "").split())[:200]
+        source = str(b.get("source") or "")[:300]
+        steps = [str(s)[:300] for s in (b.get("steps") or []) if str(s).strip()][:60]
+        notes = str(b.get("notes") or "")[:4000]
+        if source and not title:
+            seed = await sync_to_async(_task_seed)(me, source)
+            title, steps, notes = seed["title"], steps or seed["steps"], notes or seed["notes"]
+        if not title:
+            from rouh.link import peers
+
+            raise peers.Problem("Give the space a title.")
+        sid = await sync_to_async(spaces.create)(org, kind=str(b.get("kind") or "task"), title=title, source=source,
+                                                 silo=str(b.get("silo") or ""), steps=steps, notes=notes)
+        for label in (b.get("invite") or [])[:5]:
+            await sync_to_async(spaces.invite)(org, sid, str(label), str(b.get("role") or "editor"))
+        return {"space_id": sid, "url": f"/link/space/{sid}"}
+    return await _guard(request, go)
+
+
+@only("GET")
+async def api_space(request, sid: str):
+    from rouh.link import spaces
+
+    async def go(me, b):
+        since = int(request.GET.get("since") or -1)
+        wait = min(25.0, max(0.0, float(request.GET.get("wait") or 0)))
+        return await spaces.page_state(str(me.org_id), sid, since=since, wait=wait,
+                                       part=str(request.GET.get("part") or "")[:120],
+                                       follow=str(request.GET.get("follow") or "")[:120],
+                                       watching=request.GET.get("watching", "1") != "0")
+    return await _guard(request, go)
+
+
+@only("POST")
+async def api_space_ops(request, sid: str):
+    """The person's own changes: each made as this Rouh's person, whatever the page said."""
+    from rouh.link import doc as _doc
+    from rouh.link import me as _me
+    from rouh.link import spaces
+
+    async def go(me, b):
+        org = str(me.org_id)
+        mine = await sync_to_async(_me.me)(org)
+        ops = []
+        for raw in (b.get("ops") or [])[:200]:
+            if not isinstance(raw, dict):
+                continue
+            raw = dict(raw, actor=f"person:{mine.label}")
+            if raw.get("kind") == "ins":
+                n = str(raw.get("id0") or "").split("~", 1)[0]
+                raw["id0"] = f"{n}~person:{mine.label}"
+            ops.append(_doc.read_op(raw))
+        got = await spaces.change(org, sid, ops)
+        if any(o["kind"] == "yes" and o["id"] in (got.get("accepted") or []) for o in ops):
+            from rouh import evolution
+            from rouh.link import meeting
+
+            await sync_to_async(evolution.used)(meeting.SWITCH, "said_yes", who=me)
+        return got
+    return await _guard(request, go)
+
+
+@only("GET")
+async def api_space_history(request, sid: str):
+    from rouh.link import spaces
+
+    async def go(me, b):
+        return await spaces.history(str(me.org_id), sid, int(request.GET.get("seq") or 0))
+    return await _guard(request, go)
+
+
+@only("POST")
+async def api_space_act(request, sid: str):
+    """invite, join, leave, end, rouh (work), skip, stop, meeting."""
+    from rouh.link import meeting, pacing, peers, spaces, worker
+
+    async def go(me, b):
+        org, act = str(me.org_id), str(b.get("act") or "")
+        if act == "invite":
+            return await sync_to_async(spaces.invite)(org, sid, str(b.get("label") or ""), str(b.get("role") or "editor"))
+        if act == "join":
+            return await spaces.join(org, sid)
+        if act == "leave":
+            await spaces.leave(org, sid)
+            return {"ok": True}
+        if act == "rouh":
+            task = asyncio.ensure_future(worker.work(org, sid, str(b.get("words") or ""), who=me))
+            await asyncio.sleep(0.05)
+            if task.done() and task.exception() is not None:
+                raise task.exception()
+            return {"ok": True, "started": True}
+        if act == "skip":
+            return {"ok": pacing.skip(org, sid)}
+        if act == "stop":
+            return {"ok": pacing.stop(org, sid)}
+        if act == "meeting":
+            return await meeting.start(org, sid, minutes=int(b.get("minutes") or 30), days=int(b.get("days") or 7))
+        if act == "standin":
+            from rouh.link import standin
+
+            return await sync_to_async(standin.choose)(org, sid, str(b.get("label") or ""))
+        raise peers.Problem("What should happen in that space?")
+    return await _guard(request, go)
+
+
+@only("GET")
+async def api_space_log(request, sid: str):
+    from rouh.link import log as _log
+
+    async def go(me, b):
+        return {"entries": await sync_to_async(_log.entries)(str(me.org_id), space=sid, most=300)}
+    return await _guard(request, go)

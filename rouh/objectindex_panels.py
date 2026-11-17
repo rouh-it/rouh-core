@@ -402,6 +402,9 @@ def _task_dots(called: str, shelved: bool = False, pinned: bool = False,
             f'data-icon="rename">Rename</button>'
             f'<button type="button" class="menu-item" id="tkMove" role="menuitem" '
             f'data-icon="move">Move</button>'
+            # Rouh Link (task 189): this task as a live page, with another Rouh and its person.
+            f'<button type="button" class="menu-item" id="tkLive" role="menuitem" '
+            f'data-icon="people">Work on it live with another Rouh</button>'
             f'{_move_out_items(called, "tk")}'
             f'<button type="button" class="menu-item" id="tkArchive" role="menuitem" '
             f'data-icon="{"unarchive" if shelved else "archive"}" '

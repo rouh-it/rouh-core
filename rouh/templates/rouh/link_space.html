@@ -1,0 +1,111 @@
+{% load rouh_assets %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live space</title>
+<link rel="stylesheet" href="{% asset "link/link.css" %}">
+<!-- A live shared space (Rouh Link, task 189): `rouh/web/link.py`, `rouh/link/spaces.py`, drawn by
+     `link/space.js`, which asks only this Rouh. -->
+</head>
+<body data-space="{{ space_id }}">
+<header class="bar">
+  <a class="home" href="/link" aria-label="Back to Connections"><span class="dot" aria-hidden="true"></span>Connections</a>
+  <div class="spacer"></div>
+  <span id="atWork" class="at-work" role="status" hidden></span>
+  <div id="who" class="who" aria-label="Who is here"></div>
+  <button id="themeSwitch" class="quiet" type="button" aria-label="Switch light and dark">Theme</button>
+</header>
+<main class="page" id="main">
+  <div class="lead">
+    <p class="dim small" id="kind">Live space</p>
+    <h1 id="title">Loading…</h1>
+    <p class="live-line" id="liveLine" aria-live="polite">Connecting to your Rouh…</p>
+  </div>
+  <div id="state"></div>
+  <div id="intent" hidden></div>
+  <div class="layout" id="work">
+      <section class="box rouh-box" id="rouhBox">
+        <header><h2>Your Rouh</h2></header>
+        <form id="rouhAsk" class="say-form">
+          <label for="rouhWords">What should your Rouh do here?</label>
+          <textarea id="rouhWords" rows="2" maxlength="1000" placeholder="Add the steps we agreed on"></textarea>
+          <button id="rouhGo" class="primary" type="submit">Ask your Rouh</button>
+        </form>
+        <div id="rouhBusy" class="stack" hidden>
+          <p id="rouhProgress" aria-live="polite"></p>
+          <div class="row"><button id="skip" type="button">Skip to the end</button><button id="stopRouh" class="danger" type="button">Stop</button></div>
+        </div>
+        <h3 style="margin-top:14px">Live steps</h3>
+        <ul class="feed" id="feed" aria-live="polite"></ul>
+      </section>
+    <div class="stack work-col">
+      <section class="box part" id="stepsBox" data-part="">
+        <header><h2 id="stepsTitle">Steps</h2><span id="stepsMarks"></span></header>
+        <ul class="steps" id="steps"></ul>
+        <form id="addStep" class="row" style="margin-top:10px">
+          <label class="hidden" for="newStep">New step</label>
+          <input id="newStep" class="grow" type="text" maxlength="300" placeholder="Add a step">
+          <button type="submit">Add</button>
+        </form>
+      </section>
+      <section class="box" id="meetingBox">
+        <header><h2>Meeting</h2>
+          <div class="row">
+            <label class="hidden" for="minutes">How long</label>
+            <select id="minutes" style="width:auto"><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">1 hour</option><option value="90">1½ hours</option></select>
+            <button id="findTime" type="button">Find a meeting time</button>
+          </div>
+        </header>
+        <div id="meeting" class="proposal"></div>
+      </section>
+      <section class="box part notes" id="notesPart">
+        <header><h2 id="notesTitle">Notes</h2><span id="notesMarks"></span></header>
+        <div id="notesBox" class="stack">
+          <label class="hidden" for="notes">Notes</label>
+          <textarea id="notes" rows="8" placeholder="Write here; everyone sees it as you type."></textarea>
+          <div class="row"><span class="byline">Written by</span><span id="notesBy" class="row"></span>
+            <span class="spacer grow"></span><button id="notesComment" class="quiet" type="button">Comment</button></div>
+          <div id="notesComments"></div>
+        </div>
+      </section>
+    </div>
+    <aside class="stack side-col">
+      <section class="box">
+        <header><h2>Here</h2></header>
+        <div id="members" class="stack"></div>
+        <form id="inviteBox" class="stack" hidden style="margin-top:12px">
+          <label for="inviteWho">Ask a connected Rouh in</label><select id="inviteWho"></select>
+          <label for="inviteRole">As</label>
+          <select id="inviteRole"><option value="editor">Editor</option><option value="commenter">Commenter</option><option value="viewer">Viewer</option></select>
+          <button type="submit">Ask in</button>
+        </form>
+      </section>
+      <section class="box history">
+        <header><h2>History</h2><button id="histToggle" type="button" aria-expanded="false" aria-controls="hist">Show</button></header>
+        <div id="hist" class="stack" hidden>
+          <label for="histRange">Slide back through every change</label>
+          <input id="histRange" type="range" min="0" max="0" step="1" value="0">
+          <p id="histSaid" class="small dim"></p>
+          <div id="preview" class="preview"></div>
+          <button id="restore" type="button" disabled>Bring back this version</button>
+        </div>
+      </section>
+      <section class="box">
+        <header><h2>The log</h2></header>
+        <p class="small dim">Every change and message here, signed, in plain words.</p>
+        <div class="row" style="margin-top:8px"><button id="logOpen" type="button">Read the log</button><button id="leave" class="quiet" type="button">Leave</button></div>
+      </section>
+    </aside>
+  </div>
+</main>
+<div id="scrim" class="scrim" hidden></div>
+<aside id="logDrawer" class="drawer" hidden aria-label="The log">
+  <div class="row"><h2 class="grow">The log</h2><button id="logClose" type="button">Close</button></div>
+  <ul id="logList" class="log"></ul>
+</aside>
+<div id="toast" class="toast" role="status" hidden></div>
+<script defer src="{% asset "csrf.js" %}"></script>
+<script defer src="{% asset "link/space.js" %}"></script>
+</body>
+</html>

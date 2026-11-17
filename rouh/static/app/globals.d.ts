@@ -3,6 +3,8 @@
  * browser: a .d.ts file is types and nothing else. */
 
 interface Window {
+  /** Another Rouh is at work in a live space with this one (Rouh Link): the orb's second colour. */
+  rouhPartnerAtWork?: { on: boolean; who: string[] };
   /** What can wait until the conversation is on the screen, and the call that lets it go (index.html). */
   rouhLater: (fn: () => void) => void;
   rouhLaterGo: () => void;

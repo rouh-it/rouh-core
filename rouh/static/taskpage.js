@@ -274,6 +274,12 @@
       var b = document.getElementById(key);
       if (b) { b.addEventListener('click', function () { tell(TASK, { act: b.getAttribute('data-act') }); }); }
     });
+    /* Work on it live with another Rouh (Rouh Link, task 189): Rouh makes a live task page from
+       this task (its title and steps) and opens it, where another connected Rouh is asked in. */
+    var tkLive = document.getElementById('tkLive');
+    if (tkLive) {
+      tkLive.addEventListener('click', function () { tell(TASK, { act: 'live' }); });
+    }
     document.getElementById('tkDelete').addEventListener('click', function () {
       tell(TASK, { act: 'delete' });
     });

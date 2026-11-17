@@ -1,0 +1,44 @@
+{
+  "id": "book-a-meeting",
+  "name": "Book a meeting",
+  "title": "Agree a meeting inside a live space: only free and busy times cross, three options, each person says yes, each Rouh books its own person's calendar",
+  "aliases": [
+    "book a meeting",
+    "find a time",
+    "meeting time",
+    "agree a meeting"
+  ],
+  "group": "work",
+  "route": null,
+  "icon": "<rect x=\"4\" y=\"5\" width=\"16\" height=\"15\" rx=\"2\"/><path d=\"M4 9.5h16\"/><path d=\"M8 3v4\"/><path d=\"M16 3v4\"/><path d=\"M9 14.5l2 2 4-4\"/>",
+  "attaches_to": ["task"],
+  "maturity": "accepted",
+  "switch": "book_a_meeting",
+  "signals": {
+    "events": {
+      "found_time": "You pressed Find a meeting time in a live space",
+      "said_yes": "You said yes to one of the proposed times"
+    },
+    "runs": {
+      "booked": "Your Rouh put a meeting everyone agreed to in your calendar"
+    }
+  },
+  "nav": {
+    "place": "none",
+    "opens": "press",
+    "press": "findTime"
+  },
+  "touches": {
+    "permissions": [
+      "reads its person's free and busy times (never what the meetings are) to answer another connected Rouh in a live space they share, and to find three times all are free",
+      "creates the agreed meeting in its own person's calendar, with \"added by Rouh\" in its notes, only after that person said yes to that time"
+    ],
+    "accounts": ["Google Calendar"],
+    "tables": [],
+    "jobs": [],
+    "remove": "Turn it off (book_a_meeting); to take it out, remove rouh/link/meeting.py, its kinds in rouh/link/forms.py and rouh/link/trust.py, the Meeting box in rouh/templates/rouh/link_space.html and its drawing in rouh/static/link/space.js, its entry in rouh/link/jobs.py, and this manifest."
+  },
+  "uses": {
+    "purposes": []
+  }
+}

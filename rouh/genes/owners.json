@@ -3305,6 +3305,45 @@
     "rouh/web/relationships.py",
     "rouh/static/personrelations.*"
    ]
+  },
+  "rouh-link": {
+   "core": true,
+   "files": [
+    "rouh/link/__init__.py",
+    "rouh/link/me.py",
+    "rouh/link/seal.py",
+    "rouh/link/card.py",
+    "rouh/link/forms.py",
+    "rouh/link/trust.py",
+    "rouh/link/limits.py",
+    "rouh/link/log.py",
+    "rouh/link/wire.py",
+    "rouh/link/peers.py",
+    "rouh/link/doc.py",
+    "rouh/link/kinds.py",
+    "rouh/link/spaces.py",
+    "rouh/link/pacing.py",
+    "rouh/link/worker.py",
+    "rouh/link/jobs.py",
+    "rouh/link/standin.py",
+    "rouh/link/groups.py",
+    "rouh/link/grants.py",
+    "rouh/link/handoff.py",
+    "rouh/link/open_network.py",
+    "rouh/web/link.py",
+    "rouh/models/link.py",
+    "rouh/templates/rouh/link_*.html",
+    "rouh/static/link/link.css",
+    "rouh/static/link/space.js",
+    "rouh/static/link/connections.js",
+    "rouh/management/commands/rouh_link.py",
+    "LINK.md"
+   ]
+  },
+  "book-a-meeting": {
+   "files": [
+    "rouh/link/meeting.py"
+   ]
   }
  }
 }

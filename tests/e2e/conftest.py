@@ -132,6 +132,10 @@ def clean_env(*prefixes: str) -> dict[str, str]:
     # two it would have offline, unless ROUH_TEST_RULE_DEFAULTS_URL points it at a stand-in of its own.
     env["ROUH_RULE_DEFAULTS_URL"] = os.environ.get("ROUH_TEST_RULE_DEFAULTS_URL",
                                                    "http://127.0.0.1:1/no-rouh-land/rules.json")
+    # Rouh Link's mailbox beside the relay (`rouh/link/wire.py`): never the real one from a test.
+    # ROUH_TEST_LINK_MAILBOX points a world at a stand-in mailbox of its own (the relay's own
+    # mailbox.py, run on this machine).
+    env["ROUH_LINK_MAILBOX"] = os.environ.get("ROUH_TEST_LINK_MAILBOX", "http://127.0.0.1:1/no-mailbox/")
     # And the installation's own settings, which are blank until an installer
     # sets them (`rouh/config.py`, SETUP.md): Rouh's own mailbox, the address
     # its letters come from and the clock a person starts on, the same in every

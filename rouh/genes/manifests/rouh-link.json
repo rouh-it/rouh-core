@@ -1,0 +1,49 @@
+{
+  "id": "rouh-link",
+  "name": "Connections",
+  "title": "Rouh Link: other people's Rouhs you are connected to, how far each is trusted, and the live spaces you work in together",
+  "aliases": [
+    "rouh link",
+    "connections",
+    "other rouhs",
+    "connect",
+    "live space",
+    "shared space",
+    "work together",
+    "trust level"
+  ],
+  "group": "work",
+  "route": "/link",
+  "icon": "<circle cx=\"7\" cy=\"12\" r=\"3.5\"/><circle cx=\"17\" cy=\"12\" r=\"3.5\"/><path d=\"M10.5 12h3\"/>",
+  "attaches_to": [
+    "task"
+  ],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 50,
+    "opens": "page"
+  },
+  "touches": {
+    "permissions": [
+      "answers other Rouhs at /link/in and its signed card at /.well-known/agent-card.json, each checked by signature and the connection's trust level in code",
+      "sends locked messages to the Rouhs its person connected to, straight through the relay or by the mailbox beside it",
+      "holds the room of each live space its person makes, and follows the rooms of spaces its person joined"
+    ],
+    "accounts": [
+      "the mailbox beside the rouh.page relay (mailbox.rouh.page), which holds locked messages for a Rouh that is off, up to 30 days"
+    ],
+    "tables": [
+      "link_self",
+      "link_peers",
+      "link_invites",
+      "link_messages",
+      "link_log",
+      "link_spaces",
+      "link_ops",
+      "link_grants"
+    ],
+    "jobs": [],
+    "remove": "Rouh Link is part of Rouh's core and has no off switch; to take it out, remove rouh/link/, rouh/web/link.py and its routes and open paths (rouh/project/urls.py, rouh/web/gate.py), rouh/models/link.py with a migration dropping its tables, its templates and rouh/static/link/, the start in rouh/runtime.py, the orb's second colour (app/orb.js, app/orb3d.js, app/socket.js, protocol.d.ts, PROTOCOL.md), LINK.md and this manifest."
+  }
+}

@@ -904,6 +904,16 @@ function handleMessage(m) {
       modelsLoad();
       window.dispatchEvent(new CustomEvent('rouh:chat-model', { detail: null }));
       break;
+    case 'link_partner_working':
+      // A partner's Rouh is at work in a live shared space with this one (`rouh/link/spaces.py`):
+      // the orb draws its second colour while it is (app/orb.js, app/orb3d.js).
+      window.rouhPartnerAtWork = { on: !!m.on, who: m.who || [] };
+      document.documentElement.classList.toggle('partner-at-work', !!m.on);
+      break;
+    case 'link_notice':
+      // Asked to connect, or asked into a live space: said once, quietly.
+      window.dispatchEvent(new CustomEvent('rouh:link-notice', { detail: m }));
+      break;
     case 'page_changed':
       // Rouh changed the page open beside the chat (app/runs.js draws it again).
       window.dispatchEvent(new CustomEvent('rouh:page-changed', { detail: m }));

@@ -1072,6 +1072,41 @@ def a_decision(body: dict) -> str:
 # words rather than a heading, as one sentence, so a test that sees it on a
 # green run's card knows the brief really travelled to the model.
 
+# --------------------------------------------------------------------------
+# Standing in for a Rouh at work in a live shared space (`rouh/link/worker.py`).
+# --------------------------------------------------------------------------
+#
+# Told apart by the first words of its system prompt, and answered out of the
+# person's own words: "steps: A; B; C" becomes one step added for each, and
+# "notes: some words" becomes those words written at the end of the space's
+# first text. So a test that sees the steps arrive one at a time knows the
+# person's words really travelled, and the plan really came back as a form.
+
+SPACE_WORK = "You are a Rouh, a personal AI assistant, working in a live shared space"
+
+
+def is_space_work(body: dict) -> bool:
+    return SPACE_WORK in _flat(body.get("system"))
+
+
+def a_space_plan(body: dict) -> str:
+    said = last_user_text(body)
+    asked = said.rsplit("Your own person asks you:", 1)[-1].strip()
+    lists = re.findall(r"^List (\w+)", said, re.M)
+    texts = re.findall(r"^Text (\w+)", said, re.M)
+    steps = []
+    m = re.search(r"steps?:\s*(.*?)(?:\s+notes:|$)", asked, re.I | re.S)
+    if m and lists:
+        for one in [x.strip() for x in m.group(1).split(";") if x.strip()][:10]:
+            steps.append({"say": f"Adding: {one}", "do": [{"add": {"list": lists[0], "text": one}}]})
+    n = re.search(r"notes:\s*(.*)$", asked, re.I | re.S)
+    if n and texts:
+        steps.append({"say": "Writing the notes", "do": [{"write": {"text": texts[0], "add": n.group(1).strip()}}]})
+    if not steps and lists:
+        steps = [{"say": "Adding a step", "do": [{"add": {"list": lists[0], "text": asked[:120] or "A step"}}]}]
+    return json.dumps({"intent": f"{len(steps)} change{'s' if len(steps) != 1 else ''}: {asked[:120]}", "steps": steps})
+
+
 SUMMING = "You say what a piece of work is for"
 SUMMARY_FILE = "summary-"
 
@@ -3004,6 +3039,7 @@ def build_app(record_dir: str) -> FastAPI:
             (is_naming(body), TITLE_FILE, a_title),
             (is_triage(body), TRIAGE_FILE, a_decision),
             (is_filing(body), FILING_FILE, a_filing),
+            (is_space_work(body), "space-work-", a_space_plan),
         )
         from . import fake_code_adapt
 

@@ -426,6 +426,12 @@ USES: tuple[Use, ...] = (
     Use("page_define", "Pages", "Defining a passage",
         "Define, beside Ask over a passage selected on a page: a few sentences on what it "
         "means there, in a tooltip.", purposes=("page_define",)),
+    # Task 189 (Rouh Link): this Rouh's own work in a live shared space, read by a model with no
+    # tools that only proposes edits to that space, which code checks and paces (`rouh/link/worker.py`).
+    Use("link_space_work", "Pages", "A Rouh at work in a live shared space",
+        "When you ask your Rouh to work on a live shared space (a task page, a trip, a list), it "
+        "reads the space with no tools and writes its edits there, a step at a time, as you watch.",
+        purposes=("link_space_work",)),
     # Petar, 27 October 2026 (mutation request 6 of Listen to this page): a narration that walks
     # the listener through a page, read out in Rouh's voice (`rouh/page_listen.py`).
     Use("page_listen", "Pages", "Narrating a page",

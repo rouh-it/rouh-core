@@ -25,6 +25,7 @@ from django.urls import path, re_path
 
 from rouh import addressing, askai, filelinks, genes, onebridge, pages, picturelinks, sharing
 from rouh.web import agent_instructions as agent_instructions_web
+from rouh.web import link as link_web
 from rouh.web import anatomy as anatomy_web
 from rouh.web import lean as lean_web
 from rouh.web import gates as gates_web
@@ -174,6 +175,32 @@ urlpatterns = [
     # Then Claude Code's sign-in, in the containers only (`rouh/web/claude_signin.py`).
     # The phone address: its HTTP-01 check and the QR code's sign-in (`rouh/web/relay.py`).
     path(".well-known/acme-challenge/<str:token>", relay_web.challenge),
+    # Rouh Link: Rouhs working together (`rouh/web/link.py`, task 189). The card, the inbox, a
+    # connect link opened in a browser and the A2A address are open; each checks what it is handed.
+    path(".well-known/agent-card.json", link_web.agent_card),
+    path(".well-known/agent.json", link_web.agent_card),
+    path("link/in", link_web.inbox),
+    path("link/a2a", link_web.a2a),
+    path("link/join/<str:token>", link_web.join_page),
+    path("link", link_web.connections_page),
+    path("link/accept", link_web.accept_page),
+    path("link/space/<str:sid>", link_web.space_page),
+    path("api/link", link_web.api_state),
+    path("api/link/invite", link_web.api_invite),
+    path("api/link/invite/withdraw", link_web.api_invite_withdraw),
+    path("api/link/accept", link_web.api_accept),
+    path("api/link/connect", link_web.api_connect),
+    path("api/link/settings", link_web.api_settings),
+    path("api/link/contact", link_web.api_contact),
+    path("api/link/contact/<str:contact_id>", link_web.api_contact_line),
+    path("api/link/peer/<str:label>", link_web.api_peer),
+    path("api/link/peer/<str:label>/log", link_web.api_peer_log),
+    path("api/link/spaces", link_web.api_space_new),
+    path("api/link/spaces/<str:sid>", link_web.api_space),
+    path("api/link/spaces/<str:sid>/ops", link_web.api_space_ops),
+    path("api/link/spaces/<str:sid>/history", link_web.api_space_history),
+    path("api/link/spaces/<str:sid>/act", link_web.api_space_act),
+    path("api/link/spaces/<str:sid>/log", link_web.api_space_log),
     path("phone/in", relay_web.phone_in),
     path("setup/claude", claude_signin_web.page),
     path("setup/claude/state", claude_signin_web.state),

@@ -113,7 +113,11 @@ OPEN_PATHS = frozenset({"/shared/in", "/shared/in/back", "/login", "/setup", "/s
                         "/api/hooks/meeting-library",
                         # The service worker: the same script for everybody, holding nothing of
                         # anybody's, checked by the browser for an update signed in or not.
-                        "/sw.js"})
+                        "/sw.js",
+                        # Rouh Link (`rouh/web/link.py`): the Rouh card, at A2A's two addresses, other
+                        # Rouhs' locked envelopes, and other agents' A2A messages. Each is checked by
+                        # its view: signatures and keys, never a sign-in.
+                        "/.well-known/agent-card.json", "/.well-known/agent.json", "/link/in", "/link/a2a"})
 OPEN_PREFIXES = ("/a/", "/static/", "/internal/", "/login/reset/", "/login/link/", "/hooks/gmail/", "/.well-known/acme-challenge/",
                  "/hooks/stripe/",
                  # A run's one question, opened on the phone by its own unguessable address, where
@@ -123,7 +127,9 @@ OPEN_PREFIXES = ("/a/", "/static/", "/internal/", "/login/reset/", "/login/link/
                  # Rouh for Mac's native first run (`rouh/web/setup_api.py`): every call there
                  # checks the setup code itself, and the relay never lets one through.
                  "/setup/api/",
-                 sharing.ROUTE, "/join/", filelinks.ROUTE, picturelinks.ROUTE)
+                 sharing.ROUTE, "/join/", filelinks.ROUTE, picturelinks.ROUTE,
+                 # A connect link opened in a browser: a page saying what it is, holding nothing.
+                 "/link/join/")
 
 #: Where a guest may go, past the addresses open to everybody. A guest is an
 #: account made from an invitation to one shared page, and what it may reach

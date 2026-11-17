@@ -398,7 +398,7 @@ function dropRecord(r) {
 
 var MAX_TWIGS = 24;
 var frameNo = 0;
-var GHOST = null, WAIT = null;
+var GHOST = null, WAIT = null, PARTNER = null;
 
 // Each record's look this frame, from its node: colour, how much of it has
 // grown, how it is fading. Says whether anything on it is moving, which is
@@ -582,7 +582,8 @@ function paintCore(mode, waiting) {
   coreHalo.scale.setScalar(coreRadius * (5 + 5 * Math.sqrt(prefs.coreGlow / 80)) * (mode === 'open' ? 1 : 0.8));
   // The circle's colour at a glance: the halo goes red while anything waits
   // for the person, and turquoise-white while work runs.
-  var tint = waiting ? WAIT : O3.live ? colourOf('agent') : null;
+  var partner = window.rouhPartnerAtWork;
+  var tint = waiting ? WAIT : partner && partner.on ? PARTNER : O3.live ? colourOf('agent') : null;
   // Over the whole screen the core stays white with only a hint of it; the
   // branch itself, red and dashed with NEEDS YOU, says the rest there.
   var open = mode === 'open';
@@ -909,7 +910,7 @@ async function orb3dStart(cv, hooks) {
     camera.position.set(0, 0, 3.1);
     group = new T.Group();
     scene.add(group);
-    GHOST = colourOf('ghost'); WAIT = colourOf('wait');
+    GHOST = colourOf('ghost'); WAIT = colourOf('wait'); PARTNER = new T.Color('#ffb547');
     DPOS = new T.Vector3(); PV = new T.Vector3();
     makeCore();
     controls = new got[1].OrbitControls(camera, cv);

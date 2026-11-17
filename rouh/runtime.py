@@ -7704,6 +7704,17 @@ async def startup() -> None:
             await relay.start()
     except Exception:
         log.exception("the phone address could not be started")
+    # Rouh Link: the outbox, the mailbox and the shared spaces this Rouh is in (`rouh/link/`, task
+    # 189). Nothing goes out until the owner connects to another Rouh.
+    try:
+        if not held:
+            from rouh.link import spaces as _link_spaces
+            from rouh.link import wire as _link_wire
+
+            _link_spaces.remember_loop()
+            _link_wire.start()
+    except Exception:
+        log.exception("Rouh Link could not be started")
 
     # External MCP servers, if any are configured. Opened before the tool list
     # is logged, so the log says what Rouh really has rather than what it had

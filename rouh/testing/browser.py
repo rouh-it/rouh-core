@@ -466,6 +466,9 @@ def start(root, with_voice: bool = False, luna: bool = False, anthropic: bool = 
         # ROUH_TEST_RULE_DEFAULTS_URL points the world at a stand-in of its own.
         ROUH_RULE_DEFAULTS_URL=os.environ.get("ROUH_TEST_RULE_DEFAULTS_URL",
                                               "http://127.0.0.1:1/no-rouh-land/rules.json"),
+        # Rouh Link's mailbox (`rouh/link/wire.py`): never the real one from a test; a stand-in when
+        # ROUH_TEST_LINK_MAILBOX names one (the relay's own mailbox.py, run on this machine).
+        ROUH_LINK_MAILBOX=os.environ.get("ROUH_TEST_LINK_MAILBOX", "http://127.0.0.1:1/no-mailbox/"),
         # Slack is a stand-in of this world's own, started below (`rouh/testing/fake_slack.py`).
         # Left pointed at slack.com, a world would send whatever token was pasted into Settings
         # to Slack, and post in a real workspace with it.

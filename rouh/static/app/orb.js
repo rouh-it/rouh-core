@@ -322,7 +322,9 @@ var ORB_PAL = {
   job: '#36dce5', agent: '#36dce5', wait: '#ff3655',
   search: '#ffd064', page: '#ff994d', code: '#69dfa1',
   shell: '#aa8aff', read: '#bac5d8', edit: '#f875d5',
-  api: '#729dff', other: '#8993a7'
+  api: '#729dff', other: '#8993a7',
+  // A partner's Rouh at work in a live shared space (Rouh Link): its second colour.
+  partner: '#ffb547'
 };
 
 /* Eight kinds of tool call. Each is said twice, by its colour and by a mark,
@@ -1757,6 +1759,17 @@ function drawCore(g, pal, t, cmp, live, waiting) {
   g.globalAlpha = 0.10 + 0.14 * br * (live ? 1 : 0.4);
   g.strokeStyle = waiting ? pal.wait : pal.ink;
   g.beginPath(); g.arc(x, y, r * (1.5 + br * 0.9), 0, 6.2831853); g.stroke();
+  // Rouh Link: while a partner's Rouh is at work in a live space with this one, a second ring in
+  // its own colour, breathing against the first (`link_partner_working`).
+  var partner = window.rouhPartnerAtWork;
+  if (partner && partner.on) {
+    var pb = 0.5 + 0.5 * Math.sin(t * 1.5 + 3.14159);
+    g.globalAlpha = 0.35 + 0.35 * pb;
+    g.lineWidth = cmp ? 1.2 : 2;
+    g.strokeStyle = pal.partner;
+    g.beginPath(); g.arc(x, y, r * (1.9 + pb * 0.6), 0, 6.2831853); g.stroke();
+    g.lineWidth = 1;
+  }
   g.globalAlpha = 1;
   ORB_HIT.core.x = x; ORB_HIT.core.y = y; ORB_HIT.core.r = r;
 }

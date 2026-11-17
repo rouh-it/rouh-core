@@ -11595,3 +11595,13 @@ body.cot-open { overflow: hidden; }
 .incog-ask p { flex: 1 0 100%; margin: 0; font-size: 13.5px; font-weight: 600; color: var(--text); }
 .incog-ask .cot-btn { min-height: 44px; }
 .incog-ask .cot-btn.danger { border-color: var(--incog); background: var(--incog); color: var(--incog-ink); font-weight: 600; }
+
+/* Rouh Link (task 189): while a partner's Rouh is at work in a live space with this one, the orb wears
+   a second colour, amber, as a ring that breathes (`link_partner_working`, app/socket.js). */
+.partner-at-work canvas.orb {
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px #ffb547, 0 0 18px 2px rgba(255, 181, 71, .55);
+  animation: partnerRing 1.6s ease-in-out infinite;
+}
+@keyframes partnerRing { 50% { box-shadow: 0 0 0 2px #ffb547, 0 0 8px 1px rgba(255, 181, 71, .3); } }
+@media (prefers-reduced-motion: reduce) { .partner-at-work canvas.orb { animation: none; } }

@@ -162,6 +162,11 @@ export interface ServerMessages {
   tasks_forgotten: { ids: any[]; };
   /** What became of actions done offline, on this device or the other (`rouh/offline.py`). */
   offline_results: { results: OfflineResult[]; };
+  /** Rouh Link (`rouh/link/spaces.py`): whether another Rouh is at work in a live space with this
+   *  one, and whose; the orb takes a second colour while it is. */
+  link_partner_working: { on: boolean; who: string[]; };
+  /** Rouh Link: a quiet line about a connection or a space (asked to connect, asked into a space). */
+  link_notice: { said: string; };
 }
 
 /** Every message the page sends, by type, with its fields (PROTOCOL.md, "Client to server"). */

@@ -19,6 +19,7 @@ from .trials import Trial, TrialJob, TrialNote, TrialProblem, TrialSighting, Tri
 from .genelog import (GeneEval, GeneLogCommit, GeneLogEvent, GeneLogGene, GeneMark, GeneUseDaily,
                       PoolMembership)
 from .birth import RouhBirth, RouhNickname
+from .link import LinkGrant, LinkInvite, LinkLog, LinkMessage, LinkOp, LinkPeer, LinkSelf, LinkSpace
 from .files import File, FileOwner, FileVersion
 from .signin import Passkey, SignInEmail, SignInLink
 from .prompt_parts import PromptPart
@@ -100,6 +101,7 @@ __all__ = [
     "RequesterShare", "TelegramAccount", "Thought", "Box", "BoxHandover",
     "UserSetting", "WorkerNote",
     "Silo", "SiloRule",
+    "LinkGrant", "LinkInvite", "LinkLog", "LinkMessage", "LinkOp", "LinkPeer", "LinkSelf", "LinkSpace",
     "DreameConnection",
     "HueApp", "HueConnection", "McpServer",
     "YouTubeTranscript",

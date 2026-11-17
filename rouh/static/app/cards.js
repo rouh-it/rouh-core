@@ -1142,9 +1142,81 @@ function contactBlock(b) {
         && b.state !== 'unsaved' && b.state !== 'declined') node.appendChild(contactPets(b));
   });
   if (silos !== null && b.contact) node.appendChild(contactSilos(b, silos));
+  if (b.contact && !b.me && b.state !== 'unsaved' && b.state !== 'declined') node.appendChild(contactRouh(b));
   if (b.remark) node.appendChild(el('p', 'ct-remark', b.remark));
   if (b.foot) node.appendChild(el('p', 'ct-foot', b.foot));
   return node;
+}
+
+/* ---------- Their Rouh, on a contact (Rouh Link, task 189) ----------------
+
+   A contact's Rouh, by its address (still-heron.rouh.page): kept by this Rouh only, never in
+   iCloud (`rouh/link/peers.py`, `note_contact`). Once noted, a hello from that Rouh connects at
+   once, and Connect asks it now. Read when the card is drawn, from /api/link/contact/<id>. */
+
+/** @param {any} b */
+function contactRouh(b) {
+  var box = el('section', 'ct-own is-their-rouh');
+  var head = el('div', 'ct-own-head');
+  head.appendChild(el('h5', 'ct-own-title', 'Their Rouh'));
+  box.appendChild(head);
+  var body = el('div', 'ct-own-body');
+  box.appendChild(body);
+  var id = encodeURIComponent(String(b.contact));
+  function show(line) {
+    body.textContent = '';
+    if (line) {
+      var said = line.name + (line.state === 'connected' ? ', connected as ' + line.trust_word
+        : line.state === 'noted' ? ', not connected yet' : ', ' + line.state);
+      body.appendChild(el('p', 'ct-rel', said));
+      var acts = el('div', 'ct-rouh-acts');
+      acts.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+      var go = el('a', 'ct-own-edit', 'Open Connections');
+      go.setAttribute('href', '/link');
+      acts.appendChild(go);
+      if (line.state === 'noted') acts.appendChild(button('Connect', true));
+      body.appendChild(acts);
+      return;
+    }
+    var input = el('input', 'ct-input');
+    input.setAttribute('aria-label', 'Their Rouh’s address');
+    input.setAttribute('placeholder', 'their-rouh.rouh.page');
+    body.appendChild(input);
+    var save = el('button', 'ct-own-edit', 'Save');
+    save.type = 'button';
+    save.addEventListener('click', function () { keep(input.value, false); });
+    body.appendChild(save);
+    var con = el('button', 'ct-own-edit', 'Save and connect');
+    con.type = 'button';
+    con.addEventListener('click', function () { keep(input.value, true); });
+    body.appendChild(con);
+  }
+  function button(words, connect) {
+    var bt = el('button', 'ct-own-edit', words);
+    bt.type = 'button';
+    bt.addEventListener('click', function () { keep('', connect, true); });
+    return bt;
+  }
+  var known = null;
+  function keep(address, connect, again) {
+    var addr = again && known ? known.address : String(address || '').trim();
+    if (!addr) return;
+    fetch('/api/link/contact', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact_id: String(b.contact), address: addr, connect: !!connect }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (got) {
+        if (!got.ok) { notify(got.j.error || 'That did not work.'); return; }
+        load();
+      }).catch(function () { notify('Rouh could not be reached.'); });
+  }
+  function load() {
+    fetch('/api/link/contact/' + id, { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : { line: null }; })
+      .then(function (got) { known = got.line; show(got.line); })
+      .catch(function () { show(null); });
+  }
+  load();
+  return box;
 }
 
 /* ---------- Rouh's own two fields on a contact --------------------------
@@ -5022,7 +5094,7 @@ function taskPageAct(frame, m) {
           'drop_file', 'mine', 'not_mine', 'rouhs', 'pdf', 'cards', 'slack_unlink',
           'slack_remove', 'check_sources', 'doc_changes', 'doc_names', 'doc_on_page', 'doc_add',
           'doc_comments', 'doc_comments_apply', 'deck_rehearse', 'deck_picture', 'deck_rehearsed', 'doc_attach',
-          'retitle', 'to_send', 'open_item', 'task_time'].indexOf(m.act) === -1) {
+          'retitle', 'to_send', 'open_item', 'task_time', 'live'].indexOf(m.act) === -1) {
     projectSay(frame, m.id, { ok: false, error: 'Rouh will not change that task from here.' });
     return;
   }
@@ -5058,6 +5130,19 @@ function taskPageAct(frame, m) {
   }
   if (m.act === 'check_sources') {
     taskCheckSources(frame, m, folder);
+    return;
+  }
+  if (m.act === 'live') {
+    // Work on it live with another Rouh (Rouh Link, `rouh/web/link.py`): a live task page made
+    // from this task, opened in place of Rouh's page.
+    fetch('/api/link/spaces', { method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: folder, kind: 'task' }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (got) {
+        projectSay(frame, m.id, got.ok ? { ok: true } : { ok: false, error: got.j.error || 'Rouh could not make a live page.' });
+        if (got.ok && got.j.url) { location.href = got.j.url; }
+      })
+      .catch(function () { projectSay(frame, m.id, { ok: false, error: 'Rouh could not be reached.' }); });
     return;
   }
   if (m.act === 'retitle') {

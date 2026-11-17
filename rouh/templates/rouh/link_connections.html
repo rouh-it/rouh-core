@@ -1,0 +1,115 @@
+{% load rouh_assets %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connections</title>
+<link rel="stylesheet" href="{% asset "link/link.css" %}">
+<!-- Connections (Rouh Link, task 189): `rouh/web/link.py`, drawn by `link/connections.js`. -->
+</head>
+<body>
+<header class="bar">
+  <a class="home" href="/" aria-label="Back to Rouh"><span class="dot" aria-hidden="true"></span>Rouh</a>
+  <div class="spacer"></div>
+  <button id="themeSwitch" class="quiet" type="button" aria-label="Switch light and dark">Theme</button>
+</header>
+<main class="page">
+  <div class="lead">
+    <p class="dim small">Connections</p>
+    <h1 id="lead">Loading…</h1>
+    <p class="dim" id="leadMore"></p>
+  </div>
+  <div id="content" class="stack" hidden>
+    <section class="box" id="needsBox" hidden>
+      <header><h2>Needs you</h2></header>
+      <div id="needs"></div>
+    </section>
+    <div class="cols">
+      <div class="stack">
+        <section class="box">
+          <header><h2>Your connections</h2></header>
+          <div id="peers"></div>
+        </section>
+        <section class="box">
+          <header><h2>Live spaces</h2></header>
+          <div id="spaces"></div>
+          <form id="newSpace" class="stack" style="margin-top:10px">
+            <label for="spaceTitle">Start a live space</label>
+            <input id="spaceTitle" type="text" maxlength="200" placeholder="What it is about">
+            <div class="row">
+              <label class="hidden" for="spaceKind">Kind</label>
+              <select id="spaceKind" class="grow"><option value="task">Task page</option><option value="doc">Document or draft</option>
+                <option value="page">Page or explainer</option><option value="trip">Trip</option><option value="research">Research</option>
+                <option value="calendar">Calendar proposal</option><option value="list">List</option></select>
+              <button type="submit">Start</button>
+            </div>
+          </form>
+        </section>
+      </div>
+      <div class="stack">
+        <section class="box">
+          <header><h2>Connect</h2></header>
+          <div class="stack">
+            <div class="row">
+              <div class="grow"><label for="newTrust">Trust it as</label>
+                <select id="newTrust"><option value="known">Known</option><option value="colleague">Colleague</option><option value="family">Family</option><option value="delegate">Delegate</option></select></div>
+              <div class="grow"><label for="newSide">Side</label>
+                <select id="newSide"><option value="">Either side</option><option value="work">Work</option><option value="personal">Personal</option></select></div>
+            </div>
+            <div><label for="newFor">Only for this Rouh (optional)</label><input id="newFor" type="text" placeholder="cherry-kelp-vdh3"></div>
+            <div><button id="makeLink" class="primary" type="button">Make a connect link</button></div>
+            <div id="linkOut" class="stack" hidden>
+              <p class="small dim">Send this to the person, or let them scan it. It works once, for 14 days.</p>
+              <div id="linkText" class="linkbox"></div>
+              <div class="row"><button id="copyLink" type="button">Copy the link</button></div>
+              <div id="linkQr" class="qr" role="img" aria-label="The same link as a QR code"></div>
+            </div>
+            <div id="invites" class="stack"></div>
+          </div>
+        </section>
+        <section class="box">
+          <header><h2>Bring a link someone sent you</h2></header>
+          <form id="bring" class="stack">
+            <label for="bringLink">Their connect link</label>
+            <input id="bringLink" type="url" placeholder="https://their-rouh.rouh.page/link/join/...">
+            <div class="row"><div class="grow"><label for="bringTrust">Trust it as</label>
+              <select id="bringTrust"><option value="known">Known</option><option value="colleague">Colleague</option><option value="family">Family</option></select></div>
+              <button id="bringGo" type="submit" style="align-self:end">Connect</button></div>
+          </form>
+        </section>
+        <section class="box">
+          <header><h2>A contact’s Rouh</h2></header>
+          <form id="fromContact" class="stack">
+            <label for="contactAddress">Their Rouh’s address, from their contact</label>
+            <input id="contactAddress" type="text" placeholder="cherry-kelp-vdh3.rouh.page">
+            <div><button type="submit">Ask to connect</button></div>
+          </form>
+        </section>
+        <section class="box">
+          <header><h2>Off for now</h2></header>
+          <div class="stack">
+            <p class="small dim" id="heldWhy"></p>
+            <label class="row"><input id="strangers" type="checkbox"> Rouhs you do not know may introduce themselves and hand over a brief</label>
+            <label class="row"><input id="openNet" type="checkbox"> Other makers’ agents may reach your Rouh</label>
+            <label class="row"><input id="findable" type="checkbox"> People can find your Rouh by your email, through rouh.land</label>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</main>
+<div id="scrim" class="scrim" hidden></div>
+<aside id="logDrawer" class="drawer" hidden aria-label="The log">
+  <div class="row"><h2 class="grow" id="logTitle">The log</h2><button id="logClose" type="button">Close</button></div>
+  <p class="small dim">Every message and change, signed. Theirs is read from their Rouh and checked against its key.</p>
+  <h3>Your Rouh’s</h3>
+  <ul id="logMine" class="log"></ul>
+  <h3>Theirs</h3>
+  <ul id="logTheirs" class="log"></ul>
+</aside>
+<div id="toast" class="toast" role="status" hidden></div>
+{% if accept_link %}<script>window.LINK_ACCEPT = "{{ accept_link|escapejs }}";</script>{% endif %}
+<script defer src="{% asset "csrf.js" %}"></script>
+<script defer src="{% asset "link/connections.js" %}"></script>
+</body>
+</html>

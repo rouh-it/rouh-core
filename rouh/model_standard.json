@@ -1405,6 +1405,24 @@
     "code_adapt": {
       "tier": "smart",
       "why": "Adapting this Rouh, migrations and security require a frontier model. A weaker selection waits."
+    },
+    "link_space_work": {
+      "tier": "smart",
+      "why": "It writes into a space other people and Rouhs are working in, as they watch; what it proposes is checked by code, but it should be right the first time.",
+      "order": {
+        "cheaper": [
+          "openai",
+          "anthropic",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
     }
   },
   "double_calls": {
