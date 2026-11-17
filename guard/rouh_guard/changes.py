@@ -227,12 +227,15 @@ class Changes:
                 out[Path(path).stem] = str(need)
         return out
 
-    async def propose(self, ref: str, why: str = "", *, by: str = "the Rouh", update: dict | None = None) -> dict:
+    async def propose(self, ref: str, why: str = "", *, by: str = "the Rouh", update: dict | None = None,
+                      on: str = "") -> dict:
         commit = self.resolve(ref)
         if not commit:
             return {"ok": False, "refused": f"/code has no commit {str(ref)[:40]!r}"}
         async with self.lock:
             cur = self.point(self.data.get("current"))
+            if on and (not cur or cur["commit"] != on):
+                return {"ok": False, "refused": "the code that runs moved on while this was being made; it is tried again later"}
             if cur and cur["commit"] == commit:
                 return {"ok": True, "point": cur, "said": "That is the code that runs already."}
             needs = self._needs(commit)

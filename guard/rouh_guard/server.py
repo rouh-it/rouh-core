@@ -10,6 +10,9 @@
                                               key's public half, what was pushed; "fetch": true
                                               fetches rouh-core first, "key": true makes the key
     {"op": "push_branch", "commit", "branch"} the Creator Rouh's 00:40 base level, checked, pushed
+    {"op": "update_step"}                     core 1.1: bring the Rouh's update step to the newest
+                                              release's now, exactly, when it cannot copy files
+                                              exactly itself (updatestep.py); it also looks by itself
 
 A reply is {"ok": true, ...}, or {"ok": false, "refused": "<a sentence>"} when the core says no,
 or {"ok": false, "error": "<a sentence>"} when it could not do it. Within contract 1 an op or a
@@ -60,21 +63,24 @@ def _gene(req: dict) -> dict:
 
 
 class Server:
-    def __init__(self, path: str, changes=None, doctor=None, upstream=None):
+    def __init__(self, path: str, changes=None, doctor=None, upstream=None, update_step=None):
         self.path = path
         self.changes = changes
         self.doctor = doctor
         self.upstream = upstream
+        self.update_step = update_step
 
     def status(self) -> dict:
         out = {"ok": True, "version": VERSION, "contracts": CONTRACTS,
-               "features": {"master_changes": 1, "database_rehearsal": 1}}
+               "features": {"master_changes": 1, "database_rehearsal": 1, "exact_copies": 1, "update_step": 1}}
         if self.changes is not None:
             out.update(self.changes.status())
         if self.doctor is not None:
             out["doctor"] = self.doctor.status()
         if self.upstream is not None:
             out["upstream"] = self.upstream.status()
+        if self.update_step is not None:
+            out["update_step"] = self.update_step.status()
         return out
 
     async def answer(self, req: dict) -> dict:
@@ -98,6 +104,10 @@ class Server:
         if op == "propose":
             return await self.changes.propose(str(req.get("commit") or ""), str(req.get("why") or "")[:500],
                                               by=str(req.get("by") or "the Rouh")[:80], update=req.get("update"))
+        if op == "update_step":
+            if self.update_step is None:
+                return {"ok": False, "refused": "this protected core has no update step to bring up to date"}
+            return {"ok": True, **await self.update_step.once()}
         if op == "undo":
             return await self.changes.undo(req.get("point"), by=str(req.get("by") or "the Rouh")[:80])
         if op == "verify":

@@ -13,6 +13,7 @@ Settings, all from the stack file:
     ROUH_APP_DIR        the Rouh's code, /code
     ROUH_GUARD_UPSTREAM the Creator Rouh only: where a checked change is pushed (upstream.py);
                         blank in every Rouh instance, and then nothing is pushed anywhere
+    ROUH_GUARD_UPDATE_STEP  0 turns off the update step's own update (updatestep.py)
 """
 from __future__ import annotations
 
@@ -30,18 +31,20 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s guard %(message)s", stream=sys.stdout)
     log = logging.getLogger("rouh-guard")
     sock = os.environ.get("ROUH_GUARD_SOCKET", "/run/guard/guard.sock")
-    changes = doctor = upstream = None
+    changes = doctor = upstream = step = None
     try:
         from . import changes as changes_mod
         from . import doctor as doctor_mod
+        from . import updatestep as step_mod
         from . import upstream as upstream_mod
     except ImportError:
-        changes_mod = doctor_mod = upstream_mod = None
+        changes_mod = doctor_mod = upstream_mod = step_mod = None
     if changes_mod is not None:
         changes = changes_mod.Changes.from_environment()
         doctor = doctor_mod.Doctor(changes)
         upstream = upstream_mod.Upstream(changes, doctor)
-    server = Server(sock, changes=changes, doctor=doctor, upstream=upstream)
+        step = step_mod.UpdateStep(changes)
+    server = Server(sock, changes=changes, doctor=doctor, upstream=upstream, update_step=step)
     log.info("the protected core %s starts", VERSION)
 
     async def run() -> None:
@@ -54,6 +57,9 @@ def main() -> int:
             await changes.start()
         if doctor is not None:
             tasks.append(asyncio.create_task(doctor.watch()))
+        if step is not None and step_mod.on() and not (upstream is not None and upstream.on):
+            # The Creator Rouh makes the releases; every other Rouh's update step is kept able to take them.
+            tasks.append(asyncio.create_task(step.watch()))
         if upstream is not None and upstream.on:
             log.info("this is the Creator Rouh: a checked change is pushed to %s once it has run healthy", upstream.url)
             tasks.append(asyncio.create_task(upstream.watch()))

@@ -131,3 +131,16 @@ Each rehearsal has its own PostgreSQL role, socket and data directory, with no T
 A failed rehearsal leaves the real database alone; a failed transaction rolls back. An interrupted final verification records an uncertain application outcome, never a known rollback.
 Each attempt keeps its backup, counts, result and reverse/restore instructions under `/guard/database-updates/`, beside the protected undo history.
 The migration's model must be frontier even when its files could otherwise have been copied exactly.
+
+## Core 1.1: exact copies, and the update step brought up to date (17 November 2026)
+
+A Rouh on core 1.0.0 stopped taking released changes: one change vendored three.js (700 KB on one line), its own update step could only hand such a file to a model as cut-off text, and the 35 changes after it waited behind it, because nearly every change also touches `rouh/genes/owners.json`.
+The fixed update step (`rouh/code_evolution.py`, which copies each released file exactly by git and makes only real dependants wait) is itself a released change, and would have waited behind the same one.
+So core 1.1.0 adds two things, and contract 1 only grows:
+
+- **Exact copies, checked by the core** (`updatecheck.exact`, `features.exact_copies`). A proposal's `update` evidence may name `exact: {path: blob}` and `merged: [...]`; the Rouh fetches the release commit into /code as `refs/rouh/update/master`, and the core refuses the change unless each named file's blob in the proposed commit is the release's, hash for hash. A change that is nothing but such copies, of files this Rouh had exactly as the change found them, is the released change itself: it needs no adapting job's proof, unless it changes the database.
+- **The update step brought up to date by the core itself** (`updatestep.py`, `features.update_step`, op `update_step`). A couple of minutes after the core starts, and every six hours until it is done, the core looks whether the Rouh's `rouh/code_evolution.py` says `EXACT_COPIES = 1`. If not, and the newest release's (rouh.land's `release.json`, its code fetched from shared main on GitHub) does, it copies exactly the files that release names as `UPDATE_STEP` over the Rouh's own, blob for blob, through the ordinary change step: the checks, an undo point the person can put back, the core started again. A file the Rouh changed itself (not a version shared main ever had) is left alone and the core says so in its status. Nothing else of the Rouh's code is touched; the Creator Rouh, which makes the releases, does not do it; `ROUH_GUARD_UPDATE_STEP=0` turns it off.
+
+So a Rouh stuck on core 1.0.0 needs nothing but the signed release that carries core 1.1.0 (Rouh for Mac applies it by itself; on Linux `linux_stack.py update`) and a release of the code made after this change: the core then copies the update step, and the Rouh's next update (riding along, or one press of Update to the newest Rouh) takes the waiting changes.
+Proven on 17 November 2026 with real git and this core in a process of its own: a Rouh installed at 7a226c58 with a gene of its own was stuck exactly as described on core 1.0.0 (three.js waiting, 36 behind it); on core 1.1.0 the update step came in as an undo point and all 42 changes went in, three.js byte for byte (sha256 `08fd7545d13d...`), and the orb loaded it from the Rouh's own server in Chromium.
+
