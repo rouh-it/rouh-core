@@ -1,9 +1,26 @@
 """Take shared main's released changes individually, respecting this Rouh's evolution.
 
 The ledger is durable before any proposal, including across the restart each undo point causes.
-An exact change spends nothing. Anything else is a background adaptation job through the LLM
-service, whose model must belong to the published standard's Smart tier. The protected core
-executes the proposed proof and owns the database rehearsal and real migration.
+Each file of a change is taken on its own (17 November 2026, after a Rouh's update stuck for days
+on a vendored three.js of 700 KB on one line, which the adapting job only ever saw as cut-off text):
+
+- **copied exactly**: this Rouh's file is the one the change started from (or the file is new), so
+  git puts the release's blob in place, byte for byte, and its hash is checked against the release.
+  A library, a picture, a font or a minified file is never handed to a model as text.
+- **merged by git**: this Rouh changed other lines of the file, and the change's own lines fit
+  beside them (a three-way merge with no clash), so they go in with no model.
+- **adapted**: only a file whose lines clash with this Rouh's own goes to a background adapting job
+  through the LLM service, whose model must belong to the published standard's Smart tier, told
+  which files are already in place. A file that can only be copied whole and that this Rouh
+  changed itself waits, and says so.
+
+An exact change spends nothing. The protected core executes the proposed proof and owns the
+database rehearsal and real migration; from core 1.1 it checks every exact copy against the
+release commit itself, and then a security change copied exactly needs no model's proof.
+
+A waiting change holds back only what really needs it: a later change that touches the same file
+and does not fit beside this Rouh's version, one that uses a name or file the waiting change adds,
+or one that says ``Depends-on:`` it. The reason names what it waits for.
 """
 from __future__ import annotations
 
@@ -15,6 +32,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import time
 from pathlib import Path
 
@@ -28,6 +46,18 @@ STATUS = {"copied": "Copied exactly", "adapted": "Adapted for this Rouh",
 SENSITIVE = re.compile(r"security|vulnerab|CVE-|CSRF|XSS|SSRF|permission|authentication|authorization|credential", re.I)
 SECURITY_PATHS = ("guard/", "rouh/auth", "rouh/tenancy", "rouh/encryption", "rouh/workerkey",
                   "rouh/untrusted", "rouh/checkface", "rouh/password", "rouh/job_policy")
+#: This update step copies a released file exactly. The protected core 1.1 reads this line, with
+#: UPDATE_STEP, to know whether a Rouh's update step can take such a file (guard/rouh_guard/updatestep.py).
+EXACT_COPIES = 1
+#: The files of the update step itself. The protected core brings exactly these to the newest
+#: release when a Rouh's own copies are released versions it never changed and lack EXACT_COPIES.
+UPDATE_STEP = ("rouh/code_evolution.py", "rouh/github_org.py")
+#: A file with a line longer than this, or larger than OPAQUE_SIZE, or binary, is copied whole and
+#: never read as text: a vendored library, a minified file, a picture, a font.
+OPAQUE_LINE = 2000
+OPAQUE_SIZE = 512 * 1024
+#: The ledger's classification of a change; a waiting row from before is classified again.
+CLASSIFIED = 2
 
 
 def ledger() -> dict:
@@ -151,25 +181,24 @@ def scan(release: dict, b: dict, *, report: bool = True) -> dict:
         files = [f for f in files if not any((f == p or f.startswith(p + "/")) and
                   u._git("cat-file", "-e", f"{b.get('local') or 'HEAD'}:{p}", cwd=u.code_dir()).returncode
                   for p in u.LEFT_OUT)]
-        diff = _git("diff", "--no-ext-diff", parent, sha)
-        database = any("/migrations/" in f or "/models/" in f or f.endswith("schema.sql") for f in all_files)
-        database = database or bool(re.search(r"\b(?:ALTER|CREATE|DROP)\s+(?:TABLE|INDEX|SCHEMA)\b", diff))
-        code_changed = any(Path(f).suffix in (".py", ".js", ".html", ".sh", ".toml", ".yml", ".yaml",
-                                               ".json", ".ini", ".cfg", ".sql", ".env") or Path(f).name == ".env"
-                           for f in all_files)
-        security = bool(SENSITIVE.search(message) or (code_changed and SENSITIVE.search(diff)) or
-                        any(f.startswith(SECURITY_PATHS) for f in all_files))
+        kind = classify(sha, parent, all_files, message)
         purpose = message.splitlines()[0]
         already_here = bool(doc.get("history_first_point") or doc.get("history")) and u._git(
             "merge-base", "--is-ancestor", sha, "HEAD", cwd=u.code_dir()).returncode == 0
-        doc["changes"].append({"master": sha, "parent": parent, "purpose": purpose, "files": files,
-                               "database": database, "security": security, "urgent": security,
+        doc["changes"].append({"master": sha, "parent": parent, "purpose": purpose, "files": files, **kind,
                                "outside_own_code": [f for f in all_files if f not in files],
                                "depends_on": re.findall(r"^Depends-on:\s*([0-9a-f]{7,40})", message, re.M),
                                "status": "copied" if already_here else "waiting",
                                "local": sha if already_here else None,
                                "reason": "Already present as this master commit in this Rouh's recorded history."
                                if already_here else "Waiting for its turn."})
+    for row in doc["changes"]:
+        # A row listed before 17 November 2026 read a vendored library's words as a security change.
+        if row.get("status") not in TAKEN and row.get("classified") != CLASSIFIED:
+            with contextlib.suppress(Exception):
+                all_files = _git("diff", "--name-only", "--no-renames", row["parent"], row["master"]).splitlines()
+                row.update(classify(row["master"], row["parent"], all_files,
+                                    _git("show", "-s", "--format=%B", row["master"])))
     through = doc["installed"]
     for row in doc["changes"]:
         if row.get("status") not in TAKEN:
@@ -179,6 +208,44 @@ def scan(release: dict, b: dict, *, report: bool = True) -> dict:
     doc["seen"] = end
     save(doc)
     return doc
+
+
+def _bytes(repo: Path, *args: str) -> bytes:
+    r = subprocess.run(["git", "-c", "safe.directory=*", *args], cwd=str(repo), capture_output=True, timeout=600)
+    return r.stdout if r.returncode == 0 else b""
+
+
+def opaque(repo: Path, revision: str, file: str) -> bool:
+    """Whether a file at a revision can only be copied whole: binary, too large, or with a line
+    longer than OPAQUE_LINE (a vendored or minified library, a picture, a font)."""
+    blob = _blob_id(repo, revision, file)
+    if not blob:
+        return False
+    size = u._git("cat-file", "-s", blob, cwd=repo).stdout.strip()
+    if size.isdigit() and int(size) > OPAQUE_SIZE:
+        return True
+    data = _bytes(repo, "cat-file", "blob", blob)
+    if b"\0" in data[:8000]:
+        return True
+    return any(len(line) > OPAQUE_LINE for line in data.split(b"\n"))
+
+
+def classify(sha: str, parent: str, all_files: list[str], message: str) -> dict:
+    """Database, security and which files are opaque. Opaque files' bytes are not read for words:
+    three.js says "credentials", and that is not a change to how this Rouh keeps anyone's."""
+    repo = master_repo()
+    whole = [f for f in all_files if opaque(repo, sha, f) or opaque(repo, parent, f)]
+    code = [f for f in all_files if f not in whole and (Path(f).name == ".env" or Path(f).suffix in (
+        ".py", ".js", ".html", ".sh", ".toml", ".yml", ".yaml", ".json", ".ini", ".cfg", ".sql", ".env"))]
+    # The code's own lines are read for security words; a library's licence ("Permission is hereby
+    # granted") or a page of prose is not a security change. Its message always counts.
+    diff = _git("diff", "--no-ext-diff", parent, sha, "--", *code) if code else ""
+    database = any("/migrations/" in f or "/models/" in f or f.endswith("schema.sql") for f in all_files)
+    database = database or bool(re.search(r"\b(?:ALTER|CREATE|DROP)\s+(?:TABLE|INDEX|SCHEMA)\b", diff))
+    security = bool(SENSITIVE.search(message) or SENSITIVE.search(diff) or
+                    any(f.startswith(SECURITY_PATHS) for f in all_files))
+    return {"database": database, "security": security, "urgent": security, "opaque": whole,
+            "classified": CLASSIFIED}
 
 
 def record_start(b: dict, repo: Path | None = None) -> dict:
@@ -256,6 +323,12 @@ def _blob(repo: Path, revision: str, file: str) -> str:
     return r.stdout.strip().split("\t", 1)[0]
 
 
+def _blob_id(repo: Path, revision: str, file: str) -> str:
+    """The blob's hash alone: what an exact copy must have."""
+    got = _blob(repo, revision, file).split()
+    return got[2] if len(got) == 3 else ""
+
+
 def _module(path: str) -> str:
     p = Path(path)
     name = str(p.with_suffix(""))
@@ -264,52 +337,130 @@ def _module(path: str) -> str:
     return name.replace("/", ".")
 
 
-def imports_of(row: dict) -> set[str]:
-    """Direct module dependencies are checked even when two purposes touch different files."""
-    from importlib.util import resolve_name
-
-    found: set[str] = set()
-    for path in row["files"]:
-        if Path(path).suffix not in (".py", ".js", ".ts"):
-            continue
-        source_text = u._git("show", row["master"] + ":" + path, cwd=master_repo()).stdout
-        if path.endswith(".py"):
-            try:
-                tree = ast.parse(source_text)
-            except SyntaxError:
-                continue  # The protected code checks still refuse a malformed module.
-            package = str(Path(path).parent).replace("/", ".")
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Import):
-                    found.update(a.name for a in node.names)
-                elif isinstance(node, ast.ImportFrom):
-                    name = node.module or ""
-                    if node.level:
-                        with contextlib.suppress(ImportError, ValueError):
-                            name = resolve_name("." * node.level + name, package)
-                    if name:
-                        found.add(name)
-                        found.update(name + "." + a.name for a in node.names)
-        else:
-            for relative in re.findall(r"(?:from\s*|import\s*|require\s*\(\s*)['\"]([^'\"]+)['\"]", source_text):
-                if relative.startswith("."):
-                    found.add(_module(os.path.normpath(os.path.join(os.path.dirname(path), relative))))
-    return found
+_DEFINED = re.compile(r"^(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:function\*?|class|const|let|var)\s+([A-Za-z_$][\w$]*)", re.M)
 
 
-def exact(row: dict, work: Path) -> bool:
-    return all(_blob(master_repo(), row["parent"], f) == _blob(work, "HEAD", f) for f in row["files"])
+def _names(repo: Path, revision: str, file: str) -> set[str]:
+    """The top-level names a Python or JavaScript file defines at a revision."""
+    if not _blob(repo, revision, file) or Path(file).suffix not in (".py", ".js", ".mjs", ".ts"):
+        return set()
+    text = u._git("show", f"{revision}:{file}", cwd=repo).stdout
+    if file.endswith(".py"):
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            return set()
+        out: set[str] = set()
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                out.add(node.name)
+            elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+                for t in (node.targets if isinstance(node, ast.Assign) else [node.target]):
+                    if isinstance(t, ast.Name):
+                        out.add(t.id)
+        return out
+    return set(_DEFINED.findall(text))
 
 
-def _copy(row: dict, work: Path) -> None:
-    """Copy only this change, including deletes, modes and binary blobs, using git's tree."""
-    u._git("fetch", "-q", str(master_repo()), row["master"], cwd=work, check=True)
+_ADDS: dict[str, set[str]] = {}
+
+
+def adds(row: dict) -> set[str]:
+    """What a change brings that a later change could need: the names it defines that were not there
+    before, the modules and files it adds (as a later change would write them). Docs are left out."""
+    if row["master"] in _ADDS:
+        return _ADDS[row["master"]]
+    repo, out = master_repo(), set()
     for f in row["files"]:
-        if _blob(master_repo(), row["master"], f):
-            u._git("restore", "--source=" + row["master"], "--staged", "--worktree", "--", f,
-                   cwd=work, check=True)
+        if f in (row.get("opaque") or []) and _blob(repo, row["parent"], f):
+            continue
+        out |= _names(repo, row["master"], f) - _names(repo, row["parent"], f)
+        if not _blob(repo, row["parent"], f) and _blob(repo, row["master"], f) and \
+                Path(f).suffix not in (".md", ".txt", ".rst"):
+            out.add(f)
+            out.add(f.removeprefix("rouh/static/"))
+            if len(Path(f).stem) >= 6:
+                out.add(Path(f).name)
+            if f.endswith(".py"):
+                out.add(_module(f))
+    out = {n for n in out if len(n) >= 4}
+    _ADDS[row["master"]] = out
+    return out
+
+
+def _added_lines(row: dict) -> str:
+    readable = [f for f in row["files"] if f not in (row.get("opaque") or [])]
+    if not readable:
+        return ""
+    diff = _git("diff", "--no-ext-diff", "-U0", row["parent"], row["master"], "--", *readable)
+    return "\n".join(l[1:] for l in diff.splitlines() if l.startswith("+") and not l.startswith("+++"))
+
+
+def _merge(work: Path, here: str, base: str, theirs: str) -> bytes | None:
+    """A three-way merge of one file's blobs: this Rouh's, the change's start and its end. The
+    merged bytes, or None when the lines clash."""
+    r = subprocess.run(["git", "-c", "safe.directory=*", "merge-file", "--object-id", "-p", "-q", here, base, theirs],
+                       cwd=str(work), capture_output=True, timeout=120)
+    return r.stdout if r.returncode == 0 else None
+
+
+#: The release being taken, while advance walks it: [its commit].
+_END: list[str] = []
+
+
+def sort_files(row: dict, work: Path) -> dict:
+    """Each file of a change, by how it can be taken here (the master commit already fetched into work):
+    exact (this Rouh's file is the one the change started from, or already the one it ends with),
+    merged (the change's own lines fit beside this Rouh's, {file: bytes}), clash (adapting job),
+    whole (a file only copied whole that this Rouh changed itself: it waits)."""
+    master = master_repo()
+    out: dict = {"exact": [], "merged": {}, "clash": [], "whole": [], "already": []}
+    for f in row["files"]:
+        base, here, theirs = (_blob(master, row["parent"], f), _blob(work, "HEAD", f), _blob(master, row["master"], f))
+        if here and here != theirs and _END and here == _blob(master, _END[0], f):
+            # Already the release's own final version (the protected core's update step brings its
+            # files so): every change before it is in it.
+            out["already"].append(f)
+        elif here == base or here == theirs:
+            out["exact"].append(f)
+        elif f in (row.get("opaque") or []) or opaque(work, "HEAD", f):
+            out["whole"].append(f)
+        elif base and here and theirs and base.split()[0] == here.split()[0] == theirs.split()[0]:
+            merged = _merge(work, here.split()[2], base.split()[2], theirs.split()[2])
+            if merged is None:
+                out["clash"].append(f)
+            else:
+                out["merged"][f] = merged
+        else:
+            out["clash"].append(f)
+    return out
+
+
+def copy_exact(row: dict, work: Path, files: list[str]) -> dict:
+    """The release's own blobs into work, by git, and each checked against the release: {file: blob
+    hash, or "" for a file the change deletes}. Never through text."""
+    master, out = master_repo(), {}
+    for f in files:
+        want = _blob(master, row["master"], f)
+        if want:
+            u._git("restore", "--source=" + row["master"], "--staged", "--worktree", "--", f, cwd=work, check=True)
         else:
             u._git("rm", "-q", "--ignore-unmatch", "--", f, cwd=work, check=True)
+        got = u._git("ls-files", "-s", "--", f, cwd=work).stdout.strip()
+        mode_blob = " ".join(got.split()[:2]) if got else ""
+        if mode_blob != (" ".join(want.split()[0:3:2]) if want else ""):
+            raise u.Refused(f"The copy of {f} did not come out exactly as the release has it; nothing was taken.")
+        out[f] = want.split()[2] if want else ""
+    return out
+
+
+def check_exact(work: Path, copied: dict) -> None:
+    """After an adapting job: every exact copy still is one."""
+    for f, blob in copied.items():
+        path = work / f
+        got = u._git("hash-object", "--", f, cwd=work).stdout.strip() if path.is_file() or path.is_symlink() else ""
+        if got != blob:
+            raise u.Refused(f"The adapting job changed {f}, which was copied exactly from the release; nothing was taken.")
 
 
 def _rule() -> str:
@@ -370,9 +521,12 @@ def brief(row: dict, work: Path) -> dict:
 
     master = master_repo()
     local = {f: (work / f).read_text(errors="replace") if (work / f).is_file() and not (work / f).is_symlink()
-             else None for f in row["files"]}
-    tests = [f for f in row["files"] if "test" in f or "selfcheck" in f or "check" in Path(f).name]
-    diffs = {f: _git("diff", "--no-ext-diff", row["parent"], row["master"], "--", f) for f in row["files"]}
+             else None for f in row["files"] if f not in (row.get("opaque") or [])}
+    tests = [f for f in row["files"] if ("test" in f or "selfcheck" in f or "check" in Path(f).name)
+             and f not in (row.get("opaque") or [])]
+    whole = set(row.get("opaque") or [])
+    diffs = {f: _git("diff", "--no-ext-diff", row["parent"], row["master"], "--", f) for f in row["files"]
+             if f not in whole}
     local_info, master_info = {}, {}
     for f, content in local.items():
         if content is not None:
@@ -393,7 +547,8 @@ def brief(row: dict, work: Path) -> dict:
     schema = {}
     for column in database_state.get("schema", []):
         schema.setdefault(column["table"], []).append(column["column"] + ": " + column["type"])
-    full_diff = _git("diff", "--no-ext-diff", row["parent"], row["master"])
+    readable = [f for f in row.get("all_files", row["files"]) if f not in whole]
+    full_diff = _git("diff", "--no-ext-diff", row["parent"], row["master"], "--", *readable) if readable else ""
     catalogue = u._git("show", row["master"] + ":CONTAINERS.md", cwd=master).stdout
     return {"change": row, "commit_message": _git("show", "-s", "--format=%B", row["master"]),
             "master_diff": full_diff[:100000], "master_diff_complete": len(full_diff) <= 100000,
@@ -414,7 +569,12 @@ def brief(row: dict, work: Path) -> dict:
                                  if row["database"] and not p.is_symlink()
                                  and u._git("cat-file", "-e", row["parent"] + ":rouh/migrations/" + p.name,
                                                               cwd=master).returncode},
-            "database": row["database"], "security": row["security"]}
+            "database": row["database"], "security": row["security"],
+            # Taken by git before this job, byte for byte or as the change's own lines: never edit these.
+            "already_in_place": {"copied_exactly_from_the_release": row.get("in_place_exact", []),
+                                 "merged_by_git": row.get("in_place_merged", []),
+                                 "copied_whole_never_shown_as_text": sorted(whole)},
+            "files_to_adapt": row.get("to_adapt", row["files"])}
 
 
 def _path(work: Path, name: str) -> Path:
@@ -511,28 +671,113 @@ def adapt(row: dict, work: Path, feedback: str = "") -> dict:
     return plan
 
 
-def dependencies(row: dict, previous: list[dict]) -> list[dict]:
-    imports = imports_of(row) if any(p.get("status") not in TAKEN for p in previous) else set()
-    return [p for p in previous if p.get("status") not in TAKEN and
-            (set(row["files"]) & set(p["files"]) or imports.intersection(_module(f) for f in p["files"])
-             or any(p["master"].startswith(d) for d in row["depends_on"]))]
+def blockers(row: dict, previous: list[dict], work: Path | None = None) -> list[tuple[dict, str]]:
+    """The earlier changes not taken that this one really needs, each with why in a few words: it
+    says Depends-on: it; both change a file and this one's lines do not fit beside this Rouh's
+    version of it on their own; or this one uses a name or file that one adds."""
+    waiting = [p for p in previous if p.get("status") not in TAKEN]
+    if not waiting:
+        return []
+    added = None
+    out = []
+    for p in waiting:
+        why = ""
+        if any(p["master"].startswith(d) for d in row.get("depends_on") or []):
+            why = "it says it depends on it"
+        for f in sorted(set(row["files"]) & set(p["files"])) if not why else []:
+            if work is None or not _fits_alone(row, f, work):
+                why = f"both change {f}"
+                break
+        if not why:
+            added = _added_lines(row) if added is None else added
+            hit = next((n for n in sorted(adds(p)) if (n in added if "/" in n or "." in n else
+                        re.search(r"(?<![\w$])" + re.escape(n) + r"(?![\w$])", added))), "")
+            if hit:
+                why = f"it uses {hit}, which that change adds"
+        if why:
+            out.append((p, why))
+    return out
 
 
-def _waiting(doc: dict, row: dict, reason: str, status: str = "waiting") -> None:
-    row.update(status=status, reason=reason, at=time.time())
+def _fits_alone(row: dict, f: str, work: Path) -> bool:
+    """Whether this change's own lines of f go into this Rouh's version of it without an earlier one."""
+    master = master_repo()
+    base, here, theirs = (_blob(master, row["parent"], f), _blob(work, "HEAD", f), _blob(master, row["master"], f))
+    if here == base or here == theirs or (here and _END and here == _blob(master, _END[0], f)):
+        return True
+    if f in (row.get("opaque") or []) or not (base and here and theirs):
+        return False
+    return _merge(work, here.split()[2], base.split()[2], theirs.split()[2]) is not None
+
+
+def dependencies(row: dict, previous: list[dict], work: Path | None = None) -> list[dict]:
+    return [p for p, _ in blockers(row, previous, work)]
+
+
+def _waits_for(row: dict, found: list[tuple[dict, str]], doc: dict) -> str:
+    """The reason a change waits, naming what holds it and, when that waits too, what holds that."""
+    p, why = found[0]
+    text = f"Waits for “{p['purpose']}” ({p['master'][:8]}): {why}."
+    by = {r["master"]: r for r in doc["changes"]}
+    root, seen = p, set()
+    while root.get("blocked_by") in by and root["master"] not in seen:
+        seen.add(root["master"])
+        root = by[root["blocked_by"]]
+    if root is not p:
+        text += f" That waits for “{root['purpose']}” ({root['master'][:8]})"
+        text += f", which is not taken yet: {root.get('reason') or 'waiting for its turn'}" if root.get("reason") else "."
+    elif p.get("reason") and p.get("status") == "waiting":
+        text += f" It is not taken yet: {p['reason']}"
+    if len(found) > 1:
+        text += f" (and {len(found) - 1} more earlier change{'s' if len(found) > 2 else ''})"
+    return text[:900]
+
+
+def _taken_said(row: dict, copied: dict, sort: dict) -> str:
+    """What git took of a change, as a sentence for the record."""
+    if not row["files"]:
+        return "Release tooling only; those files are not installed in this Rouh's own code."
+    parts = []
+    if copied:
+        parts.append(f"{len(copied)} file{'s' if len(copied) != 1 else ''} copied exactly from the release, "
+                     "each checked against its hash there")
+    if sort.get("already"):
+        parts.append(", ".join(sorted(sort["already"])[:4]) + " already the release's own newest version")
+    if sort["merged"]:
+        parts.append("its own lines merged by git into this Rouh's " + ", ".join(sorted(sort["merged"])[:4])
+                     + (f" and {len(sort['merged']) - 4} more" if len(sort["merged"]) > 4 else ""))
+    said = "; ".join(parts)
+    return said[:1].upper() + said[1:] + "."
+
+
+def _waiting(doc: dict, row: dict, reason: str, status: str = "waiting", blocked_by: str | None = None) -> None:
+    row.update(status=status, reason=reason, at=time.time(), blocked_by=blocked_by)
     save(doc)
 
 
-def _propose(doc: dict, row: dict, rel: dict, by: str, work: Path, plan: dict, copied: bool) -> bool:
+def core_features() -> dict:
     from . import guardface
 
-    if (guardface.ask("status").get("features") or {}).get("master_changes") != 1:
+    return guardface.ask("status").get("features") or {}
+
+
+def _propose(doc: dict, row: dict, rel: dict, by: str, work: Path, plan: dict, copied: bool,
+             taken: dict | None = None) -> bool:
+    from . import guardface
+
+    if core_features().get("master_changes") != 1:
         raise u.Refused("needs the protected core's per-change update and database rehearsal gate")
+    taken = taken or {}
     u._git("add", "-A", cwd=work, check=True)
+    if taken.get("exact"):
+        check_exact(work, taken["exact"])
     u._git("commit", "-q", "--allow-empty", "-m", row["purpose"], "-m", "Rouh-master-change: " + row["master"],
            cwd=work, check=True)
     commit = _git("rev-parse", "HEAD", cwd=work)
     u._git("fetch", "-q", str(work), "+HEAD:refs/rouh/update/change", cwd=u.code_dir(), check=True)
+    # The release commit itself beside it, so the protected core can check each exact copy against it.
+    u._git("fetch", "-q", str(master_repo()), "+" + row["master"] + ":refs/rouh/update/master",
+           cwd=u.code_dir(), check=True)
     backup = u._backup(u.code_dir(), False)
     pending = {"release": rel["commit"], "label": u.label(rel["commit"], rel), "commit": commit,
                "at": time.time(), "by": by, "master_change": row["master"],
@@ -540,11 +785,13 @@ def _propose(doc: dict, row: dict, rel: dict, by: str, work: Path, plan: dict, c
                "reason": plan.get("reason", "Every touched file still matched master."),
                "continuation": rel}
     u._change(pending=pending)
-    # Sensitive exact copies still need a frontier job's proof. The protected core owns every gate.
+    # The protected core owns every gate. From core 1.1 it checks each exact copy against the release
+    # commit, and a change that is all exact copies (not a database change) needs no model's proof.
     evidence = {"master": row["master"], "database": row["database"], "security": row["security"],
                 "proof": plan.get("proof", ""), "database_plan": plan.get("database_plan"),
                 "not_applicable": bool(plan.get("not_applicable")),
-                "model": plan.get("model", ""), "reason": plan.get("reason", "")}
+                "model": plan.get("model", ""), "reason": plan.get("reason", ""),
+                "exact": taken.get("exact") or {}, "merged": sorted(taken.get("merged") or [])}
     try:
         answer = guardface.ask("propose", commit=commit, why="Master change: " + row["purpose"],
                                by="Rouh's update (" + by + ")", update=evidence, timeout=3600)
@@ -602,39 +849,63 @@ def advance(rel: dict, by: str, work: Path) -> None:
     if work.exists():
         shutil.rmtree(work)
     u._git("clone", "-q", "--no-hardlinks", str(u.code_dir()), str(work), cwd=work.parent, check=True)
+    # Every release commit's objects beside this Rouh's code, so each file is taken by git, never as text.
+    u._git("fetch", "-q", str(master_repo()), rel["commit"], cwd=work, check=True)
+    _END[:] = [rel["commit"]]
     for i, row in enumerate(doc["changes"]):
         if row.get("status") in TAKEN:
             continue
-        deps = dependencies(row, doc["changes"][:i])
-        if deps:
-            _waiting(doc, row, "Depends on: " + "; ".join(d["purpose"] for d in deps), "depends")
+        found = blockers(row, doc["changes"][:i], work)
+        if found:
+            _waiting(doc, row, _waits_for(row, found, doc), "depends", found[0][0]["master"])
             continue
-        copied = exact(row, work)
-        sensitive = row["database"] or row["security"]
+        sort = sort_files(row, work)
+        if sort["whole"]:
+            _waiting(doc, row, "This Rouh has its own version of " + ", ".join(sort["whole"][:3])
+                     + (", a file" if len(sort["whole"]) == 1 else ", files")
+                     + " that can only be copied whole (a library, a picture or a minified file, not text to"
+                       " edit), so the release's version waits rather than replace this Rouh's own.")
+            continue
+        exact_only = not sort["merged"] and not sort["clash"]
+        no_proof = exact_only and bool(row["files"]) and not row.get("outside_own_code") \
+            and core_features().get("exact_copies") == 1
+        needs_model = bool(sort["clash"]) or row["database"] or (row["security"] and not no_proof)
         start = _git("rev-parse", "HEAD", cwd=work)
         feedback = ""
-        for attempt in range(3 if not copied or sensitive else 1):
-            u._step(("checking" if copied else "adapting") + ": " + row["purpose"])
+        for attempt in range(3 if needs_model else 1):
+            u._step(("adapting" if sort["clash"] else "checking" if needs_model else "copying") + ": " + row["purpose"])
             u._git("reset", "--hard", start, cwd=work, check=True)
             u._git("clean", "-fdq", cwd=work, check=True)
             try:
-                if copied and not sensitive:
-                    _copy(row, work)
-                    plan = {} if row["files"] else {"reason": "Release tooling only; those files are not installed in this Rouh's own code."}
-                else:
+                copied = copy_exact(row, work, sort["exact"])
+                for f, data in sort["merged"].items():
+                    (work / f).write_bytes(data)
+                    u._git("add", "--", f, cwd=work, check=True)
+                said = _taken_said(row, copied, sort)
+                if needs_model:
                     model_pick()
-                    plan = adapt(row, work, feedback)
+                    view = {**row, "files": sort["clash"], "all_files": row["files"], "to_adapt": sort["clash"],
+                            "in_place_exact": sorted(copied), "in_place_merged": sorted(sort["merged"])}
+                    plan = adapt(view, work, feedback)
+                    row["depends_on"] = view.get("depends_on", row.get("depends_on", []))
+                    check_exact(work, copied)
+                    plan["reason"] = (said + " " if copied or sort["merged"] else "") + str(plan.get("reason") or "")
+                else:
+                    plan = {"reason": said}
                 if any(f in u.LIBRARIES for f in row["files"]):
                     u._libraries(work)
-                if _propose(doc, row, rel, by, work, plan, copied and not sensitive):
-                    # A restart may interrupt here. The durable continuation precedes the proposal.
-                    return
+                _propose(doc, row, rel, by, work, plan, not needs_model and exact_only,
+                         taken={"exact": copied, "merged": list(sort["merged"])})
+                # A restart may interrupt here. The durable continuation precedes the proposal.
                 return
             except (u.Refused, ValueError) as exc:
                 feedback = str(exc)
-                dependent = dependencies(row, doc["changes"][:i])
-                _waiting(doc, row, feedback, "depends" if dependent else "waiting")
-                if "frontier model" in feedback or dependent:
+                found = blockers(row, doc["changes"][:i], work)
+                if found:
+                    _waiting(doc, row, feedback + " " + _waits_for(row, found, doc), "depends", found[0][0]["master"])
+                else:
+                    _waiting(doc, row, feedback)
+                if "frontier model" in feedback or found or not needs_model:
                     break
             except Exception as exc:  # A failed model call never blocks an unrelated exact change.
                 feedback = f"The adapting job could not finish ({type(exc).__name__})."

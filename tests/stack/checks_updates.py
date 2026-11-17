@@ -254,6 +254,9 @@ def _press(s: Stack) -> None:
     expect((before.get("current") or {}).get("commit") == came_from, f"this Rouh does not say it came from the old release: {before.get('current')}")
     r1 = _release(s, 1, "mkdir -p docs\n"
                         "printf 'Exact one.\\n' > docs/stack-exact-one.md\n"
+                        # A vendored library as three.js is: one line of 300 KB, copied whole, never as text.
+                        "mkdir -p rouh/static/stackvendor\n"
+                        "python -c \"import random;r=random.Random(7);print('export const v=' + repr(''.join(r.choice('abcdef0123456789') for _ in range(300000))) + ';', end='')\" > rouh/static/stackvendor/lib.min.js\n"
                         "git add -A && git -c user.name=Rouh -c user.email=rouh@localhost commit -qm 'Exact master change one'\n"
                         "printf 'Exact two.\\n' > docs/stack-exact-two.md\n"
                         "git add -A && git -c user.name=Rouh -c user.email=rouh@localhost commit -qm 'Exact master change two'\n"
@@ -272,6 +275,10 @@ def _press(s: Stack) -> None:
     _healthy(s)
     files = s.run("core", "cat /code/docs/stack-release-1.md /code/docs/stack-gene.md; head -4 /code/README.md").stdout
     expect("New in release 1" in files, f"the release's file is not in the code: {files}")
+    vendored = "rouh/static/stackvendor/lib.min.js"
+    ours = s.run("core", f"sha256sum /code/{vendored}").stdout.split()[:1]
+    theirs = s.run("standins", f"git -C /tmp/rel show {r1}:{vendored} | sha256sum").stdout.split()[:1]
+    expect(ours and ours == theirs, f"the one-line library did not arrive byte for byte: {ours} {theirs}")
     expect("A gene of this Rouh own" in files, f"the gene of its own was lost: {files}")
     expect("this Rouh own words" in files and "Release 1 words, fitted" in files,
            f"the master change was not adapted while keeping the local title: {files}")
@@ -403,9 +410,14 @@ def updates_sensitive(s: Stack) -> None:
         if not result.get("busy") and not result.get("pending"):
             break
         time.sleep(3)
-    waiting = [r for r in result["ledger"]["changes"] if r["master"] in (r3, r4, r5)]
-    expect(len(waiting) == 3 and all(r["status"] == "waiting" and "frontier model" in r["reason"] for r in waiting),
+    waiting = [r for r in result["ledger"]["changes"] if r["master"] in (r3, r4)]
+    expect(len(waiting) == 2 and all(r["status"] == "waiting" and "frontier model" in r["reason"] for r in waiting),
            f"weaker model was not refused for the sensitive jobs: {waiting}")
+    # Release 5 only adds a line at the end of README.md, beside this Rouh's own title: git merges
+    # it with no model, and it does not wait behind the two that do (17 November 2026).
+    merged = next(r for r in result["ledger"]["changes"] if r["master"] == r5)
+    expect(merged["status"] == "adapted" and "merged by git" in (merged.get("reason") or ""),
+           f"the README line did not go in by git while the others waited: {merged}")
     _browser(s, "frontier-wait", ["Not taken yet", "needs a frontier model", "Urgent security update"])
     s.manage("from rouh import modeldefaults,relay\no=relay.owner().org_id\n"
              "modeldefaults.put(o,'code_adapt',tier='smart',by='stack')")

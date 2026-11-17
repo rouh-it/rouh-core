@@ -20,11 +20,15 @@ never looks for a release until its person presses a button here.
 **A release** is a checked boundary on the shared main branch of rouh-core (rouh/github_org.py), after its
 changes have run for a day on the early-test Rouhs. Collaborators publish on that branch too.
 
-**An update** takes each released change in order (``code_evolution.py``). Untouched files are
-copied exactly without model spend. A frontier model rebuilds any change whose files differ,
-and proves its purpose against this Rouh. Database and security changes always need frontier
-checks, a protected rehearsal or a failing-before/passing-after security proof, respectively.
-Each accepted change is a protected undo point. Waiting changes and dependants stay in the ledger.
+**An update** takes each released change in order (``code_evolution.py``), file by file. A file
+this Rouh has as the change found it is copied exactly by git, its hash checked against the release
+(a vendored library, a picture or a minified file is only ever copied whole); a file whose other
+lines this Rouh changed takes the change's own lines by a git merge; only a clash goes to a frontier
+model, which adapts it and proves its purpose against this Rouh. Database and security changes need
+frontier checks, a protected rehearsal or a failing-before/passing-after security proof,
+respectively, unless (core 1.1) a security change is nothing but exact copies. Each accepted change
+is a protected undo point. A waiting change holds back only the changes that really need it, and
+each says what it waits for.
 
 **After the restart.** A change that goes live starts Rouh again, which cuts off whatever started it,
 so the update is written down first (``state.json``, ``pending``) and the next start reads what the
