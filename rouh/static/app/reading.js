@@ -30,9 +30,14 @@
  * and a search; a switch for each item but the locked ones; Reset to defaults in its title bar; and
  * one line for Synapse, which follows Memory.
  *
- * Every switch is a real button with role="switch", the whole row its target. What the server says
- * after each change is what is drawn: the panel never guesses a count. Outside the chain, like
- * app/composer_extras.js, and imported by app.js after it.
+ * Every switch is a real button with role="switch", the whole row its target. A press is drawn at
+ * once and saved after (Petar, 16 November 2026: "visuals should be immediate, request ajax should go
+ * afterwards"): `guess` puts the change into a copy of what the server last said and that is painted
+ * in the same task as the click; the save goes in the background, and its answer is drawn when it
+ * comes, with the counts ("61 of 93") it alone can work out. Until then the counts are drawn faded,
+ * as the old ones (`READ.pending`), never guessed. A save that fails puts back what the server last
+ * said, with a quiet line in the panel. Outside the chain, like app/composer_extras.js, and imported
+ * by app.js after it.
  */
 import { CHATS, openChat } from 'app/chats.js';
 import { composerPopsClose } from 'app/composer_extras.js';
@@ -62,7 +67,13 @@ if (full && full.parentElement !== document.body) document.body.appendChild(full
 var FULL = { filter: 'all', q: '', opener: /** @type {HTMLElement | null} */ (null) };
 var SLIDERS = 'M4 7h9M17 7h3M4 17h3M11 17h9M17 7a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM11 17a2 2 0 1 1-4 0 2 2 0 0 1 4 0z';
 var HAT = 'M3 11h18M6.5 11l1.6-5.5h7.8L17.5 11M10.1 16a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 0 1 5.2 0zM19.1 16a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 0 1 5.2 0zM10.1 16h3.8';
-var READ = { chat: '', data: /** @type {ReadView | null} */ (null), more: false, busy: false, asked: 0, focus: '', painted: '', openAfter: false, doc: '', after: '', from: '' };
+var READ = { chat: '', data: /** @type {ReadView | null} */ (null), more: false, busy: false, asked: 0, focus: '', painted: '', openAfter: false, doc: '', after: '', from: '',
+             /** What the server last said, which a failed save goes back to. */
+             confirmed: /** @type {ReadView | null} */ (null),
+             /** A press is drawn and its save not answered yet: the counts are the old ones, faded. */
+             pending: false,
+             /** The quiet line a failed save leaves in the panel, until the next press. */
+             oops: '' };
 var incogClose = /** @type {HTMLButtonElement | null} */ ($('incogClose'));
 var btnWord = $('readingWord');
 var incogAsk = $('incogAsk');
@@ -304,10 +315,20 @@ function paintPop(d) {
   var link = el('button', 'reading-link');
   link.type = 'button';
   link.dataset.full = '1';
-  link.appendChild(el('span', '', 'See everything this chat is told (' + n.told + ' of ' + n.all + ')'));
+  var words = el('span', '', 'See everything this chat is told ');
+  // The count is the server's: while a press is being saved it is the old one, faded, never a guess.
+  var count = el('span', 'reading-count' + (READ.pending ? ' pending' : ''), '(' + n.told + ' of ' + n.all + ')');
+  if (READ.pending) count.setAttribute('aria-busy', 'true');
+  words.appendChild(count);
+  link.appendChild(words);
   link.appendChild(icon('M9 6l6 6-6 6', 14));
   foot.appendChild(link);
   side.appendChild(foot);
+  if (READ.oops) {
+    var oops = el('p', 'reading-oops', READ.oops);
+    oops.setAttribute('role', 'status');
+    side.appendChild(oops);
+  }
 }
 
 /** @param {string} id */
@@ -354,7 +375,8 @@ function fullPaint(d) {
   var s = d.settings, names = d.sources || {}, every = allItems(d), n = toldCount(d);
   var keepFocus = document.activeElement && document.activeElement.id === 'toldQ';
   inner.textContent = '';
-  var head = el('p', 'cot-verdict', n.told + ' of ' + n.all + ' items reach this chat with these choices.');
+  var head = el('p', 'cot-verdict' + (READ.pending ? ' pending' : ''), n.told + ' of ' + n.all + ' items reach this chat with these choices.');
+  full.classList.toggle('pending', READ.pending);
   head.appendChild(el('small', '', (s.memory ? 'Memory is on, so all of Synapse is read for each message too. '
     : 'Memory is off: Synapse is not read, and your name is taken out of what is told. ')
     + 'An item marked “only when” is told only in the turns it names.'));
@@ -489,19 +511,41 @@ function fullOpen(on) {
   }
 }
 
+/** A selector that finds this control again once its panel is drawn anew, or "". @param {Element | null} t */
+function selectorOf(t) {
+  var b = /** @type {HTMLElement | null} */ (t);
+  if (!b || !b.dataset) return '';
+  var d = b.dataset;
+  if (b.id) return '#' + b.id;
+  return d.key ? '[data-key="' + d.key + '"]' : d.seg ? '[data-seg="' + d.seg + '"]' : d.mode ? '[data-mode="' + d.mode + '"]'
+    : d.item ? '[data-item="' + d.item + '"]' : d.filter ? '[data-filter="' + d.filter + '"]' : d.more ? '[data-more]'
+    : d.reset ? '[data-reset]' : d.full ? '[data-full]' : '';
+}
+
 /** @param {ReadView | null} d */
 function paint(d) {
   READ.data = d;
+  // What has the focus in the panel or the full list keeps it, however often they are drawn again.
+  var at = document.activeElement;
+  var inPop = !!(pop && at && pop.contains(at)), inFull = !!(full && at && full.contains(at));
+  var keep = READ.focus || ((inPop || inFull) ? selectorOf(at) : '');
   paintStrip(d);
-  if (d && full && !full.hidden) fullPaint(d);
+  if (d && full && !full.hidden) {
+    var scrolled = full.querySelector('.cot-body');
+    var y = scrolled ? scrolled.scrollTop : 0;
+    fullPaint(d);
+    if (scrolled) scrolled.scrollTop = y;
+    if (inFull && keep) refocus('#toldFull ' + keep);
+  }
   if (d && pop && !pop.hidden) {
     var moved = READ.painted !== d.chat;
+    var top = pop.scrollTop;
     paintPop(d);
     place();
     // Another chat in the same open panel starts at its top: what it is, before its rules.
-    if (moved) pop.scrollTop = 0;
+    pop.scrollTop = moved ? 0 : top;
     READ.painted = d.chat;
-    var again = READ.focus ? /** @type {HTMLElement | null} */ (pop.querySelector(READ.focus)) : null;
+    var again = keep && (inPop || READ.focus) ? /** @type {HTMLElement | null} */ (pop.querySelector(keep)) : null;
     if (again) again.focus();
   }
   READ.focus = '';
@@ -556,6 +600,9 @@ function load(chat) {
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (d) {
       if (asked !== READ.asked || READ.chat !== chat) return;
+      READ.confirmed = d;
+      READ.pending = false;
+      READ.oops = '';
       paint(d);
       // Just turned incognito: the panel shows the rules that will apply in it.
       if (READ.openAfter && d && d.incognito) { READ.openAfter = false; openPop(true); }
@@ -563,17 +610,71 @@ function load(chat) {
     .catch(function () { /* the next look asks again */ READ.chat = ''; });
 }
 
-/** A change pressed while another was on its way: sent as soon as that one is answered, never dropped.
-    @type {Record<string, any> | null} */
-var NEXT = null;
+/** The changes pressed while another was on its way, in order: sent one by one as each is answered,
+    never dropped. Switches pressed one after another go as one change.
+    @type {Record<string, any>[]} */
+var NEXT = [];
+
+/** The switches a mode sets (rouh/reading.py `SIMPLE` and `FULL`); Custom sets none. */
+var MODE_SETS = /** @type {Record<string, Record<string, any>>} */ ({
+  simple: { memory: false, rules: false, tools: true, off: [], md: false, html: false, subtasks: 'none', picked: [], histories: false },
+  full: { memory: true, rules: true, tools: true, off: [], md: true, html: true, subtasks: 'none', picked: [], histories: false }
+});
+
+/** What the panel will say once this change is saved, as far as it can be told without the server: the
+    settings, the mode, and each subtask's switch. Counts are left as they were (`READ.pending`).
+    @param {ReadView} d @param {Record<string, any>} wanted @returns {ReadView} */
+function guess(d, wanted) {
+  var s = Object.assign({}, d.settings);
+  if (wanted.reset) {
+    Object.assign(s, MODE_SETS[d.incognito ? 'simple' : 'full'], { mode: d.incognito ? 'simple' : 'full' });
+  } else if (wanted.mode) {
+    s.mode = wanted.mode;
+    if (MODE_SETS[wanted.mode]) Object.assign(s, MODE_SETS[wanted.mode]);
+  } else {
+    Object.keys(wanted).forEach(function (k) { s[k] = wanted[k]; });
+    s.mode = 'custom';
+  }
+  var g = /** @type {ReadView} */ (Object.assign({}, d, { settings: s, mode: s.mode }));
+  if (d.subtasks) {
+    var picked = s.picked || [];
+    g.subtasks = d.subtasks.map(function (x) {
+      return Object.assign({}, x, { on: s.subtasks === 'all' || (s.subtasks === 'some' && picked.indexOf(x.id) >= 0) });
+    });
+  }
+  // An item left out by itself in the full list moves its own switch at once.
+  if (wanted.off || wanted.reset || MODE_SETS[wanted.mode || '']) {
+    var off = s.off || [];
+    /** @param {ReadRule} r */
+    var flip = function (r) { return r.locked ? r : Object.assign({}, r, { off: off.indexOf(r.id) >= 0 }); };
+    g.rules = (d.rules || []).map(flip);
+    g.context = (d.context || []).map(flip);
+  }
+  return g;
+}
 
 /** @param {Record<string, any>} wanted */
 function change(wanted) {
   var chat = READ.chat || currentChat();
   if (!chat) return;
+  // Drawn now, in the same task as the press; the server's answer is drawn when it comes.
+  if (READ.data && READ.data.chat === chat) {
+    READ.pending = true;
+    READ.oops = '';
+    paint(guess(READ.data, wanted));
+  }
+  send(chat, wanted);
+}
+
+/** The save, in the background: one at a time, and a press made meanwhile sent as soon as it is answered.
+    @param {string} chat @param {Record<string, any>} wanted */
+function send(chat, wanted) {
   if (READ.busy) {
     // Kept, with later switches merged into it; a mode or a reset pressed after replaces what was kept.
-    NEXT = wanted.mode || wanted.reset ? wanted : Object.assign(NEXT || {}, wanted);
+    var last = NEXT[NEXT.length - 1];
+    if (wanted.mode || wanted.reset) NEXT = [wanted];   // what came before it no longer matters
+    else if (last && !last.mode && !last.reset) Object.assign(last, wanted);
+    else NEXT.push(Object.assign({}, wanted));
     return;
   }
   READ.busy = true;
@@ -590,17 +691,26 @@ function change(wanted) {
     })
     .then(function (d) {
       READ.busy = false;
-      if (READ.chat === chat) paint(d);
+      var next = NEXT.shift();
+      if (READ.chat !== chat) { NEXT = []; return; }
+      READ.confirmed = d;
+      if (next) { send(chat, next); return; }
+      // Nothing more on its way: what the server says is drawn, counts and all.
+      READ.pending = false;
+      paint(d);
       if (READ.after) { refocus(READ.after); READ.after = ''; }
-      var next = NEXT;
-      NEXT = null;
-      if (next && READ.chat === chat) change(next);
     })
     .catch(function (err) {
       READ.busy = false;
-      NEXT = null;
-      paintBtn(READ.data);
-      notify(String(err && err.message || 'That could not be changed: Rouh is not connected.'), { tone: 'error' });
+      NEXT = [];
+      READ.pending = false;
+      if (READ.chat !== chat) return;
+      // Back to what the server last said, with a quiet line where the press was.
+      var why = String(err && err.message || '');
+      READ.oops = 'Not saved, so it is back as it was' + (why && why !== 'Failed to fetch' ? ': ' + why : '. Rouh is not connected.');
+      if (why && why.slice(-1) !== '.' && READ.oops.slice(-1) !== '.') READ.oops += '.';
+      paint(READ.confirmed);
+      if (!(pop && !pop.hidden) && !(full && !full.hidden)) notify(READ.oops, { tone: 'error' });
     });
 }
 
@@ -697,8 +807,6 @@ function pressed(t) {
   if (t.dataset.seg) { change({ subtasks: t.dataset.seg }); return; }
   if (t.dataset.mode) {
     if (t.getAttribute('aria-checked') === 'true') return;
-    // The button says the new mode at once; the server's answer is drawn when it comes.
-    if (btnWord) btnWord.textContent = SHORT[t.dataset.mode] || btnWord.textContent;
     change({ mode: t.dataset.mode });
     return;
   }
