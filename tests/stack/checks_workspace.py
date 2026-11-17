@@ -149,8 +149,17 @@ def callbacks_tasks(s: Stack) -> None:
     expect("made-by-a-run" in run["tree"], f"rouh objecttree create in a run: {run['tree'][-400:]}")
     expect("in-progress" in run["task"].lower() or "in progress" in run["task"].lower(),
            f"rouh-task in a run: {run['task'][-400:]}")
-    _until(s, "core", "ls -d /data/workspace/*/*made-by-a-run* 2>/dev/null", "made-by-a-run", 240,
-           "the task the run made never reached Rouh's workspace")
+    try:
+        _until(s, "core", "ls -d /data/workspace/*/*made-by-a-run* 2>/dev/null", "made-by-a-run", 240,
+               "the task the run made never reached Rouh's workspace")
+    except Failed as e:
+        # Said whole, so a failure can be read from the run's annotations alone: until 17 November
+        # 2026 this said only the empty answer of `ls`, and it failed at random on either platform.
+        where = s.run("core", "find /data/workspace -maxdepth 4 -iname '*made-by-a-run*' 2>/dev/null; "
+                              f"{MAIN} log --oneline -8 main; "
+                              f"{MAIN} ls-tree -r --name-only main | grep -i made-by-a-run | head -3").stdout
+        raise Failed(f"{e}; the run's objecttree said: {run['tree'][-300:]!r}; rouh-task: {run['task'][-200:]!r}; "
+                     f"in the core: {where[-900:]!r}; the core said: {s.logs('core', 40)[-700:]}") from None
 
 
 @check("guard.undo")
