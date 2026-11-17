@@ -71,7 +71,7 @@ def handles(kind: str):
 
 
 def _load_handlers() -> None:
-    from . import grants, handoff, meeting, peers, spaces  # noqa: F401 - each registers its kinds
+    from . import grants, groups, handoff, meeting, peers, spaces, standin  # noqa: F401 - each registers its kinds
 
 
 # --- the network -----------------------------------------------------------------------------------

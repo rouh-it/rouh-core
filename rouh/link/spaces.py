@@ -70,6 +70,8 @@ class Live:
         self.holder_off = False
         self.follower: asyncio.Task | None = None
         self.standin_room = False
+        self.standin_base = 0
+        self.holder_seq = 0
 
     def recompute(self) -> None:
         d = _doc.replay(self.ops)
@@ -142,6 +144,7 @@ async def get(org: str, sid: str) -> Live:
     live = Live(org, row)
     live.ops, live.pending = await asyncio.to_thread(_load_ops, org, sid)
     live.seq = (row.seq or 0) if not row.mine else max([o["seq"] for o in live.ops] or [row.seq or 0])
+    live.holder_seq = live.seq
     live.recompute()
     _LIVE[key] = _LIVE.get(key) or live
     return _LIVE[key]
@@ -302,7 +305,7 @@ async def change(org: str, sid: str, ops: list[dict]) -> dict:
             raise limits.No("A change made here speaks for this Rouh or its person only.")
         _doc.read_op(op)
     live = await get(org, sid)
-    if live.mine:
+    if live.mine or live.standin_room:
         return await submit(org, sid, me.label, ops)
     row = await asyncio.to_thread(_row, org, sid)
     if row is None or row.state != "live":
@@ -366,7 +369,8 @@ async def _send_pending(org: str, sid: str, live: Live, row) -> dict:
             await asyncio.to_thread(_drop_pending, org, sid, gone)
             live.recompute()
         await live.changed()
-    live.holder_off = False
+    if target == row.holder_label:
+        live.holder_off = False
     return reply
 
 
@@ -415,13 +419,15 @@ def _my_presence(org: str, live: Live, my_label: str) -> list[dict]:
 
 
 async def follow(org: str, sid: str) -> None:
-    """Follow the room for as long as this space is live here (a member's Rouh)."""
+    """Follow the room for as long as this space is live here (a member's Rouh): the owner's room,
+    or the stand-in's while the owner's Rouh is off (`standin.py`)."""
+    from . import groups, peers, standin
     from . import me as _me
-    from . import peers
 
     live = await get(org, sid)
     me = await asyncio.to_thread(_me.me, org)
     back = 1.0
+    last_check = 0.0
     while True:
         row = await asyncio.to_thread(_row, org, sid)
         if row is None or row.state != "live" or row.mine:
@@ -432,45 +438,72 @@ async def follow(org: str, sid: str) -> None:
         if holder is None or holder.state != "connected":
             await asyncio.sleep(10)
             continue
+        # This Rouh holds the room as the stand-in: hand it back as soon as the owner's Rouh answers.
+        if live.standin_room:
+            if await standin.reachable(org, holder):
+                await standin.hand_back(org, sid, live, row, me)
+            else:
+                await asyncio.sleep(10)
+            continue
+        target = holder
+        active = (row.meta or {}).get("standin_active") or ""
+        if live.holder_off and active and active != me.label:
+            other = await asyncio.to_thread(peers.peer_row, org, active)
+            if other is not None and other.state == "connected":
+                target = other
+                if time.time() - last_check > 15:
+                    last_check = time.time()
+                    if await standin.reachable(org, holder):
+                        await standin.drop_interim(org, sid, live)
+                        continue
         if live.pending:
             await _send_pending(org, sid, live, row)
         try:
-            got = await wire.ask(org, holder, "room.poll", {
-                "space_id": sid, "since": live.seq, "wait": POLL_WAIT,
+            held = await asyncio.to_thread(groups.current, org, sid)
+            got = await wire.ask(org, target, "room.poll", {
+                "space_id": sid, "since": live.seq, "wait": POLL_WAIT, "epoch": held[0] if held else 0,
                 "presence": _my_presence(org, live, me.label)}, timeout=POLL_WAIT + 10)
+            if target is holder:
+                got = await asyncio.to_thread(groups.open_reply, org, sid, holder.daily_key, got)
             reply = forms.read(got, POLL_REPLY, "room.poll reply")
         except wire.Unreachable:
+            if target is not holder:
+                # The stand-in is gone too: back to waiting for the owner's Rouh.
+                await asyncio.to_thread(standin._set, org, sid, standin_active="")
+                await asyncio.sleep(min(30.0, back))
+                back = min(30.0, back * 2)
+                continue
             if not live.holder_off:
                 live.holder_off = True
                 await live.changed()
-            from . import standin
-
             if await standin.maybe_hold(org, sid, live, row, me):
-                await asyncio.sleep(5)
                 continue
             await asyncio.sleep(min(30.0, back))
             back = min(30.0, back * 2)
             continue
         except (wire.Refusal, forms.Refused) as exc:
             log_.info("the room refused a poll: %s", exc)
-            if isinstance(exc, wire.Refusal) and exc.status in (403, 404, 410):
+            if isinstance(exc, wire.Refusal) and exc.status in (403, 404, 410) and target is holder:
                 await asyncio.to_thread(_set_state, org, sid, "left")
                 await live.changed()
                 return
             await asyncio.sleep(10)
             continue
         back = 1.0
-        if live.holder_off:
+        if target is holder and live.holder_off:
+            # The owner's Rouh is back: the stand-in's numbering is dropped, the owner's room renumbers.
+            if active:
+                await standin.drop_interim(org, sid, live)
+                continue
             live.holder_off = False
-            from . import standin
-
-            await standin.hand_back(org, sid, live, row, me)
         await _take_confirmed(org, sid, live, reply["ops"], reply["seq"])
+        if target is holder:
+            live.holder_seq = live.seq
         live.presence = {k: v for k, v in live.presence.items() if k.split(":", 1)[1] == me.label}
         for p in reply.get("presence") or []:
             if p["actor"].split(":", 1)[1] != me.label:
                 live.presence[p["actor"]] = dict(p, at=_now())
-        if reply.get("members") is not None:
+        if reply.get("members") is not None and target is holder:
             await asyncio.to_thread(_set_members, org, sid, reply["members"], reply.get("standin", ""))
         if reply.get("state") == "ended":
             await asyncio.to_thread(_set_state, org, sid, "ended")
@@ -575,11 +608,13 @@ async def _room_poll(ctx, form) -> dict:
                 pass
     ops = [_wire_op(o) | {"seq": o["seq"]} for o in live.ops if o["seq"] > since]
     more = len(ops) > MOST_BACK
-    return {"seq": live.seq if not more else ops[MOST_BACK - 1]["seq"], "ops": ops[:MOST_BACK],
+    from . import groups
+
+    return groups.lock_reply(ctx.org, sid, int(form.get("epoch") or 0), ctx.me, {"seq": live.seq if not more else ops[MOST_BACK - 1]["seq"], "ops": ops[:MOST_BACK],
             "presence": [{k: v[k] for k in ("actor", "kind", "name", "part", "doing", "follow", "busy") if k in v}
                          for v in live.fresh_presence()][:12],
             "members": _member_view(row), "title": str(row.title or "")[:200], "state": row.state,
-            "more": more, "standin": (row.meta or {}).get("standin", "")}
+            "more": more, "standin": (row.meta or {}).get("standin", "")})
 
 
 @wire.handles("room.ops")
@@ -768,6 +803,9 @@ def _space_join(ctx, form) -> dict:
     LinkSpace.objects.filter(id=row.id).update(meta=dict(row.meta or {}, members=members), updated_at=_now())
     log.write(ctx.org, "join", f"{ctx.peer.name} joined “{row.title[:80]}”.", peer=ctx.peer.label, space=row.space_id)
     _wake(ctx.org, row.space_id)
+    from . import groups
+
+    groups.rekey_soon(ctx.org, row.space_id)
     row = _row(ctx.org, form["space_id"])
     return {"space_id": row.space_id, "kind": row.kind, "title": row.title or "", "role": role,
             "members": _member_view(row), "standin": (row.meta or {}).get("standin", ""), "silo": row.silo or ""}
@@ -862,6 +900,9 @@ def connection_changed(org: str, label: str) -> None:
                 touched = True
             if touched:
                 LinkSpace.objects.filter(id=row.id).update(meta=dict(row.meta or {}, members=members), updated_at=_now())
+                from . import groups
+
+                groups.rekey_soon(org, row.space_id)
                 log.write(org, "role", f"{label}'s place in “{row.title[:60]}” changed with its connection.", peer=label,
                           space=row.space_id)
                 _wake(org, row.space_id)
@@ -945,7 +986,8 @@ async def page_state(org: str, sid: str, *, since: int = -1, wait: float = 0.0, 
                   "members": [{"label": m["label"], "name": m.get("name", ""), "role": m.get("role", ""),
                                "state": m.get("state", "joined")} for m in members_of(row)],
                   "standin": (row.meta or {}).get("standin", ""),
-                  "standin_active": (row.meta or {}).get("standin_active", "")},
+                  "standin_active": (row.meta or {}).get("standin_active", ""),
+                  "epoch": int((row.meta or {}).get("epoch") or 0)},
         "me": {"label": me.label, "name": me.tagged, "person": actor, "rouh": f"rouh:{me.label}", "role": role},
         "doc": _doc.shown(live.doc), "version": live.version, "seq": live.seq,
         "pending": len(live.pending), "holder_off": live.holder_off,

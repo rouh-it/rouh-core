@@ -165,7 +165,7 @@ FORMS: dict[str, dict] = {
     "space.left": {"space_id": SPACE_ID},
     "space.ended": {"space_id": SPACE_ID},
     "room.ops": {"space_id": SPACE_ID, "ops": ("list", 300, ("op",)), "via_standin?": ("bool",)},
-    "room.poll": {"space_id": SPACE_ID, "since": ("int", 0, 10**9), "wait?": ("num", 0, 25),
+    "room.poll": {"space_id": SPACE_ID, "since": ("int", 0, 10**9), "wait?": ("num", 0, 25), "epoch?": ("int", 0, 10**6),
                   "presence?": ("list", 6, PRESENCE)},
     "room.presence": {"space_id": SPACE_ID, "presence": ("list", 6, PRESENCE)},
     "group.welcome": {"space_id": SPACE_ID, "epoch": ("int", 0, 10**6), "secret": ("b64", 64),

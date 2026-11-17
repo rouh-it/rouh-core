@@ -30,8 +30,6 @@
   var myPart = '';
   var following = '';
   var historyOpen = false;
-  var notesBusy = false;     // the person is typing: incoming notes wait until their change is in
-  var notesTimer = null;
   var colours = {};          // actor label -> colour slot
   var seenItems = {};
   var $ = function (id) { return document.getElementById(id); };
@@ -237,29 +235,48 @@
 
   function claimOf(part) { return (S.doc.claims || {})[part]; }
 
-  function drawSteps() {
-    var listName = (S.space.lists || [])[0];
-    var box = $('steps');
-    $('stepsTitle').textContent = (S.space.names || {})[listName] || 'Steps';
-    if (!listName) { $('stepsBox').hidden = true; return; }
-    $('stepsBox').hidden = false;
+  // Every list and every long text the space's kind has (a task: steps and notes; a trip: flights,
+  // stays, places and notes; research: sources, findings and a summary; ...), each a section of its own,
+  // made once and filled again on every change, so a box being typed in keeps its place.
+  var listBoxes = {}, textBoxes = {};
+
+  function listBox(name) {
+    if (listBoxes[name]) return listBoxes[name];
+    var input = el('input', { type: 'text', class: 'grow', maxlength: '300', 'aria-label': 'New item for ' + listWord(name), placeholder: 'Add to ' + listWord(name).toLowerCase() });
+    var form = el('form', { class: 'row', style: 'margin-top:10px', onsubmit: function (ev) { ev.preventDefault(); addItem(name, input); } },
+      [input, el('button', { type: 'submit', text: 'Add' })]);
+    var b = { marks: el('span'), ul: el('ul', { class: 'steps' }), form: form };
+    b.section = el('section', { class: 'box part', 'data-part': 'list:' + name }, [
+      el('header', {}, [el('h2', { text: listWord(name) }), b.marks]), b.ul, form]);
+    $('lists').appendChild(b.section);
+    return (listBoxes[name] = b);
+  }
+  function listWord(name) { return (S.space.names || {})[name] || name; }
+
+  function drawLists() {
+    (S.space.lists || []).forEach(drawList);
+  }
+
+  function drawList(listName) {
+    var b = listBox(listName);
+    b.form.hidden = !canEdit();
     var items = (S.doc.lists || {})[listName] || [];
     var focusId = document.activeElement && document.activeElement.getAttribute('data-item');
-    var listMarks = marksFor('list:' + listName);
-    clear($('stepsMarks')).appendChild(listMarks.node);
-    var ul = clear(box);
-    if (!items.length) ul.appendChild(el('li', { class: 'dim small', text: 'No steps yet. Add one, or ask your Rouh to.' }));
+    clear(b.marks).appendChild(marksFor('list:' + listName).node);
+    var ul = clear(b.ul);
+    if (!items.length) ul.appendChild(el('li', { class: 'dim small', text: 'Nothing here yet. Add one, or ask your Rouh to.' }));
     items.forEach(function (it) {
       var part = 'item:' + it.id;
       var marks = marksFor(part);
       var claim = claimOf(part) || claimOf('list:' + listName);
-      var text = el('textarea', { rows: '1', class: 'text', 'data-item': it.id,
-        'aria-label': 'Step', disabled: !canEdit() || (claim && isRouh(claim.by) && labelOf(claim.by) !== S.me.label && false),
+      var text = el('textarea', { rows: '1', class: 'text', 'data-item': it.id, 'aria-label': listWord(listName) + ' item',
+        disabled: !canEdit(),
         onfocus: function () { myPart = part; nudge(); },
         onkeydown: function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); text.blur(); } },
         oninput: function () { fit(text); },
         onchange: function () { send([op('set', { path: ['lists', listName, it.id, 'text'], v: text.value.replace(/\n/g, ' ').slice(0, 300) })]); } });
       text.value = String(it.fields.text || '');
+      var under = el('div', { class: 'under' });
       var li = el('li', { class: 'step part' + (it.fields.done ? ' done' : '') + (marks.colour ? ' marked' : '') + (seenItems[it.id] ? '' : ' new'),
         style: marks.colour ? '--mc:' + marks.colour : (isRouh(it.by) ? '--mc:var(--' + ['accent', 'partner', 'third', 'fourth', 'dim'][slot(labelOf(it.by))] + ')' : ''),
         'data-part': part }, [
@@ -267,36 +284,31 @@
           onchange: function (ev) { send([op('set', { path: ['lists', listName, it.id, 'done'], v: ev.target.checked })]); } }),
         text,
         el('span', { class: 'tools' }, [
-          claim ? null : el('button', { class: 'quiet', text: 'Claim', title: 'Take this step: only you change it until you let it go', disabled: !canEdit(),
+          claim ? null : el('button', { class: 'quiet', text: 'Claim', title: 'Take this: only you change it until you let it go', disabled: !canEdit(),
             onclick: function () { send([op('claim', { part: part })]); } }),
           claim ? el('button', { class: 'quiet', text: labelOf(claim.by) === S.me.label && !isRouh(claim.by) ? 'Let go' : 'Take back', disabled: !canEdit(),
             onclick: function () { send([op('release', { part: claim.part || part })]); } }) : null,
           el('button', { class: 'quiet', text: 'Comment', onclick: function () { commentForm(part, under); } }),
-          el('button', { class: 'quiet subtle', 'aria-label': 'Remove step', text: 'Remove', disabled: !canEdit(),
+          el('button', { class: 'quiet subtle', 'aria-label': 'Remove', text: 'Remove', disabled: !canEdit(),
             onclick: function () { send([op('remove', { list: listName, item: it.id })]); } })
-        ])
+        ]),
+        under
       ]);
       seenItems[it.id] = true;
       requestAnimationFrame(function () { fit(text); });
-      var under = el('div', { class: 'under' }, [
-        marks.node.childNodes.length ? marks.node : null,
+      [marks.node.childNodes.length ? marks.node : null,
         claim ? el('span', { class: 'claimed dim' }, ['Claimed by ', tag(claim.by)]) : null,
         isRouh(it.by) && labelOf(it.by) !== S.me.label ? el('span', { class: 'byline', text: 'Added by ' + actorWords(it.by) }) : null,
-        commentsFor(part)
-      ]);
-      li.appendChild(under);
+        commentsFor(part)].forEach(function (n) { if (n) under.appendChild(n); });
       ul.appendChild(li);
     });
-    if (focusId) { var again = box.querySelector('[data-item="' + focusId + '"]'); if (again) again.focus(); }
+    if (focusId) { var again = b.ul.querySelector('[data-item="' + focusId + '"]'); if (again) again.focus(); }
   }
 
-  // A step's text grows to show all of it, where the browser cannot size the box by itself.
+  // An item's text grows to show all of it, where the browser cannot size the box by itself.
   function fit(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
 
-  function addStep(ev) {
-    ev.preventDefault();
-    var listName = (S.space.lists || [])[0];
-    var input = $('newStep');
+  function addItem(listName, input) {
     var t = input.value.trim(); if (!t) return;
     var items = (S.doc.lists || {})[listName] || [];
     var pos = items.length ? items[items.length - 1].pos + 1 : 1;
@@ -304,25 +316,40 @@
     send([op('add', { list: listName, item: uid().slice(0, 12), pos: pos, fields: { text: t.slice(0, 300), done: false } })]);
   }
 
-  function drawNotes() {
-    var name = (S.space.texts || [])[0];
-    if (!name) { $('notesBox').hidden = true; return; }
-    $('notesBox').hidden = false;
-    $('notesTitle').textContent = (S.space.names || {})[name] || 'Notes';
+  function textBox(name) {
+    if (textBoxes[name]) return textBoxes[name];
+    var b = { busy: false, timer: null, marks: el('span'), by: el('span', { class: 'row' }), comments: el('div') };
+    b.ta = el('textarea', { rows: '6', 'aria-label': (S.space.names || {})[name] || name, placeholder: 'Write here; everyone sees it as you type.',
+      oninput: function () { b.busy = true; clearTimeout(b.timer); b.timer = setTimeout(function () { sendText(name); }, 260); },
+      onfocus: function () { myPart = 'text:' + name; nudge(); } });
+    var holder = el('div');
+    b.section = el('section', { class: 'box part notes', 'data-part': 'text:' + name }, [
+      el('header', {}, [el('h2', { text: (S.space.names || {})[name] || name }), b.marks]),
+      el('div', { class: 'stack' }, [b.ta, el('div', { class: 'row' }, [el('span', { class: 'byline', text: 'Written by' }), b.by,
+        el('span', { class: 'spacer grow' }), el('button', { class: 'quiet', type: 'button', text: 'Comment',
+          onclick: function () { commentForm('text:' + name, holder); } })]), b.comments, holder])]);
+    $('texts').appendChild(b.section);
+    return (textBoxes[name] = b);
+  }
+
+  function drawTexts() { (S.space.texts || []).forEach(drawText); }
+
+  function drawText(name) {
+    var b = textBox(name);
     var t = (S.doc.texts || {})[name] || { text: '', ids: [], by: [], top: 0 };
-    var ta = $('notes');
+    var ta = b.ta;
     ta.disabled = !canEdit();
     var part = 'text:' + name;
     var marks = marksFor(part);
-    clear($('notesMarks')).appendChild(marks.node);
-    $('notesPart').classList.toggle('marked', !!marks.colour);
-    if (marks.colour) $('notesPart').style.setProperty('--mc', marks.colour);
+    clear(b.marks).appendChild(marks.node);
+    b.section.classList.toggle('marked', !!marks.colour);
+    if (marks.colour) b.section.style.setProperty('--mc', marks.colour);
     var writers = {};
     (t.by || []).forEach(function (r) { writers[r[2]] = (writers[r[2]] || 0) + r[1]; });
-    var bl = clear($('notesBy'));
-    Object.keys(writers).forEach(function (a) { bl.appendChild(tag(a)); });
-    clear($('notesComments')).appendChild(commentsFor(part));
-    if (notesBusy) return;
+    clear(b.by);
+    Object.keys(writers).forEach(function (a) { b.by.appendChild(tag(a)); });
+    clear(b.comments).appendChild(commentsFor(part));
+    if (b.busy) return;
     if (ta.value !== t.text) {
       var focused = document.activeElement === ta;
       var at = ta.selectionStart, idAt = focused && at > 0 ? (ta._ids || [])[at - 1] : null;
@@ -338,19 +365,13 @@
     ta._top = t.top;
   }
 
-  function notesTyped() {
-    notesBusy = true;
-    clearTimeout(notesTimer);
-    notesTimer = setTimeout(sendNotes, 260);
-  }
-  function sendNotes() {
-    var ta = $('notes');
-    var name = (S.space.texts || [])[0];
+  function sendText(name) {
+    var b = textBox(name), ta = b.ta;
     var old = ta._text || '', ids = ta._ids || [], now = ta.value;
     var a = 0; while (a < old.length && a < now.length && old[a] === now[a]) a++;
-    var b = 0; while (b < old.length - a && b < now.length - a && old[old.length - 1 - b] === now[now.length - 1 - b]) b++;
-    var gone = ids.slice(a, old.length - b);
-    var added = now.slice(a, now.length - b);
+    var e = 0; while (e < old.length - a && e < now.length - a && old[old.length - 1 - e] === now[now.length - 1 - e]) e++;
+    var gone = ids.slice(a, old.length - e);
+    var added = now.slice(a, now.length - e);
     var after = a > 0 ? ids[a - 1] : '';
     var ops = [];
     if (gone.length) ops.push(op('del', { t: name, ids: gone }));
@@ -359,23 +380,23 @@
       ops.push(op('ins', { t: name, after: after, id0: n + '~' + S.me.person, text: added }));
       ta._top = n + added.length;
     }
-    if (!ops.length) { notesBusy = false; return; }
+    if (!ops.length) { b.busy = false; return; }
     var sent = now;
     send(ops).then(function () {
       return API.get(base + '?since=-1&wait=0&part=' + encodeURIComponent(myPart));
     }).then(function (st) {
-      if (!st) { notesBusy = false; return; }
+      if (!st) { b.busy = false; return; }
       S = st; version = Math.max(version, st.version);
       var t = (st.doc.texts || {})[name] || { text: '', ids: [], top: 0 };
       if (ta.value !== sent) {
         // More was typed while this went: diff the rest against what the room has now.
         ta._text = t.text; ta._ids = t.ids.slice(); ta._top = t.top;
-        sendNotes();
+        sendText(name);
         return;
       }
-      notesBusy = false;
+      b.busy = false;
       draw();
-    }).catch(function () { notesBusy = false; });
+    }).catch(function () { b.busy = false; });
   }
 
   function drawMeeting() {
@@ -491,6 +512,20 @@
     });
     var inv = $('inviteBox');
     inv.hidden = !S.space.mine || S.space.state !== 'live';
+    // The stand-in: a member's Rouh that holds the room while this one is off (the owner chooses).
+    var sb = clear($('standinBox'));
+    var editors = (S.space.members || []).filter(function (m) { return m.state === 'joined' && m.role === 'editor'; });
+    if (S.space.mine && S.space.state === 'live' && editors.length) {
+      var sel = el('select', { id: 'standinWho', 'aria-label': 'Stand-in while your Rouh is off' });
+      sel.appendChild(el('option', { value: '', text: 'No stand-in' }));
+      editors.forEach(function (m) { sel.appendChild(el('option', { value: m.label, text: m.name.split(' ·')[0] + '’s Rouh', selected: S.space.standin === m.label })); });
+      sel.addEventListener('change', function () { act('standin', { label: sel.value }).then(function () { toast(sel.value ? 'Stand-in named.' : 'No stand-in now.'); }).catch(fail); });
+      sb.appendChild(el('label', { for: 'standinWho', text: 'Holds the room while your Rouh is off' }));
+      sb.appendChild(sel);
+    } else if (S.space.standin) {
+      sb.appendChild(el('p', { class: 'small dim', text: (S.space.standin === S.me.label ? 'Your Rouh' : memberName(S.space.standin).split(' ·')[0] + '’s Rouh') + ' holds the room if its owner’s Rouh is off.' }));
+    }
+    if (S.space.epoch) sb.appendChild(el('p', { class: 'small dim', text: 'Locked for the group: key ' + S.space.epoch + ', new each time someone joins or leaves.' }));
   }
   function editsBy(actor) {
     var n = 0;
@@ -506,6 +541,8 @@
     if (!S.space.joined) {
       b.appendChild(el('div', { class: 'banner info' }, [el('p', { text: memberName(S.space.holder) + ' asks you into “' + (S.doc.fields.title || 'this space') + '”. Join to see it live and work in it.' }),
         el('button', { class: 'primary', text: 'Join', onclick: function () { act('join').then(function () { toast('Joined.'); }).catch(fail); } })]));
+    } else if (S.holder_off && S.space.standin_active) {
+      b.appendChild(el('div', { class: 'banner info' }, [el('p', { text: (S.space.standin_active === S.me.label ? 'Your Rouh' : memberName(S.space.standin_active).split(' ·')[0] + '’s Rouh') + ' holds the room while ' + memberName(S.space.holder).split(' ·')[0] + '’s Rouh is off. Everything goes back to it when it returns.' })]));
     } else if (S.holder_off) {
       b.appendChild(el('div', { class: 'banner info' }, [el('p', { text: 'The Rouh holding this space is off. Your changes show here and wait' + (S.pending ? ' (' + S.pending + ' waiting)' : '') + '; they go when it is back.' })]));
     } else if (S.space.state === 'ended') {
@@ -516,7 +553,7 @@
       b.appendChild(el('div', { class: 'banner info' }, [el('p', { text: 'Following ' + actorWords(following) + (p && p.part ? ', on ' + partName(p.part) : '') + '.' }),
         el('button', { text: 'Stop following', onclick: function () { following = ''; nudge(); draw(); } })]));
       if (p && p.part) {
-        var target = document.querySelector('[data-part="' + p.part + '"]') || (p.part.indexOf('text:') === 0 ? $('notesPart') : null);
+        var target = document.querySelector('[data-part="' + p.part + '"]');
         if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
     }
@@ -551,8 +588,8 @@
     drawWho();
     drawBanners();
     drawIntent();
-    drawSteps();
-    drawNotes();
+    drawLists();
+    drawTexts();
     drawMeeting();
     drawMyRouh();
     drawMembers();
@@ -568,10 +605,6 @@
   // --- the side controls ------------------------------------------------------------------------------
 
   function wire() {
-    $('addStep').addEventListener('submit', addStep);
-    $('notes').addEventListener('input', notesTyped);
-    $('notes').addEventListener('focus', function () { myPart = 'text:' + (S.space.texts || [])[0]; nudge(); });
-    $('notesComment').addEventListener('click', function () { commentForm('text:' + (S.space.texts || [])[0], $('notesComments')); });
     $('rouhAsk').addEventListener('submit', function (ev) {
       ev.preventDefault();
       var w = $('rouhWords').value.trim(); if (!w) return;

@@ -22,6 +22,16 @@ Rouh Link is part of Rouh's core (`rouh/link/`, gene `rouh-link`, no off switch)
 | Book a meeting | `rouh/link/meeting.py` | Find a meeting time asks each other member's Rouh for busy times only (`meeting.ask`), finds three times all are free in working hours, and proposes them in the space. Each person says yes on their own screen; when all said yes to the same time the room marks it agreed, and each Rouh books it in its own person's calendar, with "added by Rouh", because that person said yes to that time. A Rouh that was off answers from the mailbox. |
 | The orb | `app/orb.js`, `app/orb3d.js`, `link_partner_working` | A second, amber ring (or halo) while a partner's Rouh is at work in a live space with this one. |
 
+## Phase 2: everything live, small groups
+
+| Piece | Where | What |
+|---|---|---|
+| Every kind of work | `rouh/link/kinds.py`, `link/space.js` | A task page, a page or explainer, a document or draft, a trip, research, a calendar proposal, a list: each kind is the same room and data, with its own parts (a trip: flights, places to stay, things to do, notes; research: sources, findings, summary). The page draws every list and every text a kind has. Started from Connections (Start a live space, with its kind). |
+| Up to five Rouhs | `me.DEFAULTS["most_members"]`, `spaces.invite` | A space holds at most five Rouhs (the owner's setting; the open network raises it). |
+| Follow mode | `link/space.js` | Press a person's or a Rouh's avatar: your view moves with the part it is on, until Stop following. |
+| Group keys | `rouh/link/groups.py` | For three or more, the room's Rouh makes a key per epoch and hands it to each member locked to that member alone (`group.welcome`); a new epoch, with a new key, whenever someone joins or leaves. The room's answers to a member holding the epoch are locked once more under it and signed by the room. The idea of MLS (RFC 9420, the Messaging Layer Security standard), not RFC 9420 itself: there is no maintained Python implementation, and a real MLS library can take this module's place. |
+| A stand-in | `rouh/link/standin.py` | The owner names one member's Rouh the stand-in. When the owner's Rouh stops answering, the stand-in holds a room of its own from its copy, the other members connected to it turn to it, and when the owner's Rouh is back the stand-in hands every change back (`standin.handback`), each checked again as from the one who made it; every copy then follows the owner's room again. |
+
 ## The pages
 
 - `/link`, Connections: who this Rouh is connected to and how far each is trusted (change it, cut, block, read the log), requests, a connect link with its QR code, bringing someone's link, a contact's Rouh, the live spaces, and what is off for now.

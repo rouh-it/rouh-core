@@ -40,15 +40,7 @@
         <ul class="feed" id="feed" aria-live="polite"></ul>
       </section>
     <div class="stack work-col">
-      <section class="box part" id="stepsBox" data-part="">
-        <header><h2 id="stepsTitle">Steps</h2><span id="stepsMarks"></span></header>
-        <ul class="steps" id="steps"></ul>
-        <form id="addStep" class="row" style="margin-top:10px">
-          <label class="hidden" for="newStep">New step</label>
-          <input id="newStep" class="grow" type="text" maxlength="300" placeholder="Add a step">
-          <button type="submit">Add</button>
-        </form>
-      </section>
+      <div id="lists" class="stack"></div>
       <section class="box" id="meetingBox">
         <header><h2>Meeting</h2>
           <div class="row">
@@ -59,21 +51,13 @@
         </header>
         <div id="meeting" class="proposal"></div>
       </section>
-      <section class="box part notes" id="notesPart">
-        <header><h2 id="notesTitle">Notes</h2><span id="notesMarks"></span></header>
-        <div id="notesBox" class="stack">
-          <label class="hidden" for="notes">Notes</label>
-          <textarea id="notes" rows="8" placeholder="Write here; everyone sees it as you type."></textarea>
-          <div class="row"><span class="byline">Written by</span><span id="notesBy" class="row"></span>
-            <span class="spacer grow"></span><button id="notesComment" class="quiet" type="button">Comment</button></div>
-          <div id="notesComments"></div>
-        </div>
-      </section>
+      <div id="texts" class="stack"></div>
     </div>
     <aside class="stack side-col">
       <section class="box">
         <header><h2>Here</h2></header>
         <div id="members" class="stack"></div>
+        <div id="standinBox" class="stack" style="margin-top:12px"></div>
         <form id="inviteBox" class="stack" hidden style="margin-top:12px">
           <label for="inviteWho">Ask a connected Rouh in</label><select id="inviteWho"></select>
           <label for="inviteRole">As</label>
