@@ -60,7 +60,7 @@ def release_url() -> str:
 
 def sources() -> list[str]:
     own = os.environ.get("ROUH_CODE_MASTER", "").strip()
-    return [own] if own else ["https://github.com/rouh-land/rouh-core.git", "https://github.com/rouh-it/rouh-core.git"]
+    return [own] if own else ["https://github.com/rouh-land/rouh-core.git"]
 
 
 def _git(code: Path, *args: str, env: dict | None = None) -> subprocess.CompletedProcess:
