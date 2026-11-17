@@ -237,6 +237,11 @@ def opaque(repo: Path, revision: str, file: str) -> bool:
     return any(len(line) > limit for line in data.split(b"\n"))
 
 
+def database_file(f: str) -> bool:
+    """A file that says what the database is: a migration, a model, the schema."""
+    return "/migrations/" in f or "/models/" in f or f.endswith("schema.sql")
+
+
 def classify(sha: str, parent: str, all_files: list[str], message: str) -> dict:
     """Database, security and which files are opaque. Opaque files' bytes are not read for words:
     three.js says "credentials", and that is not a change to how this Rouh keeps anyone's."""
@@ -247,7 +252,7 @@ def classify(sha: str, parent: str, all_files: list[str], message: str) -> dict:
     # The code's own lines are read for security words; a library's licence ("Permission is hereby
     # granted") or a page of prose is not a security change. Its message always counts.
     diff = _git("diff", "--no-ext-diff", parent, sha, "--", *code) if code else ""
-    database = any("/migrations/" in f or "/models/" in f or f.endswith("schema.sql") for f in all_files)
+    database = any(database_file(f) for f in all_files)
     database = database or bool(re.search(r"\b(?:ALTER|CREATE|DROP)\s+(?:TABLE|INDEX|SCHEMA)\b", diff))
     security = bool(SENSITIVE.search(message) or SENSITIVE.search(diff) or
                     any(f.startswith(SECURITY_PATHS) for f in all_files))
@@ -418,7 +423,8 @@ _END: list[str] = []
 def sort_files(row: dict, work: Path) -> dict:
     """Each file of a change, by how it can be taken here (the master commit already fetched into work):
     exact (this Rouh's file is the one the change started from, or already the one it ends with),
-    merged (the change's own lines fit beside this Rouh's, {file: bytes}), clash (adapting job),
+    merged (the change's own lines fit beside this Rouh's, {file: bytes}), clash (adapting job, and
+    every migration, model or schema file a database change brings: it must fit this Rouh's schema),
     whole (a file only copied whole that this Rouh changed itself: it waits)."""
     master = master_repo()
     out: dict = {"exact": [], "merged": {}, "clash": [], "whole": [], "already": []}
@@ -428,6 +434,10 @@ def sort_files(row: dict, work: Path) -> dict:
             # Already the release's own final version (the protected core's update step brings its
             # files so): every change before it is in it.
             out["already"].append(f)
+        elif here != theirs and row.get("database") and database_file(f) and not opaque(master, row["master"], f):
+            # A database change's migration must fit this Rouh's own schema (its own tables, its own
+            # newest migration), so the adapting job may change it; it is never locked as a copy.
+            out["clash"].append(f)
         elif here == base or here == theirs:
             out["exact"].append(f)
         elif f in (row.get("opaque") or []) or opaque(work, "HEAD", f):
