@@ -39,7 +39,7 @@ from django.db.models import (BigIntegerField, Case, Count, Max, Min, OuterRef, 
                               Sum, TextField, Value, When)
 from django.db.models.functions import Coalesce
 
-from . import attachments, citing, conversations, forks, servercalls, turnmarks, turnrecords
+from . import attachments, citing, context_editing, conversations, forks, servercalls, turnmarks, turnrecords
 from .models.memory import (AppState, ChatFolder, Event, Fact, LegacySession, OpenTurn, RecallTimeline,
                             RouteTimeline,
                             ScreenCard, Spend, ToolLine, TranscriptMessage)
@@ -1782,7 +1782,8 @@ class Memory:
 
     def history(self, session_id: str, limit: int = 40,
                 before: int | None = None, *,
-                limit_of: Callable[[str], int] | None = None) -> list[dict]:
+                limit_of: Callable[[str], int] | None = None,
+                lean: bool = True, files=None) -> list[dict]:
         """The last `limit` messages, oldest first, in Anthropic message shape.
 
         A `limit` below zero is every message the chat has, which is how every
@@ -1826,13 +1827,38 @@ class Memory:
         which is sent its newest messages and never the months behind them,
         carries that much of General and no more, however whole the fork's own
         conversation is. The joins are repaired with the rest.
+
+        `lean` (on unless a caller wants the stored words) sends every earlier
+        tool result as a stub and every picture or PDF before the person's
+        last message as a line, the way every chat is sent since 17 November
+        2026 (`context_editing.lean`); `files` is the attachment store, which
+        names where a file is saved in its line.
         """
-        return repair_history(self._window(session_id, limit, before=before,
+        msgs = repair_history(self._window(session_id, limit, before=before,
                                            limit_of=limit_of))
+        if lean:
+            msgs, _did = context_editing.lean(msgs, store=files)
+        return msgs
+
+    def carried_sent(self, session_id: str, limit: int, *,
+                     limit_of: Callable[[str], int] | None = None,
+                     files=None) -> list[dict]:
+        """What a fork is sent of the chat it came off, by the very path a
+        turn sends it (`history`): the parent's messages `_window` carries,
+        repaired and stubbed. Whether or not Parent chat history is on for
+        it, because the strip's panel sizes it either way (`reading`). []
+        when the chat carries nothing."""
+        whole = self._window(session_id, limit, limit_of=limit_of, carry=True)
+        own = self._window(session_id, limit, depth=forks.DEEP)
+        if len(whole) <= len(own):
+            return []
+        sent, _did = context_editing.lean(repair_history(whole), store=files)
+        return sent[:max(0, len(sent) - len(own))]
 
     def _window(self, session_id: str, limit, *, before: int | None = None,
                 upto: int | None = None, depth: int = 0,
-                limit_of: Callable[[str], int] | None = None) -> list[dict]:
+                limit_of: Callable[[str], int] | None = None,
+                carry: bool = False) -> list[dict]:
         """`history` before it is repaired: this chat's turns, and what it carries.
 
         `upto` is a message of this chat, and cuts it off after the exchange
@@ -1861,7 +1887,7 @@ class Memory:
         room = _room(limit, len(rows))
         if fork and limit_of is not None:
             room = _least(room, limit_of(fork["parent_id"]))
-        if fork and fork["at"] is not None and depth == 0:
+        if fork and fork["at"] is not None and depth == 0 and not carry:
             # Parent chat history, in the strip's panel: on unless the person turned it off for this chat
             # (`reading.carries_parent`); a fork above carries its own as it always has.
             from . import reading

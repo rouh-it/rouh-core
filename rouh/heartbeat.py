@@ -423,7 +423,7 @@ FREE = frozenset({
     "web_search", "web_fetch", "look_into", "youtube_search", "youtube_transcript",
     "read_doc", "search_drive", "list_drive_folder", "list_shared_drives", "list_drive_permissions",
     "check_tasks", "look_at_task", "read_task_log", "what_task_changed", "one_runs",
-    "what_is_running", "upcoming", "what_was_on_screen", "read_card", "show_on_screen",
+    "what_is_running", "upcoming", "what_was_on_screen", "read_card", "recall_result", "show_on_screen",
     "revise_on_screen", "show_again",
     # Its duties: the calendar ahead, the goals, and the steps of them that are Rouh's.
     "list_calendars", "list_calendar_events", "read_calendar_event", "goals", "goal_step",

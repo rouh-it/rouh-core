@@ -418,3 +418,49 @@ def boxes_files_shredded() -> None:
                "the job's log still holds what was in the box")
     said = boxes.redact("I used " + secret, [(9, secret)])
     expect(secret not in said and "[box 9, redacted]" in said, "a report holding the box is not redacted")
+
+
+@check("security", "an earlier tool result is recalled only where it was said",
+       "recall_result gives back a result of the chat being answered and of the part of a chat it carries, "
+       "never one of another chat, and a stub of somebody else's words quotes none of them", needs_db=True)
+def recall_in_reach() -> None:
+    import json
+    import time
+
+    from rouh import context_editing, recall
+    from rouh.models.memory import TranscriptMessage
+    from rouh.models.objects import Chat, ChatFork
+
+    now = time.time()
+
+    def said(chat: str, role: str, content) -> int:
+        return TranscriptMessage.objects.create(session_id=chat, role=role, content=json.dumps(content),
+                                                ts=now).id
+
+    def pair(chat: str, call: str, body: str) -> int:
+        said(chat, "assistant", [{"type": "tool_use", "id": call, "name": "read_mail", "input": {}}])
+        return said(chat, "user", [{"type": "tool_result", "tool_use_id": call, "content": body}])
+
+    a, b, fork = "chat-check-recall-a", "chat-check-recall-b", "chat-check-recall-fork"
+    try:
+        for chat in (a, b, fork):
+            Chat.objects.create(id=chat, title="A check", last_spoke=now, created_at=now)
+        said(a, "user", [{"type": "text", "text": "What came in?"}])
+        at = pair(a, "toolu_check_before", "Kept before the fork. " * 40)
+        pair(a, "toolu_check_after", "Said after the fork. " * 40)
+        pair(b, "toolu_check_other", "The other chat's secret. " * 40)
+        ChatFork.objects.create(chat_id=fork, parent_id=a, at=at, created_at=now)
+        expect("Kept before the fork" in str(recall.answer(a, "toolu_check_before")),
+               "a chat cannot recall its own earlier result")
+        expect("Kept before the fork" in str(recall.answer(fork, "toolu_check_before")),
+               "a fork cannot recall a result of what it carries")
+        for chat, call in ((fork, "toolu_check_after"), (a, "toolu_check_other"), (fork, "toolu_check_other")):
+            out = str(recall.answer(chat, call))
+            expect("secret" not in out and "after the fork" not in out,
+                   f"{chat} recalled {call}, which it was never shown: {out[:120]}")
+        stub = context_editing.stub("read_mail", {"tool_use_id": "toolu_x", "content": INJECTION + "x" * 500})
+        expect("SYSTEM" not in stub and "Ignore" not in stub, f"a stub of an email quotes it: {stub[:160]}")
+    finally:
+        TranscriptMessage.objects.filter(session_id__in=(a, b, fork)).delete()
+        ChatFork.objects.filter(chat_id=fork).delete()
+        Chat.objects.filter(id__in=(a, b, fork)).delete()

@@ -1223,6 +1223,30 @@ class ToolRegistry:
             },
             self._read_card,
         )
+        # An earlier tool result, or an earlier picture, given back whole: what a stub in the history
+        # names (`rouh/context_editing.py`, `rouh/recall.py`). Always loaded (`config.TOOLS_ALWAYS_LOADED`).
+        self._own(
+            "recall_result",
+            "An earlier tool result is shown as a stub; call this when you need its contents again. "
+            "Every tool result from an earlier turn reaches you as one line - the tool, its size, "
+            "sometimes its first line, and an id - to keep the conversation small, and a picture or PDF "
+            "the person attached before their last message is a line too. Give the id the stub names "
+            "(a tool call's id such as toolu_01AbC, or file: and a file's id) and this gives back exactly "
+            "what came back then, or shows the file again. Prefer it to calling the tool again: it is "
+            "instant, free and the same words. Results of this turn are already whole. Reading changes "
+            "nothing. A long result comes in parts: call again with the offset it gives.",
+            {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "The id the stub names."},
+                    "offset": {"type": "integer",
+                               "description": "Where to carry on reading a long result from, as the last "
+                                              "part said."},
+                },
+                "required": ["id"],
+            },
+            self._recall_result,
+        )
         # A link to Rouh itself, read inside Rouh as the person, never fetched
         # from outside, where it is only a sign-in page (`rouh/rouhlinks.py`).
         # This installation's own names for itself, from its settings, never written in.
@@ -13535,6 +13559,18 @@ class ToolRegistry:
         """One of Rouh's own addresses, read inside Rouh as the speaker (`rouh/rouhlinks.py`)."""
         got = await rouhlinks.read(self, str((args or {}).get("url") or ""))
         return got.text
+
+    async def _recall_result(self, args, emit):
+        """An earlier tool result or file, whole, from this chat and what it carries only (`rouh/recall.py`)."""
+        from . import recall
+
+        chat = self.memory.answering_chat() if self.memory is not None else ""
+        try:
+            offset = int(args.get("offset") or 0)
+        except (TypeError, ValueError):
+            offset = 0
+        return await asyncio.to_thread(recall.answer, chat or "", str(args.get("id") or ""), offset,
+                                       _files_store())
 
     async def _read_card(self, args, emit):
         """Anything Rouh has produced, read back whole, and nothing emitted.

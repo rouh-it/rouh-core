@@ -1309,7 +1309,9 @@ class Brain:
         history = await asyncio.to_thread(
             self.memory.history, session_id, rules.history, before=question.slot.root,
             # A fork carries what it came off the way that chat is sent itself.
-            limit_of=lambda chat: chatkinds.profile(chat, self.cfg).history)
+            limit_of=lambda chat: chatkinds.profile(chat, self.cfg).history,
+            # Earlier tool results as stubs, older pictures as lines (`context_editing.lean`).
+            files=self.files)
         log.info("a %s turn in %s, with %s of history, on %s",
                  rules.kind, session_id,
                  f"all {len(history)} messages" if rules.history < 0
@@ -1993,7 +1995,7 @@ class Brain:
             ceiling = context_editing.ceiling(request["model"])
             if rules.trims and window > ceiling:
                 messages = await self._edit_context(messages, emit, rules, window=window,
-                                                    budget=ceiling, by_age=False,
+                                                    budget=ceiling,
                                                     usage=usage)
 
         if stopped:
@@ -2116,19 +2118,21 @@ class Brain:
 
     async def _edit_context(self, messages: list, emit, rules: chatkinds.Profile, *,
                             window: int = 0, budget: int | None = None,
-                            by_age: bool = True, usage: dict | None = None) -> list:
-        """Take the stale tool results out of the window, keeping everything else.
+                            usage: dict | None = None) -> list:
+        """Stub more of General's tool results when its last request went over budget.
 
         General's alone: `rules` is the chat's profile, and a chat that is not
-        General is handed back exactly as it came (`rouh/chatkinds.py`).
+        General is handed back exactly as it came (`rouh/chatkinds.py`). Every
+        earlier result of every chat is a stub already, from the history
+        (`context_editing.lean`, since 17 November 2026, which took the place
+        of the age pass that was here); what is left is size.
 
-        Called where a turn begins, on the history that came back from the
-        database: the old results go by age, and if `window` - the size of
-        this chat's last request - is over the budget, recent ones go too, a
-        few at a time. Never between two requests of a turn, which is what
-        keeps each of them readable out of the prompt cache, except with
-        `by_age` off and `budget` at the model's own ceiling, when the window
-        is about to be more than the model can read.
+        Called where a turn begins: if `window` - the size of this chat's last
+        request - is over the budget, the results still whole go too, a few
+        at a time. Never between two requests of a turn, which is what keeps
+        each of them readable out of the prompt cache, except with `budget`
+        at the model's own ceiling, when the window is about to be more than
+        the model can read.
 
         A failure here must never end a turn. The worst case of a trim that
         does not happen is an expensive request; the worst case of one that
@@ -2136,17 +2140,11 @@ class Brain:
         """
         if not rules.trims:
             return messages
-        keep = rules.keep_messages
         min_body = rules.min_body
         if budget is None:
             budget = rules.budget_tokens
         did = {"results": 0, "characters": 0}
         try:
-            if by_age:
-                messages, one = context_editing.trim(messages, keep_messages=keep,
-                                                     min_body=min_body)
-                for key in did:
-                    did[key] += one[key]
             # Over budget, the recent results go too, a few at a time.
             over = context_editing.how_many_to_trim(window, budget) if window else 0
             if over:

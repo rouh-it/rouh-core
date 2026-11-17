@@ -9,13 +9,14 @@ Until then there was one set of rules for every chat, and it was General's.
 topic, running to thousands of messages going back months, and the channel
 any request of the day goes to. It cannot be sent whole, so it keeps what
 makes it work at that length: a window of its newest messages
-(`history_turns`), the old tool results in that window trimmed
+(`history_turns`), more of its tool results stubbed when it goes over a budget
 (`rouh/context_editing.py`), and the prompt cache (`rouh/promptcache.py`).
 
 **Every other chat** - a topic, a task's thread, the chat an email is handled
-in, a fork - is about one thing, and is sent whole: every message it has, and
-every tool result as it came back. Nothing is trimmed and nothing is
-summarised. The prompt cache stays, because it changes what a request costs
+in, a fork - is about one thing, and is sent whole: every message it has.
+Nothing is summarised. Since 17 November 2026 every chat, General too, is sent
+the tool results of its earlier turns as stubs the model can recall whole
+(`context_editing.lean`, `recall_result`); only General's budget stubs more. The prompt cache stays, because it changes what a request costs
 and never what it says. A fork carries the chat it came off the way that chat
 is sent itself, so a fork of General carries General's window up to the fork,
 and the whole of its own conversation after it.

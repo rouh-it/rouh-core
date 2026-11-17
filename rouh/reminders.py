@@ -180,7 +180,7 @@ STARTS_RUN = frozenset({"one_start", "assistant_job"})
 #: Tools that only find other tools or read Rouh's own state, and say nothing
 #: about what was done.
 NOT_WORTH_SAYING = frozenset({"tool_search", "upcoming", "what_was_on_screen",
-                              "read_card"})
+                              "read_card", "recall_result"})
 
 
 @dataclass

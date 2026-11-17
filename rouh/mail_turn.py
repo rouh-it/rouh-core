@@ -144,7 +144,7 @@ DRY_READS = frozenset({
     "read_mail_attachment", "read_recent_mail", "list_calendars", "list_calendar_events",
     "read_calendar_event", "read_granted_tasks", "check_tasks", "look_at_task",
     "read_capability", "read_workspace", "read_task_log", "what_task_changed", "show_workspace_page",
-    "check_task_sharing", "read_doc", "read_card", "search_drive", "list_drive_folder",
+    "check_task_sharing", "read_doc", "read_card", "recall_result", "search_drive", "list_drive_folder",
     "list_drive_permissions", OUTCOME_TOOL, TEAM_FIND,
 })
 

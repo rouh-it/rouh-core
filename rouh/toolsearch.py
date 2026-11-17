@@ -124,7 +124,7 @@ AREA_KEYS = tuple(key for key, _, _ in AREAS)
 AREA_OF: dict[str, str] = {
     # Cards and the screen
     "show_on_screen": "screen", "what_was_on_screen": "screen", "show_again": "screen",
-    "read_card": "screen",
+    "read_card": "screen", "recall_result": "screen",
     "revise_on_screen": "screen", "set_panels": "screen", "show_canvas": "screen",
     # Gmail
     "read_recent_mail": "gmail", "read_mail": "gmail", "read_mail_attachment": "gmail",

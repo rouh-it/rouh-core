@@ -246,7 +246,7 @@ async def turn(brain, session_id: str, user_content, emit, on_sentence, model: s
     rules = rules or chatkinds.profile(session_id, cfg)
     history = await asyncio.to_thread(
         brain.memory.history, session_id, rules.history, before=question.slot.root,
-        limit_of=lambda chat: chatkinds.profile(chat, cfg).history)
+        limit_of=lambda chat: chatkinds.profile(chat, cfg).history, files=brain.files)
     log.info("a %s turn in %s, with %s of history, on %s", rules.kind, session_id,
              f"all {len(history)} messages" if rules.history < 0
              else f"the newest {len(history)} messages", model)

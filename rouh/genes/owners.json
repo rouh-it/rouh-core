@@ -82,6 +82,7 @@
     "rouh/stopping.py",
     "rouh/retrying.py",
     "rouh/context_editing.py",
+    "rouh/recall.py",
     "rouh/servercalls.py",
     "rouh/subagent.py",
     "rouh/toolsearch.py",

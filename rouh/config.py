@@ -419,7 +419,7 @@ def model_name(model: str) -> str:
 #: never waits on a search first. Automatic recall puts item ids into a turn
 #: (`rouh/synapse/autorecall.py`), and these are what read them further. Where
 #: a chat has no Master they are not declared, and so not loaded either.
-TOOLS_ALWAYS_LOADED: tuple[str, ...] = ("synapse_find", "synapse_query")
+TOOLS_ALWAYS_LOADED: tuple[str, ...] = ("synapse_find", "synapse_query", "recall_result")
 
 
 def _num(name: str, default: float) -> float:
