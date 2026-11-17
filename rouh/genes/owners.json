@@ -3148,7 +3148,12 @@
    "switch": "pet_contacts",
    "files": [
     "rouh/pets.py"
-   ]
+   ],
+   "signals": {
+    "events": {
+     "pet_saved": "You told Rouh about a pet, or changed one: its name, kind or owners"
+    }
+   }
   },
   "n44-card-share": {
    "name": "Send their contact card",

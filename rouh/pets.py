@@ -210,6 +210,9 @@ def save(user_id: str, org_id: str, *, pet_id: str = "", name: str | None = None
                                          readers=[str(ds.get("me_id") or "")] or None,
                                          extra={"pet": meta_pet}, source_key=f"pet:{uuid.uuid4()}",
                                          why="a pet, told Rouh")
+            from . import evolution
+
+            evolution.used(SWITCH, "pet_saved", detail="a new pet")
             return people._person(db.row("SELECT * FROM synapse.item WHERE id = %s", (made["id"],)))
         row = contacts.person_by_id(user_id, org_id, pet_id)
         row = _row(ds, str(row["id"]), lock=True) if row is not None else None
@@ -242,6 +245,9 @@ def save(user_id: str, org_id: str, *, pet_id: str = "", name: str | None = None
         if clean_name:
             title = meta["name"] = clean_name
         contacts.write(ds, row, meta, title, by=by, why="a pet, changed")
+        from . import evolution
+
+        evolution.used(SWITCH, "pet_saved", detail="a pet changed")
         return people._person(db.row("SELECT * FROM synapse.item WHERE id = %s", (row["id"],)))
 
 
