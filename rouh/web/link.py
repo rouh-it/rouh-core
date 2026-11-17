@@ -179,6 +179,7 @@ async def _guard(request, fn):
 async def _state(me) -> dict:
     from rouh.link import card as _card
     from rouh.link import me as _me
+    from rouh.link import grants as _grants
     from rouh.link import peers, spaces, trust
 
     org = str(me.org_id)
@@ -194,6 +195,7 @@ async def _state(me) -> dict:
         "peers": await sync_to_async(peers.listing)(org),
         "invites": await sync_to_async(peers.invites)(org),
         "spaces": await sync_to_async(spaces.listing)(org),
+        "grants": await sync_to_async(_grants.listing)(org),
     })
     return out
 
@@ -285,6 +287,21 @@ async def api_peer_log(request, label: str):
         except Exception as exc:  # noqa: BLE001
             theirs, said = [], f"Their side could not be read now ({type(exc).__name__})."
         return {"mine": mine, "theirs": theirs, "theirs_said": said}
+    return await _guard(request, go)
+
+
+@only("POST")
+async def api_grant(request):
+    """Write a grant to a delegate, or withdraw one: {"act": "give"|"withdraw", ...}."""
+    from rouh.link import grants
+
+    async def go(me, b):
+        org = str(me.org_id)
+        if b.get("act") == "withdraw":
+            return await sync_to_async(grants.withdraw)(org, str(b.get("grant_id") or ""))
+        return await sync_to_async(grants.give)(org, str(b.get("label") or ""), what=str(b.get("what") or "meetings"),
+                                                given_limits=b.get("limits") if isinstance(b.get("limits"), dict) else None,
+                                                days=int(b.get("days") or 90))
     return await _guard(request, go)
 
 
@@ -456,6 +473,11 @@ async def api_space_act(request, sid: str):
             return {"ok": pacing.stop(org, sid)}
         if act == "meeting":
             return await meeting.start(org, sid, minutes=int(b.get("minutes") or 30), days=int(b.get("days") or 7))
+        if act == "yes_for":
+            from rouh.link import grants
+
+            return await grants.decide_for(org, sid, str(b.get("granter") or ""), str(b.get("proposal") or ""),
+                                           str(b.get("option") or ""))
         if act == "standin":
             from rouh.link import standin
 

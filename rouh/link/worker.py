@@ -64,7 +64,7 @@ def describe(sd: dict, kind: str, my_actor: str) -> str:
         for it in sd["lists"].get(name, []):
             text = f"- [{it['id']}] {'(done) ' if it['fields'].get('done') else ''}{it['fields'].get('text', '')}"
             lines.append(untrusted.wrap(text, "the shared space") if it["by"].split(":", 1)[1] != my_actor.split(":", 1)[1] else text)
-    for name in k["texts"]:
+    for name in list(k["texts"]) + [f"sec-{it['id']}" for it in sd["lists"].get("sections", [])]:
         t = sd["texts"].get(name, {}).get("text", "")
         lines.append(f"Text {name} ({k['names'].get(name, name)}):")
         lines.append(untrusted.wrap(t, "the shared space") if t.strip() else "(empty)")
@@ -91,11 +91,16 @@ def to_steps(plan: dict, sd: dict, kind: str, actor: str, text_tops: dict) -> li
 
     k = kinds.of(kind)
     lists, texts = set(k["lists"]), set(k["texts"])
+    # A document's sections each have a text of their own, "sec-<id>", written side by side.
+    texts |= {f"sec-{it['id']}" for it in sd["lists"].get("sections", [])}
     items = {name: {it["id"]: it for it in sd["lists"].get(name, [])} for name in lists}
     out: list[tuple[str, list[dict]]] = []
     next_pos: dict[str, float] = {}
+    claimed: set[str] = set()
     tops = dict(text_tops)
     ends = {name: (sd["texts"].get(name, {}).get("ids") or [""])[-1] for name in texts}
+    for name in texts:
+        tops.setdefault(name, 0)
     for step in plan["steps"]:
         ops: list[dict] = []
         for edit in step["do"]:
@@ -122,6 +127,11 @@ def to_steps(plan: dict, sd: dict, kind: str, actor: str, text_tops: dict) -> li
                 words = a["add"][:_doc.TEXT_MOST]
                 if ends.get(name) and not words.startswith(("\n", " ")):
                     words = "\n" + words
+                if name.startswith("sec-") and f"text:{name}" not in sd["claims"] and f"text:{name}" not in claimed:
+                    # A Rouh claims the section it writes, so the team sees whose it is and no other Rouh
+                    # writes over it; a person can take it back.
+                    ops.append(spaces.new_op("claim", actor, part=f"text:{name}"))
+                    claimed.add(f"text:{name}")
                 ops.append(spaces.new_op("ins", actor, t=name, after=ends.get(name, ""), id0=f"{base}~{actor}", text=words))
                 tops[name] = base + len(words) - 1
                 ends[name] = f"{tops[name]}~{actor}"
@@ -162,7 +172,8 @@ async def work(org: str, sid: str, words: str, *, who=None) -> dict:
         plan = _json_of(answer.text)
     finally:
         spaces.seen(live, actor, kind="rouh", name=me.tagged, part="", doing="", busy=False)
-    tops = {name: sd["texts"].get(name, {}).get("top", 0) for name in kinds.of(row.kind)["texts"]}
+    tops = {name: sd["texts"].get(name, {}).get("top", 0) for name in list(kinds.of(row.kind)["texts"])
+            + [f"sec-{it['id']}" for it in sd["lists"].get("sections", [])]}
     steps = to_steps(plan, sd, row.kind, actor, tops)
     if not steps:
         await live.changed()

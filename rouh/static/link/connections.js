@@ -134,10 +134,19 @@
       if (p.state === 'blocked') acts.appendChild(el('button', { text: 'Unblock', onclick: function () { peerAct(p.label, { act: 'unblock' }, 'Unblocked.'); } }));
       else acts.appendChild(el('button', { class: 'quiet danger', text: 'Block', onclick: function () { peerAct(p.label, { act: 'block' }, 'Blocked.'); } }));
       acts.appendChild(el('button', { class: 'quiet', text: 'The log', onclick: function () { openLog(p); } }));
+      if (p.state === 'connected' && p.trust === 'delegate') acts.appendChild(el('button', { class: 'quiet', text: 'Write a grant', onclick: function () { grantForm(p, box); } }));
+      var theirs = (S.grants || []).filter(function (g) { return g.peer === p.label && g.active; });
+      var grantsBox = el('div', { class: 'acts stack', style: 'gap:6px' });
+      theirs.forEach(function (g) {
+        grantsBox.appendChild(el('div', { class: 'grant' }, [
+          el('p', { class: 'small' }, [el('strong', { text: g.direction === 'out' ? 'Your grant: ' : 'Their grant to your Rouh: ' }), g.words]),
+          g.direction === 'out' ? el('button', { class: 'danger', text: 'Withdraw', onclick: function () {
+            API.post('/api/link/grant', { act: 'withdraw', grant_id: g.grant_id }).then(function () { toast('Withdrawn. Nothing more is decided under it.'); load(); }).catch(fail); } }) : null]));
+      });
       box.appendChild(el('div', { class: 'peer' }, [
         el('span', { class: 'av rouh c-' + (p.state === 'connected' ? '1' : '4'), 'aria-hidden': 'true', text: initials(p.name) }),
         el('div', {}, [el('div', { text: p.name }), el('div', { class: 'small dim', text: stateWords + (p.state === 'connected' ? ', ' + p.trust_word + (p.silo ? ', ' + p.silo : '') : '') + (p.since ? ', since ' + when(p.since) : '') })]),
-        acts
+        acts, theirs.length ? grantsBox : null
       ]));
     });
   }
@@ -178,6 +187,23 @@
     $('findable').checked = !!st.findable_by_email;
     ['strangers', 'openNet', 'findable'].forEach(function (id) { $(id).disabled = !!st.held; });
     $('heldWhy').textContent = st.held ? st.held_why : 'You choose. Each stays off until you turn it on.';
+  }
+
+  // A written grant to a delegate: what it may decide for you, with its limits, shown to both people.
+  function grantForm(p, box) {
+    var mins = el('select', { 'aria-label': 'Longest meeting' });
+    [30, 60, 90, 120].forEach(function (m) { mins.appendChild(el('option', { value: m, text: 'Up to ' + m + ' minutes', selected: m === 60 })); });
+    var week = el('select', { 'aria-label': 'Most a week' });
+    [1, 3, 5, 10].forEach(function (m) { week.appendChild(el('option', { value: m, text: 'At most ' + m + ' a week', selected: m === 5 })); });
+    var f = el('form', { class: 'stack grant-form', onsubmit: function (ev) {
+      ev.preventDefault();
+      API.post('/api/link/grant', { label: p.label, what: 'meetings', limits: { most_minutes: +mins.value, most_a_week: +week.value,
+        days: [0, 1, 2, 3, 4], from_hour: 9, to_hour: 18 } }).then(function (g) { toast('Written and shown to ' + p.name + ': ' + g.words); f.remove(); load(); }).catch(fail);
+    } }, [el('p', { class: 'small', text: p.name.split(' ·')[0] + '’s Rouh may agree meetings for you, weekdays 9:00 to 18:00:' }),
+      el('div', { class: 'row' }, [mins, week]), el('p', { class: 'small dim', text: 'Never money. Withdraw it here at any time.' }),
+      el('div', { class: 'row' }, [el('button', { class: 'primary', type: 'submit', text: 'Write the grant' }),
+        el('button', { class: 'quiet', type: 'button', text: 'Cancel', onclick: function () { f.remove(); } })])]);
+    box.appendChild(f);
   }
 
   function makeLink() {
@@ -240,7 +266,7 @@
     $('newSpace').addEventListener('submit', function (ev) {
       ev.preventDefault();
       var t = $('spaceTitle').value.trim(); if (!t) return;
-      API.post('/api/link/spaces', { title: t, kind: $('spaceKind').value }).then(function (got) { location.href = got.url; }).catch(fail);
+      API.post('/api/link/spaces', { title: t, kind: $('spaceKind').value, silo: $('spaceSide').value }).then(function (got) { location.href = got.url; }).catch(fail);
     });
     ['strangers', 'openNet', 'findable'].forEach(function (id) {
       $(id).addEventListener('change', function () {

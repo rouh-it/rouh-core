@@ -192,6 +192,10 @@ section.box > header { display: flex; gap: 8px; align-items: baseline; justify-c
 .qr { background: #fff; padding: 8px; border-radius: 8px; width: 180px; }
 .qr svg { width: 100%; height: auto; display: block; }
 .linkbox { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; padding: 8px; background: var(--ground); border: 1px solid var(--line); border-radius: 8px; }
+.grant { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.grant p { flex: 1 1 240px; }
+.grant-form { padding: 10px; border: 1px solid var(--line); border-radius: 8px; margin: 8px 0 0; }
+.grant-form select { width: auto; }
 .off { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; }
 .off svg { width: 20px; height: 20px; color: var(--dim); }
 

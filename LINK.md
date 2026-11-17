@@ -32,6 +32,14 @@ Rouh Link is part of Rouh's core (`rouh/link/`, gene `rouh-link`, no off switch)
 | Group keys | `rouh/link/groups.py` | For three or more, the room's Rouh makes a key per epoch and hands it to each member locked to that member alone (`group.welcome`); a new epoch, with a new key, whenever someone joins or leaves. The room's answers to a member holding the epoch are locked once more under it and signed by the room. The idea of MLS (RFC 9420, the Messaging Layer Security standard), not RFC 9420 itself: there is no maintained Python implementation, and a real MLS library can take this module's place. |
 | A stand-in | `rouh/link/standin.py` | The owner names one member's Rouh the stand-in. When the owner's Rouh stops answering, the stand-in holds a room of its own from its copy, the other members connected to it turn to it, and when the owner's Rouh is back the stand-in hands every change back (`standin.handback`), each checked again as from the one who made it; every copy then follows the owner's room again. |
 
+## Phase 3: teams and delegates
+
+| Piece | Where | What |
+|---|---|---|
+| A document side by side | `kinds.py` (doc, page), `link/space.js`, `worker.py` | A document's sections each have a live text of their own (`sec-<id>`), drawn in order under the outline. A person or a Rouh claims a section (Claim, Claimed by, Take back); a Rouh claims the section it writes, and a Rouh's edit of a section another claimed is refused in code (`limits.may_change`). |
+| Delegate grants | `rouh/link/grants.py`, Connections | Written to a connection trusted as Delegate: what (meetings), limits (longest meeting, weekdays, hours, most a week; money always 0), its words, an end, signed. Sent to the other side (`grant.shown`) and shown on both Connections pages. The delegate's person says yes for the granter (`grant.decide`); the granter's own code checks the grant is in force, of this kind, and every limit, then records the yes as the granter's, "by grant", or refuses, saying which limit. Withdraw is one press; from then on every decision is refused and the other side is told. |
+| Work and Personal apart | `trust.silo_ok`, `spaces.invite`, `meeting.my_busy`, Connections | Each connection and each space has a side. A space of one side is never offered to, joined by or kept with a connection of the other (a change of side or level takes it out at once); a meeting reads only the calendars of the space's side; a space is started with its side. |
+
 ## The pages
 
 - `/link`, Connections: who this Rouh is connected to and how far each is trusted (change it, cut, block, read the log), requests, a connect link with its QR code, bringing someone's link, a contact's Rouh, the live spaces, and what is off for now.

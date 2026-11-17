@@ -1102,6 +1102,11 @@ def a_space_plan(body: dict) -> str:
     n = re.search(r"notes:\s*(.*)$", asked, re.I | re.S)
     if n and texts:
         steps.append({"say": "Writing the notes", "do": [{"write": {"text": texts[0], "add": n.group(1).strip()}}]})
+    secs = re.findall(r"^Text (sec-\w+)", said, re.M)
+    for num, words in re.findall(r"section (\d+):\s*(.*?)(?=\s+section \d+:|$)", asked, re.I | re.S):
+        i = int(num) - 1
+        if 0 <= i < len(secs) and words.strip():
+            steps.append({"say": f"Writing section {num}", "do": [{"write": {"text": secs[i], "add": words.strip()}}]})
     if not steps and lists:
         steps = [{"say": "Adding a step", "do": [{"add": {"list": lists[0], "text": asked[:120] or "A step"}}]}]
     return json.dumps({"intent": f"{len(steps)} change{'s' if len(steps) != 1 else ''}: {asked[:120]}", "steps": steps})

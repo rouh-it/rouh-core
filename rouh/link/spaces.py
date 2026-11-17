@@ -993,7 +993,16 @@ async def page_state(org: str, sid: str, *, since: int = -1, wait: float = 0.0, 
         "pending": len(live.pending), "holder_off": live.holder_off,
         "presence": live.fresh_presence(),
         "pacing": pacing.status(org, sid),
+        "grants_in": await asyncio.to_thread(_grants_in, org),
     }
+
+
+def _grants_in(org: str) -> list[dict]:
+    """The grants other people wrote to this Rouh, in force: whose, what, in their words."""
+    from . import grants
+
+    return [{"from": g["peer"], "what": g["what"], "words": g["words"]} for g in grants.listing(org)
+            if g["direction"] == "in" and g["active"]]
 
 
 async def _tell_presence(org: str, sid: str) -> None:

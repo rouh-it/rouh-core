@@ -318,13 +318,14 @@
 
   function textBox(name) {
     if (textBoxes[name]) return textBoxes[name];
-    var b = { busy: false, timer: null, marks: el('span'), by: el('span', { class: 'row' }), comments: el('div') };
-    b.ta = el('textarea', { rows: '6', 'aria-label': (S.space.names || {})[name] || name, placeholder: 'Write here; everyone sees it as you type.',
+    var b = { busy: false, timer: null, marks: el('span'), by: el('span', { class: 'row' }), comments: el('div'),
+      title: el('h2', { text: textTitle(name) }), claim: el('span', { class: 'row' }) };
+    b.ta = el('textarea', { rows: '6', 'aria-label': textTitle(name), placeholder: 'Write here; everyone sees it as you type.',
       oninput: function () { b.busy = true; clearTimeout(b.timer); b.timer = setTimeout(function () { sendText(name); }, 260); },
       onfocus: function () { myPart = 'text:' + name; nudge(); } });
     var holder = el('div');
     b.section = el('section', { class: 'box part notes', 'data-part': 'text:' + name }, [
-      el('header', {}, [el('h2', { text: (S.space.names || {})[name] || name }), b.marks]),
+      el('header', {}, [b.title, el('span', { class: 'row' }, [b.marks, b.claim])]),
       el('div', { class: 'stack' }, [b.ta, el('div', { class: 'row' }, [el('span', { class: 'byline', text: 'Written by' }), b.by,
         el('span', { class: 'spacer grow' }), el('button', { class: 'quiet', type: 'button', text: 'Comment',
           onclick: function () { commentForm('text:' + name, holder); } })]), b.comments, holder])]);
@@ -332,14 +333,42 @@
     return (textBoxes[name] = b);
   }
 
-  function drawTexts() { (S.space.texts || []).forEach(drawText); }
+  // The texts: the kind's own, then one body for each section of a document or page, in the sections'
+  // order, so a team writes one document side by side, each section claimed by whoever writes it.
+  function textNames() {
+    var names = (S.space.texts || []).slice();
+    ((S.doc.lists || {}).sections || []).forEach(function (it) { names.push('sec-' + it.id); });
+    return names;
+  }
+  function textTitle(name) {
+    if (name.indexOf('sec-') === 0) {
+      var it = findItem(name.slice(4));
+      return it ? String(it.fields.text || 'A section') : 'A section';
+    }
+    return (S.space.names || {})[name] || name;
+  }
+  function drawTexts() {
+    var names = textNames();
+    names.forEach(drawText);
+    // In order, moving only a box that is out of place (a box being typed in stays put).
+    var host = $('texts'), want = names.map(function (n) { return textBox(n).section; });
+    want.forEach(function (node, i) { if (host.children[i] !== node && document.activeElement && !node.contains(document.activeElement)) host.insertBefore(node, host.children[i] || null); });
+    Object.keys(textBoxes).forEach(function (n) { if (names.indexOf(n) < 0) textBoxes[n].section.hidden = true; else textBoxes[n].section.hidden = false; });
+  }
 
   function drawText(name) {
     var b = textBox(name);
     var t = (S.doc.texts || {})[name] || { text: '', ids: [], by: [], top: 0 };
     var ta = b.ta;
-    ta.disabled = !canEdit();
     var part = 'text:' + name;
+    b.title.textContent = textTitle(name);
+    var claim = claimOf(part);
+    ta.disabled = !canEdit() || !!(claim && claim.by !== S.me.person && claim.by !== S.me.rouh && isRouh(claim.by) && false);
+    clear(b.claim);
+    if (claim) b.claim.appendChild(el('span', { class: 'claimed small' }, ['Claimed by ', tag(claim.by)]));
+    if (canEdit()) b.claim.appendChild(claim
+      ? el('button', { class: 'quiet', text: claim.by === S.me.person ? 'Let go' : 'Take back', onclick: function () { send([op('release', { part: part })]); } })
+      : el('button', { class: 'quiet', text: 'Claim', title: 'Take this part: only you and your Rouh change it until you let it go', onclick: function () { send([op('claim', { part: part })]); } }));
     var marks = marksFor(part);
     clear(b.marks).appendChild(marks.node);
     b.section.classList.toggle('marked', !!marks.colour);
@@ -433,6 +462,10 @@
         if (y && y.option === o.id) yeses.appendChild(tag('person:' + l));
       });
       var chosen = p.chosen === o.id;
+      // Under a written grant: yes for another person, checked by their Rouh's code against the grant.
+      var forOthers = p.state === 'open' ? (S.grants_in || []).filter(function (g) {
+        return g.what === 'meetings' && needed.indexOf(g.from) >= 0 && !(p.yes || {})[g.from];
+      }) : [];
       box.appendChild(el('div', { class: 'option' + (chosen ? ' chosen' : '') }, [
         el('div', {}, [el('div', { text: o.label }), yeses]),
         p.state === 'open' && needed.indexOf(S.me.label) >= 0 ?
@@ -441,6 +474,12 @@
             onclick: function () { send([op('yes', { pid: p.id, option: o.id })]); } }) :
           (chosen ? el('span', { class: 'state-mark good' }, [svgCheck(), 'This one']) : el('span'))
       ]));
+      forOthers.forEach(function (g) {
+        var who = memberName(g.from).split(' ·')[0];
+        box.lastChild.appendChild(el('button', { class: 'quiet', text: 'Yes for ' + who + ', under their grant', title: g.words,
+          onclick: function () { act('yes_for', { granter: g.from, proposal: p.id, option: o.id })
+            .then(function () { toast(who + '’s Rouh checked it against the grant and said yes for them.'); }).catch(fail); } }));
+      });
     });
     if (p.state === 'agreed') {
       var booked = (S.doc.activity || []).filter(function (a) { return /^(Put it in|Agreed;)/.test(a.words); });
