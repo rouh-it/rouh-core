@@ -1,4 +1,0 @@
-# Loop log
-Round 1: 3 blockers (no amber partner mark on the live page; no "no time free" state; presence counts disagreed). Fixed: an amber "is at work" mark in the bar; the meeting box says when no time is free; the sentence and the avatars count one list. Also: Stop styled as a stop, Remove quiet until hovered, the live steps show one Rouh's run as one, intent says "is working on" once started, "Rouhs in it", plainer words for what is off.
-Round 2: 1 blocker (no Skip to the end while a partner's Rouh writes). Fixed: Skip to the end in the intent banner and the at-work mark for any Rouh, by a 'pace' change only a person may make, which that Rouh's pacer obeys. Also: the waiting count no longer amber, one primary button in the empty Connections.
-Round 3: 0 blockers. Then: step buttons show on hover or focus where there is a mouse; the meeting above the notes.
