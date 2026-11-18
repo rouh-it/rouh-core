@@ -428,12 +428,32 @@ def make(parent_id: str, before: int | None = None, *,
                                 created_at=time.time())
         if chosen:
             Chat.objects.filter(id=chat_id).update(model_choice=chosen)
+        reading = _closest_parent_only(chat_id, reading)
         if reading:
             Chat.objects.filter(id=chat_id).update(reading=reading)
     log.info("chat %s forked into %s after message %s%s", parent_id, chat_id, at,
              f", above exchange {before}" if before is not None else
              f", through exchange {through}" if through is not None else "")
     return chat_id
+
+
+def _closest_parent_only(chat_id: str, reading: dict) -> dict:
+    """A fork made in Simple chat reads only the chat it came off: every older parent chat starts turned off
+    in its Included content (Petar, 18 November 2026: "closest parent by default"). Only as the fork is
+    made; the person turns any of them on afterwards, and a chat moved to Simple later keeps its own choices.
+    A fork on Full Rouh Capabilities or Custom carries its parent chats as it always has."""
+    from . import reading as reading_mod
+
+    mode = reading_mod.mode_of(reading) if reading else "full"
+    if mode != "simple":
+        return reading
+    chain = [p for p, _at in carried_chain(chat_id)]
+    if len(chain) < 2:
+        return reading
+    out = dict(reading or {})
+    out.pop("fork_history", None)
+    out["parents"] = {p: i == 0 for i, p in enumerate(chain)}
+    return out
 
 
 def _with_options(reading: dict, options) -> dict:
