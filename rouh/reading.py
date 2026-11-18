@@ -80,7 +80,7 @@ DEFAULTS = {"mode": "full", "memory": True, "rules": True, "rouh_tools": True, "
             "step_histories": False, "parent_task": True, "parent_task_history": False, "fork_history": True,
             "parents": {}}
 #: The three modes, as the selector at the top of Chat Options names them.
-MODES = ("simple", "full", "custom")
+MODES = ("full", "simple", "custom")
 MODE_NAMES = {"simple": "Simple chat", "full": "Full Rouh Capabilities", "custom": "Custom"}
 #: Whether Simple chat keeps the model's own tools (web search and fetch, code, pictures), as a plain chat
 #: with a model usually does (Petar, 18 November 2026). The one setting to flip for a Simple chat with none.

@@ -11275,12 +11275,6 @@ html:not(.demo) .demo-dot:not(.keep) { display: none; }
   #composerControls:has(> .fork-btn:not([hidden])) .reading-btn svg { display: none; }
   #composerControls:has(> .fork-btn:not([hidden])) .reading-btn { padding: 0 7px; font-size: 13px; }
 }
-/* "Full Rouh Capabilities" on the button (18 November 2026): its words are never cut. Where the line has no
-   room for them on one line they go onto two, smaller, inside the button's own height. */
-.reading-btn[data-mode="full"] .model-btn-word { white-space: normal; line-height: 1.05; text-align: left; }
-@container composer (max-width: 560px) {
-  .reading-btn[data-mode="full"] .model-btn-word { max-width: 6.6em; font-size: 12px; }
-}
 .reading-strip {
   appearance: none; display: flex; align-items: flex-start; gap: 6px; width: 100%;
   margin: 0; padding: 4px 14px 6px; border: 0; background: none; cursor: pointer;

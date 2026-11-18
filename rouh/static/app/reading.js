@@ -108,15 +108,17 @@ var incogAsk = $('incogAsk');
 
 var LOCK = 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z';
 
-/** The three modes, as the selector says them (rouh/reading.py `MODES`), each with one line of what it means. */
+/** The three modes, as the selector says them (rouh/reading.py `MODES`), each with one line of what it means.
+    Full first (Petar, 18 November 2026: "full rouh capabilities should be the first option"). */
 var MODES = [
-  ['simple', 'Simple chat', 'Plain talk with the model: web search, no memory, rules or Rouh Tools.'],
   ['full', 'Full Rouh Capabilities', 'Everything on: memory, your rules, Rouh Tools and LLM Tools.'],
+  ['simple', 'Simple chat', 'Plain talk with the model: web search, no memory, rules or Rouh Tools.'],
   ['custom', 'Custom', 'Choose each of them yourself.']
 ];
 var SAFETY = 'Permission, privacy and safety cannot be turned off.';
-/** The mode in one word, on the button, as the model's button says Smart or Cheap. */
-var SHORT = /** @type {Record<string, string>} */ ({ simple: 'Simple', full: 'Full Rouh Capabilities', custom: 'Custom' });
+/** The mode in one word, on the button, as the model's button says Smart or Cheap. The long names are only
+    the popup's own (Petar, 18 November 2026: "Button should be "Full""); everywhere else says this. */
+var SHORT = /** @type {Record<string, string>} */ ({ simple: 'Simple', full: 'Full', custom: 'Custom' });
 
 function currentChat() { return String((CHATS && CHATS.active) || ''); }
 
@@ -181,9 +183,9 @@ function paintBtn(d) {
   var mode = d && d.settings ? String(d.settings.mode || '') : '';
   btnWord.textContent = SHORT[mode] || 'Options';
   btn.dataset.mode = mode;
-  var says = 'Chat Options: ' + (mode ? modeName(mode) : 'what this chat uses') + '. Memory, your rules, Rouh Tools and LLM Tools';
+  var says = 'Chat Options: ' + (SHORT[mode] || 'what this chat uses') + '. Memory, your rules, Rouh Tools and LLM Tools';
   btn.dataset.tip = says;
-  btn.setAttribute('aria-label', 'Chat Options, ' + (mode ? modeName(mode) : 'loading'));
+  btn.setAttribute('aria-label', 'Chat Options, ' + (SHORT[mode] || 'loading'));
 }
 
 /** The strip, from the server's words. @param {ReadView | null} d */
@@ -457,7 +459,7 @@ function paintPop(d) {
   var reset = el('button', 'reading-reset', 'Reset to defaults');
   reset.type = 'button';
   reset.dataset.reset = '1';
-  reset.title = d.incognito ? 'Back to Simple chat, nothing left out' : 'Back to Full Rouh Capabilities, nothing left out';
+  reset.title = d.incognito ? 'Back to Simple chat, nothing left out' : 'Back to Full, nothing left out';
   bar.appendChild(reset);
   pop.appendChild(bar);
 
@@ -522,12 +524,6 @@ function paintPop(d) {
   link.appendChild(icon('M9 6l6 6-6 6', 14));
   foot.appendChild(link);
   side.appendChild(foot);
-}
-
-/** @param {string} id */
-function modeName(id) {
-  for (var i = 0; i < MODES.length; i++) if (MODES[i][0] === id) return MODES[i][1];
-  return 'Full Rouh Capabilities';
 }
 
 /** The mode selector: three radio rows drawn like the model's (`.model-opt`, app/composer_extras.js).
@@ -827,7 +823,7 @@ function fullPaint(d) {
   // Reset to defaults is in the title bar, beside Close (`toldReset`).
   var top = $('toldReset');
   if (top) top.title = d.incognito ? 'Back to Simple chat, nothing left out'
-    : 'Back to Full Rouh Capabilities, nothing left out';
+    : 'Back to Full, nothing left out';
   var done = el('button', 'cot-btn done', 'Done');
   done.type = 'button';
   done.dataset.done = '1';
