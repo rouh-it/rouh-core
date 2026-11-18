@@ -45,7 +45,7 @@ from . import clock, costs
 from .usage import _money, named
 
 #: What a level may be split by, in the order the screen goes down unless told otherwise.
-ORDER = ("provider", "model", "purpose", "day", "origin")
+ORDER = ("purpose", "provider", "model", "day", "origin")
 
 #: Every one of them as the screen says it.
 DIMS = {"provider": "Company", "model": "Model", "purpose": "Use", "day": "Day",
@@ -549,7 +549,7 @@ def level(who, *, period: str = "days30", at: str | None = None, start: str | No
     where, args = _where(who, [(blo, bhi), (lo, hi)], filters, zone_name, unpriced)
     began = _began(who)
     # Nothing was logged in the period before, so there is nothing to compare with; or the log
-    # began part way through it, which the screen says.
+    # began part way through it.
     began_after = began is None or began >= bhi
     before_partial = not began_after and began > blo
 

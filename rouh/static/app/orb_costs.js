@@ -47,7 +47,7 @@ function ouColour(key) {
   return OU_COLOURS[h % OU_COLOURS.length];
 }
 //: The default order down, as the server has it (`usage_drill.ORDER`).
-var OU_ORDER = ['provider', 'model', 'purpose', 'day', 'origin'];
+var OU_ORDER = ['purpose', 'provider', 'model', 'day', 'origin'];
 
 /**
  * Where the screen is: the period, the choices made on the way down in the
@@ -99,11 +99,10 @@ function ouHas(dim) {
   return OU.filters.some(function (f) { return f[0] === dim; });
 }
 
-// The split a level gets when nobody picked one: the use, for a day (Petar
-// asked for a spike straight to that day by use), else the next in order.
+// The split a level gets when nobody picked one: the next in order, which starts with the
+// use (Petar, 18 November 2026: "Default split should be by USE").
 function ouNext() {
   var oneDay = ouHas('day') || OU.period.kind === 'day';
-  if (oneDay && !ouHas('purpose')) return 'purpose';
   for (var i = 0; i < OU_ORDER.length; i++) {
     // One day is not split by day.
     if (OU_ORDER[i] === 'day' && oneDay) continue;
@@ -476,7 +475,6 @@ function ouPaintLevel(u) {
   // here is about the log itself.
   var notes = [];
   if (before.none) notes.push('The log begins on ' + ouDay(u.began) + ', so there is nothing before this to compare with.');
-  else if (before.partial) notes.push('The log begins on ' + ouDay(u.began) + ', part way through the period before, so that period is not complete.');
   if (u.began && u.period.from < u.began && !before.none) notes.push('The log begins on ' + ouDay(u.began) + '.');
   if (notes.length) {
     var n = el('p', 'ou-note');
@@ -633,8 +631,6 @@ function ouPaintChart(body, u, paint) {
   part.appendChild(title);
   var names = {};
   (u.rows || []).forEach(function (r) { names[r.key] = r.name; });
-  part.appendChild(el('p', 'ou-hint', hourly ? 'Press an hour to see its calls by use.'
-    : s.measure === 'calls' ? 'Press a day to see its calls by use.' : 'Press a day to see what it was spent on.'));
 
   // Dollars, or calls in the view of the calls with no price (`s.measure`).
   var counting = s.measure === 'calls';
