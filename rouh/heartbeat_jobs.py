@@ -15,7 +15,7 @@ do never starts a job, and the timer's look with nothing found leaves no row at 
 
 **The job acts.** A beat with something to do starts one background job (`start`), through the
 one start path every job takes (`starting.start`, preset "heartbeat_beat"), on the agent and
-model the Models page has for it (`USE`): Claude Code or Codex, on the subscription or, for a
+model the Models page has for it (`USE`, the Smart tier unless given its own): Claude Code or Codex, on the subscription or, for a
 person with none, on an API key. Its brief is written fresh every time (`heartbeat.note_for_duties`,
 `note_for_work`): what happened, what it already told the owner, what waits on them, its duties
 and quests, what it may do. It carries no chat: the Heartbeat chat is kept as history and is
@@ -45,9 +45,10 @@ import time
 
 log = logging.getLogger("rouh.heartbeat_jobs")
 
-#: The Models page's pick for a beat's job (`modeldefaults.USES`): Claude Code on a Claude model,
-#: Codex on an OpenAI one; Claude Code on Sonnet unless changed.
-USE = "heartbeat_beat"
+#: The Models page's pick for a beat's job (`modeldefaults.USES`, "Beat job"): the Smart model and
+#: its level, as every background job resolves it, unless the page gives it a model of its own.
+#: Claude Code on a Claude model, Codex on an OpenAI one.
+USE = "heartbeat_decide"
 #: What a beat's job is made by, on its run (`task_origin.run_maker`), the heartbeat's own duties'
 #: and a quest's.
 MADE_BY = "process:heartbeat"
@@ -456,9 +457,11 @@ async def start(who, *, brief: str, title: str, work_id: int | None = None) -> d
     """Start one beat's job; what `starting.start` answers. Raises when nothing took it."""
     if hooks.start is None:
         raise RuntimeError("background jobs cannot be started here")
-    agent, model = await asyncio.to_thread(engine, who)
+    # Only the agent is worked out here; the model and its level are the use's own, resolved by
+    # the one start path exactly as for any job (`starting.start`, `modeldefaults.use_pair`).
+    agent, _model = await asyncio.to_thread(engine, who)
     return await hooks.start(
-        brief=brief, title=title, preset="heartbeat_beat", agent=agent, model=model, use=USE,
+        brief=brief, title=title, preset="heartbeat_beat", agent=agent, use=USE,
         org_id=str(who.org_id), made_by=MADE_BY_QUEST if work_id is not None else MADE_BY,
         standing_rules=False)
 

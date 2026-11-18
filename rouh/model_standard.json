@@ -422,9 +422,9 @@
         ]
       }
     },
-    "heartbeat_beat": {
-      "tier": "claude-sonnet-5",
-      "why": "A beat's background job decides what to do and does it with nobody watching. Claude Code on Sonnet has the judgement for it and runs on the subscription.",
+    "heartbeat_decide": {
+      "tier": "smart",
+      "why": "A beat's background job decides what to do and does it with nobody watching: the Smart model and its level, the same as Rouh's other background jobs.",
       "order": {
         "cheaper": [
           "anthropic",

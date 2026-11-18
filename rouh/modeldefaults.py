@@ -315,13 +315,16 @@ USES: tuple[Use, ...] = (
         off_said="Off: every beat with something to do starts its job",
         purposes=("heartbeat_check",)),
     # Petar, 18 November 2026 (task 182): a beat is a background job, not a turn in an
-    # ever-growing chat (`rouh/heartbeat_jobs.py`). Claude Code on a Claude model, Codex on an
-    # OpenAI one, on the subscription, or on an API key for a person who has none; Sonnet unless
-    # changed. It replaced "Decision" (heartbeat_decide), the beat's turn in the Heartbeat chat.
-    Use("heartbeat_beat", "Heartbeat", "Beat job",
+    # ever-growing chat (`rouh/heartbeat_jobs.py`): Claude Code on a Claude model, Codex on an
+    # OpenAI one, on the subscription, or on an API key for a person who has none. And the same
+    # day: "the defaults should be whatever we have in the model setup ... whatever those claude
+    # code and codex have setup anyway as a smart model". So it is on Smart, and changing Smart
+    # changes it; a model of its own (Custom) stays possible and is empty unless chosen.
+    Use("heartbeat_decide", "Heartbeat", "Beat job",
         "A beat with something to do: a background job, started fresh from a written brief, "
-        "that decides what to do and does it. Claude Code on a Claude model, Codex on an OpenAI "
-        "one.", needs_key=False, subscription=True, can_ask=(ANTHROPIC, OPENAI)),
+        "that decides what to do and does it, on the Smart model and its level unless you give "
+        "it one of its own. Claude Code on a Claude model, Codex on an OpenAI one.",
+        needs_key=False, subscription=True, can_ask=(ANTHROPIC, OPENAI)),
     # 24 October 2026: a beat told Petar Anthropic had cut Rouh off, a day after he had
     # raised the cap. Before a beat says a company fails, it asks that company once
     # (`rouh/provider_check.py`), so each company has its own check.
