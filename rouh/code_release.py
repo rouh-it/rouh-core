@@ -1,8 +1,8 @@
-"""Released changes of shared rouh-core main (rouh-land/rouh-core: rouh/github_org.py), after the early-test Rouhs' day with them.
+"""Released changes of shared rouh-core main (rouh-land/rouh-core: rouh/github_org.py), after the early-test Rouhs' 12 hours with them.
 
 Task 140, steps 140-18 and 140-19 (11 November 2026). The source is shared main, including changes
 published by collaborators. A release boundary has passed master's checks and has run on an
-authorised early-test Rouh for at least a day with nothing put back. Initially there is one
+authorised early-test Rouh for at least 12 hours with nothing put back. Initially there is one
 early tester; authorised collaborators can join without changing the source branch. Local private
 commits are never released: candidate() requires membership on shared main. This module moves rouh.land's
 pointer (``POST /mac/code/release``) forward, at most once a day; nobody approves each release
@@ -14,10 +14,11 @@ How a release is chosen (``candidate``):
   the protected core says runs now (``seen.jsonl`` in ``code-release/`` in the data folder).
 * **An undo point of a change** (``kind`` "change"), whose checks passed (the frozen security
   checks and Rouh's own, `guard/rouh_guard/checks.py`), that the doctor never put back.
-* **A day.** It went live at least ``LIVE_FOR`` ago, and every commit seen running since then
+* **12 hours.** It went live at least ``LIVE_FOR`` ago (24 hours until Petar halved it on
+  18 November 2026), and every commit seen running since then
   contains it: nothing put it back, by the doctor or by a press of Put back. The looks must
-  cover the day, with no gap longer than ``GAP``: a day this Rouh was not running is not a day it
-  ran.
+  cover those hours, with no gap longer than ``GAP``: an hour this Rouh was not running is not an
+  hour it ran.
 * **Master checked.** Tests on main at GitHub succeeded for this exact commit, including both
   container platforms. An unavailable or unsuccessful result keeps it waiting.
 * **Public.** It is on rouh-core's main, as the protected core keeps it fetched into /code
@@ -47,8 +48,9 @@ from . import github_org
 
 log = logging.getLogger("rouh.code_release")
 
-#: How long a checked change on shared main must run on an authorised early-test Rouh.
-LIVE_FOR = float(os.environ.get("ROUH_RELEASE_LIVE_FOR", str(24 * 3600)))
+#: How long a checked change on shared main must run on an authorised early-test Rouh: 12 hours
+#: (Petar, 18 November 2026: "can we reduce this 24h to 12h?"). rouh.land takes nothing under 11.
+LIVE_FOR = float(os.environ.get("ROUH_RELEASE_LIVE_FOR", str(12 * 3600)))
 #: The longest gap between two looks that still counts as running throughout.
 GAP = float(os.environ.get("ROUH_RELEASE_GAP", str(3 * 3600)))
 #: At most one publish a day.
@@ -131,7 +133,7 @@ def ran_throughout(commit: str, since: float, now: float, looks: list[dict]) -> 
         return "not seen running since it went live"
     times = [since] + [float(r["at"]) for r in after] + [now]
     if max(b - a for a, b in zip(times, times[1:])) > GAP:
-        return "not seen running for part of the day"
+        return "not seen running for part of the 12 hours"
     for r in after:
         if r["commit"] != commit and not _contains(r["commit"], commit):
             return f"put back at {dt.datetime.fromtimestamp(float(r['at']), dt.timezone.utc):%d %b %H:%M} UTC"
@@ -169,7 +171,7 @@ def candidate(points: list[dict], published: str, now: float | None = None,
     up = _git("rev-parse", "--verify", "-q", UPSTREAM).stdout.strip()
     if not up:
         return None, "rouh-core's main is not fetched here"
-    why = "nothing newer than the release has run a whole day yet"
+    why = "nothing newer than the release has run here 12 hours yet"
     for p in sorted(points, key=lambda p: -float(p.get("at") or 0)):
         commit = str(p.get("commit") or "")
         if published and (commit == published or _contains(published, commit)):
@@ -313,8 +315,8 @@ def public() -> dict:
 # Petar, 12 November 2026: "There's nothing to update to." The automatic choice looks only at this
 # Rouh's own undo points of kind "change", and the newest of those old enough (593e6cf99981) was not
 # on rouh-core's main, so nothing was ever released. A release by hand takes the commits of
-# rouh-core's main itself: the newest that passed master's Tests on main, has run here a whole day
-# (rouh.land refuses a younger one: "a release must have run on the Creator Rouh for a day first")
+# rouh-core's main itself: the newest that passed master's Tests on main, has run here 12 hours
+# (rouh.land refuses one younger than 11: "a release must have run on the Creator Rouh for 11 hours first")
 # and contains the release before it. One step, from the core:
 #
 #     python manage.py code_release --publish            the newest such commit
@@ -340,8 +342,8 @@ def _went_live(commit: str, points: list[dict]) -> float:
 
 
 def newest_checked(since: str = "", points: list[dict] | None = None, now: float | None = None) -> tuple[str, str]:
-    """(the newest commit on rouh-core's main that passed Tests on main, has run here a whole day
-    (rouh.land takes no release younger than that) and contains `since`, "") or ("", why not)."""
+    """(the newest commit on rouh-core's main that passed Tests on main, has run here 12 hours
+    (rouh.land takes no release younger than 11) and contains `since`, "") or ("", why not)."""
     now = now or time.time()
     points = points or []
     up = _git("rev-parse", "--verify", "-q", UPSTREAM).stdout.strip()
@@ -360,7 +362,7 @@ def newest_checked(since: str = "", points: list[dict] | None = None, now: float
         if commit not in passed:
             continue
         if now - _went_live(commit, points) < LIVE_FOR:
-            why = f"{commit[:12]} passed, and has not run here a whole day yet"
+            why = f"{commit[:12]} passed, and has not run here 12 hours yet"
             continue
         return commit, ""
     return "", why
