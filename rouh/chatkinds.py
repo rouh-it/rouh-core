@@ -130,12 +130,10 @@ def profile(chat_id: str | None, cfg=None) -> Profile:
 def use_for(chat_id: str | None) -> str:
     """The use on the Models page whose tier this chat answers on: "case_read"
     for a turn about somebody else's email or message (a case's reading or its
-    start), the heartbeat's decision in a chat its beats run in, "general" for
+    start), "general" for
     General and every fork of it, and "chats" for every other chat."""
     if of_case():
         return "case_read"
-    if of_heartbeat(chat_id):
-        return "heartbeat_decide"
     return "general" if of_general(chat_id) else "chats"
 
 

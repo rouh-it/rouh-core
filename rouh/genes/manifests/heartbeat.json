@@ -30,12 +30,13 @@
     "tables": [
       "heartbeat_state",
       "heartbeat_beats",
-      "heartbeat_approvals"
+      "heartbeat_approvals",
+      "heartbeat_subjects"
     ],
     "jobs": [
-      "the heartbeat's beats (rouh/heartbeat.py)"
+      "the heartbeat's beats (rouh/heartbeat.py), each a background job (rouh/heartbeat_jobs.py)"
     ],
-    "remove": "Turn it off in its own settings; to remove it, delete rouh/heartbeat.py, heartbeatpage.js/.css, its loop in rouh/runtime.py and this manifest."
+    "remove": "Turn it off in its own settings; to remove it, delete rouh/heartbeat.py, rouh/heartbeat_jobs.py, heartbeatpage.js/.css, its loop in rouh/runtime.py and this manifest."
   },
   "uses": {
     "tools": [
@@ -45,7 +46,9 @@
       "heartbeat_brief",
       "heartbeat_ledger",
       "heartbeat_next",
-      "heartbeat_thread"
+      "heartbeat_thread",
+      "heartbeat_record",
+      "heartbeat_reported"
     ]
   }
 }

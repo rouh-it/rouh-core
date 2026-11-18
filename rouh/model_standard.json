@@ -406,7 +406,7 @@
     },
     "heartbeat_check": {
       "tier": "off",
-      "why": "Off until you turn it on: every beat goes straight to the decision. When on, Cheaper is enough to say whether anything needs attention.",
+      "why": "Off until you turn it on: every beat that code found something for starts its job. When on, Cheaper is enough to say whether anything needs attention.",
       "order": {
         "cheaper": [
           "openai",
@@ -422,13 +422,13 @@
         ]
       }
     },
-    "heartbeat_decide": {
-      "tier": "smart",
-      "why": "Decides what to do and does it with nobody watching, so it needs good judgement.",
+    "heartbeat_beat": {
+      "tier": "claude-sonnet-5",
+      "why": "A beat's background job decides what to do and does it with nobody watching. Claude Code on Sonnet has the judgement for it and runs on the subscription.",
       "order": {
         "cheaper": [
-          "openai",
           "anthropic",
+          "openai",
           "google",
           "xai"
         ],

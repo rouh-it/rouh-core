@@ -22,6 +22,11 @@ the job (`job_gateway.scope_of`), the same three as `rouh/job_mail.py` drew on 2
   conversation and what came in it, and nothing of the owner's own;
 - `PROCESS`: a job one of Rouh's own processes started (the heartbeat, quests, the
   nights), which reads what a beat reads: Rouh's own inbox, never the owner's.
+- `BEAT`: a heartbeat's beat that is itself a job (`rouh/heartbeat_jobs.py`, 18 November 2026).
+  It is given the heartbeat's own tools (`HEARTBEAT_OWN`), and every other call is run as the
+  beat would have made it, under the heartbeat's own rules (`heartbeat.check`), which refuse
+  what a beat may not do by itself and point to heartbeat_ask: nothing beyond what a beat could
+  do before.
 
 **The classes**, one per tool, written out below; a tool that is in none of them is `RISKY`,
 so a tool added tomorrow fails closed:
@@ -55,8 +60,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-OWNER, CONTACT, PROCESS = "owner", "contact", "process"
-SCOPES = (OWNER, CONTACT, PROCESS)
+OWNER, CONTACT, PROCESS, BEAT = "owner", "contact", "process", "beat"
+SCOPES = (OWNER, CONTACT, PROCESS, BEAT)
 
 READ, OWN, RISKY, NEVER = "read", "own", "risky", "never"
 
@@ -204,7 +209,8 @@ NEVERS = frozenset({
     "look_into", "make_picture", "change_picture", "synapse_generate",
     # The heartbeat's own, and the owner's control of it.
     "heartbeat", "quest", "long_work", "heartbeat_end", "heartbeat_ask", "heartbeat_brief",
-    "heartbeat_ledger", "heartbeat_next", "heartbeat_thread",
+    "heartbeat_ledger", "heartbeat_next", "heartbeat_thread", "heartbeat_record",
+    "heartbeat_reported",
     # What the outbox holds: a job queues with notify_owner, and never reads the others'.
     "worker_outbox",
     # A gene offered or drafted in the chat, with the owner.
@@ -220,6 +226,12 @@ NEVERS = frozenset({
 #: Of the mail the registry reads, these take an inbox: a job of Rouh's own processes is held
 #: to Rouh's own, as a beat is (`heartbeat.READS_MAIL`).
 TAKES_INBOX = frozenset({"read_recent_mail", "read_mail", "read_mail_attachment"})
+
+#: The heartbeat's own tools, which a beat's own job is given, and no other job
+#: (`heartbeat.OWN`). Never listed to any other job (`NEVERS`).
+HEARTBEAT_OWN = frozenset({"heartbeat_end", "heartbeat_ask", "heartbeat_brief", "heartbeat_ledger",
+                           "heartbeat_next", "heartbeat_thread", "heartbeat_record",
+                           "heartbeat_reported"})
 
 #: What a job doing a trusted contact's work may have run: that contact's conversation and
 #: its files (Rouh holds it to that conversation in `rouh/job_mail.py`), asking Rouh, and the
@@ -295,9 +307,11 @@ def known(name: str) -> bool:
             or name == CORE_COMMAND)
 
 
-def listed(name: str) -> bool:
-    """Whether a tool is listed to jobs at all: everything but `NEVERS`."""
-    return str(name or "") not in NEVERS
+def listed(name: str, scope: str = "") -> bool:
+    """Whether a tool is listed to jobs at all: everything but `NEVERS`, and to a beat's own job
+    the heartbeat's own tools too."""
+    name = str(name or "")
+    return name not in NEVERS or (scope == BEAT and name in HEARTBEAT_OWN)
 
 
 def decide(scope: str, name: str, args=None) -> Ruling:
@@ -311,6 +325,8 @@ def decide(scope: str, name: str, args=None) -> Ruling:
         return Ruling(REFUSE, klass, (
             f"{str(args.get('command') or '')!r} is not on the core's list. The commands: "
             + ", ".join(sorted(CORE_READS | CORE_MAINTENANCE)) + "."))
+    if scope == BEAT and name in HEARTBEAT_OWN:
+        return Ruling(RUN, OWN)
     if klass == NEVER:
         return Ruling(REFUSE, klass, f"{name} is not something a background job may use: it "
                                      "belongs to the owner's own chat with Rouh.")
@@ -324,16 +340,20 @@ def decide(scope: str, name: str, args=None) -> Ruling:
             f"conversation and the files in it (mail_find, mail_file), not {name}, which "
             "reads or changes the owner's own things. Ask with request_from_rouh if the work "
             "truly needs more."))
-    if scope == PROCESS and name in TAKES_INBOX and \
+    if scope in (PROCESS, BEAT) and name in TAKES_INBOX and \
             str(args.get("inbox") or "").strip().lower() != "rouh":
         return Ruling(REFUSE, klass, (
             "This job was started by one of Rouh's own processes, so it reads Rouh's own "
             "inbox only, as a heartbeat does. Call it again with inbox \"rouh\"."))
     if klass in (READ, OWN):
         return Ruling(RUN, klass)
+    if scope == BEAT:
+        # Run as the beat would have made it: the heartbeat's own rules decide in the gateway
+        # (`heartbeat.check`), refusing what a beat may not do by itself.
+        return Ruling(RUN, klass)
     return Ruling(PENDING, klass)
 
 
-__all__ = ["CONTACT", "CONTACT_MAY", "CORE_COMMAND", "CORE_MAINTENANCE", "CORE_READS", "NATIVE", "NEVER", "NEVERS", "OWN", "OWNER", "OWNS",
+__all__ = ["BEAT", "HEARTBEAT_OWN", "CONTACT", "CONTACT_MAY", "CORE_COMMAND", "CORE_MAINTENANCE", "CORE_READS", "NATIVE", "NEVER", "NEVERS", "OWN", "OWNER", "OWNS",
            "PENDING", "PROCESS", "READ", "READS", "READ_UNLESS", "REFUSE", "RISKS", "RISKY", "RUN",
            "Ruling", "SCOPES", "WHY_ARG", "classify", "decide", "known", "listed"]

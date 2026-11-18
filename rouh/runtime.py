@@ -962,6 +962,49 @@ pulse = heartbeat.Heartbeat(
     changed=lambda: _heartbeat_changed())
 
 
+def _heartbeat_job_hooks() -> None:
+    """What a beat's job borrows from here (`rouh/heartbeat_jobs.py`): the one start path every
+    job takes, stopping a run, and the calendar's next few hours for its duty."""
+    from . import heartbeat_jobs, starting
+
+    heartbeat_jobs.hooks.start = lambda **fields: starting.start(
+        cfg=config, crew=crew, one=one, emit=Hub.broadcast, **fields)
+
+    async def stop(run_id: str):
+        async def noop(_message) -> None:
+            return None
+        return await tools._stop_task({"id": run_id}, noop)
+
+    async def calendar(who) -> list:
+        """The events of the next three hours, as the owner's calendar has them, or []."""
+        from datetime import datetime, timedelta
+
+        from .tenancy import SPEAKER
+
+        google = getattr(tools, "google", None)
+        if google is None:
+            return []
+
+        async def go() -> list:
+            SPEAKER.set(who)
+            if google.not_ready_because():
+                return []
+            from .google_api.calendar import zone_of_person
+
+            begin = datetime.now(zone_of_person())
+            found = await google.services().calendar.events(begin, begin + timedelta(hours=3),
+                                                            limit=20)
+            return [{"id": str(e.get("id") or ""), "summary": str(e.get("title") or ""),
+                     "start": str(e.get("start") or "")[:16]} for e in found.get("events") or []]
+        return await asyncio.create_task(go())
+
+    heartbeat_jobs.hooks.stop = stop
+    heartbeat_jobs.hooks.calendar = calendar
+
+
+_heartbeat_job_hooks()
+
+
 async def _heartbeat_changed() -> None:
     """The heartbeat's queue or state moved: the chats, the decisions it asks, and the goal
     pages, whose quest steps say what its beats are doing (`questcheck.for_goal`)."""
@@ -2147,6 +2190,9 @@ class OneFeed:
         # Every open question, for the decisions (`decision_sources.RunSource`).
         cls.questions = [dict(q) for q in questions if isinstance(q, dict)]
         desk.poke()
+        if any(q.get("id") not in cls.announced for q in cls.questions):
+            # A run of the program waits on the person: the heartbeat looks (`look_soon`).
+            pulse.look_soon()
         cls.waiting = {q["id"]: q for q in questions if q.get("id") not in cls.announced}
         await cls.say_waiting()
 
@@ -7785,6 +7831,10 @@ async def startup() -> None:
             """A crew job ended - an assistant job, a delegated task, an improve_myself
             worker - and the heartbeat hears it (`heartbeat.Heartbeat.run_finished`)."""
             status = str(getattr(mate, "status", ""))
+            if status == "waiting":
+                # A job now waits on the person: a duty of the heartbeat's (`heartbeat.look_soon`).
+                pulse.look_soon()
+                return None
             if not ((kind == "stop" and status == "done") or (kind == "failed" and status == "failed")
                     or (kind in ("lost", "session_end") and status == "lost")):
                 return None

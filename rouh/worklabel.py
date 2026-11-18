@@ -697,6 +697,16 @@ def _heartbeat_thread(a):
     return "Marking a mail thread as the heartbeat's", ""
 
 
+@_step("heartbeat_record")
+def _heartbeat_record(a):
+    return "Writing what the beat did", _arg(a, "subject")
+
+
+@_step("heartbeat_reported")
+def _heartbeat_reported(a):
+    return "Marking a run reported", _arg(a, "run")
+
+
 @_step("change_scheduled")
 def _change_scheduled(a):
     action = _arg(a, "action").lower()

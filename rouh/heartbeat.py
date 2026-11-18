@@ -10,6 +10,16 @@ the full arsenal. But those two are separate."
 So the heartbeat is Rouh's own unprompted turn, with duties of its own, and it carries
 quests (`rouh/quests.py`), the long-running work it does for the owner. Nothing of any one quest is kept here.
 
+**Every beat is a background job** since 18 November 2026 (Petar, task 182, step 182-08 found
+why): until then a beat was a turn in one Heartbeat chat that was sent whole every time, so each
+beat re-sent all the beats before it, and a blank Rouh beat four times a day with nothing to do.
+Now code decides whether there is anything to do, and only then does a beat start a Claude Code
+or Codex job (`rouh/heartbeat_jobs.py`), fresh, from a written brief, with no chat behind it:
+what happened, the records of only the subjects it is about, the one ledger of what the owner
+was told, what waits on them, its duties and what it may do. The job reaches the heartbeat's own
+tools through the `rouh` MCP server, held to exactly the rules below (`job_gateway`, scope
+`beat`). The Heartbeat chat is kept as the history it is, and is never sent anywhere again.
+
 Task 47 found that nothing woke Rouh on a timer, and recommended OpenClaw's design, which
 is this one: events are the main trigger and a timer the backstop; whether a beat is worth
 a model call at all is decided in code first; and a beat may note something silently for
@@ -107,14 +117,15 @@ HOME = "/anatomy/behaviour/heartbeat"
 CHAT_TITLE = "\U0001f493 Heartbeat"
 
 DEFAULT_INTERVAL = 30
-DEFAULT_CAP = Decimal("3.00")
+#: A new install's daily cap on what its beats cost per use (18 November 2026; $3 before). A beat
+#: is a job on the person's Claude Code or Codex subscription and costs nothing per use there;
+#: the cap guards a Rouh whose agents run on an API key.
+DEFAULT_CAP = Decimal("1.00")
 #: The silent notes, all of them together, and each one.
 NOTES_MOST = 2000
 NOTE_EACH = 600
 #: The most events kept waiting for a beat.
 PENDING_MOST = 40
-#: A beat is waited for this long before it is stopped.
-TURN_LIMIT = 900.0
 #: A busy Rouh is looked at again this soon.
 BUSY_AGAIN = 180.0
 #: How far apart a beat may set its own next one (`heartbeat_next`).
@@ -360,6 +371,11 @@ class Beat:
     said: str = ""
     asked: list = field(default_factory=list)
     duties: list = field(default_factory=list)
+    #: A beat that is a background job (`rouh/heartbeat_jobs.py`): rebuilt for each call its job
+    #: makes through Rouh's gateway, so what it records is written to its row at once (`keep_beat`).
+    job: bool = False
+    #: What it is about, "task:182", "run:abc" (`heartbeat_jobs.subjects_of`).
+    subjects: list = field(default_factory=list)
 
     def saw(self, name: str, call_id: str = "") -> None:
         key = call_id or f"{name}-{len(self.tools)}"
@@ -447,9 +463,11 @@ CHANGES_OWN_FILES = frozenset({"edit_doc", "edit_sheet", "edit_slides"})
 STRIPE = "stripe"
 STRIPE_READS = frozenset({"status", "payments", "balance", "list"})
 STRIPE_MAKES = frozenset({"create_product", "create_price", "create_payment_link"})
-#: Its own tools, offered in a beat and nowhere else.
+#: Its own tools, offered in a beat and nowhere else: heartbeat_record writes what a beat did
+#: about one subject to that subject's record, and heartbeat_reported marks a finished run as
+#: reported (`rouh/heartbeat_jobs.py`).
 OWN = ("heartbeat_end", "heartbeat_ask", "heartbeat_brief", "heartbeat_ledger",
-       "heartbeat_next", "heartbeat_thread")
+       "heartbeat_next", "heartbeat_thread", "heartbeat_record", "heartbeat_reported")
 #: The person's own control of it and of the quests it carries, never offered in a beat:
 #: it would be granting itself.
 CONTROL = ("heartbeat", "quest", "long_work")
@@ -680,6 +698,31 @@ def current_work() -> int | None:
     return beat.work_id if beat is not None else None
 
 
+def job_beat(beat_id: int) -> "Beat | None":
+    """A beat that is a background job, as its job's calls through Rouh's gateway are made
+    under it (`job_gateway`): its row read back, with what it already asked. None when there is
+    no such beat or it is over, so a job that outlived its beat does nothing as the heartbeat."""
+    m = _models()
+    row = m.HeartbeatBeat.objects.filter(id=beat_id).first()
+    if row is None or row.status != "running":
+        return None
+    asked = list(m.HeartbeatApproval.objects.filter(beat_id=row.id).values_list("id", flat=True))
+    return Beat(id=row.id, user_id=str(row.user_id), org_id=str(row.org_id), chat="",
+                trigger=row.trigger, work_id=row.work_id, tools=list(row.tools or []),
+                outcome=row.outcome or "", said=row.said or "", asked=asked,
+                duties=list(row.duties or []), job=True, subjects=list(row.subjects or []))
+
+
+def keep_beat(beat: "Beat") -> None:
+    """What a beat that is a job recorded in one call, written to its row: how it ended, what it
+    said, the duties it named and the tools it called."""
+    if not beat.job:
+        return
+    _models().HeartbeatBeat.objects.filter(id=beat.id, status="running").update(
+        outcome=beat.outcome, said=beat.said[:2000], duties=beat.duties[:20],
+        tools=beat.tools[:80])
+
+
 # --- the rows ------------------------------------------------------------------------
 
 
@@ -730,6 +773,21 @@ def _save(row, **fields) -> None:
     _models().HeartbeatState.objects.filter(id=row.id).update(**fields)
     for key, value in fields.items():
         setattr(row, key, value)
+
+
+def _looked(row, now: float, said: str) -> None:
+    """When the timer last looked in code and found nothing, for the page: a look leaves no beat."""
+    from django.db import transaction
+
+    m = _models()
+    with transaction.atomic():
+        fresh = m.HeartbeatState.objects.select_for_update().filter(id=row.id).first()
+        if fresh is None:
+            return
+        own = dict(fresh.own or {})
+        own["last_look"] = {"at": now, "said": said[:200]}
+        m.HeartbeatState.objects.filter(id=row.id).update(own=own)
+    row.own = own
 
 
 def _owned(who_pair, beat: "Beat | None", kind: str) -> list:
@@ -829,17 +887,10 @@ def beat_chats(row) -> list[str]:
 
 
 def spend(row, since: float = 0.0) -> Decimal:
-    """What every beat cost since then, the heartbeat's and each quest's, from the
-    log of every model request."""
-    chats = beat_chats(row)
-    if not chats:
-        return Decimal("0")
-    from django.db.models import Sum
-
-    found = _models().LLMRequest.objects.filter(
-        session_id__in=chats, started_at__gte=since, user_id=row.user_id,
-        org_id=row.org_id).aggregate(n=Sum("cost_usd"))["n"]
-    return Decimal(found or 0)
+    """What every beat cost since then, the heartbeat's and each quest's: the model requests
+    made in the chats beats ran in until 18 November 2026, and what each beat that is a job cost
+    per use, its wake-up check and its job (`HeartbeatBeat.cost`)."""
+    return _spent_between(row, since, None)
 
 
 def _chat_spend(chat: str, user_id: str, since: float) -> Decimal:
@@ -857,8 +908,6 @@ _dollars = quests.dollars
 #: What the next full beat may cost is judged by the newest of these many, from this
 #: many days back (`beat_reserve`).
 RESERVE_BEATS, RESERVE_DAYS = 10, 7
-#: How often a running beat looks at the day's spend, to stop at the cap (`_full`).
-CAP_LOOK = 10.0
 
 
 def beat_reserve(row) -> Decimal:
@@ -922,18 +971,20 @@ def _ago(seconds: float) -> str:
 
 
 def _beat_row(who, trigger: str, events: list, *, status: str, reason: str = "",
-              work_id: int | None = None, beat_id: int | None = None) -> int:
+              work_id: int | None = None, beat_id: int | None = None,
+              subjects: list | None = None) -> int:
     now = time.time()
+    extra = {"kind": "job", "subjects": list(subjects or [])[:20]} if subjects is not None else {}
     if beat_id is not None:
         # A check the owner asked for (`questcheck.ask`): its row, queued until now, is the beat.
         _models().HeartbeatBeat.objects.filter(id=beat_id).update(
             events=events[:PENDING_MOST], status=status, reason=reason[:600],
-            finished_at=now if status == "skipped" else None)
+            finished_at=now if status == "skipped" else None, **extra)
         return beat_id
     row = _models().HeartbeatBeat.objects.create(
         **_whose(who), trigger=trigger, work_id=work_id, events=events[:PENDING_MOST],
         status=status, reason=reason[:600], started_at=now,
-        finished_at=now if status == "skipped" else None)
+        finished_at=now if status == "skipped" else None, **extra)
     return row.id
 
 
@@ -1140,9 +1191,9 @@ PERMISSIONS = (
     "that work; make private Docs and "
     "Drive files, shared with nobody; mark Rouh's own goal steps with goal_step; read the "
     "payments status and Stripe; in a beat on a quest, make Stripe products, prices "
-    "and payment links for it and fill the card for its plan with browser fill_card, within "
-    "the caps; use the live browser up to, never including, the last button; and keep your "
-    "notes, ledger and next beat with your own tools.\n"
+    "and payment links for it, within "
+    "the caps (the live browser is the person's: a step that needs it is queued with heartbeat_ask); "
+    "and keep your notes, ledger, records and next beat with your own tools.\n"
     "EVERYTHING ELSE NEEDS ‹owner›'S YES and is refused if you call it: mail or messages to "
     "anyone else, anything in ‹owner›'s name or from ‹his› inbox, posting, publishing or sharing, signing up, refunds, payouts, "
     "anything that cannot be undone, changing Rouh's code, deploying, model settings, "
@@ -1178,42 +1229,71 @@ def _how_to_end(cfg: dict, phone: bool, trigger: str, *, on_work: bool) -> str:
     keep = ("Keep its PLAN and NOTEBOOK current with heartbeat_brief, record its money with "
             "heartbeat_ledger, mark" if on_work else "Mark")
     return (
+        "YOU ARE A BACKGROUND JOB that Rouh started for this one beat, fresh: there is no chat "
+        "behind you and nobody is watching. Your tools for the heartbeat are on the rouh MCP "
+        "server (heartbeat_end, heartbeat_ask, heartbeat_record, heartbeat_reported, "
+        "heartbeat_next, heartbeat_thread" + (", heartbeat_brief, heartbeat_ledger" if on_work
+                                              else "") + ", and Rouh's own reading tools). Read "
+        "anything else you need yourself, from the workspace and from those tools. Do not make "
+        "tasks, steps, pages or commits, and change no file: a beat acts only through those "
+        "tools.\n"
         "HOW TO WORK: take one useful step, small and finished. Hand anything longer than a "
         "few searches to a run (assistant_job), and read what it found when it reports. "
         + keep + " a mail thread you started as your own with heartbeat_thread, and set "
-        "your own next beat with heartbeat_next when there is a time to come back. Load your "
-        "tools with the tool search by their exact names.\n"
+        "your own next beat with heartbeat_next when there is a time to come back"
+        + (" (a quest has no regular look any more: without a next beat or an event it waits)"
+           if on_work else "") + ". "
+        "After acting on a subject - a task, a step, a run, a quest, a mail thread - write one "
+        "line of what you did about it with heartbeat_record (subject such as \"task:182\" or "
+        "\"run:<id>\"), so the next beat about it knows; write nothing when you did nothing. Mark "
+        "a finished run you have read and dealt with with heartbeat_reported.\n"
         "HOW TO END: call heartbeat_end exactly once, last, naming in duties which duties you "
-        "acted on and in told what you told ‹owner› about, so ‹he› is never told twice. how "
-        "\"nothing\"; how \"note\", a few lines kept for Rouh's next conversation with ‹owner›; "
-        "or " + _telling(cfg, phone, trigger) + ". Then say in one short line what this beat "
-        "did.")
+        "acted on and in about the subjects you told ‹owner› about, so ‹he› is never told "
+        "twice. how \"nothing\" when there was nothing to do: that leaves only a status; how "
+        "\"note\", a few lines kept for Rouh's next conversation with ‹owner›; or "
+        + _telling(cfg, phone, trigger) + ". Then say in one short line what this beat did.")
+
+
+def _told_block(row) -> str:
+    from . import heartbeat_jobs
+
+    lines = heartbeat_jobs.told_lines(row)
+    return ("ALREADY TOLD ‹owner› (the one ledger every beat shares; never tell ‹him› the same "
+            "again):\n" + lines) if lines else ""
+
+
+def _records_block(records: list) -> str:
+    from . import heartbeat_jobs
+
+    text = heartbeat_jobs.record_lines(records)
+    return ("WHAT EARLIER BEATS DID ABOUT THESE SUBJECTS (only this beat's subjects):\n" + text
+            if text else "")
 
 
 def note_for_duties(row, cfg: dict, events: list, trigger: str, *, number: int,
-                    waiting_rows: list, spent_today: Decimal, works: list, phone: bool) -> str:
-    """What a beat on the heartbeat's own duties is handed."""
+                    waiting_rows: list, spent_today: Decimal, works: list, phone: bool,
+                    items: list | None = None, records: list | None = None) -> str:
+    """What a beat on the heartbeat's own duties is handed: the brief its job starts from."""
     now = clock.now()
     parts = [f"{NOTE_HEAD} It is {now.strftime('%A %d %B %Y, %H:%M')}. This is beat {number} "
              f"of Rouh's heartbeat, on its own duties, woken by {_WOKE.get(trigger, trigger)}. "
-             "Nobody is watching this turn."]
+             "Nobody is watching it."]
     lines = [_event_line(e) for e in events]
+    lines += [f"- [{it['duty']}] {it['what']}" + (f" (subject {it['subject']})" if it.get("subject")
+                                                  else "") for it in (items or [])]
     if row.due_what and trigger == "due":
         lines.append(f"- You set this beat for: {row.due_what}")
-    parts.append("What happened since the last beat:\n" + ("\n".join(lines) if lines else
-                 "- Nothing new. This is the regular look at your duties."))
+    parts.append("What happened since the last beat, and what the duties found:\n"
+                 + ("\n".join(lines) if lines else "- Nothing new; ‹owner› asked for this beat."))
     duties = [d for d in cfg["duties"] if d.get("on") and d["id"] != WORK_DUTY]
     parts.append("YOUR DUTIES (‹owner›'s list; each id in brackets):\n" + (
         "\n".join(f"- [{d['id']}] {d['text']}" for d in duties) or "- None is on."))
     if cfg.get("extra"):
         parts.append(f"ALSO, IN ‹owner›'S WORDS:\n{cfg['extra']}")
     if works:
-        parts.append("QUESTS the heartbeat carries, each worked on in a beat of its own in its "
-                     "own chat (not here):\n" + "\n".join(f"- {w}" for w in works))
-    told = (row.own or {}).get("told", [])[-40:]
-    if told:
-        parts.append("ALREADY TOLD ‹owner› (never tell ‹him› again):\n"
-                     + "\n".join(f"- {t}" for t in told))
+        parts.append("QUESTS the heartbeat carries, each worked on in a beat of its own "
+                     "(not here):\n" + "\n".join(f"- {w}" for w in works))
+    parts += [b for b in (_records_block(records or []), _told_block(row)) if b]
     parts.append(f"SPEND: today's heartbeat spend {_dollars(spent_today)} of the "
                  f"{_dollars(row.daily_cap)} daily cap, across every beat.")
     if waiting_rows:
@@ -1230,21 +1310,21 @@ def note_for_duties(row, cfg: dict, events: list, trigger: str, *, number: int,
 
 
 def note_for_work(work, row, cfg: dict, events: list, trigger: str, *, number: int,
-                  waiting_rows: list, spent_today: Decimal, cash: dict, phone: bool) -> str:
-    """What a beat on one quest is handed: its standing brief and what woke it."""
+                  waiting_rows: list, spent_today: Decimal, cash: dict, phone: bool,
+                  records: list | None = None) -> str:
+    """What a beat on one quest is handed: its standing brief, what woke it, and the brief its
+    job starts from."""
     now = clock.now()
     parts = [f"{NOTE_HEAD} It is {now.strftime('%A %d %B %Y, %H:%M')}. This is beat {number} "
              f"of {quests.name(work)}, a quest Rouh's heartbeat "
-             f"carries, woken by {_WOKE.get(trigger, trigger)}. Nobody is watching this turn."]
-    if work.earlier_chat_id:
-        parts[0] += (" Its earliest beats ran in the Heartbeat chat, before it was a quest of "
-                     "its own; what they found is in its notebook.")
+             f"carries, woken by {_WOKE.get(trigger, trigger)}. Nobody is watching it."]
     lines = [_event_line(e) for e in events]
     if work.due_what and trigger == "due":
         lines.append(f"- You set this beat for: {work.due_what}")
     parts.append("What happened since the last beat on it:\n" + ("\n".join(lines) if lines else
-                 "- Nothing new. This is the regular look at its plan."))
+                 "- Nothing new: its first beat, or ‹owner› asked for a check now."))
     parts += quests.note_block(work, cash)
+    parts += [b for b in (_records_block(records or []), _told_block(row)) if b]
     parts.append(f"SPEND: today's heartbeat spend {_dollars(spent_today)} of the "
                  f"{_dollars(row.daily_cap)} daily cap, across every beat.")
     if waiting_rows:
@@ -1408,6 +1488,11 @@ class Heartbeat:
         self.jobs: set[asyncio.Task] = set()
         #: When a busy Rouh, or one at its cap, is looked at again.
         self.retry_at = 0.0
+        #: The beat jobs running now, by run id: set when the run says it ended (`run_finished`).
+        self.beat_runs: dict[str, asyncio.Event] = {}
+        #: Something a duty looks for may have appeared (a run now waits on the owner): the
+        #: next tick looks in code at once rather than at the timer's time (`look_soon`).
+        self.look_now = False
 
     # --- running -------------------------------------------------------------------
 
@@ -1561,20 +1646,31 @@ class Heartbeat:
                     return 1.0
                 if work.due_at:
                     nxt.append(work.due_at)
-                at = (work.last_beat_at or work.created_at or now) + interval
+                # A quest's first beat, a minute after it is made; after that it beats for its
+                # events, the times its beats set and Check now, and has no regular look
+                # (18 November 2026: a look with nothing new was a beat that found nothing).
                 if not work.last_beat_at:
                     at = (work.created_at or now) + 60
-                if working and now >= at:
-                    await self.work_beat(who, work.id, "timer")
-                    return 1.0
-                nxt.append(at)
+                    if working and now >= at:
+                        await self.work_beat(who, work.id, "timer")
+                        return 1.0
+                    nxt.append(at)
+        # The timer is a look in code, not a beat: what the duties find (`heartbeat_jobs.probe`).
+        # Only when one finds something does a beat start a job; a look that finds nothing
+        # leaves no row, only when it looked (18 November 2026: no regular look, no job for
+        # nothing).
         timer_at = (row.last_beat_at or 0) + interval
         if not row.last_beat_at:
-            # Just made, or never beaten: the first look is a timer beat a minute from now.
             timer_at = (row.created_at or now) + 60
-        if working and now >= timer_at:
-            await self.beat(who, row, "timer")
-            return 1.0
+        looking, self.look_now = self.look_now, False
+        if working and (now >= timer_at or looking):
+            items = await self._probe(who, row, cfg)
+            if items:
+                await self.beat(who, row, "timer", items=items)
+                return 1.0
+            await asyncio.to_thread(_save, row, last_beat_at=now)
+            await asyncio.to_thread(_looked, row, now, "Looked: nothing for a duty to do.")
+            timer_at = now + interval
         nxt.append(timer_at)
         if not working and cfg["wakes"]["timer"]:
             nxt.append(now + until(local, hours["work_from"]))
@@ -1621,7 +1717,18 @@ class Heartbeat:
 
     def run_finished(self, run_id: str, title: str = "", *, how: str = "finished",
                      kind: str = "run") -> None:
-        """A run of any kind ended: an event, the quest's own when a quest started it."""
+        """A run of any kind ended. A beat's own job ends its beat and is never an event: it
+        would wake the heartbeat for ever. A run the heartbeat or a quest started, or one of
+        Rouh's processes started that nobody has reported, is an event, the quest's own when a
+        quest started it. A run the owner started is reported to them where they started it,
+        and wakes nothing (`heartbeat_jobs.run_wakes`, 18 November 2026)."""
+        from . import heartbeat_jobs
+
+        run_id = str(run_id)
+        ended = self.beat_runs.get(run_id)
+        if ended is not None:
+            ended.set()
+            return
         words = f"{kind.replace('_', ' ').capitalize()} {run_id}"
         if title:
             words += f" “{title[:120]}”"
@@ -1629,9 +1736,16 @@ class Heartbeat:
 
         async def go():
             who = await self._who()
-            work = (await asyncio.to_thread(quests.owning_of, who, "runs", str(run_id))
-                    if who is not None else None)
-            await self.event("run", words, run=run_id, work_id=work.id if work else None)
+            if who is None:
+                return
+            what, whose = await asyncio.to_thread(heartbeat_jobs.run_wakes, who, run_id)
+            if what in (heartbeat_jobs.BEAT, heartbeat_jobs.PERSON):
+                log.debug("run %s ended (%s): not the heartbeat's business", run_id, what)
+                return
+            task = await asyncio.to_thread(heartbeat_jobs._task_of_run, run_id)
+            extra = " Nobody has reported it." if what == heartbeat_jobs.UNREPORTED else ""
+            await self.event("run", words + extra, run=run_id, task=task,
+                             work_id=whose.id if what == heartbeat_jobs.QUEST else None)
         self._soon(go())
 
     def mail_arrived(self, who, thread_id: str, sender: str, subject: str) -> None:
@@ -1645,6 +1759,12 @@ class Heartbeat:
                              thread=thread_id, work_id=work.id if work else None)
         self._soon(go())
 
+    def look_soon(self) -> None:
+        """A run may now be waiting on the owner: the duties are looked at in code at once, and a
+        beat starts only if they find something new (`heartbeat_jobs.probe`)."""
+        self.look_now = True
+        self.poke()
+
     def _soon(self, coro) -> None:
         try:
             task = asyncio.get_running_loop().create_task(coro)
@@ -1656,9 +1776,28 @@ class Heartbeat:
 
     # --- one beat ----------------------------------------------------------------------
 
-    async def beat(self, who, row, trigger: str) -> int:
-        """One beat on the heartbeat's duties: skipped in code with its reason, or a turn
-        in the Heartbeat chat. Its row id."""
+    async def _probe(self, who, row, cfg: dict) -> list:
+        """What the duties find in code (`heartbeat_jobs.probe`), the calendar read first when
+        its duty is on. Never raises: a duty that cannot be looked at finds nothing."""
+        from . import heartbeat_jobs
+
+        calendar = []
+        if duty_on(cfg, "calendar") and heartbeat_jobs.hooks.calendar is not None:
+            try:
+                calendar = list(await asyncio.wait_for(heartbeat_jobs.hooks.calendar(who), 30.0)
+                                or [])
+            except Exception:  # noqa: BLE001 - no calendar read is nothing in it
+                log.info("the heartbeat could not read the calendar ahead", exc_info=True)
+        try:
+            return await asyncio.to_thread(heartbeat_jobs.probe, who, row, cfg,
+                                           calendar=calendar)
+        except Exception:  # noqa: BLE001 - nothing found
+            log.exception("the heartbeat's duties could not be looked at")
+            return []
+
+    async def beat(self, who, row, trigger: str, items: list | None = None) -> int:
+        """One beat on the heartbeat's duties: skipped in code with its reason, or a background
+        job (`_full`). `items` are what its duties found in code. Its row id."""
         async with self.lock:
             row = await asyncio.to_thread(ensure, who)
             cfg = config_of(row)
@@ -1671,14 +1810,15 @@ class Heartbeat:
             if trigger == "summary":
                 fields["summary_day"] = clock.now().strftime("%Y-%m-%d")
             await asyncio.to_thread(_save, row, **fields)
-            reason, hold = await self._skip_because(row, cfg, trigger, events, now)
+            reason, hold = await self._skip_because(row, cfg, trigger, events, now,
+                                                    items=items)
             if hold:
                 self.retry_at = hold
             if reason:
                 beat_id = await asyncio.to_thread(skipped, who, trigger, events, reason)
                 await self._changed()
                 return beat_id
-            return await self._full(who, row, cfg, trigger)
+            return await self._full(who, row, cfg, trigger, items=items)
 
     async def work_beat(self, who, work_id, trigger: str, asked=None) -> int:
         """One beat on a quest: skipped in code with its reason, or a turn in its own chat.
@@ -1726,7 +1866,7 @@ class Heartbeat:
         return [w for w in (row.wakes or []) if now - w < window] + [now]
 
     async def _skip_because(self, row, cfg: dict, trigger: str, events: list, now: float,
-                            work=None) -> tuple[str, float]:
+                            work=None, items: list | None = None) -> tuple[str, float]:
         """Why this beat is skipped, or "", and until when to hold off every beat (0 for not).
 
         Held off when Rouh is busy or the daily cap is reached, so the events that keep
@@ -1763,26 +1903,40 @@ class Heartbeat:
             return "No duty is on, and nothing else was asked of it.", 0.0
         holder = work if work is not None else row
         due = bool(holder.due_at and holder.due_at <= now)
-        if (cfg["skip"]["nothing_new"] and not asked and trigger != "summary" and not events
-                and not due):
-            since = now - (holder.last_full_at or 0)
-            if holder.last_full_at and since < cfg["skip"]["nothing_new_hours"] * 3600:
-                return owner.say("Nothing new since the last beat (no finished work, no new mail, "
-                                 "nothing due, no answer from ‹owner›), and the last full beat"
-                                 + (f" on “{work.title}”" if work is not None else "")
-                                 + f" was {_ago(since)} ago.", str(holder.user_id)), 0.0
+        first = work is not None and not work.last_full_at
+        # Nothing to do is never a job (18 November 2026): no event, nothing due, nothing a duty
+        # found, not asked for and not the summary's time. There is no regular look any more.
+        if (not asked and trigger not in ("answer", "summary") and not events and not due
+                and not items and not first):
+            return owner.say("Nothing to look at: no finished work of its own, no new mail, "
+                             "nothing due, no answer from ‹owner›, and nothing a duty found"
+                             + (f" on “{work.title}”" if work is not None else "") + ".",
+                             str(holder.user_id)), 0.0
         return "", 0.0
 
-    async def _full(self, who, row, cfg: dict, trigger: str, work=None, asked=None) -> int:
+    async def _full(self, who, row, cfg: dict, trigger: str, work=None, asked=None,
+                    items: list | None = None) -> int:
+        """A beat with something to do: its brief written fresh, and one background job started
+        on it (`rouh/heartbeat_jobs.py`), waited for under the beat lock, stopped at its limit
+        or the daily cap. No chat is sent anywhere. Its row id."""
+        from . import heartbeat_jobs
+
         work_id = work.id if work is not None else None
-        chat = await (self._work_chat(work) if work is not None else self._chat(row))
         events = await asyncio.to_thread(
             quests.take_events if work is not None else _take_events, work or row)
         if asked is not None:
             events = list(asked.events or []) + events
-        beat_id = await asyncio.to_thread(_beat_row, who, trigger, events, status="running",
-                                          work_id=work_id,
-                                          beat_id=asked.id if asked is not None else None)
+        items = list(items or [])
+        subjects = heartbeat_jobs.subjects_of(events, items, work)
+        found = [{"kind": "duty", "at": time.time(), "what": it["what"], "duty": it["duty"],
+                  **({"subject": it["subject"]} if it.get("subject") else {})} for it in items]
+        beat_id = await asyncio.to_thread(_beat_row, who, trigger, events + found,
+                                          status="running", work_id=work_id,
+                                          beat_id=asked.id if asked is not None else None,
+                                          subjects=subjects)
+        if items:
+            # Handed to this beat: never found again as new (`heartbeat_jobs.probe`).
+            await asyncio.to_thread(heartbeat_jobs.mark_handled, row, [it["key"] for it in items])
         started = time.time()
         await self._changed()
         number = await asyncio.to_thread(
@@ -1790,13 +1944,16 @@ class Heartbeat:
                 **_whose(who), work_id=work_id).exclude(status="skipped").count())
         spent_today = await asyncio.to_thread(spend, row, _midnight())
         phone = bool(self.phone and self.phone.configured())
+        records = await asyncio.to_thread(heartbeat_jobs.records_for, str(who.user_id),
+                                          str(who.org_id), subjects)
         if work is not None:
             waiting_rows = await asyncio.to_thread(waiting, who, work.id)
             cash = await asyncio.to_thread(quests.money, work)
             # In a thread: the note reads the waiting approvals' decision numbers.
             note = await asyncio.to_thread(
                 note_for_work, work, row, cfg, events, trigger, number=number,
-                waiting_rows=waiting_rows, spent_today=spent_today, cash=cash, phone=phone)
+                waiting_rows=waiting_rows, spent_today=spent_today, cash=cash, phone=phone,
+                records=records)
             if trigger == "due":
                 await asyncio.to_thread(quests.save, work, due_at=0, due_what="")
         else:
@@ -1811,106 +1968,87 @@ class Heartbeat:
                 lambda: [quests.line(w) for w in quests.all_of(who)])
             note = await asyncio.to_thread(
                 note_for_duties, row, cfg, events, trigger, number=number,
-                waiting_rows=waiting_rows, spent_today=spent_today, works=works, phone=phone)
+                waiting_rows=waiting_rows, spent_today=spent_today, works=works, phone=phone,
+                items=items, records=records)
             if trigger == "due":
                 await asyncio.to_thread(_save, row, due_at=0, due_what="")
-        # The note is the beat's first message, kept in its chat: the owner's name written in.
+        # The brief, with the owner's name written in: it leaves Rouh for the job.
         note = await asyncio.to_thread(owner.say, note, who)
+        session = f"heartbeat-beat-{beat_id}"
         if trigger in CHECKED:
-            slept = await self._wake_check(who, chat, note, beat_id, started)
+            slept = await self._wake_check(who, session, note, beat_id, started)
             if slept:
                 return beat_id
-        beat = Beat(id=beat_id, user_id=str(who.user_id), org_id=str(who.org_id), chat=chat,
-                    trigger=trigger, work_id=work_id)
-        status, problem = "done", ""
-        from .tenancy import SPEAKER
-
-        beat_was = BEAT.set(beat)
-        away_was = protected.UNATTENDED.set(True)
-        speaker_was = SPEAKER.set(who)
-        # What the beat makes - a task, the runs it starts and the steps they bring in - is
-        # the heartbeat's, or its quest's, and not his (`rouh/task_origin.py`).
-        from . import task_origin
-
-        making = task_origin.making("quests" if work_id else "heartbeat",
-                                    f"beat {beat_id}" + (f" on quest {work_id}" if work_id else ""))
-        making.__enter__()
+        title = (f"{heartbeat_jobs.TITLE} {number}"
+                 + (f", quest {work.task_number}" if work is not None and work.task_number else ""))
+        status, problem, run_id = "done", "", ""
+        ended = asyncio.Event()
         try:
-            turn = await self.start_turn(chat, note)
+            got = await heartbeat_jobs.start(who, brief=note, title=title, work_id=work_id)
+            run_id = str(got.get("id") or "")
+            if not run_id:
+                raise RuntimeError("nothing took the job")
         except Exception as exc:  # noqa: BLE001 - written on the beat
-            log.exception("a heartbeat turn could not be started")
-            turn, status, problem = None, "failed", f"The turn could not start: {exc}"
+            log.exception("a heartbeat beat's job could not be started")
+            status, problem = "failed", f"Its job could not start: {exc}"
             await asyncio.to_thread(quests.put_back if work is not None else _put_back,
                                     work or row, events)
-        finally:
-            making.__exit__(None, None, None)
-            SPEAKER.reset(speaker_was)
-            protected.UNATTENDED.reset(away_was)
-            BEAT.reset(beat_was)
-        said = ""
-        if turn is not None and getattr(turn, "task", None) is not None:
-            done, capped = await self._wait_within_cap(turn.task, row)
-            if capped:
-                status, problem = "failed", capped
-                if self.cancel is not None:
+        if run_id:
+            self.beat_runs[run_id] = ended
+            await asyncio.to_thread(
+                lambda: _models().HeartbeatBeat.objects.filter(id=beat_id).update(run_id=run_id))
+            await self._changed()
+
+            async def over_cap() -> str:
+                cap = Decimal(row.daily_cap or 0)
+                spent = await asyncio.to_thread(spend, row, _midnight())
+                return (f"Stopped at the daily cap: {_dollars(spent)} spent of {_dollars(cap)}."
+                        if spent >= cap else "")
+            try:
+                how, why = await heartbeat_jobs.wait(run_id, ended, over_cap=over_cap)
+            finally:
+                self.beat_runs.pop(run_id, None)
+            if how in ("limit", "cap", "waiting"):
+                status, problem = "failed", why
+                if heartbeat_jobs.hooks.stop is not None:
                     with contextlib.suppress(Exception):
-                        await self.cancel(chat)
-            elif not done:
-                status, problem = "failed", f"It ran past {int(TURN_LIMIT // 60)} minutes and was stopped."
-                if self.cancel is not None:
-                    with contextlib.suppress(Exception):
-                        await self.cancel(chat)
-            elif turn.task.cancelled():
-                status, problem = "failed", "The turn was stopped before it ended."
-            elif turn.task.exception() is not None:
-                status, problem = "failed", f"The turn failed: {turn.task.exception()}"
-            said = "".join(getattr(turn, "said", []) or []).strip()
+                        await heartbeat_jobs.hooks.stop(run_id)
+            elif how == "failed":
+                status, problem = "failed", "Its job failed."
+            await asyncio.to_thread(heartbeat_jobs.mark_seen, run_id)
         # The log of requests is written by a thread of its own: a moment for the last row.
         await asyncio.sleep(1.5)
-        cost = await asyncio.to_thread(_chat_spend, chat, str(who.user_id), started - 1)
-        outcome = beat.outcome or "nothing"
+        cost = await asyncio.to_thread(_chat_spend, session, str(who.user_id), started - 1)
+        if run_id:
+            _state, run_cost = await asyncio.to_thread(heartbeat_jobs.run_state, run_id)
+            cost += Decimal(str(run_cost or 0))
+        mine = await asyncio.to_thread(
+            lambda: _models().HeartbeatBeat.objects.filter(id=beat_id).first())
+        outcome = (mine.outcome if mine is not None else "") or "nothing"
+        said = (mine.said if mine is not None else "") or ""
+        if outcome == "nothing":
+            # An empty beat leaves only its status and why, and no text anywhere.
+            problem = problem or " ".join(said.split())[:300]
+            said = ""
         await asyncio.to_thread(
             lambda: _models().HeartbeatBeat.objects.filter(id=beat_id).update(
-                status=status, reason=problem[:600], outcome=outcome,
-                said=(beat.said or said)[:2000], tools=beat.tools[:80], cost=cost,
-                duties=beat.duties[:20], finished_at=time.time()))
+                status=status, reason=problem[:600], outcome=outcome, said=said[:2000],
+                cost=cost, finished_at=time.time()))
         if work is not None:
             await asyncio.to_thread(quests.save, work, last_full_at=time.time())
         else:
             await asyncio.to_thread(_save, row, last_full_at=time.time())
-        log.info("heartbeat beat %s (%s%s): %s, %s, cost %s", beat_id, trigger,
-                 f", work {work_id}" if work_id else "", status, outcome, cost)
+        log.info("heartbeat beat %s (%s%s): job %s, %s, %s, cost %s", beat_id, trigger,
+                 f", work {work_id}" if work_id else "", run_id or "none", status, outcome, cost)
         from . import events as eventlog
 
-        eventlog.emit("schedule.ran", who=who, actor="rouh", source="scheduler", chat_id=chat,
+        eventlog.emit("schedule.ran", who=who, actor="rouh", source="scheduler",
                       object_type="work", object_id=f"quest {work_id}" if work_id else "heartbeat",
                       duration_ms=(time.time() - started) * 1000,
                       props={"outcome": str(status)[:40], "trigger": str(trigger)[:40],
                              "beat_id": beat_id})
         await self._changed()
         return beat_id
-
-    async def _wait_within_cap(self, task, row) -> tuple[bool, str]:
-        """Wait for a beat's turn, up to `TURN_LIMIT`, looking at the day's spend every
-        `CAP_LOOK` seconds: whether it ended, and why it was stopped at the cap, or "".
-
-        What was kept back before it started (`beat_reserve`) is the usual guard; this is
-        the one for a beat dearer than any before it, so the cap is never run past by more
-        than the request in flight when it was reached."""
-        cap = Decimal(row.daily_cap or 0)
-        until_at = time.monotonic() + TURN_LIMIT
-        while True:
-            left = until_at - time.monotonic()
-            if left <= 0:
-                return False, ""
-            done, _ = await asyncio.wait({task}, timeout=min(CAP_LOOK, left))
-            if done:
-                return True, ""
-            spent = await asyncio.to_thread(spend, row, _midnight())
-            if spent >= cap:
-                log.warning("heartbeat: a beat stopped at the daily cap, %s of %s", spent, cap)
-                return False, (f"Stopped at the daily cap: {_dollars(spent)} spent of "
-                               f"{_dollars(cap)}.")
 
     async def _wake_check(self, who, chat: str, note: str, beat_id: int, started: float) -> bool:
         """The first step of a beat: whether the decision needs asking at all.
@@ -2033,11 +2171,31 @@ class Heartbeat:
     # --- what a beat calls ------------------------------------------------------------
 
     async def end(self, how: str, text: str, reason: str = "", approvals=None, duties=None,
-                  told=None) -> str:
-        """How a beat ends: nothing, a silent note, or a Telegram, held to the owner's limits."""
+                  told=None, about=None) -> str:
+        """How a beat ends: nothing, a silent note, or a Telegram, held to the owner's limits.
+
+        A note or a Telegram goes on the one ledger of what the owner was told, with the subjects
+        it was about (`about`, else the beat's own), so no later beat tells them again."""
         beat = BEAT.get()
         if beat is None:
             return "heartbeat_end is only for a beat."
+        said = await self._end(beat, how, text, reason, approvals, duties, told)
+        await asyncio.to_thread(keep_beat, beat)
+        if beat.outcome in ("note", "telegram") and not getattr(beat, "_told", False):
+            from . import heartbeat_jobs
+
+            named = [str(a).strip() for a in (about if isinstance(about, list) else [])
+                     if str(a).strip()][:8] or list(beat.subjects)[:8]
+            what = "; ".join(" ".join(str(t).split())[:80] for t in (told or [])
+                             if str(t).strip())[:200] if isinstance(told, list) else ""
+            await asyncio.to_thread(heartbeat_jobs.add_told, beat.user_id, beat.org_id,
+                                    how=beat.outcome, about=named,
+                                    what=what or " ".join(str(text or "").split())[:200])
+            beat._told = True
+        return said
+
+    async def _end(self, beat: "Beat", how: str, text: str, reason: str, approvals, duties,
+                   told) -> str:
         how = str(how or "").strip().lower()
         if how not in ENDINGS:
             return "how is nothing, note or telegram."
@@ -2277,6 +2435,39 @@ class Heartbeat:
         return "Marked as yours: new mail in it wakes " + (
             "a beat on this quest." if beat.work_id is not None else "the heartbeat.")
 
+    async def record(self, subject: str, text: str, title: str = "") -> str:
+        """One line of what this beat did about one subject, on that subject's own record: the
+        next beat about it is handed it, and no beat about anything else is
+        (`heartbeat_jobs.write_record`)."""
+        beat = BEAT.get()
+        if beat is None:
+            return "heartbeat_record is only for a beat."
+        from . import heartbeat_jobs
+
+        return await asyncio.to_thread(heartbeat_jobs.write_record, beat.user_id, beat.org_id,
+                                       subject, text, beat_id=beat.id, title=str(title or ""))
+
+    async def reported(self, run: str, text: str = "") -> str:
+        """A finished run this beat read and dealt with: marked reported, so no duty finds it
+        again, with a line on its record when one is given."""
+        beat = BEAT.get()
+        if beat is None:
+            return "heartbeat_reported is only for a beat."
+        from . import heartbeat_jobs
+
+        run = str(run or "").strip()
+        if not run or not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", run):
+            return "run is the run's id, as one_runs or check_tasks gives it."
+        row = await asyncio.to_thread(state_of, _Who(beat.user_id, beat.org_id))
+        if row is None:
+            return "There is no heartbeat here."
+        await asyncio.to_thread(heartbeat_jobs.mark_handled, row,
+                                [f"unreported:{run}", f"reported:{run}"])
+        if str(text or "").strip():
+            await asyncio.to_thread(heartbeat_jobs.write_record, beat.user_id, beat.org_id,
+                                    heartbeat_jobs.subject("run", run), text, beat_id=beat.id)
+        return f"Run {run} is marked reported: no duty brings it up again."
+
     # --- the owner's controls -------------------------------------------------------------
 
     async def pause(self, who) -> str:
@@ -2309,7 +2500,8 @@ class Heartbeat:
         await asyncio.to_thread(ensure, who)
         self.asked_now = True
         self.poke()
-        return "A beat on the heartbeat's duties is starting now, in the Heartbeat chat."
+        return ("A beat on the heartbeat's duties is starting now, as a background job of its "
+                "own; it is on the orb and on the Beats page.")
 
     async def quest_made(self, who, work) -> None:
         """A new quest: its chat made now, owned by its task, which is filed into the project
@@ -2642,6 +2834,13 @@ def view(who, beats: int = 60) -> dict:
             "held": len(row.held or []),
             "notes": [{"at": clock.clock(n.get("at")), "text": n.get("text") or "",
                        "seen": bool(n.get("seen"))} for n in (row.notes or [])][-8:],
+            # The update that made beats jobs turned it off here, and says so (migration 0261).
+            "turned_off": (str(((row.own or {}).get("turned_off") or {}).get("said") or "")
+                           if off else ""),
+            "last_look": _look_said((row.own or {}).get("last_look"), now),
+            "dear": _dear_said(who),
+            "dear_href": _dear_href(who),
+            "agent": _agent_said(who),
         },
         "config": cfg,
         "worth": TELL_WHY,
@@ -2652,6 +2851,7 @@ def view(who, beats: int = 60) -> dict:
             "outcome": b.outcome, "said": b.said, "tools": b.tools or [],
             "events": [e.get("what") or e.get("kind") for e in (b.events or [])][:8],
             "cost": _dollars(b.cost) if b.cost is not None else "",
+            "kind": b.kind, "run": b.run_id, "subjects": list(b.subjects or []),
             "when": _when(b.started_at, now),
             "took": _ago((b.finished_at or now) - b.started_at) if b.status != "skipped" else "",
             "by": raised(b.work_id, b.duties), "raised": raised(b.work_id, b.duties)["label"],
@@ -2703,16 +2903,24 @@ def end_of(b, asked: bool) -> str:
     return "note" if b.outcome == "note" else "nothing"
 
 
-def _spent_between(row, start: float, end: float) -> Decimal:
-    chats = beat_chats(row)
-    if not chats:
-        return Decimal("0")
+def _spent_between(row, start: float, end: float | None) -> Decimal:
     from django.db.models import Sum
 
-    found = _models().LLMRequest.objects.filter(
-        session_id__in=chats, started_at__gte=start, started_at__lt=end, user_id=row.user_id,
-        org_id=row.org_id).aggregate(n=Sum("cost_usd"))["n"]
-    return Decimal(found or 0)
+    m = _models()
+    total = Decimal("0")
+    chats = beat_chats(row)
+    if chats:
+        reqs = m.LLMRequest.objects.filter(session_id__in=chats, started_at__gte=start,
+                                           user_id=row.user_id, org_id=row.org_id)
+        if end is not None:
+            reqs = reqs.filter(started_at__lt=end)
+        total += Decimal(reqs.aggregate(n=Sum("cost_usd"))["n"] or 0)
+    jobs = m.HeartbeatBeat.objects.filter(user_id=row.user_id, org_id=row.org_id, kind="job",
+                                          started_at__gte=start, cost__isnull=False)
+    if end is not None:
+        jobs = jobs.filter(started_at__lt=end)
+    total += Decimal(jobs.aggregate(n=Sum("cost"))["n"] or 0)
+    return total
 
 
 def days_of(who, row, cfg: dict, now: float, *, off: bool = False) -> dict:
@@ -2765,6 +2973,51 @@ def days_of(who, row, cfg: dict, now: float, *, off: bool = False) -> dict:
     return {"list": out, "now_min": local.hour * 60 + local.minute, "next_min": nxt,
             "ends": ENDS, "cap_value": float(row.daily_cap or 0),
             "per_day": int(cfg["messages"]["per_day"])}
+
+
+def _look_said(look, now: float) -> str:
+    if not isinstance(look, dict) or not look.get("at"):
+        return ""
+    return f"{clock.clock(look['at'])} ({_ago(now - float(look['at']))} ago): {look.get('said') or ''}"
+
+
+def _dear_said(who) -> str:
+    """A warning when a beat cost at least twice its usual in the last day, or ""."""
+    from . import heartbeat_jobs
+
+    try:
+        dear = heartbeat_jobs.dear_beat(str(who.user_id), str(who.org_id))
+    except Exception:  # noqa: BLE001 - no warning
+        log.exception("the heartbeat's dear beats could not be read")
+        return ""
+    if not dear:
+        return ""
+    return (f"Beat {dear['beat']} cost {_dollars(dear['cost'])}, at least twice what a beat "
+            f"usually costs ({_dollars(dear['usual'])}).")
+
+
+def _dear_href(who) -> str:
+    """The dear beat's own place on the Beats page, or ""."""
+    from . import heartbeat_jobs
+
+    try:
+        dear = heartbeat_jobs.dear_beat(str(who.user_id), str(who.org_id))
+    except Exception:  # noqa: BLE001 - no link
+        return ""
+    return beat_address(dear["beat"]) if dear else ""
+
+
+def _agent_said(who) -> str:
+    """Which agent and model a beat's job runs on, as the Models page has it."""
+    from . import heartbeat_jobs
+    from .config import model_name
+
+    try:
+        agent, model = heartbeat_jobs.engine(who)
+    except Exception:  # noqa: BLE001 - said plainly
+        return "Claude Code"
+    name = "Codex" if agent == "codex" else "Claude Code"
+    return f"{name} on {model_name(model)}" if model else name
 
 
 def _cards(who, row, works: list) -> list:

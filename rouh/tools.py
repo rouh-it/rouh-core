@@ -5286,7 +5286,7 @@ class ToolRegistry:
             "or summary (the daily summary's beat only). Within ‹his› limits an hour and a day; "
             "one held back is kept as a note, and one in ‹his› quiet hours is sent when they "
             "end. duties: the ids of the duties you acted on. told: what you told ‹him› about, "
-            "a few words each, so ‹he› is never told twice.",
+            "a few words each, and about: the subjects it was about, so ‹he› is never told twice.",
             {"type": "object", "properties": {
                 "how": {"type": "string", "enum": ["nothing", "note", "telegram"]},
                 "text": {"type": "string"},
@@ -5297,6 +5297,10 @@ class ToolRegistry:
                                              "this message asks about, as in Decision 351."},
                 "duties": {"type": "array", "items": {"type": "string"}},
                 "told": {"type": "array", "items": {"type": "string"}},
+                "about": {"type": "array", "items": {"type": "string"},
+                          "description": "The subjects the note or message is about, such as "
+                                         "\"task:182\" or \"run:3e003932\": they go on the one "
+                                         "ledger of what ‹owner› was told."},
             }, "required": ["how"]},
             self._heartbeat_end, brief="End a beat: nothing, a silent note, or a Telegram",
             **area)
@@ -5365,6 +5369,28 @@ class ToolRegistry:
             {"type": "object", "properties": {"thread_id": {"type": "string"}},
              "required": ["thread_id"]},
             self._heartbeat_thread, brief="Mark a mail thread as the heartbeat's own", **area)
+        self._own(
+            "heartbeat_record",
+            "Write one line of what this beat did about one subject onto that subject's own "
+            "record: a task (\"task:182\"), a step (\"step:<id>\"), a run (\"run:<id>\"), a quest "
+            "(\"quest:<id>\") or a mail thread (\"mail:<thread id>\"). The next beat about that "
+            "subject is handed its last lines, and a beat about anything else is not. Write it "
+            "only when you did something; title names the subject the first time.",
+            {"type": "object", "properties": {
+                "subject": {"type": "string"},
+                "text": {"type": "string"},
+                "title": {"type": "string"},
+            }, "required": ["subject", "text"]},
+            self._heartbeat_record, brief="Write what a beat did about one subject", **area)
+        self._own(
+            "heartbeat_reported",
+            "Mark a finished run you have read and dealt with as reported, so no duty brings it "
+            "up again; text, when given, goes on the run's record.",
+            {"type": "object", "properties": {
+                "run": {"type": "string"},
+                "text": {"type": "string"},
+            }, "required": ["run"]},
+            self._heartbeat_reported, brief="Mark a finished run reported", **area)
 
     def _beater(self):
         return heartbeat.LIVE
@@ -5682,7 +5708,8 @@ class ToolRegistry:
         if beater is None:
             return "The heartbeat is not running."
         return await beater.end(args.get("how"), args.get("text") or "", args.get("reason") or "",
-                                args.get("approvals"), args.get("duties"), args.get("told"))
+                                args.get("approvals"), args.get("duties"), args.get("told"),
+                                args.get("about"))
 
     async def _heartbeat_ask(self, args, emit):
         beater = self._beater()
@@ -5719,6 +5746,19 @@ class ToolRegistry:
         if beater is None:
             return "The heartbeat is not running."
         return await beater.thread(args.get("thread_id"))
+
+    async def _heartbeat_record(self, args, emit):
+        beater = self._beater()
+        if beater is None:
+            return "The heartbeat is not running."
+        return await beater.record(args.get("subject") or "", args.get("text") or "",
+                                   args.get("title") or "")
+
+    async def _heartbeat_reported(self, args, emit):
+        beater = self._beater()
+        if beater is None:
+            return "The heartbeat is not running."
+        return await beater.reported(args.get("run") or "", args.get("text") or "")
 
     async def _schedule(self, args, emit):
         who = await self._clock_who()

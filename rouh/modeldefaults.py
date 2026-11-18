@@ -309,13 +309,19 @@ USES: tuple[Use, ...] = (
         "Turns words typed into Clockwork, like \u201cnext Tuesday after lunch\u201d, into a day "
         "and a time.", purposes=("reminder_words",)),
     Use("heartbeat_check", "Heartbeat", "Wake-up check",
-        "The first step of a beat: reads what woke it and decides whether anything needs "
-        "attention. Only when something does is the decision asked. Off sends every beat "
-        "straight to the decision.", can_be_off=True, off_said="Off: every beat goes to the decision",
+        "An optional first step of a beat with something to do: reads its brief and decides "
+        "whether anything in it needs attention. Only when something does is the beat's job "
+        "started. Off starts the job for every beat that code found something for.", can_be_off=True,
+        off_said="Off: every beat with something to do starts its job",
         purposes=("heartbeat_check",)),
-    Use("heartbeat_decide", "Heartbeat", "Decision",
-        "The second step: the beat's own turn, in the Heartbeat chat or a long-running "
-        "work's chat, which decides what to do and does it.", purposes=("turn",)),
+    # Petar, 18 November 2026 (task 182): a beat is a background job, not a turn in an
+    # ever-growing chat (`rouh/heartbeat_jobs.py`). Claude Code on a Claude model, Codex on an
+    # OpenAI one, on the subscription, or on an API key for a person who has none; Sonnet unless
+    # changed. It replaced "Decision" (heartbeat_decide), the beat's turn in the Heartbeat chat.
+    Use("heartbeat_beat", "Heartbeat", "Beat job",
+        "A beat with something to do: a background job, started fresh from a written brief, "
+        "that decides what to do and does it. Claude Code on a Claude model, Codex on an OpenAI "
+        "one.", needs_key=False, subscription=True, can_ask=(ANTHROPIC, OPENAI)),
     # 24 October 2026: a beat told Petar Anthropic had cut Rouh off, a day after he had
     # raised the cap. Before a beat says a company fails, it asks that company once
     # (`rouh/provider_check.py`), so each company has its own check.

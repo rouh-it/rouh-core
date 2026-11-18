@@ -310,8 +310,9 @@
                             quiet_from: qf.input.value, quiet_to: qt.input.value } });
     });
     var work = group(f, 'hbWorkHours', 'Working hours', d.config.wakes.timer ?
-      'During these hours, the heartbeat runs by itself at regular intervals, every ' +
-        d.state.interval_minutes + ' minutes, and also whenever an event wakes it.' :
+      'During these hours, every ' + d.state.interval_minutes + ' minutes, the heartbeat ' +
+        'looks at its duties in code, and starts a beat only when one finds something to do; ' +
+        'events wake it at any time.' :
       'The timer is turned off under What wakes it, so even in these hours the heartbeat ' +
         'runs only when an event wakes it.');
     var r = row();
@@ -375,8 +376,8 @@
       act('set', { wakes: { timer: t.input.checked, runs: r.input.checked, mail: m.input.checked },
                    flood: { gap_seconds: gap.input.value, most: most.input.value, window_minutes: win.input.value } });
     });
-    var t = check('The timer', w.timer, 'hbWakeTimer', 'every interval, in working hours');
-    var r = check('Finished jobs and runs', w.runs, 'hbWakeRuns', 'assistant jobs, delegated tasks and runs of the one program');
+    var t = check('The timer', w.timer, 'hbWakeTimer', 'a look at its duties every interval, in working hours, which starts a beat only when one finds something');
+    var r = check('Finished runs of its own', w.runs, 'hbWakeRuns', 'runs it or a quest started, and runs of Rouh’s own that nobody reported; never runs you started, and never a beat’s own job');
     var m = check('New mail in Rouh’s own inbox', w.mail, 'hbWakeMail', 'never your own inbox');
     [t, r, m].forEach(function (x) { f.appendChild(x.label); });
     f.appendChild(el('h5', 'hb-h5', 'Flood guard'));
@@ -397,20 +398,15 @@
 
   function skipsCard(d) {
     var k = d.config.skip;
-    var s = card('Skips', 'checked in code, before any model is called', 'hb-skips', 'skips');
+    var s = card('Skips', 'checked in code, before any job is started', 'hb-skips', 'skips');
     var f = form('skips', 'Skips', function () {
-      act('set', { skip: { busy: busy.input.checked, nothing_new: nn.input.checked,
-                           nothing_new_hours: hours.input.value, nothing_on: off.input.checked } });
+      act('set', { skip: { busy: busy.input.checked, nothing_on: off.input.checked } });
     });
     var busy = check('Rouh is already in a turn', k.busy, 'hbSkipBusy', 'it looks again in a few minutes');
-    var nn = check('Nothing new since the last beat', k.nothing_new, 'hbSkipNew', 'no finished work, no mail, nothing due, no answer');
-    var hours = field('…and a full beat within (hours)', 'number', k.nothing_new_hours, 'hbSkipHours', 'wide');
-    hours.input.min = '1'; hours.input.max = '72';
     var off = check('No duty is on', k.nothing_on, 'hbSkipOff');
-    [busy, nn].forEach(function (x) { f.appendChild(x.label); });
-    f.appendChild(hours.label);
+    f.appendChild(busy.label);
     f.appendChild(off.label);
-    f.appendChild(el('p', 'settings-help', 'Always skipped: while paused, in quiet hours, and once today’s spend reaches the daily cap. A quest is also skipped while it is paused, before its start, after its end or with its budget spent.'));
+    f.appendChild(el('p', 'settings-help', 'Never a job: a beat with nothing to look at, so there is no regular look any more. Always skipped: while paused, in quiet hours, and once today’s spend reaches the daily cap. A quest is also skipped while it is paused, before its start, after its end or with its budget spent.'));
     f.save();
     s.appendChild(f);
     return s;
@@ -712,13 +708,28 @@
       var why = String(d.state.capped).replace(/^Paused for today:\s*/, '');
       fact(why.charAt(0).toUpperCase() + why.slice(1), 'wide');
     }
+    if (d.state.turned_off) fact(d.state.turned_off, 'wide');
+    if (d.state.dear) {
+      var dearLi = fact(d.state.dear + ' ', 'wide warns');
+      dearLi.id = 'heartbeatDear';
+      if (d.state.dear_href) dearLi.appendChild(goLink('Open that beat', d.state.dear_href));
+    }
     if (!d.state.paused && d.state.next && !d.state.capped) fact('Next look ' + d.state.next);
-    if (d.state.last_full) fact('Last full beat ' + d.state.last_full);
+    if (d.state.last_full) fact('Last beat ' + d.state.last_full);
+    if (d.state.last_look && !d.state.off) fact('Last look ' + d.state.last_look);
     fact(carried ? 'Working on ' + plural(carried, 'quest') : 'Working on no quests');
     if (failed && (waiting || d.state.paused || d.state.capped)) fact(plural(failed, 'beat') + ' failed today', 'bad');
     if (waiting && (d.state.paused || d.state.capped)) fact(plural(waiting, 'thing waits', 'things wait') + ' on you', 'waits');
     if (d.state.pending) fact(plural(d.state.pending, 'event') + ' waiting for the next beat');
     s.appendChild(facts);
+    /* How a beat works since 18 November 2026 (task 182), said once, under the facts. */
+    var how = el('p', 'hb2-how', 'Each beat is a background job' +
+      (d.state.agent ? ' (' + d.state.agent + ')' : '') + ', started only when there is ' +
+      'something to do: a run it started ended, something waits on you, mail in Rouh’s inbox, ' +
+      'your answer, a time it set, or Beat now. It starts fresh, with only the history of what it ' +
+      'is about and the list of what you were already told.');
+    how.id = 'heartbeatHow';
+    s.appendChild(how);
     var acts = el('div', 'hb2-verdict-acts');
     if (waiting) {
       var first = waitingOf(d)[0];
@@ -729,7 +740,7 @@
       b.id = 'heartbeatAnswer';
       acts.appendChild(b);
     }
-    if (d.state.chat) acts.appendChild(goLink('Open the Heartbeat chat', '/chat/' + encodeURIComponent(d.state.chat)));
+    if (d.state.chat) acts.appendChild(goLink('The old Heartbeat chat, kept as history', '/chat/' + encodeURIComponent(d.state.chat)));
     if (acts.childNodes.length) s.appendChild(acts);
     return s;
   }
@@ -1326,13 +1337,13 @@
     var r = row();
     var iv = field('Every (minutes)', 'number', d.state.interval_minutes, 'hbInterval');
     iv.input.min = '5'; iv.input.max = '1440'; iv.input.step = '1';
-    var cap = field('Daily cap on its model spend ($)', 'number', d.state.daily_cap_value, 'hbCap', 'wide');
+    var cap = field('Daily cap on what its beats cost per use ($)', 'number', d.state.daily_cap_value, 'hbCap', 'wide');
     cap.input.min = '0'; cap.input.max = '100'; cap.input.step = '0.5';
     r.appendChild(iv.label);
     r.appendChild(cap.label);
     f.appendChild(r);
     f.appendChild(el('p', 'settings-help', 'Spent today ' + d.state.spent_today + ' of ' + d.state.daily_cap +
-      ', across every beat, quests included. At the cap it rests until midnight by itself.'));
+      ', across every beat, quests included. A beat’s job on your Claude Code or Codex subscription costs nothing per use; on an API key it does. At the cap it rests until midnight by itself.'));
     f.save();
     s.appendChild(f);
     return s;

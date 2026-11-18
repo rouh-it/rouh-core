@@ -139,7 +139,8 @@ WORDS: dict[str, str] = {
     # Heartbeat, quests and payments
     "heartbeat": "Rouh's own turn", "heartbeat_ask": "asks you later", "heartbeat_brief": "the heartbeat's brief",
     "heartbeat_end": "ends a heartbeat", "heartbeat_ledger": "what it noted", "heartbeat_next": "the next heartbeat",
-    "heartbeat_thread": "a heartbeat thread", "quest": "a quest", "payments": "the card vault",
+    "heartbeat_thread": "a heartbeat thread", "heartbeat_record": "a subject's record",
+    "heartbeat_reported": "marks a run reported", "quest": "a quest", "payments": "the card vault",
     "shipping": "shipping options", "stripe": "Stripe",
     # Delegation
     "delegate": "a contact's authority", "delegate_act": "acts for a contact", "read_capability": "what a contact may do",

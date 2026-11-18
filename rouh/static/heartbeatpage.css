@@ -572,6 +572,9 @@ a.hb-raised.work:hover { text-decoration: underline; }
 .hb2-seg.running { background: var(--accent); }
 .hb2-chip.held { color: var(--warn); border-color: rgba(242, 180, 94, .45); }
 .hb2-facts li.waits { color: var(--warn); }
+.hb2-facts li.warns { color: var(--warn); }
+.hb2-facts li.warns::before { content: "! "; font-weight: 700; }
+.hb2-how { margin: 0; max-width: 72ch; color: var(--dim); font-size: 13.5px; line-height: 1.45; }
 
 .hb2-daycard { display: grid; gap: 12px; }
 .hb2-day-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }

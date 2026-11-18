@@ -120,6 +120,8 @@ class Scope:
     chain: list = field(default_factory=list)
     #: The quest whose work this is, when a beat on a quest started it.
     work_id: int | None = None
+    #: The heartbeat's beat this job is (`policy.BEAT`, `rouh/heartbeat_jobs.py`), or None.
+    beat_id: int | None = None
 
 
 # --- whom a job works for ---------------------------------------------------------------------
@@ -190,6 +192,15 @@ def scope_of(job_id: str):
     who = telegram.phone_owner(tenancy)
     if who is None:
         return None, "There is no owner on this installation for the job to work for."
+    from . import heartbeat_jobs
+
+    beat = heartbeat_jobs.beat_of_run(job_id)
+    if beat is not None:
+        # A beat of the heartbeat that is itself a job: its own tools, under its own rules.
+        return Scope(policy.BEAT, who, job_id, title, (inboxes.ROUH,), frozenset(), (
+            "This job is one of the heartbeat's beats, so it does what a beat may do by itself, "
+            "reads Rouh's own inbox only, and queues the rest with heartbeat_ask."), chain,
+            beat.work_id, beat.id), ""
     made_by = set(Run.objects.filter(id__in=chain).exclude(made_by="")
                   .values_list("made_by", flat=True))
     if made_by:
@@ -284,8 +295,9 @@ WHY_PROPERTY = {"type": "string", "description": (
     "asked to say yes.")}
 
 
-def _mcp(defn: dict) -> dict:
-    """One registry tool as a job is shown it: its schema, and what a pending call means."""
+def _mcp(defn: dict, scope: str = "") -> dict:
+    """One registry tool as a job is shown it: its schema, and what a pending call means. A
+    beat's own job is told by the heartbeat's rules instead, which a refusal names."""
     name = defn.get("name", "")
     schema = json.loads(json.dumps(defn.get("input_schema") or {"type": "object"}))
     schema.setdefault("type", "object")
@@ -294,26 +306,37 @@ def _mcp(defn: dict) -> dict:
     if isinstance(props, dict):
         # Scheduled work's go-ahead (`protected.HIS_WORDS`) is never a job's to give.
         props.pop("his_words", None)
-    if name not in policy.READS and isinstance(props, dict):
+    if name not in policy.READS and scope != policy.BEAT and isinstance(props, dict):
         props[policy.WHY_ARG] = WHY_PROPERTY
         description += PENDING_NOTE
     return {"name": name, "description": description, "inputSchema": schema}
 
 
-async def _in_gateway(who, work):
+async def _in_gateway(who, work, beat_id: int | None = None):
     """`work()` in a task of its own, as Rouh does a tool for nobody watching: the owner's,
-    unattended, in no beat and no mail turn, so every guard of the registry holds."""
+    unattended, in no mail turn, so every guard of the registry holds. In no beat, unless the job
+    is a beat's own (`beat_id`): then in that beat, so the heartbeat's own tools and its rules
+    (`heartbeat.offered`, `heartbeat.check`) hold exactly as they did for a beat's turn, and
+    what the call recorded on the beat is written to its row."""
     from . import heartbeat as hb, mail_turn, protected
     from .tenancy import SPEAKER
 
+    beat = await asyncio.to_thread(hb.job_beat, beat_id) if beat_id is not None else None
+    if beat_id is not None and beat is None:
+        raise RuntimeError("this beat is over, so nothing more is done for it")
+
     async def go():
         SPEAKER.set(who)
-        hb.BEAT.set(None)
+        hb.BEAT.set(beat)
         hb.TURN_NOTE.set(False)
         hb.APPROVED.set(False)
         protected.UNATTENDED.set(True)
         mail_turn.CURRENT.set(None)
-        return await work()
+        try:
+            return await work()
+        finally:
+            if beat is not None:
+                await asyncio.to_thread(hb.keep_beat, beat)
 
     return await asyncio.create_task(go())
 
@@ -332,19 +355,22 @@ async def tools_for(scope: Scope) -> list[dict]:
     async def defs():
         return hooks.registry.definitions()
 
-    found = await _in_gateway(scope.who, defs)
+    try:
+        found = await _in_gateway(scope.who, defs, scope.beat_id)
+    except RuntimeError:
+        found = []
     have = {t["name"] for t in native}
     out = list(native)
     for d in found:
         name = d.get("name", "")
         # Only what Rouh's own code runs: a provider's server tools (its web search) are not
         # Rouh's to lend, and a job has its own.
-        if not name or name in have or not policy.listed(name) or \
+        if not name or name in have or not policy.listed(name, scope.kind) or \
                 name not in hooks.registry._handlers:
             continue
         if want is not None and name not in want:
             continue
-        out.append(_mcp(d))
+        out.append(_mcp(d, scope.kind))
         have.add(name)
     return out
 
@@ -396,6 +422,18 @@ async def _run(scope: Scope, name: str, args: dict) -> str:
         his_word.CARRY.set(words or None)
         return await hooks.registry.call(name, args, noop)
 
+    if scope.beat_id is not None:
+        from . import heartbeat as hb
+
+        async def recorded():
+            # The beat's own record of what it called, as a beat's turn kept it (`heartbeat.saw`).
+            beat = hb.BEAT.get()
+            if beat is not None:
+                beat.saw(name)
+            return await work()
+        out = await asyncio.wait_for(_in_gateway(scope.who, recorded, scope.beat_id),
+                                     CALL_SECONDS)
+        return _text(out)
     out = await asyncio.wait_for(_in_gateway(scope.who, work), CALL_SECONDS)
     return _text(out)
 

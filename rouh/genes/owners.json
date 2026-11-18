@@ -1001,6 +1001,8 @@
   "heartbeat": {
    "files": [
     "rouh/heartbeat.py",
+    "rouh/heartbeat_jobs.py",
+    "rouh/migrations/0261_heartbeat_beats_are_jobs.py",
     "rouh/provider_check.py",
     "rouh/web/heartbeat.py",
     "rouh/static/heartbeatpage.*"

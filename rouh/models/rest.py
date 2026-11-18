@@ -1583,8 +1583,9 @@ class HeartbeatState(models.Model):
     #: "on" or "paused".
     state = models.TextField(default="on")
     interval_minutes = models.IntegerField(default=30)
-    #: The most its own model spend may be in a day, across every beat, in dollars.
-    daily_cap = models.DecimalField(max_digits=10, decimal_places=2, default=3)
+    #: The most its own per-use spend may be in a day, across every beat, in dollars: $1 on a new
+    #: install since beats became jobs (18 November 2026), $3 before.
+    daily_cap = models.DecimalField(max_digits=10, decimal_places=2, default=1)
     #: The conversation every duties beat runs in, "Heartbeat"; never General.
     chat_id = models.TextField(blank=True, default="")
     #: Every setting, read with its defaults by `heartbeat.config_of`.
@@ -1649,11 +1650,44 @@ class HeartbeatBeat(models.Model):
     cost = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
     started_at = models.FloatField()
     finished_at = models.FloatField(null=True, blank=True)
+    #: "turn", a turn in a chat that grew with every beat (until 18 November 2026), or "job",
+    #: a background job of its own, started fresh from a written brief (`rouh/heartbeat_jobs.py`).
+    kind = models.TextField(default="turn", db_default="turn")
+    #: The background job a beat of kind "job" ran as (`objects.Run`), or "".
+    run_id = models.TextField(blank=True, default="", db_default="")
+    #: What the beat was about, each "kind:ref" ("task:182", "run:abc", "quest:4", "mail:<thread>"),
+    #: so only those subjects' records were in its brief (`heartbeat_jobs.subjects_of`).
+    subjects = models.JSONField(default=list, db_default=[])
 
     class Meta:
         db_table = "heartbeat_beats"
         indexes = [models.Index(fields=["org_id", "user_id", "started_at"],
                                 name="heartbeat_beats_whose")]
+
+
+class HeartbeatSubject(models.Model):
+    """What the heartbeat did about one subject, a few lines, newest last: a task, a step, a run, a
+    quest or a mail thread (`rouh/heartbeat_jobs.py`).
+
+    A beat is handed only the records of the subjects it is about, so a beat on task 1 never
+    carries task 2, and none carries a chat that grew with every beat before it."""
+
+    id = models.BigAutoField(primary_key=True)
+    user_id = models.TextField()
+    org_id = models.TextField()
+    #: "task", "step", "run", "quest" or "mail".
+    kind = models.TextField()
+    #: The task's or step's id, the run's id, the quest's record id, the mail thread's id.
+    ref = models.TextField()
+    title = models.TextField(blank=True, default="")
+    #: [{"at", "beat", "text"}], newest last, at most `heartbeat_jobs.SUBJECT_LINES`.
+    lines = models.JSONField(default=list)
+    updated_at = models.FloatField(default=0)
+
+    class Meta:
+        db_table = "heartbeat_subjects"
+        constraints = [models.UniqueConstraint(fields=["org_id", "user_id", "kind", "ref"],
+                                               name="heartbeat_subject_one")]
 
 
 class HeartbeatApproval(models.Model):

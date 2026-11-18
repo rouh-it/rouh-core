@@ -147,16 +147,18 @@ _PERSON = "item_id IN (SELECT id FROM synapse.item WHERE kind = 'person')"
 #: What an Off heartbeat stops, said on its row here and on the Heartbeat page (`rouh/heartbeat.py`).
 HEARTBEAT_OFF = ("Off: nothing beats by itself. Quests don't advance by themselves, its duties (waiting "
                  "work, unreported runs, Rouh's inbox, the calendar, goal steps) are not looked at, no "
-                 "Telegram comes from it, and mail, finished runs and completed steps don't wake it. A yes "
+                 "Telegram comes from it, and mail and finished runs don't wake it. A yes "
                  "you give in Decisions still runs exactly what was queued, and jobs' requests still reach "
                  "you; Beat now and a quest's Check now still run one beat when you press them.")
 
 ITEMS: tuple[Item, ...] = (
     # ---- night and background jobs ----
     Item("heartbeat", "job", "The heartbeat",
-         "Rouh's own turn nobody asked for: every half hour or so in working hours, and when a run ends or "
-         "mail arrives, it works on its duties and carries the quests.",
-         ("off", "on"), money="its daily cap, $3 a day unless you set another", note=HEARTBEAT_OFF,
+         "Rouh's own work nobody asked for: when a run it started ends, mail reaches Rouh's own inbox, "
+         "something waits on you or a duty finds work, a beat starts one background job on it, and it "
+         "carries the quests. With nothing to do it starts nothing.",
+         ("off", "on"), money="nothing per use on your Claude Code or Codex subscription; a daily cap, "
+         "$1 a day unless you set another, where they run on an API key", note=HEARTBEAT_OFF,
          link="/anatomy/behaviour/heartbeat/settings", link_said="Heartbeat settings"),
     Item("synapse_nightly", "job", "Synapse's nightly improvement try (02:00)",
          "Each night an Opus coding run tries to make Synapse, Rouh's memory search, better.",

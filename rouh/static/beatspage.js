@@ -1183,6 +1183,7 @@
     if (!d || d.loading) { box.appendChild(el('p', 'hb-empty', 'Reading the beat…')); return; }
     if (d.error) { box.appendChild(el('p', 'hb-say bad', d.error)); return; }
     var top = el('div', 'bt-d-links');
+    if (b && b.run) top.appendChild(link('Open the job it ran as', b.run, 'hb-raised work'));
     if (b && b.chat) top.appendChild(link('Open the chat it ran in', b.chat, 'hb-raised work'));
     (d.runs || []).forEach(function (r) { top.appendChild(link('Run ' + r.id + (r.title ? ': ' + r.title : ''), r.href, 'hb-raised work')); });
     (d.tasks || []).forEach(function (t) { top.appendChild(link('Task ' + t.number + ' ' + t.title, t.href, 'hb-raised work')); });

@@ -268,6 +268,19 @@ PRESETS: dict[str, Preset] = {
         note_crew=("Watch it with check_tasks. When it says it has pushed, call "
                    "deploy_myself."),
     ),
+    # A beat of the heartbeat (`rouh/heartbeat_jobs.py`, 18 November 2026): a job in the person's
+    # workspace that reads it and acts only through the heartbeat's own tools. Its brief is the
+    # beat's own, sent as written, and it starts with no standing rules of the person's.
+    "heartbeat_beat": Preset(
+        name="heartbeat_beat",
+        repo_from="assistant_repo",
+        space="assistant",
+        policy="auto",
+        profile="assistant",
+        detail="a heartbeat beat",
+        note_one="",
+        note_crew="",
+    ),
     "one_start": Preset(
         name="one_start",
         # The program's own workspace: the space it starts a run in when

@@ -315,7 +315,9 @@ def _row(b, *, w, chat: str, number, reqs: list, approvals: list, numbers_of: di
         "cost": float(cost) if cost is not None else None,
         "took": round(took, 1) if took is not None else None,
         "errors": errors,
-        "chat": f"/chat/{chat}" if chat else "",
+        # A beat that is a background job ran in no chat: its job is its record (18 November 2026).
+        "chat": f"/chat/{chat}" if chat and getattr(b, "kind", "turn") != "job" else "",
+        "run": f"/run/{b.run_id}" if getattr(b, "run_id", "") else "",
         "has_note": ended == "note" and b.id not in cleared,
     }
 
