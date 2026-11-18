@@ -1156,6 +1156,11 @@ with {% asset %}, which gives it its hashed address.
         <span id="meterVal" class="mono sr-only">off</span>
 
         <div class="composer-controls" id="composerControls">
+          {% comment %} Two groups (Petar, 18 November 2026: "submit and fork should always be on the
+               first line. if anything goes down to new line to make space, it has to be from the other
+               buttons"): the tools, which wrap onto a second line when the row is short of room, and
+               Fork with the Send/Stop spot, which never shrink and stay at the right end of the first. {% endcomment %}
+          <div class="composer-tools" id="composerTools">
           {% comment %} The voice, under one button (Petar, 8 November 2026: "the 3 icons for the
                voice should be under one icon with a speaking person to save space"). The
                button opens a small panel holding the three controls exactly as they were,
@@ -1283,25 +1288,8 @@ with {% asset %}, which gives it its hashed address.
             </svg>
           </button>
 
-          {% comment %} Stop. On screen only while a turn is running, and the same
-               thing the Escape key does. It ends Rouh's own turn: the model
-               call, the tools it was about to run and the voice. It does not
-               touch a background job, a delegated task or a run of the one
-               program, and the title says so, because "stop" is otherwise a
-               fair thing to read as "stop everything".
-
-               A square like every other control on this line rather than a
-               wide button with a word on it: the line is one row and does not
-               wrap, so a word here is a word taken off the model's name. {% endcomment %}
-          <button id="stopBtn" class="tog stop-btn" type="button" hidden
-                  aria-label="Stop this answer"
-                  title="Stop this answer (Esc). It stops Rouh talking and thinking. Background jobs, tasks and runs already started carry on.">
-            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="currentColor">
-              <rect x="6" y="6" width="12" height="12" rx="2.5"/>
-            </svg>
-            <span class="sr-only">Stop this answer</span>
-          </button>
-
+          </div>
+          <div class="composer-end" id="composerEnd">
           {% comment %} Fork: send what is typed into a new side chat instead of this
                one (`rouh/forks.py`). The fork opens to the right of this
                conversation, which stays where it is as a sliver on the left,
@@ -1314,13 +1302,36 @@ with {% asset %}, which gives it its hashed address.
                keyboard. Not drawn in
                a chat with nothing in it yet, where there is nothing to fork. {% endcomment %}
           <button id="forkBtn" class="tog fork-btn" type="button" hidden disabled
-                  aria-label="Send as a fork"
+                  aria-label="Fork this chat"
                   aria-keyshortcuts="Meta+Enter Control+Enter Meta+Shift+Enter Control+Shift+Enter">
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none"
-               stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 20V4"/><path d="M6 15c0-4.5 3.5-7 12-7"/><path d="M15 5l3 3-3 3"/>
-          </svg>
-            <span class="fork-btn-word">Fork</span>
+            {% comment %} Icon only since 18 November 2026 (Petar: "remove the "Fork" letters ... maybe a
+                 new icon that is more natural to people and splitting up a chat"): a speech bubble with a
+                 branch leaving it, up and to the right, where the fork opens. {% endcomment %}
+            <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none"
+                 stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 10.5h7a1.5 1.5 0 0 1 1.5 1.5v4a1.5 1.5 0 0 1-1.5 1.5H7.5L5 20v-2.5H4A1.5 1.5 0 0 1 2.5 16v-4A1.5 1.5 0 0 1 4 10.5z"/>
+              <path d="M12.5 13c4 0 4-7 8.5-7"/><path d="M18 3.5L21 6l-3 2.5"/>
+            </svg>
+          </button>
+
+          {% comment %} Stop. On screen only while a turn is running, and the same
+               thing the Escape key does. It ends Rouh's own turn: the model
+               call, the tools it was about to run and the voice. It does not
+               touch a background job, a delegated task or a run of the one
+               program, and the title says so, because "stop" is otherwise a
+               fair thing to read as "stop everything".
+
+               It shares one spot with Send (Petar, 18 November 2026): while a turn
+               runs and the box is empty this is drawn and Send is not; once something
+               is typed, Send is back and this is gone, and Send sends the next
+               message as it always has (`showStop`). {% endcomment %}
+          <button id="stopBtn" class="tog stop-btn" type="button" hidden
+                  aria-label="Stop this answer"
+                  title="Stop this answer (Esc). It stops Rouh talking and thinking. Background jobs, tasks and runs already started carry on.">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="currentColor">
+              <rect x="6" y="6" width="12" height="12" rx="2.5"/>
+            </svg>
+            <span class="sr-only">Stop this answer</span>
           </button>
 
           {% comment %} Send: an arrow pointing up, and no word. The word came off on
@@ -1335,6 +1346,7 @@ with {% asset %}, which gives it its hashed address.
               <path d="M12 20V6M6 11l6-6 6 6"/>
             </svg>
           </button>
+          </div>
         </div>
       </div>
     </form>

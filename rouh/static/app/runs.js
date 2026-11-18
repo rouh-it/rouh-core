@@ -6056,9 +6056,18 @@ function askGrow() {
 
 function askBusy(on) {
   ASK.busy = !!on;
-  var go = $('askSend'), stop = $('askStop');
-  if (go) go.disabled = ASK.busy;
-  if (stop) stop.hidden = !ASK.busy;
+  askSpot();
+}
+
+/* Ask and Stop share one spot, as Send and Stop do in Rouh's own box (`showStop`, Petar, 18 November
+   2026): Stop while an answer is being written and the box is empty, Ask once something is typed. Ask
+   still waits for the answer to finish before it asks again, as it always has. */
+function askSpot() {
+  var go = $('askSend'), stop = $('askStop'), box = /** @type {HTMLTextAreaElement | null} */ ($('askInput'));
+  var showStop = ASK.busy && !(box && box.value.trim());
+  if (go) { go.disabled = ASK.busy; go.hidden = showStop; }
+  if (stop && showStop && stop.hidden) stop.dataset.since = String(Date.now());
+  if (stop) stop.hidden = !showStop;
 }
 
 function askAbort() {
@@ -6817,7 +6826,11 @@ function askInit() {
     var box = $('askInput');
     if (box) box.focus();
   });
-  $('askStop').addEventListener('click', askAbort);
+  // In Ask's own spot, so a press in its first half second is a double press on Ask (`askSpot`).
+  $('askStop').addEventListener('click', function () {
+    if (Date.now() - Number($('askStop').dataset.since || 0) < 500) return;
+    askAbort();
+  });
   $('whatChangedBtn').addEventListener('click', seenPress);
   $('askPoint').addEventListener('click', askPoint);
   // The one box's own: Point while a page is open, the cross on what it is about, and the page drawn
@@ -6858,6 +6871,7 @@ function askInit() {
   keysPlaceholder(box);
   $('askSend').title = 'Ask (' + sendKeys() + ')';
   box.addEventListener('input', askGrow);
+  box.addEventListener('input', askSpot);
   // Enter asks and Shift+Enter is a new line here too; there is nothing to
   // fork, so Cmd+Enter asks as well (`isSendKey`).
   box.addEventListener('keydown', function (e) {

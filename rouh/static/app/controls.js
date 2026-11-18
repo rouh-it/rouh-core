@@ -1771,7 +1771,12 @@ $('voiceBtn').addEventListener('click', function () {
 setVoice(cfg.voiceReply);
 
 // The Stop button. Escape does the same thing from the keyboard.
-$('stopBtn').addEventListener('click', function () { stopTheTurn(); });
+// It comes up in Send's own spot (`showStop`), so a press in its first half second is the second half of a
+// double press on Send, and is let go. Escape is never held back.
+$('stopBtn').addEventListener('click', function () {
+  if (Date.now() - Number($('stopBtn').dataset.since || 0) < 500) return;
+  stopTheTurn();
+});
 showStop();
 // And the beat that takes it away again when the turn it belongs to ended
 // without saying so. See `watchTheTurn`.

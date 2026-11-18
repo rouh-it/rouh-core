@@ -2007,9 +2007,20 @@ function stillSpeaking() {
   return PB.turn !== null || PB.sources.length > 0;
 }
 
+/* Stop and Send share one spot (Petar, 18 November 2026: "the stop button should be in place of the
+   submit if the input is empty. if not empty, no stop button. we can just submit next message"). While a
+   turn runs and nothing is typed or attached, Stop is drawn there and Send is not; the moment there is
+   something to send, Send is back, Stop is gone, and Send sends it as it always has while an answer is
+   being written (`sendTyped`: it waits for the model's next step). Escape still stops either way. */
 function showStop() {
-  var b = $('stopBtn');
-  if (b) b.hidden = !turnIsRunning();
+  var b = $('stopBtn'), go = $('sendBtn'), box = /** @type {HTMLTextAreaElement | null} */ ($('input'));
+  var typed = !!(box && box.value.trim()) || !!(shared.attached && shared.attached.length);
+  var stop = turnIsRunning() && !typed;
+  // When it takes Send's place, under a pointer that has just pressed Send, so a double press is not a
+  // stop of the answer it asked for (the click handler, app/controls.js).
+  if (b && stop && b.hidden) b.dataset.since = String(Date.now());
+  if (b) b.hidden = !stop;
+  if (go) go.hidden = stop;
 }
 
 /* ---------- a turn cannot be left running on screen for ever ----------

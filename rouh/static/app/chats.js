@@ -1622,7 +1622,7 @@ function forkCopy() {
   for (i = 0; i < off.length; i++) /** @type {HTMLElement} */ (off[i]).hidden = true;
   // Send as it stands in a chat with nobody waiting on an answer.
   var sendIt = /** @type {HTMLButtonElement|null} */ (copy.querySelector('[data-was="sendBtn"]'));
-  if (sendIt) sendIt.disabled = false;
+  if (sendIt) { sendIt.disabled = false; sendIt.hidden = false; }
   return copy;
 }
 
@@ -2472,6 +2472,8 @@ function forkBtnPaint() {
     turn.__editFork.disabled = !turn.__editing.value.trim() || !!S.busy;
     turn.__editSend.disabled = !!S.busy;
   }
+  // Typing, or clearing the box, swaps Stop and Send in their one spot.
+  showStop();
 }
 
 function onMac() {
@@ -2630,7 +2632,8 @@ function keysHintPaint() {
   var b = $('forkBtn');
   if (!b) return;
   // Petar's own words for it, 16 November 2026, with its key, in the composer's tooltip (app/tips.js).
-  b.dataset.tip = 'Branch off this message to a new side chat (Fork). You can easily close it or switch '
+  // Icon only since 18 November 2026, so the tooltip starts with its name.
+  b.dataset.tip = 'Fork this chat: branch off this message to a new side chat. You can easily close it or switch '
     + 'to parent chat later. Keeps your parent chat clean of the side topics.';
   b.dataset.key = (onMac() ? '⌘' : 'Ctrl') + '+Enter';
   b.addEventListener('click', function () { sendTyped(true); });

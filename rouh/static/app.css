@@ -7430,12 +7430,27 @@ a.pf-co:hover { color: var(--accent); text-decoration: underline; }
    wide for a line that needs 280, and Send sat under the canvas where a press
    went to whatever was drawn there. Now it takes a line of its own at the
    right hand end, which is what the phone's narrowest width already does. */
-#composerControls { flex-wrap: wrap; }
-
-/* Send is the one thing on the line that is not a toggle, so it sits apart at
-   the end of it: the auto margin takes whatever room is left over, and when
-   there is none it simply follows the rest. */
-#sendBtn { margin-left: auto; }
+/* Replaced (18 November 2026): the line no longer wraps as a whole. Petar: "submit and fork should
+   always be on the first line. if anything goes down to new line to make space, it has to be from the
+   other buttons". So it is two groups on one line: the tools, which wrap onto a second line of their own
+   when there is not the room, and Fork with the Send/Stop spot, which never shrink and stand at the
+   right end of the first line whatever the width or the model's name. */
+#composerControls { flex-wrap: nowrap; align-items: flex-start; }
+.composer-tools {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-wrap: wrap; align-items: center; gap: inherit;
+}
+.composer-end {
+  flex: 0 0 auto; margin-left: auto;
+  display: flex; align-items: center; gap: inherit;
+}
+.composer-end > * { flex-shrink: 0; }
+/* A long model name gives up its own letters before it can push the line wider than the box. */
+.composer-tools .model-wrap { min-width: 0; flex-shrink: 1; max-width: 100%; }
+.composer-tools .model-btn { min-width: 0; max-width: 100%; }
+.composer-tools .model-btn-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Stop and Send take turns in one spot, so they are the same size and nothing beside them moves. */
+.composer-end > :is(.send-btn, .stop-btn) { width: 44px; padding: 0; }
 
 /* The one filled control on the line, and exactly as tall as the squares it
    sits beside: a button two pixels taller than its neighbours is a row that
@@ -7470,12 +7485,14 @@ a.pf-co:hover { color: var(--accent); text-decoration: underline; }
   border-color: var(--bad);
   margin-left: auto;
 }
+/* In Rouh's own box Stop and Send share one spot (`showStop`), so neither pushes. */
+.composer-end > .stop-btn { margin-left: 0; }
+.send-btn[hidden] { display: none; }
 .stop-btn:hover:not(:disabled) {
   background: color-mix(in srgb, var(--bad) 14%, transparent);
   border-color: var(--bad); color: var(--bad);
 }
 .stop-btn[hidden] { display: none; }
-#stopBtn:not([hidden]) + #sendBtn { margin-left: 0; }
 
 /* The line under an answer the person stopped. Quieter than the amber every
    other note in the transcript is: being stopped is something they did on
@@ -7495,6 +7512,7 @@ a.pf-co:hover { color: var(--accent); text-decoration: underline; }
   .composer-controls { gap: 4px; }
   .tog { width: 30px; height: 30px; }
   .send-btn { height: 30px; padding: 0 10px; }
+  .composer-end > :is(.send-btn, .stop-btn) { width: 38px; height: 30px; padding: 0; }
   /* The chooser comes in with them, arrow and all, so what it gives up is its
      own margins rather than the model's name. */
   .pick {
@@ -7513,18 +7531,8 @@ a.pf-co:hover { color: var(--accent); text-decoration: underline; }
 @container composer (max-width: 312px) {
   .composer-controls { gap: 2px; }
   .send-btn { padding: 0 8px; }
-  /* Except that since the picture button (26 September 2026) the line no
-     longer fits at all. The conversation column at its 300 pixel floor
-     dropped Send alone to the start of a second line, with Fork left at the
-     end of the first; and the welcome's box, narrower still, dropped the
-     picture button there instead. So a line with Fork or Stop on it breaks
-     the way a phone's does (below): Stop, Fork and Send go down together, to
-     the right hand end of their own line, and the model's word keeps its room. */
-  #composerControls:has(> :is(.fork-btn, .stop-btn):not([hidden]))::after {
-    content: ""; order: 1; flex: 0 0 100%; height: 0;
-  }
-  #composerControls:has(> :is(.fork-btn, .stop-btn):not([hidden]))
-    > :is(.stop-btn, .fork-btn, .send-btn) { order: 2; }
+  /* Replaced (18 November 2026): Stop, Fork and Send used to go down to a line of their own here. They
+     stay on the first line now (`.composer-end`), and the tools wrap instead. */
 }
 /* On a phone the same line carries 16 pixel text, because anything smaller
    makes iOS zoom the page in, and it is hit with a thumb. That is a 320 pixel
@@ -7534,7 +7542,7 @@ a.pf-co:hover { color: var(--accent); text-decoration: underline; }
    before this row was joined up. */
 @media (max-width: 899px) {
   @container composer (max-width: 312px) {
-    .composer-controls { flex-wrap: wrap; gap: 4px; }
+    .composer-controls { gap: 4px; }
     .send-btn { padding: 0 10px; }
     /* The line breaks with the chooser at its full width, so the name on it
        stays readable rather than being given up to keep Send on the line. */
@@ -10227,20 +10235,10 @@ a.att-name:hover { text-decoration: underline; }
    Enter does; this is outlined and is what Ctrl+Shift+Enter does. It takes the
    gap that pushes the end of the line to the right while it is there, the
    way Stop does. */
-.tog.fork-btn { width: auto; padding: 0 10px; display: flex; gap: 6px; color: var(--accent); font-size: 13px; font-weight: 600; }
+/* A square with no word since 18 November 2026 (Petar: "remove the "Fork" letters, just keep the forking
+   symbol"): its name is on its label and in its tooltip, with its key. */
+.tog.fork-btn { color: var(--accent); }
 .tog.fork-btn[hidden] { display: none; }
-.fork-btn-word { line-height: 1; }
-#forkBtn:not([hidden]) { margin-left: auto; }
-#forkBtn:not([hidden]) ~ #sendBtn,
-#stopBtn:not([hidden]) ~ #forkBtn,
-#stopBtn:not([hidden]) ~ #sendBtn { margin-left: 0; }
-@container composer (max-width: 440px) {
-  .tog.fork-btn { width: 34px; padding: 0; justify-content: center; }
-  .fork-btn-word { display: none; }
-}
-@container composer (max-width: 368px) {
-  .tog.fork-btn { width: 30px; }
-}
 
 /* On a phone the row is the pane: a card a little narrower than the screen
    with about forty pixels of each chat beside it at the edges, and a finger
@@ -10258,19 +10256,11 @@ a.att-name:hover { text-decoration: underline; }
      squeeze the model's name to "Sonn..." breaks instead, the way it already
      does on a 320 pixel phone: Send takes a line of its own. */
   @container composer (max-width: 340px) {
-    .col-chat.stripped .composer-controls { flex-wrap: wrap; gap: 4px; }
+    .col-chat.stripped .composer-controls { gap: 4px; }
     .col-chat.stripped .pick { flex-basis: 112px; }
-    .col-chat.stripped .composer-controls::after { content: ""; order: 1; flex: 0 0 100%; height: 0; }
-    .col-chat.stripped .composer-controls > :is(.stop-btn, .fork-btn, .send-btn) { order: 2; }
   }
-  /* And wherever the line breaks - a 320 pixel phone too - Stop, Fork and
-     Send go down together and stand at the right hand end of their own line,
-     rather than Fork staying behind at the end of the first one and Send
-     landing at the start of the second. */
-  @container composer (max-width: 312px) {
-    .composer-controls::after { content: ""; order: 1; flex: 0 0 100%; height: 0; }
-    .composer-controls > :is(.stop-btn, .fork-btn, .send-btn) { order: 2; }
-  }
+  /* Replaced (18 November 2026): Stop, Fork and Send no longer go down to a line of their own where the
+     line breaks; they stay at the right end of the first line and the tools wrap (`.composer-end`). */
 }
 
 /* ---------- the head of a chat on a phone: the title on top ----------
@@ -11269,11 +11259,11 @@ html:not(.demo) .demo-dot:not(.keep) { display: none; }
 @container composer (max-width: 408px) {
   .reading-btn { padding: 0 8px 0 6px; gap: 4px; }
 }
-/* A phone's line with Fork on it as well has no room for the sliders beside "Custom": the word stays, as the
-   model's does, and the icon goes, so Send keeps its place on the line. */
+/* A phone's line with Fork on it as well is short of room: the sliders beside the mode's word go, as the
+   model's word stays, so the tools keep to one line where they can. */
 @container composer (max-width: 368px) {
-  #composerControls:has(> .fork-btn:not([hidden])) .reading-btn svg { display: none; }
-  #composerControls:has(> .fork-btn:not([hidden])) .reading-btn { padding: 0 7px; font-size: 13px; }
+  #composerControls:has(.fork-btn:not([hidden])) .reading-btn svg { display: none; }
+  #composerControls:has(.fork-btn:not([hidden])) .reading-btn { padding: 0 7px; font-size: 13px; }
 }
 .reading-strip {
   appearance: none; display: flex; align-items: flex-start; gap: 6px; width: 100%;
