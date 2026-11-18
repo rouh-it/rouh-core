@@ -1879,6 +1879,13 @@ def _tree_from_the_register(now: float) -> dict:
         out["state"] = "waiting"
     elif out["state"] != "waiting" and OwnWork.state:
         out["state"] = OwnWork.state
+    # Rouh's own line is the page's to draw, but which chat it is answering in,
+    # and that chat's task, are the server's to know: the newest turn running.
+    turns = list(Turns.running.values())
+    if turns:
+        said = runs.chat_words(turns[-1].chat)
+        if said:
+            out["self"] = said
     return out
 
 

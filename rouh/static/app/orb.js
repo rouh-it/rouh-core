@@ -497,6 +497,9 @@ function clampTime(sec, fallback) {
 function applyTree(root) {
   if (!root || typeof root !== 'object') return;
   haveTree = true;
+  // Which chat Rouh's own turn is answering in, and its task, while one runs.
+  // Kept after the turn ends, so the line says it while it fades.
+  if (root.self && typeof root.self === 'object') SELF.who = root.self;
   var stamp = ++treeStamp;
   var t = now();
   var order = [];
@@ -811,7 +814,16 @@ function clipWords(text, max) {
 
 function jobTitleOf(job) {
   var rec = (typeof taskRecs !== 'undefined' && taskRecs[job.id]) || {};
-  return rec.title || job.label || job.id;
+  return (job.raw && job.raw.run_name) || rec.title || job.label || job.id;
+}
+
+// The task or step a job, or Rouh's own turn, belongs to, as the server named
+// it: "Step 62-18 · Its name", "Task 118 · Its name", or "" for none.
+function taskLineOf(who) {
+  if (!who || !who.task_name) return '';
+  var no = who.step_number ? 'Step ' + who.step_number
+    : who.task_number != null ? 'Task ' + who.task_number : 'Task';
+  return no + ' · ' + who.task_name;
 }
 
 // A tool call's kind as the orb draws it: its mark, in its colour.
@@ -885,10 +897,14 @@ function orbTipShow(node, clientX, clientY) {
   } else if (node.closed) {
     doing = { failed: 'Failed', lost: 'Stopped without saying how it ended' }[node.state] || 'Finished';
   } else doing = escapeHtml(raw.doing || raw.what || 'Working');
-  // The job's task and step in the workspace, "30-02", before its name.
-  var no = !mine && job && job.raw && job.raw.step ? String(job.raw.step) : '';
-  var lines = '<div class="l">' + (no ? '<span class="no">' + escapeHtml(no) + '</span> ' : '') +
-    escapeHtml(name) + '</div>';
+  // A job, or Rouh's own turn: its name on the first line and the task or
+  // step it belongs to on the second, each cut to one line; the card a
+  // click opens has both whole.
+  var who = node.kind === 'worker' ? raw : node.kind === 'self' ? SELF.who : null;
+  if (node.kind === 'self' && who && who.run_name) name = who.run_name;
+  var task = taskLineOf(who);
+  var lines = '<div class="l' + (who ? ' one' : '') + '">' + escapeHtml(name) + '</div>' +
+    (task ? '<div class="tk">' + escapeHtml(task) + '</div>' : '');
   if (node.state === 'waiting' && !node.fade) {
     var rec = job && typeof taskRecs !== 'undefined' ? taskRecs[job.id] || {} : {};
     // `asking` is the question's words where the job list has them, and only
@@ -1254,7 +1270,9 @@ function openNodeCard(node) {
       '</p></details>';
   } else if (kind === 'worker') {
     var rec = (typeof taskRecs !== 'undefined' && taskRecs[node.id]) || {};
-    title = rec.title || node.label || 'A background job';
+    title = raw.run_name || rec.title || node.label || 'A background job';
+    var wtask = taskLineOf(raw);
+    if (wtask) facts += fact(raw.step_number ? 'Step' : 'Task', escapeHtml(wtask));
     if (raw.owner) {
       var by = OWNER_WORDS[raw.owner] || raw.owner;
       facts += fact('Run by', escapeHtml(by.charAt(0).toUpperCase() + by.slice(1)));
@@ -1281,18 +1299,23 @@ function openNodeCard(node) {
     }
   } else if (kind === 'subagent') {
     var job = jobOf(SCENE[node.parent] || node);
-    var jrec = job && typeof taskRecs !== 'undefined' ? taskRecs[job.id] || {} : {};
     title = raw.what || node.label || 'A helper';
     if (raw.detail) facts += fact('Its task', escapeHtml(raw.detail));
     if (raw.doing && !node.closed) facts += fact('Doing now', escapeHtml(raw.doing));
     facts += fact('Status', stateWords(node));
     facts += fact(node.closed ? 'Took' : 'Running for', escapeHtml(durationOf(node)));
     if (node.closed) facts += fact('Finished', escapeHtml(agoWords(node)));
-    if (job) facts += fact('Inside the job', escapeHtml(jrec.title || job.label || job.id));
+    if (job) facts += fact('Inside the job', escapeHtml(jobTitleOf(job)));
+    var jtask = job ? taskLineOf(job.raw) : '';
+    if (jtask) facts += fact(job.raw.step_number ? 'The job’s step' : 'The job’s task', escapeHtml(jtask));
     if (raw.what && node.label) facts += fact('Kind of helper', escapeHtml(node.label));
     if (raw.effort) facts += fact('Effort', escapeHtml(raw.effort));
   } else if (kind === 'self') {
     title = 'Answering you';
+    var sw = SELF.who || {};
+    if (sw.run_name) facts += fact('In the chat', escapeHtml(sw.run_name));
+    var stask = taskLineOf(sw);
+    if (stask) facts += fact(sw.step_number ? 'Step' : 'Task', escapeHtml(stask));
     facts += fact('Doing now', escapeHtml(selfDoing()));
     facts += fact('Status', node.fade ? 'Finished' : 'Running');
     facts += fact(node.fade ? 'Took' : 'Running for', escapeHtml(durationOf(node)));
@@ -1418,7 +1441,9 @@ var ORB_JOBS = [], ORB_OWN = [];       // jobs out of the core, and Rouh's own c
 // not in the tree: the page itself knows when Rouh is at work on an answer.
 var SELF = { id: 'rouh-self', kind: 'self', parent: 'root', label: 'Answering you',
              state: 'running', opened: 0, closed: 0, fade: 0, alpha: 0, jit: 0.4242,
-             dir: null, raw: {}, subs: [], calls: [] };
+             dir: null, raw: {}, subs: [], calls: [],
+             // The chat the turn is in and its task, from the tree (`applyTree`).
+             who: /** @type {any} */ (null) };
 var PJ = { cx: 0, cy: 0, S: 1, cyw: 1, syw: 0, cpi: 1, spi: 0 };
 var ITEMS = [], DRAW = [], itemN = 0, segN = 0, markN = 0;
 var PICKS = [], pickN = 0, pickCount = 0;

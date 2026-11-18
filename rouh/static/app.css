@@ -8373,8 +8373,13 @@ a.att-name:hover { text-decoration: underline; }
    how long it has been going. */
 .orb-tip .n { margin-top: 2px; overflow-wrap: anywhere; }
 .orb-tip .g { font-weight: 600; }
-/* The job's task and step, "30-02", before its name: bold, in the jobs' colour. */
-.orb-tip .no { color: var(--orb-no); font-weight: 700; }
+/* A job's name, or the chat Rouh is answering in, on one line, and the task
+   or step it belongs to on the next, in the jobs' colour: each cut with an
+   ellipsis, because the card a click opens has them whole. */
+.orb-tip .l.one, .orb-tip .tk {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal;
+}
+.orb-tip .tk { color: var(--orb-no); font-weight: 600; margin-top: 1px; }
 .orb-tip .nw {
   margin-top: 6px; padding: 3px 5px; font-weight: 600;
   background: var(--orb-wait); color: var(--panel); overflow-wrap: anywhere;

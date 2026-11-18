@@ -1274,7 +1274,189 @@ def _node(row: objects.Run, twigs: Mapping[str, list], now: float, prune_after: 
         node["ms"] = int(max(0.0, ended - row.started_at) * 1000)
     if state == "waiting" and row.question:
         node["asking"] = row.question[:400]
+    # What the orb's hover and card call it: the run's own name, and the task
+    # or step it belongs to. A spike only; a branch's card reads its job's.
+    if not row.parent_run_id:
+        node["run_name"] = row.title or row.id
+        node.update({k: v for k, v in _task_of_cached(row, now).items() if k != "task_id"})
     return node
+
+
+# ---------------------------------------------------------------------------
+# Which task a run belongs to, for the orb's hover and card
+# ---------------------------------------------------------------------------
+
+#: How long one run's task is kept before it is asked again, in seconds. The
+#: tree is rebuilt on every tool call of every run, and the task a run belongs
+#: to changes once in its life if at all, so a handful of queries per spike per
+#: rebuild would be all cost and no news.
+TASK_TTL = 30.0
+_task_cache: dict[str, tuple[float, dict]] = {}
+
+#: A step named in a brief: "step 62-18", "task 178-15", or a step folder in a
+#: path, ".../62-18.the-name". Only a step: a brief mentions top-level tasks in
+#: passing far too often for "task 118" to say which one the run is for.
+_STEP_NAMED = re.compile(r"\b(?:sub-?task|step|task)\s+(\d{1,4}-\d{2,3})(?![\d-])", re.I)
+_STEP_IN_PATH = re.compile(r"/(\d{1,4}-\d{2,3})\.[\w-]")
+#: An icon and its space at the front of a chat's title: anything that is not
+#: a letter, a digit or an opening quote or bracket, followed by a space.
+_ICON_IN_FRONT = re.compile(r"^[^\w\"'(\[\u2018\u201c]+\s+")
+#: Only the start of a brief is the request itself; what follows is boilerplate
+#: a start puts after it, which names steps of its own as examples.
+_BRIEF_HEAD = 1200
+
+
+def _is_step(task: objects.Task | None) -> bool:
+    if task is None:
+        return False
+    from . import subtasknotes
+
+    return subtasknotes.parent_of(task.id) is not None
+
+
+def _task_words(task: objects.Task) -> dict:
+    """A task, or a step, the way the orb names it: its number and its name.
+
+    A step is "Step 62-18 · <its name>", with the number of the task it is in
+    beside it; a top-level task is "Task 118 · <its name>".
+    """
+    from . import subtasknotes
+
+    out: dict[str, Any] = {"task_id": task.id,
+                           "task_name": task.title or task.slug or task.folder or task.id}
+    above, top, guard = subtasknotes.parent_of(task.id), task, 0
+    while above is not None and guard < 6:
+        top, above, guard = above, subtasknotes.parent_of(above.id), guard + 1
+    if top is not task:
+        step = subtasknotes.step_number(task)
+        if step:
+            out["step_number"] = step
+    if top.number is not None:
+        out["task_number"] = top.number
+    return out
+
+
+def _step_named_in(brief: str) -> objects.Task | None:
+    """The step a run's request names, by its number or its folder, or None."""
+    head = (brief or "")[:_BRIEF_HEAD]
+    found = _STEP_IN_PATH.search(head) or _STEP_NAMED.search(head)
+    if not found:
+        return None
+    number = found.group(1)
+    try:
+        from . import subtasknotes
+        from .models.objects import Task
+
+        for row in Task.objects.filter(folder__contains=f"/{number}.").order_by("-created_at")[:5]:
+            if subtasknotes.step_of_folder(row.folder) == number:
+                return row
+    except Exception:
+        log.debug("could not look up step %s", number, exc_info=True)
+    return None
+
+
+def task_of_chat_line(chat: str) -> objects.Task | None:
+    """The task a chat belongs to: its own owner, else the first chat above it,
+    along its line of forks, that a task or a step owns. None for neither."""
+    if not chat:
+        return None
+    from . import conversations, forks
+
+    try:
+        own = conversations.task_of(chat)
+        return own if own is not None else forks.task_above(chat)
+    except Exception:
+        log.debug("could not tell which task chat %s is part of", chat, exc_info=True)
+        return None
+
+
+def task_of_run(row: objects.Run) -> dict:
+    """The task or step a run belongs to, as the orb names it, or {} for none.
+
+    Most specific first: a step the run is tied to (it is filed under it, the
+    chat it came from is the step's own, or its request names it), then a task
+    it is tied to the same ways, then - only when none of those said anything -
+    the task of the chat it came from's line of forks: a fork of a task's chat
+    is that task's work.
+    """
+    st = store()
+    if st is None or row is None:
+        return {}
+    from . import conversations
+
+    owned = None
+    with_chat = None
+    try:
+        owner = st.owner_of("run", row.id)
+        if owner and owner[0] == "task":
+            owned = st.get_task(owner[1])
+    except Exception:
+        log.debug("could not read who owns run %s", row.id, exc_info=True)
+    chat = chat_of(row.id)
+    if chat:
+        try:
+            with_chat = conversations.task_of(chat)
+        except Exception:
+            log.debug("could not read which task owns chat %s", chat, exc_info=True)
+    named = _step_named_in(row.brief or "")
+    for task in (owned, with_chat):
+        if _is_step(task):
+            return _task_words(task)
+    if named is not None:
+        return _task_words(named)
+    for task in (owned, with_chat):
+        if task is not None:
+            return _task_words(task)
+    above = task_of_chat_line(chat) if chat else None
+    return _task_words(above) if above is not None else {}
+
+
+def _task_of_cached(row: objects.Run, now: float) -> dict:
+    kept = _task_cache.get(row.id)
+    if kept is not None and now - kept[0] < TASK_TTL:
+        return kept[1]
+    try:
+        found = task_of_run(row)
+    except Exception:
+        log.exception("could not tell which task run %s belongs to", row.id)
+        found = {}
+    if len(_task_cache) > 500:
+        _task_cache.clear()
+    _task_cache[row.id] = (now, found)
+    return found
+
+
+def chat_words(chat: str) -> dict:
+    """A conversation as the orb names Rouh's own turn in it: the chat's name as
+    `run_name`, and its task the way a run's is named, {} when there is no chat."""
+    if not chat:
+        return {}
+    kept = _task_cache.get("chat:" + chat)
+    if kept is not None and time.time() - kept[0] < TASK_TTL:
+        return kept[1]
+    out = _chat_words(chat)
+    _task_cache["chat:" + chat] = (time.time(), out)
+    return out
+
+
+def _chat_words(chat: str) -> dict:
+    from . import conversations
+
+    try:
+        row = conversations.chat(chat)
+    except Exception:
+        log.debug("could not read chat %s", chat, exc_info=True)
+        row = None
+    if row is None:
+        return {}
+    # The icon in front of a chat's title (a speech balloon, a note) is the
+    # chat list's own mark; the orb's line is words.
+    name = _ICON_IN_FRONT.sub("", str(row.get("title") or "")).strip()
+    out: dict[str, Any] = {"run_name": name or "This chat", "chat": chat}
+    task = task_of_chat_line(chat)
+    if task is not None:
+        out.update(_task_words(task))
+    return out
 
 
 def _waiting_in(node: Mapping[str, Any]) -> bool:
