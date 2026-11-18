@@ -13,7 +13,7 @@ rather than here, because a month is about 600,000 rows.
 What a level is
 ---------------
 
-A level is a period and a list of choices made on the way down (`filters`), and it is split by
+A level is a period (the last 30 days unless another is asked for) and a list of choices made on the way down (`filters`), and it is split by
 one more thing (`by`): the company, the model, the use, the day, or what started the call
 ("origin"). The screen asks for the next split in `ORDER` unless the person picks another, so
 any order down is allowed and the trail says which was taken.
@@ -76,9 +76,8 @@ TOKENS_SQL = "(input_tokens + output_tokens + cache_read_tokens + cache_write_to
 #: running cost, not just day/week/month").
 PERIODS = ("day", "week", "month", "days30", "range")
 
-#: How many days the rolling total adds up, and how far back its line reaches at least.
+#: How many days the rolling period is (`days30`).
 ROLLING = 30
-ROLLING_SPAN = 90
 
 #: How many rows a level lists before it adds the rest up in one line.
 ROWS = 40
@@ -320,7 +319,8 @@ def period_of(kind: str, at: str | None, start: str | None, end: str | None, zon
     what is left of it, so this month so far is set against the same days of last month.
     """
     today = datetime.now(zone).date()
-    kind = kind if kind in PERIODS else "month"
+    # The last 30 days is where the screen starts (Petar, 18 November 2026).
+    kind = kind if kind in PERIODS else "days30"
     if kind == "range":
         first, last = _day(start, today - timedelta(days=29)), _day(end, today)
         if last < first:
@@ -510,7 +510,7 @@ def _plans(who, lo: float, hi: float) -> dict | None:
     return {"claude": claude, "codex": codex - keyed, "codex_on_key": keyed}
 
 
-def level(who, *, period: str = "month", at: str | None = None, start: str | None = None,
+def level(who, *, period: str = "days30", at: str | None = None, start: str | None = None,
           end: str | None = None, by: str | None = None, unpriced: bool = False, **asked) -> dict:
     """One level of the drill-down: the period, the trail, the total against the period before,
     a row for each thing it splits into, the chart by day (or by hour, for one day), and on the
@@ -602,9 +602,6 @@ def level(who, *, period: str = "month", at: str | None = None, start: str | Non
     total_cost, before_cost = _sum(total_cost), _sum(before_cost)
 
     series = _series(who, span, filters, by, rows, zone, zone_name, unpriced)
-    rolling = None
-    if span["kind"] in ("days30", "month") and not ({"day", "hour"} & chosen):
-        rolling = _rolling(who, span, filters, zone, zone_name, began, unpriced)
     plans = _plans(who, lo, hi) if not ({"model", "purpose", "origin", "hour"} & chosen) else None
     if plans is not None and filters.get("provider") not in (None, "anthropic", "openai"):
         plans = None
@@ -642,7 +639,6 @@ def level(who, *, period: str = "month", at: str | None = None, start: str | Non
         "rows": rows,
         "more": more,
         "series": series,
-        "rolling": rolling,
         "plans": plans,
         "began": datetime.fromtimestamp(began, zone).date().isoformat() if began else None,
         "whose": "organisation" if who.is_admin else "yours",
@@ -727,47 +723,6 @@ def _series(who, span: dict, filters: dict, by: str, rows: list[dict], zone, zon
             "measure": "calls" if unpriced else "cost"}
 
 
-def _rolling(who, span: dict, filters: dict, zone, zone_name: str, began: float | None,
-             unpriced: bool = False) -> dict | None:
-    """The running 30-day cost: for each day, what was paid per use in the 30 days ending
-    that day. It ends today and reaches back at least `ROLLING_SPAN` days, or to the shown
-    window if that is older, never before the log began nor past `MOST_DAYS`. A point whose
-    30 days begin before the log is marked `partial`, because fewer days are in it."""
-    if began is None:
-        return None
-    today = date.fromisoformat(span["today"])
-    began_day = datetime.fromtimestamp(began, zone).date()
-    first = min(today - timedelta(days=ROLLING_SPAN - 1), date.fromisoformat(span["to"]))
-    first = max(first, began_day, today - timedelta(days=MOST_DAYS - 1))
-    if first > today:
-        return None
-    lo, hi = _bounds((first - timedelta(days=ROLLING - 1)).isoformat(), today.isoformat(), zone)
-    where, args = _where(who, [(lo, hi)], filters, zone_name, unpriced)
-    when, wargs = _expr("day", zone_name)
-    daily = {d: (_sum(c), n) for d, c, n in _rows(
-        f"SELECT {when}, SUM(cost_usd), COUNT(*) FROM llm_requests WHERE {where} GROUP BY 1",
-        wargs + args)}
-    points = []
-    day = first - timedelta(days=ROLLING - 1)
-    window: list[tuple[float, int]] = []
-    while day <= today:
-        window.append(daily.get(day.isoformat(), (0.0, 0)))
-        if len(window) > ROLLING:
-            window.pop(0)
-        if day >= first:
-            cost = sum(c for c, _ in window)
-            calls = sum(n for _, n in window)
-            start = day - timedelta(days=ROLLING - 1)
-            points.append({"at": day.isoformat(), "from": start.isoformat(), "cost": cost,
-                           "v": calls if unpriced else cost,
-                           "said": _calls_said(calls) if unpriced else _money(cost), "calls": calls,
-                           "partial": start < began_day,
-                           "days": (day - max(start, began_day)).days + 1})
-        day += timedelta(days=1)
-    return {"days": ROLLING, "points": points, "measure": "calls" if unpriced else "cost",
-            "chosen": span["to"] if span["kind"] == "days30" else None}
-
-
 # --- the calls ------------------------------------------------------------------------------
 
 _CALL_FIELDS = ("id", "started_at", "provider", "model", "served_model", "purpose", "session_id",
@@ -776,7 +731,7 @@ _CALL_FIELDS = ("id", "started_at", "provider", "model", "served_model", "purpos
                 "turn_id", "stop_reason")
 
 
-def calls(who, *, period: str = "month", at: str | None = None, start: str | None = None,
+def calls(who, *, period: str = "days30", at: str | None = None, start: str | None = None,
           end: str | None = None, order: str = "cost", offset: int = 0, unpriced: bool = False,
           **asked) -> dict:
     """The calls of a level, dearest or newest first, a page at a time; only the calls with

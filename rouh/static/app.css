@@ -1032,26 +1032,6 @@ button { font: inherit; color: inherit; }
 .ou-tiprow .ou-sw { width: 8px; height: 8px; }
 .ou-tiprow span:last-child { white-space: nowrap; }
 .ou-tipnone { color: var(--dim); margin-top: 3px; }
-/* The running 30-day cost: a line drawn under one button a day, the hovered and the
-   shown day marked with a dot. */
-.ou-rplot { display: block; }
-.ou-rline { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.ou-rline path { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
-.ou-rfull { stroke: var(--text); }
-.ou-rpart { stroke: var(--dim); stroke-dasharray: 4 4; }
-.ou-rcols { position: absolute; inset: 0; display: flex; }
-.ou-rcol {
-  appearance: none; border: 0; background: none; padding: 0; margin: 0; flex: 1 1 0; min-width: 0;
-  height: 100%; cursor: pointer; border-radius: 2px;
-}
-.ou-rcol:hover, .ou-rcol:focus-visible { background: color-mix(in srgb, var(--text) 7%, transparent); }
-.orb-usage-view .ou-rcol:focus-visible { outline-offset: -2px; }
-.ou-rdot {
-  position: absolute; width: 10px; height: 10px; margin: 0 0 -5px -5px; border-radius: 50%;
-  background: var(--text); border: 2px solid var(--bg); pointer-events: none; box-sizing: border-box;
-}
-.ou-rdot[hidden] { display: none; }
-.ou-rchosen { width: 14px; height: 14px; margin: 0 0 -7px -7px; background: var(--accent); }
 .ou-legend {
   display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin-top: 8px;
   font-size: 12px; color: var(--dim);
