@@ -1842,13 +1842,14 @@ class Memory:
 
     def carried_sent(self, session_id: str, limit: int, *,
                      limit_of: Callable[[str], int] | None = None,
-                     files=None) -> list[dict]:
-        """What a fork is sent of the chat it came off, by the very path a
-        turn sends it (`history`): the parent's messages `_window` carries,
-        repaired and stubbed. Whether or not Parent chat history is on for
-        it, because the strip's panel sizes it either way (`reading`). []
-        when the chat carries nothing."""
-        whole = self._window(session_id, limit, limit_of=limit_of, carry=True)
+                     files=None, off: frozenset | set = frozenset()) -> list[dict]:
+        """What a fork is sent of the chats above it, by the very path a
+        turn sends it (`history`): the ancestors' messages `_window` carries,
+        repaired and stubbed. Whatever the person chose for this chat in the
+        strip's panel, because the panel sizes each parent chat on or off
+        (`reading`): `off` is the ancestors to leave out instead, so one alone
+        is sized by leaving out all the others. [] when nothing is carried."""
+        whole = self._window(session_id, limit, limit_of=limit_of, carry=True, off=off)
         own = self._window(session_id, limit, depth=forks.DEEP)
         if len(whole) <= len(own):
             return []
@@ -1858,45 +1859,59 @@ class Memory:
     def _window(self, session_id: str, limit, *, before: int | None = None,
                 upto: int | None = None, depth: int = 0,
                 limit_of: Callable[[str], int] | None = None,
-                carry: bool = False) -> list[dict]:
+                carry: bool = False, off: frozenset | set | None = None,
+                mute: bool = False) -> list[dict]:
         """`history` before it is repaired: this chat's turns, and what it carries.
 
         `upto` is a message of this chat, and cuts it off after the exchange
         that message is part of: how much of a parent a fork of it carries.
         The exchange and not the id, so a question the parent asked again
         after the fork was taken still reaches the fork with its live answer.
+
+        `off` is the chats above that this one leaves out, each chosen on its
+        own in the strip's panel (`reading.parents_off`; Petar, 18 November
+        2026: "a separate toggle for each"). One left out gives nothing of its
+        own (`mute`) and still hands on to the one above it, cut where it was
+        forked from that one, so a parent off leaves its own parent on. The
+        joins either side of the gap are repaired with the rest (`history`).
         """
         with self._lock:
-            # A notice kept in the chat is the page's alone (`add_notice`).
-            rows = (TranscriptMessage.objects.filter(session_id=session_id, live=True,
-                                                     notice=False)
-                    .annotate(exchange=_exchange()))
-            if before is not None:
-                rows = rows.filter(exchange__lt=before)
-            rows = _on_stage(rows, session_id)
-            if upto is not None:
-                edge = (TranscriptMessage.objects.filter(id=upto).annotate(ex=_exchange())
-                        .values_list("ex", flat=True).first())
-                rows = (rows.filter(exchange__lte=edge) if edge is not None
-                        else rows.filter(id__lte=upto))
-            rows = list(_limited(rows.order_by("-exchange", "-id").values("role", "content"),
-                                 limit))
+            if mute:
+                rows = []
+            else:
+                # A notice kept in the chat is the page's alone (`add_notice`).
+                q = (TranscriptMessage.objects.filter(session_id=session_id, live=True,
+                                                      notice=False)
+                     .annotate(exchange=_exchange()))
+                if before is not None:
+                    q = q.filter(exchange__lt=before)
+                q = _on_stage(q, session_id)
+                if upto is not None:
+                    edge = (TranscriptMessage.objects.filter(id=upto).annotate(ex=_exchange())
+                            .values_list("ex", flat=True).first())
+                    q = (q.filter(exchange__lte=edge) if edge is not None
+                         else q.filter(id__lte=upto))
+                rows = list(_limited(q.order_by("-exchange", "-id").values("role", "content"),
+                                     limit))
             fork = (ChatFork.objects.filter(chat_id=session_id)
                     .values("parent_id", "at").first())
         msgs = [{"role": r["role"], "content": json.loads(r["content"])} for r in reversed(rows)]
         room = _room(limit, len(rows))
         if fork and limit_of is not None:
             room = _least(room, limit_of(fork["parent_id"]))
-        if fork and fork["at"] is not None and depth == 0 and not carry:
-            # Parent chat history, in the strip's panel: on unless the person turned it off for this chat
-            # (`reading.carries_parent`); a fork above carries its own as it always has.
-            from . import reading
+        if off is None:
+            off = frozenset()
+            if fork and fork["at"] is not None and depth == 0 and not carry:
+                # The parent chats, in the strip's panel: each on unless the person turned it off for
+                # this chat (`reading.parents_off`).
+                from . import reading
 
-            if not reading.carries_parent(session_id):
-                fork = None
+                off = reading.parents_off(session_id)
         if fork and fork["at"] is not None and room != 0 and depth < forks.DEEP:
-            msgs = drop_carried_stops(self._window(fork["parent_id"], room, upto=int(fork["at"]),
-                                                   depth=depth + 1, limit_of=limit_of)) + msgs
+            parent = fork["parent_id"]
+            msgs = drop_carried_stops(self._window(parent, room, upto=int(fork["at"]),
+                                                   depth=depth + 1, limit_of=limit_of,
+                                                   off=off, mute=parent in off)) + msgs
         return msgs
 
     # --- forking, and turns cut short ---------------------------------------

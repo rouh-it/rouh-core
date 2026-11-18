@@ -121,6 +121,23 @@ def carried(chat_id: str) -> tuple[str, int] | None:
     return row["parent_id"], int(row["at"])
 
 
+def carried_chain(chat_id: str) -> list[tuple[str, int]]:
+    """(each chat above this one, the last message of it carried), nearest first: the chats
+    `memory.Memory._window` walks up for a turn here, each cut where the one below it was forked
+    from it. [] for a chat that carries none. The strip's panel draws one row for each (`reading`)."""
+    out: list[tuple[str, int]] = []
+    seen = {chat_id}
+    here = chat_id
+    for _ in range(DEEP):
+        got = carried(here)
+        if got is None or got[0] in seen:
+            break
+        out.append(got)
+        seen.add(got[0])
+        here = got[0]
+    return out
+
+
 def lineage(chat_id: str) -> list[str]:
     """This chat and every chat above it, the one it all started in first."""
     return _line(chat_id, parent_of)

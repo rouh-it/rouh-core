@@ -45,7 +45,8 @@ content"). Chat Options, by the box, is how Rouh works: the mode, memory, rules 
 strip under the chat's title is what the chat is about (`CONTENT_KEYS`), with a panel of its own: This task
 (on), Other files in the folder (off), Subtasks (off; all or chosen; everything, notes only or pages only),
 Subtasks' chat histories (off); in a subtask's chat Parent task (on, `subtasknotes.background`) and Parent task's
-chat history (off); in a fork Parent chat history (on, `carries_parent`, read by `memory.Memory._window`).
+chat history (off); in a fork one row for each parent chat, each with its own switch (on, `parent_on`, read by
+`memory.Memory._window` through `parents_off`), and the chat itself under them.
 A mode never changes what the chat is about, and Reset to defaults leaves it. Each choice is listed with its
 size whether it is on or not; what is left out is sized from the file or the database and never read
 (`items`, `GROUPS`, `content`).
@@ -71,7 +72,8 @@ log = logging.getLogger("rouh.reading")
 #: parent's chats; a fork carries the conversation it came off, as it always has (`memory.Memory._window`).
 DEFAULTS = {"mode": "full", "memory": True, "rules": True, "tools": True, "off": [],
             "task": True, "others": False, "subtasks": "none", "picked": [], "steps_what": "all",
-            "step_histories": False, "parent_task": True, "parent_task_history": False, "fork_history": True}
+            "step_histories": False, "parent_task": True, "parent_task_history": False, "fork_history": True,
+            "parents": {}}
 #: The three modes, as the selector at the top of Chat Options names them.
 MODES = ("simple", "full", "custom")
 MODE_NAMES = {"simple": "Simple chat", "full": "Full capabilities", "custom": "Custom"}
@@ -84,7 +86,7 @@ FULL = {"memory": True, "rules": True, "tools": True, "off": []}
 SWITCH_KEYS = ("memory", "rules", "tools", "off")
 #: What the chat is about: set in the strip's panel, never by a mode, kept with the chat.
 CONTENT_KEYS = ("task", "others", "subtasks", "picked", "steps_what", "step_histories", "parent_task",
-                "parent_task_history", "fork_history")
+                "parent_task_history", "fork_history", "parents")
 SUBTASKS = ("none", "all", "some")
 #: Of each subtask that is read: everything, its notes (.md) only, or its pages (.html) only.
 STEPS_WHAT = ("all", "md", "html")
@@ -141,8 +143,41 @@ def settings(chat_id: str, who=None) -> dict:
     if got["steps_what"] not in STEPS_WHAT:
         got["steps_what"] = "all"
     got["picked"] = [str(x) for x in got.get("picked") or []][:200]
+    got["parents"] = _parents_of(got.get("parents"))
     got["off"] = sorted({str(x) for x in got.get("off") or []})[:500]
     return _on_mode(got)
+
+
+def _parents_of(v) -> dict[str, bool]:
+    """Each parent chat this chat chose on or off, by its id: {} when none was chosen one by one."""
+    if not isinstance(v, dict):
+        return {}
+    return {str(k): bool(x) for k, x in list(v.items())[:64] if str(k)}
+
+
+def parent_on(s: dict, parent_id: str) -> bool:
+    """Whether this chat is sent the part it carries of that parent chat. Each parent chat is its own
+    choice since 18 November 2026 (Petar: "with a separate toggle for each"); one never chosen by itself
+    follows the one switch every parent chat had before (`fork_history`), so a chat that had turned it off
+    has every parent chat off, and one that had it on has every one on."""
+    got = _parents_of(s.get("parents"))
+    return got[parent_id] if parent_id in got else bool(s.get("fork_history", True))
+
+
+def parents_off(chat_id: str) -> frozenset:
+    """The parent chats this chat leaves out (`memory.Memory._window`, `recall.chain`). None when it cannot
+    be read: a turn is never lost to its settings, and carries what it always has."""
+    from . import forks
+
+    try:
+        row = _chat_row(chat_id) if chat_id else None
+        own = row.reading if row is not None and isinstance(row.reading, dict) else {}
+        if not own or ("parents" not in own and own.get("fork_history", True)):
+            return frozenset()
+        return frozenset(p for p, _at in forks.carried_chain(chat_id) if not parent_on(own, p))
+    except Exception:  # noqa: BLE001
+        log.exception("which parent chats chat %s leaves out could not be read", chat_id)
+        return frozenset()
 
 
 def put(chat_id: str, change: dict, who=None) -> dict:
@@ -185,8 +220,24 @@ def put(chat_id: str, change: dict, who=None) -> dict:
         if before["mode"] != "custom":
             now.update({k: before[k] for k in SWITCH_KEYS})
         now["mode"] = "custom"
+    if "parents" in change or "fork_history" in change:
+        # One choice for each parent chat, kept by its id. The first one made by itself writes every parent
+        # chat down as it was, from the one switch they all had until 18 November 2026 (`fork_history`), so
+        # pressing one never moves another; Parent chat history sent as one still sets them all.
+        from . import forks
+
+        chain = [p for p, _at in forks.carried_chain(chat_id)]
+        if "fork_history" in change:
+            whole = bool(change.pop("fork_history"))
+            mine = {p: whole for p in chain}
+        else:
+            mine = {p: parent_on(now, p) for p in chain}
+        asked = _parents_of(change.pop("parents", None))
+        mine.update({p: v for p, v in asked.items() if p in chain})
+        now["parents"] = mine
+        now.pop("fork_history", None)
     for k, v in change.items():
-        if k not in DEFAULTS or k == "mode":
+        if k not in DEFAULTS or k in ("mode", "parents"):
             continue
         if k == "subtasks":
             if v in SUBTASKS:
@@ -578,57 +629,89 @@ def _runtime():
         return Memory(), None
 
 
-def _carried_tokens(chat_id: str, parent: str, at: int) -> int:
-    """The tokens of what a fork is sent of the chat it came off: the very messages a turn sends
-    (`memory.Memory.carried_sent`: for a fork of General its window of `history_turns` up to the fork, for any
-    other chat all of it, up the chain of forks; repaired, earlier tool results as stubs and older pictures as
-    lines), with the files that go whole read as they are sent, counted by `tokencount`. General's running
-    summary is told in General alone (`brain._general_summary_block`), so it is not part of it."""
+def _carried_tokens(chat_id: str, chain: list[tuple[str, int]]) -> dict[str, int]:
+    """The tokens each parent chat comes to in what this fork is sent, and its own words under "": the
+    very messages a turn sends (`memory.Memory.carried_sent`: for a fork of General its window of
+    `history_turns` up to the fork, for any other chat all of it, each cut where the one below it was forked
+    from it; repaired, earlier tool results as stubs and older pictures as lines), with the files that go
+    whole read as they are sent, counted by `tokencount`. A parent chat is sized by itself, with every
+    other left out, so its size is the same whether it is on or off. General's running summary is told in
+    General alone (`brain._general_summary_block`), so it is not part of it."""
     from django.db.models import Count, Max, Q
 
-    from . import attachments, chatkinds, tokencount
+    from . import attachments, chatkinds, context_editing, forks, tokencount
+    from .memory import repair_history
     from .models.memory import TranscriptMessage
 
     limit = chatkinds.profile(chat_id).history
     own = TranscriptMessage.objects.filter(session_id=chat_id).aggregate(
         last=Max("id"), live=Count("id", filter=Q(live=True)))
-    above = TranscriptMessage.objects.filter(session_id=parent, id__lte=at).aggregate(
-        live=Count("id", filter=Q(live=True)))
-    key = (chat_id, own["last"], own["live"], parent, at, above["live"], limit,
-           chatkinds.profile(parent).history)
+    above = []
+    for parent, at in chain:
+        n = TranscriptMessage.objects.filter(session_id=parent, id__lte=at).aggregate(
+            live=Count("id", filter=Q(live=True)))
+        above.append((parent, at, n["live"], chatkinds.profile(parent).history))
+    key = (chat_id, own["last"], own["live"], limit, tuple(above))
     got = _CARRIED.get(key)
     if got is None:
         memory, store = _runtime()
-        sent = memory.carried_sent(chat_id, limit, limit_of=lambda c: chatkinds.profile(c).history, files=store)
-        if store is not None:
-            sent = attachments.hydrate(sent, store)
-        got = tokencount.messages(sent)
+        ids = [p for p, _at in chain]
+
+        def counted(msgs: list) -> int:
+            if store is not None:
+                msgs = attachments.hydrate(msgs, store)
+            return tokencount.messages(msgs)
+
+        got = {}
+        for parent in ids:
+            sent = memory.carried_sent(chat_id, limit, limit_of=lambda c: chatkinds.profile(c).history,
+                                       files=store, off=frozenset(p for p in ids if p != parent))
+            got[parent] = counted(sent)
+        mine, _did = context_editing.lean(repair_history(memory._window(chat_id, limit, depth=forks.DEEP)),
+                                          store=store)
+        got[""] = counted(mine)
         if len(_CARRIED) > 500:
             _CARRIED.clear()
         _CARRIED[key] = got
     return got
 
 
-def _fork_item(chat_id: str, on: bool) -> Item | None:
-    """The conversation a fork carries above its own words (`memory.Memory._window`), sized as it is sent
-    (`_carried_tokens`); None when the chat carries none."""
-    from . import conversations, forks
+def chat_name(chat_id: str) -> str:
+    """A chat's name as the strip's panel says it: its title, with the chat mark when it has none."""
+    from . import conversations
 
-    got = forks.carried(chat_id)
-    if got is None:
-        return None
-    parent, at = got
+    chat = conversations.store().get_chat(chat_id)
+    name = (chat.title if chat and chat.title else "").strip()
+    if not name or conversations.is_untitled(name):
+        name = "General" if chat_id == conversations.GENERAL else "Untitled chat"
+    return name if not name[:1].isalnum() else f"\N{SPEECH BALLOON} {name}"
+
+
+#: The words of the row for the chat itself, at the foot of the tree (Petar, 18 November 2026).
+THIS_CHAT = "This chat - \N{SPOOL OF THREAD} Chat fork history"
+
+
+def _fork_items(chat_id: str, s: dict) -> list[Item]:
+    """The parent chats a fork carries above its own words (`memory.Memory._window`), nearest first, each
+    with its own switch (`parent_on`) and sized as it is sent (`_carried_tokens`); [] when it carries none."""
+    from . import forks
+
+    chain = forks.carried_chain(chat_id)
+    if not chain:
+        return []
     try:
-        n = _carried_tokens(chat_id, parent, at)
+        sizes = _carried_tokens(chat_id, chain)
     except Exception:  # noqa: BLE001 - a size is never worth the panel
-        log.exception("what chat %s carries of %s could not be sized", chat_id, parent)
-        n = 0
-    name = "General" if parent == conversations.GENERAL else ""
-    if not name:
-        chat = conversations.store().get_chat(parent)
-        name = (chat.title if chat and chat.title else "").strip() or "the chat above"
-    return Item(id=f"fork:{parent}", kind="fork", label=name, tokens=max(1, n), group="fork_history",
-                on=on, elsewhere=True)
+        log.exception("what chat %s carries could not be sized", chat_id)
+        sizes = {}
+    got = []
+    for depth, (parent, _at) in enumerate(chain):
+        got.append(Item(id=f"fork:{parent}", kind="fork", label=chat_name(parent),
+                        tokens=max(1, sizes.get(parent, 0)), group="fork_history", owner=str(depth + 1),
+                        on=parent_on(s, parent), elsewhere=True))
+    got.append(Item(id=f"self:{chat_id}", kind="self", label=THIS_CHAT, tokens=sizes.get("", 0),
+                    group="fork_self", on=True, elsewhere=True))
+    return got
 
 
 def items(chat_id: str, s: dict | None = None) -> tuple[object, list[Item], list]:
@@ -669,9 +752,7 @@ def items(chat_id: str, s: dict | None = None) -> tuple[object, list[Item], list
                             on=bool(s["parent_task"]), elsewhere=True))
             got += _histories(parent, str(parent.number or ""), group="parent_task_history",
                               read=bool(s["parent_task_history"]))
-    fork = _fork_item(chat_id, bool(s["fork_history"]))
-    if fork is not None:
-        got.append(fork)
+    got += _fork_items(chat_id, s)
     for it in got:
         if not it.on:
             it.how = "off"
@@ -725,18 +806,6 @@ def block(chat_id: str) -> str:
         tag = "" if it.how == "whole" else " [outline]"
         parts.append(f"=== {it.label}{where}{tag} ===\n{body.strip()}")
     return "\n\n".join(parts)
-
-
-def carries_parent(chat_id: str) -> bool:
-    """Whether a fork is sent the conversation it came off (`memory.Memory._window`): yes, unless the person
-    turned Parent chat history off for it in the strip's panel."""
-    try:
-        row = _chat_row(chat_id) if chat_id else None
-    except Exception:  # noqa: BLE001 - a turn is never lost to its settings: carried, as always
-        log.exception("whether chat %s carries its parent could not be read", chat_id)
-        return True
-    own = row.reading if row is not None and isinstance(row.reading, dict) else {}
-    return bool(own.get("fork_history", True))
 
 
 def parent_told(chat_id: str) -> bool:
@@ -1044,7 +1113,6 @@ GROUPS = (
     ("step_histories", "Subtasks' chat histories", "What was said in the subtasks' own chats"),
     ("parent_task", "Parent task", "Its AGENTS.md, what it says this subtask is, and what its other subtasks sent up"),
     ("parent_task_history", "Parent task's chat history", "What was said in the parent task's chats"),
-    ("fork_history", "Parent chat history", "The conversation this chat was forked from, up to the fork"),
 )
 
 
@@ -1073,12 +1141,28 @@ def content(chat_id: str, s: dict, got: list[Item], task, subs: list) -> dict:
             sub = "Nothing said in them yet"
         g = {"key": key, "title": title, "sub": sub, "on": on, "tokens": n, "size": size_word(n) if of else "",
              "count": len(of), "outlined": sum(1 for i in of if i.how == "outline")}
-        if key == "fork_history" and of:
-            g["sub"] = f"The conversation in {of[0].label}, up to where this chat was forked from it"
         if key == "parent_task" and of:
             g["title"] = f"Parent task: {of[0].label.removeprefix('Task ')}"
         groups.append(g)
-    return {"groups": groups, "summary": strip(chat_id, s, got, task, subs=subs)}
+    return {"groups": groups, "tree": tree(got), "summary": strip(chat_id, s, got, task, subs=subs)}
+
+
+def tree(got: list[Item]) -> list[dict]:
+    """The chain of chats a fork carries, as the strip's panel draws it (Petar, 18 November 2026: "show the
+    entire tree of conversations"): the chat it all started in at the top and least set in, each one forked
+    from it under it and set in one more, and this chat at the foot, set in the most, with no switch of its
+    own because its own words are always sent. [] for a chat that is no fork."""
+    chats = [i for i in got if i.kind == "fork"]
+    if not chats:
+        return []
+    out = [{"id": i.id.removeprefix("fork:"), "label": i.label, "tokens": i.tokens, "on": i.on}
+           for i in reversed(chats)]
+    for depth, row in enumerate(out):
+        row["depth"] = depth
+    me = next((i for i in got if i.kind == "self"), None)
+    out.append({"id": "", "label": THIS_CHAT, "tokens": me.tokens if me else 0, "on": True,
+                "depth": len(chats), "self": True})
+    return out
 
 
 def strip(chat_id: str, s: dict | None = None, got: list[Item] | None = None, task=None,
@@ -1094,7 +1178,7 @@ def strip(chat_id: str, s: dict | None = None, got: list[Item] | None = None, ta
         task, got, subs = items(chat_id, s)
     on = [i for i in got if i.on]
     bits = []
-    fork = next((i for i in got if i.kind == "fork"), None)
+    chain = [i for i in got if i.kind == "fork"]
     if task is not None:
         step = subtasknotes.parent_of(task.id) is not None
         name = (f"Subtask {subtasknotes.step_number(task)}" if step and subtasknotes.step_number(task)
@@ -1129,9 +1213,15 @@ def strip(chat_id: str, s: dict | None = None, got: list[Item] | None = None, ta
         cut = sum(1 for i in on if i.how == "outline")
         if cut:
             bits.append(f"{cut} as outlines")
-    if fork is not None:
-        said = "history included" if fork.on else "history left out"
-        bits.append(f"Forked from {fork.label} · {said}" if task is None else f"forked, {said}")
+    if chain:
+        n, k = len(chain), sum(1 for i in chain if i.on)
+        if not k:
+            said = "parent chat left out" if n == 1 else "parent chats left out"
+        elif n == 1:
+            said = "parent chat included"
+        else:
+            said = f"{k} of {n} parent chats"
+        bits.append(f"Forked from {chain[0].label} · {said}" if task is None else f"forked, {said}")
     return " · ".join(bits)
 
 
@@ -1172,7 +1262,7 @@ def view(chat_id: str, who=None) -> dict:
            # What is read now, of what the chat is about: what its choices bring in, with how.
            "items": [i.public() for i in got if i.on], "budget": BUDGET, "reads": total,
            "outlined": sum(1 for i in read if i.how == "outline"),
-           "content": told["groups"], "strip": told["summary"]}
+           "content": told["groups"], "tree": told["tree"], "strip": told["summary"]}
     try:
         out["last"] = last_turn(chat_id)
     except Exception:  # noqa: BLE001 - a number on a panel

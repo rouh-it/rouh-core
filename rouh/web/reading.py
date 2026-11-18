@@ -7,7 +7,8 @@
                                     "reset": true (how Rouh works back to Rouh's defaults);
                                     what the chat is about (the strip's panel, never moving the mode):
                                     "task"|"others"|"step_histories"|"parent_task"|"parent_task_history"|
-                                    "fork_history": bool, "subtasks": "none"|"all"|"some", "picked": [task ids],
+                                    "fork_history": bool (every parent chat at once), "parents": {parent chat id: bool}
+                                    (each parent chat of a fork by itself), "subtasks": "none"|"all"|"some", "picked": [task ids],
                                     "steps_what": "all"|"md"|"html"}}; what both draw now
 
 The owner's own chats, so anybody signed in to this Rouh, and nobody a page was only shared with: a reader of a

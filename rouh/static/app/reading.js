@@ -3,12 +3,15 @@
  * tools, memory, this should control the other content"):
  *
  * - **Chat Options**, the button beside the model: how Rouh works here. Below.
- * - **The strip under the chat's title**: what this chat is about, in a few words ("Task 130 · 2 pages ·
- *   subtasks left out", "Forked from General · history included"), and pressed, its own panel (`contentPaint`):
- *   This task, Other files in the folder, Subtasks (all or chosen; everything, notes only or pages only),
- *   Subtasks' chat histories, and for a subtask's chat Parent task and its chat history, for a fork Parent
- *   chat history, each a switch with its size in words and in tokens (`kTokens`), counted on what the model
- *   is sent (rouh/tokencount.py), and what is read now with what is read as an outline. "Subtasks" since
+ * - **The strip under the chat's title**: "Included content" and what this chat is about, in a few words
+ *   ("Task 130 · 2 pages · subtasks left out", "Forked from 💬 General · parent chat included"), and pressed,
+ *   its own panel, "What this chat reads" (`contentPaint`): This task, Other files in the folder, Subtasks
+ *   (all or chosen; everything, notes only or pages only), Subtasks' chat histories, and for a subtask's chat
+ *   Parent task and its chat history, each a switch with its size in tokens ("46k Tokens", `tokensSaid`),
+ *   counted on what the model is sent (rouh/tokencount.py), and what is read now with what is read as an
+ *   outline. A fork's panel draws the whole tree of chats it comes from (`treePaint`; Petar, 18 November
+ *   2026): the chat it all started in at the top, each forked from the one above and set in further, each
+ *   with a switch of its own, and "This chat - 🧵 Chat fork history" at the foot in the accent colour. "Subtasks" since
  *   17 November 2026 (Petar: "rename steps to subtasks"); the keys the server keeps still say steps.
  *   Only the choices a chat has are drawn; a chat with none (General, a chat of its own) has no strip,
  *   and an incognito chat's is a quiet line. On a phone the panel is a sheet from the bottom.
@@ -62,8 +65,10 @@ import { notify } from 'app/notices.js';
  *              on: boolean, off: boolean, with?: string, when?: string, live?: boolean, fills?: string }} ReadRule */
 /** @typedef {{ key: string, title: string, sub: string, on: boolean, tokens: number, size: string,
  *              count: number, outlined: number }} ContentGroup */
+/** One chat of a fork's tree: a parent chat with its switch, or the chat itself (`self`), with no switch.
+    @typedef {{ id: string, label: string, tokens: number, on: boolean, depth: number, self?: boolean }} TreeChat */
 /** @typedef {{ chat: string, kind: string, incognito: boolean, settings: Record<string, any>,
- *              mode?: string, content?: ContentGroup[],
+ *              mode?: string, content?: ContentGroup[], tree?: TreeChat[],
  *              items: ReadItem[], subtasks?: {id: string, label: string, on: boolean, size?: string, tokens?: number}[],
  *              task?: {id: string, label: string}, rules: ReadRule[], context?: ReadRule[], strip: string,
  *              outlined: number, reads: number, budget: number, kept?: string,
@@ -195,7 +200,7 @@ function paintStrip(d) {
   if (!strip) return;
   var words = $('readingStripWords'), stripMark = $('readingStripMark');
   if (!words || !stripMark) return;
-  var groups = (d && d.content) || [];
+  var groups = ((d && d.content) || []).concat(/** @type {any[]} */ ((d && d.tree) || []));
   // The page open on the canvas beside the chat, which every message is told (`rouh/page_in_chat.py`).
   var bits = d && d.strip ? d.strip.split(' · ') : [];
   if (d && ASK.doc) bits.push('This page');
@@ -215,7 +220,7 @@ function paintStrip(d) {
     words.appendChild(document.createTextNode('nothing here is kept'));
     if (bits.length) words.appendChild(document.createTextNode(' · '));
   } else {
-    words.appendChild(el('b', '', 'Reading'));
+    words.appendChild(el('b', '', 'Included content'));
   }
   bits.forEach(function (bit, i) {
     if (i) words.appendChild(document.createTextNode(' · '));
@@ -226,7 +231,7 @@ function paintStrip(d) {
   var chev = $('readingStripChev');
   if (chev) { chev.textContent = ''; chev.hidden = quiet; if (!quiet) chev.appendChild(icon(CHEV, 12)); }
   var says = (d && d.incognito ? 'Incognito chat, nothing is kept' + (bits.length ? ': ' + bits.join(', ') : '') + '.'
-    : 'Reading: ' + bits.join(', ') + '.') + (quiet ? '' : ' Press to choose what this chat reads.');
+    : 'Included content: ' + bits.join(', ') + '.') + (quiet ? '' : ' Press to choose what this chat reads.');
   strip.title = says;
   strip.setAttribute('aria-label', says);
   if (quiet && cpop && !cpop.hidden) openContent(false);
@@ -241,19 +246,59 @@ function kTokens(n) {
   return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
 }
 
-/** A size beside a choice: its word and its tokens, "long · 12k", with the whole number on hover.
-    @param {string} word @param {number | undefined} n */
-function sizeTag(word, n) {
-  var z = el('span', 'reading-size', typeof n === 'number' ? word + ' · ' + kTokens(n) : word);
-  if (typeof n === 'number') z.title = 'About ' + n.toLocaleString() + ' tokens, as the model is sent it';
+/** A size as the panel says it, the count alone (Petar, 18 November 2026: "Do not evaluate very long or
+    not. Just say 46k Tokens"): "46k Tokens", "3.1k Tokens", "840 Tokens". @param {number} n */
+function tokensSaid(n) { return kTokens(n) + ' Tokens'; }
+
+/** A size beside a choice, with the whole number on hover. @param {number | undefined} n */
+function sizeTag(n) {
+  var z = el('span', 'reading-size', tokensSaid(n || 0));
+  z.title = 'About ' + Math.round(n || 0).toLocaleString() + ' tokens, as the model is sent it';
   return z;
 }
 
 /** One choice of the strip's panel: a switch with its size beside it. @param {ContentGroup} g */
 function contentRow(g) {
   var b = row('c:' + g.key, g.on, g.title, g.sub, 'content');
-  if (g.size) b.insertBefore(sizeTag(g.size, g.tokens), b.lastChild);
+  if (g.size) b.insertBefore(sizeTag(g.tokens), b.lastChild);
   return b;
+}
+
+/** A fork's tree of chats (rouh/reading.py `tree`): each parent chat a row set in by how far down the chain
+    it is, its name a link to it and its switch its own; the chat itself at the foot, in the accent colour,
+    with its size and no switch, because its own words are always sent. @param {TreeChat[]} chats */
+function treePaint(chats) {
+  var box = el('div', 'reading-sec content-tree');
+  box.setAttribute('role', 'list');
+  box.setAttribute('aria-label', 'The chats this chat comes from');
+  chats.forEach(function (c) {
+    var r = el('div', 'tree-row' + (c.self ? ' self' : '') + (c.depth ? ' kid' : ''));
+    r.setAttribute('role', 'listitem');
+    r.style.setProperty('--depth', String(c.depth));
+    if (c.self) {
+      r.appendChild(el('span', 'tree-name', c.label));
+    } else {
+      var go = el('button', 'tree-name', c.label);
+      go.type = 'button';
+      go.dataset.open = c.id;
+      go.title = 'Open ' + c.label;
+      r.appendChild(go);
+    }
+    r.appendChild(sizeTag(c.tokens));
+    if (!c.self) {
+      var sw = el('button', 'tree-sw');
+      sw.type = 'button';
+      sw.setAttribute('role', 'switch');
+      sw.setAttribute('aria-checked', c.on ? 'true' : 'false');
+      sw.setAttribute('aria-label', 'Send ' + c.label + ' with each message');
+      sw.title = c.label + (c.on ? ': sent with each message' : ': left out');
+      sw.dataset.key = 'par:' + c.id;
+      sw.appendChild(el('span', 'reading-sw'));
+      r.appendChild(sw);
+    }
+    box.appendChild(r);
+  });
+  return box;
 }
 
 /** A row of buttons, one pressed. @param {string} key @param {string} now @param {string} label
@@ -290,7 +335,7 @@ function contentPaint(d) {
   bar.appendChild(x);
   cpop.appendChild(bar);
   cpop.appendChild(el('p', 'reading-verdict content-hint',
-    'What Rouh is given with each message. How it works, memory, rules and tools, is in Chat Options by the box.'));
+    'Select the contextual information that supports each message of this conversation'));
   // A save that failed is said where the switches are, not under the list.
   if (READ.oops) {
     var oops = el('p', 'reading-oops', READ.oops);
@@ -313,15 +358,16 @@ function contentPaint(d) {
     if (s.subtasks === 'some') {
       subs.forEach(function (sub) {
         var r = row('sub:' + sub.id, sub.on, sub.label, '', 'sub');
-        if (sub.size) r.insertBefore(sizeTag(sub.size, sub.tokens), r.lastChild);
+        if (sub.size) r.insertBefore(sizeTag(sub.tokens), r.lastChild);
         list.appendChild(r);
       });
     }
   });
-  cpop.appendChild(list);
+  if (list.childNodes.length) cpop.appendChild(list);
+  if (d.tree && d.tree.length) cpop.appendChild(treePaint(d.tree));
 
   // What is read now: what the choices bring in, each with its size, and what is too much to read whole.
-  var read = (d.items || []).filter(function (it) { return it.kind !== 'fork' && it.kind !== 'parent'; });
+  var read = (d.items || []).filter(function (it) { return it.kind !== 'fork' && it.kind !== 'parent' && it.kind !== 'self'; });
   if (read.length) {
     var sec2 = sec(d.outlined ? 'What is read now · ' + d.outlined + ' of ' + read.length + ' as outlines'
       : 'What is read now · all ' + read.length + ' read whole');
@@ -335,7 +381,7 @@ function contentPaint(d) {
       var n = el('span', 'n', it.owner && it.group !== 'task' && it.group !== 'others' ? it.owner + ' · ' + it.label : it.label);
       n.title = it.path || it.label;
       li.appendChild(n);
-      li.appendChild(el('span', 'z', it.size + ' · ' + kTokens(it.tokens)));
+      li.appendChild(el('span', 'z', tokensSaid(it.tokens)));
       if (it.how === 'outline') li.appendChild(el('span', 'o', 'outline'));
       ul.appendChild(li);
     });
@@ -386,6 +432,9 @@ function openContent(on) {
   contentPlace();
   var head = $('contentHead');
   if (head) head.focus();
+  // Drawn at once from what was last fetched; the sizes are asked again behind it, because what was said
+  // since the chat was opened changes them (the chat itself, from 0 Tokens at its first message).
+  if (READ.chat && !READ.busy && !READ.pending) load(READ.chat);
 }
 
 /** The panel. @param {ReadView} d */
@@ -769,7 +818,7 @@ var MODE_SETS = /** @type {Record<string, Record<string, any>>} */ ({
 });
 /** What the chat is about (rouh/reading.py `CONTENT_KEYS`): set in the strip's panel, never by a mode. */
 var CONTENT_KEYS = ['task', 'others', 'subtasks', 'picked', 'steps_what', 'step_histories', 'parent_task',
-                    'parent_task_history', 'fork_history'];
+                    'parent_task_history', 'fork_history', 'parents'];
 
 /** What the panel will say once this change is saved, as far as it can be told without the server: the
     settings, the mode, and each subtask's switch. Counts are left as they were (`READ.pending`).
@@ -782,7 +831,9 @@ function guess(d, wanted) {
     s.mode = wanted.mode;
     if (MODE_SETS[wanted.mode]) Object.assign(s, MODE_SETS[wanted.mode]);
   } else {
-    Object.keys(wanted).forEach(function (k) { s[k] = wanted[k]; });
+    Object.keys(wanted).forEach(function (k) {
+      s[k] = k === 'parents' ? Object.assign({}, s.parents || {}, wanted[k]) : wanted[k];
+    });
     if (Object.keys(wanted).some(function (k) { return CONTENT_KEYS.indexOf(k) < 0; })) s.mode = 'custom';
   }
   var g = /** @type {ReadView} */ (Object.assign({}, d, { settings: s, mode: s.mode }));
@@ -790,6 +841,11 @@ function guess(d, wanted) {
     g.content = d.content.map(function (c) {
       var on = c.key === 'steps' ? s.subtasks !== 'none' : !!s[c.key];
       return on === c.on ? c : Object.assign({}, c, { on: on });
+    });
+  }
+  if (d.tree && wanted.parents) {
+    g.tree = d.tree.map(function (c) {
+      return c.self || !(c.id in wanted.parents) ? c : Object.assign({}, c, { on: !!wanted.parents[c.id] });
     });
   }
   if (d.subtasks) {
@@ -829,7 +885,12 @@ function send(chat, wanted) {
     // Kept, with later switches merged into it; a mode or a reset pressed after replaces what was kept.
     var last = NEXT[NEXT.length - 1];
     if (wanted.mode || wanted.reset) NEXT = [wanted];   // what came before it no longer matters
-    else if (last && !last.mode && !last.reset) Object.assign(last, wanted);
+    else if (last && !last.mode && !last.reset) {
+      // Parent chats pressed one after another are all kept: each is its own choice.
+      var parents = last.parents && wanted.parents ? Object.assign({}, last.parents, wanted.parents) : null;
+      Object.assign(last, wanted);
+      if (parents) last.parents = parents;
+    }
     else NEXT.push(Object.assign({}, wanted));
     return;
   }
@@ -993,6 +1054,12 @@ function pressed(t) {
     change(cc);
     return;
   }
+  if (key.indexOf('par:') === 0) {
+    var pc = /** @type {Record<string, boolean>} */ ({});
+    pc[key.slice(4)] = on;
+    change({ parents: pc });
+    return;
+  }
   if (key.indexOf('sub:') === 0) {
     var id = key.slice(4);
     var picked = (READ.data.subtasks || []).filter(function (x) { return x.on; }).map(function (x) { return x.id; });
@@ -1029,6 +1096,8 @@ if (btn && pop) {
       if (!t || !READ.data) return;
       if (t.dataset.close) { openContent(false); return; }
       if (t.dataset.more) { READ.more = !READ.more; paint(READ.data); return; }
+      // A parent chat's name goes to that chat, as the fork's mark above the chat does.
+      if (t.dataset.open) { openContent(false); openChat(t.dataset.open); return; }
       pressed(t);
     });
     if (cback) cback.addEventListener('click', function () { openContent(false); });

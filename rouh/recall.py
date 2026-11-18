@@ -32,18 +32,12 @@ def chain(chat_id: str) -> list[tuple[str, int | None]]:
     from . import forks, reading
 
     out: list[tuple[str, int | None]] = [(chat_id, None)]
-    if not chat_id or not reading.carries_parent(chat_id):
+    if not chat_id:
         return out
-    here = chat_id
-    seen = {chat_id}
-    for _ in range(forks.DEEP):
-        got = forks.carried(here)
-        if got is None or got[0] in seen:
-            break
-        parent, at = got
-        out.append((parent, at))
-        seen.add(parent)
-        here = parent
+    # A parent chat the person left out of this one in the strip's panel is not carried, so nothing of it
+    # is given back here either (`reading.parents_off`); the ones above it still are.
+    off = reading.parents_off(chat_id)
+    out += [(parent, at) for parent, at in forks.carried_chain(chat_id) if parent not in off]
     return out
 
 

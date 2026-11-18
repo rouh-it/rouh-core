@@ -11243,8 +11243,13 @@ html:not(.demo) .demo-dot:not(.keep) { display: none; }
 }
 .reading-strip-mark { flex: 0 0 auto; display: inline-grid; place-items: center; height: 18px; color: var(--dim); }
 .reading-strip-words { min-width: 0; }
-.reading-strip-words b { color: var(--text); font-weight: 600; margin-right: 4px; }
-.reading-strip-bit { white-space: nowrap; }
+.reading-strip-words b { color: var(--text); font-weight: 600; margin-right: 4px; white-space: nowrap; }
+/* Each piece stays on one line; one longer than the strip (a fork of a chat with a long name, on a phone)
+   ends in an ellipsis inside it, and its whole words are on the strip's label. */
+.reading-strip-bit {
+  display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  vertical-align: bottom;
+}
 /* The whole line is the target: 32 pixels on a desk, 44 on a phone. */
 .reading-strip:not(.quiet) { min-height: 32px; align-items: center; }
 @media (max-width: 899px) { .reading-strip:not(.quiet) { min-height: 44px; } }
@@ -11283,6 +11288,38 @@ html:not(.demo) .demo-dot:not(.keep) { display: none; }
 .content-pop .reading-row.sub { margin-left: 22px; width: calc(100% - 22px); min-height: 44px; }
 .content-pop .reading-row.sub .reading-row-t b { font-size: 13px; font-weight: 500; }
 .reading-items.pending { opacity: 0.55; }
+/* A fork's tree of chats (app/reading.js `treePaint`): the chat it all started in at the top, each forked from
+   the one above it set in one step more and joined to it by a thin line, and the chat itself at the foot in
+   the accent colour. Each parent chat's name opens it; its switch is its own. */
+.content-tree { --tree-step: 18px; padding: 4px 0 6px; }
+.content-hint + .content-tree, .reading-oops + .content-tree { border-top: 0; }
+.tree-row {
+  position: relative; display: flex; align-items: center; gap: 10px; min-height: 44px;
+  padding: 0 10px 0 calc(10px + var(--depth, 0) * var(--tree-step)); box-sizing: border-box;
+}
+.tree-row.kid::before {
+  content: ""; position: absolute; top: -12px; height: 34px; pointer-events: none;
+  left: calc(16px + (var(--depth) - 1) * var(--tree-step)); width: calc(var(--tree-step) + 2px);
+  border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); border-bottom-left-radius: 4px;
+}
+.tree-name {
+  appearance: none; flex: 1; min-width: 0; min-height: 44px; margin: 0 0 0 2px; padding: 0 4px;
+  border: 0; border-radius: 6px; background: none; color: var(--text); text-align: left; cursor: pointer;
+  font: inherit; font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tree-row.kid .tree-name { margin-left: 8px; }
+button.tree-name:hover { text-decoration: underline; text-underline-offset: 2px; }
+.tree-row.self .tree-name { display: flex; align-items: center; color: var(--accent); cursor: default; }
+.tree-row.self { background: var(--accent-soft); border-radius: 8px; }
+.tree-sw {
+  appearance: none; flex: 0 0 auto; display: grid; place-items: center; min-width: 44px; min-height: 44px;
+  margin-right: -2px; padding: 0; border: 0; background: none; cursor: pointer;
+}
+.tree-name:focus-visible, .tree-sw:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 599px) {
+  .content-tree { --tree-step: 14px; }
+  .tree-name { font-size: 15px; }
+}
 body.chat-incognito .content-pop { --accent: var(--incog); --accent-ink: var(--incog-ink); --accent-soft: var(--incog-soft); }
 @media (max-width: 599px) {
   .content-pop .reading-row-t b { font-size: 15px; }
