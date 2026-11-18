@@ -55,10 +55,10 @@ var OU_ORDER = ['provider', 'model', 'purpose', 'day', 'origin'];
  * level, its calls or one call.
  * @type {{seq: number, period: {kind: string, at: string, start: string, end: string},
  *   filters: Array<[string, string]>, by: string, view: string, call: number, order: string,
- *   offset: number, last: any, trail: any, thin: (() => void) | null}}
+ *   offset: number, last: any, trail: any, thin: (() => void) | null, rollingThin: (() => void) | null}}
  */
 var OU = { seq: 0, period: { kind: 'month', at: '', start: '', end: '' }, filters: [], by: '',
-  view: 'level', call: 0, order: 'cost', offset: 0, last: null, trail: null, thin: null };
+  view: 'level', call: 0, order: 'cost', offset: 0, last: null, trail: null, thin: null, rollingThin: null };
 
 function orbUsageOpen() {
   var v = $('orbUsageView');
@@ -253,7 +253,7 @@ function ouPaintPeriod(span) {
   kinds.setAttribute('role', 'group');
   kinds.setAttribute('aria-label', 'Period');
   var dayChosen = ouHas('day');
-  [['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['range', 'Range']].forEach(function (k) {
+  [['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['days30', '30 days'], ['range', 'Range']].forEach(function (k) {
     var b = el('button', 'ou-kind', k[1]);
     b.type = 'button';
     var on = !dayChosen && OU.period.kind === k[0];
@@ -287,6 +287,7 @@ function ouPaintPeriod(span) {
     if (day === 'day') at.setDate(at.getDate() + dir);
     else if (day === 'week') at.setDate(at.getDate() + 7 * dir);
     else if (day === 'month') { at = ouDate(span.from); at.setMonth(at.getMonth() + dir); }
+    else if (day === 'days30') { at = ouDate(span.to); at.setDate(at.getDate() + 30 * dir); }
     else {
       var n = span.days;
       var a = ouDate(span.from), b = ouDate(span.to);
@@ -382,7 +383,7 @@ function ouPaintLevel(u) {
     : u.change.dir === 'same' ? ', about the same as ' + then : ', ' + u.change.said + ' on ' + then;
   var hourSaid = ouHas('hour') ? ' between ' + (u.trail.filter(function (t) { return t.dim === 'hour'; })[0] || {}).name : '';
   var span = ouLower(u.period.said);
-  h.textContent = subject + ': ' + u.total.said + (u.period.days === 1 ? ' on ' : / to /.test(span) && !/^this week/.test(span) ? ' from ' : ' in ') +
+  h.textContent = subject + ': ' + u.total.said + (u.period.days === 1 ? ' on ' : / to /.test(span) && !/^(this week|the )/.test(span) ? ' from ' : ' in ') +
     span + hourSaid + vs + '.';
   body.appendChild(h);
   // The chat, job, page or memory this level is about, one press away.
@@ -462,6 +463,7 @@ function ouPaintLevel(u) {
     return;
   }
 
+  ouPaintRolling(body, u);
   ouPaintChart(body, u, paint);
   ouPaintSplit(body, u, paint);
 
@@ -494,7 +496,8 @@ function ouLeave(e) {
 
 function ouLower(s) {
   // "November 2026 so far" stays; "Today, Sun 15 Nov" reads "today, Sun 15 Nov" mid-sentence.
-  return /^(Today|This week)/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+  // "The last 30 days (19 Oct to 18 Nov)" reads "the last 30 days ..." too.
+  return /^(Today|This week|The )/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
 
 function ouDay(iso) {
@@ -660,6 +663,177 @@ function ouPaintChart(body, u, paint) {
     });
   };
   OU.thin = thin;
+  requestAnimationFrame(thin);
+}
+
+/* ---- the running 30-day cost ------------------------------------------
+ *
+ * Petar, 18 November 2026 (task 182): "on the stats, can you give me a 30 day
+ * running cost? not just day/week/month?" So on 30 days and on Month a line
+ * shows, for each day, what was paid per use in the 30 days ending that day
+ * (`usage_drill._rolling`). Every day is a button: pressing one opens those
+ * 30 days as the period, with every drill-down under it. One tab stop, and
+ * the arrow keys move along the line.
+ */
+function ouPaintRolling(body, u) {
+  var r = u.rolling;
+  var pts = r && r.points || [];
+  if (pts.length < 2) return;
+  var part = el('section', 'ou-part ou-rolling');
+  part.appendChild(el('h3', 'ou-h', 'Running 30-day cost'));
+  part.appendChild(el('p', 'ou-hint', 'Each point is what was paid per use in the 30 days ending that day. ' +
+    'Press one to open those 30 days.'));
+
+  var most = 0;
+  pts.forEach(function (p) { if (p.cost > most) most = p.cost; });
+  var step = orbUsageStep(most);
+  var top = Math.max(step, Math.ceil(most / step - 1e-9) * step);
+  var places = (String(+step.toFixed(6)).split('.')[1] || '').length;
+
+  var chart = el('div', 'ou-chart ou-rchart');
+  var yAxis = el('div', 'ou-yaxis');
+  yAxis.setAttribute('aria-hidden', 'true');
+  var plot = el('div', 'ou-plot ou-rplot');
+  plot.setAttribute('role', 'group');
+  plot.setAttribute('aria-label', 'Running 30-day cost, one point a day, oldest first. Use the arrow keys to move.');
+  for (var v = 0; v <= top + 1e-9; v += step) {
+    var pos = (v / top * 100) + '%';
+    var tick = el('span', 'ou-ytick', '$' + v.toLocaleString('en-GB', { minimumFractionDigits: places, maximumFractionDigits: places }));
+    tick.style.bottom = pos;
+    yAxis.appendChild(tick);
+    var grid = el('i', 'ou-grid' + (v === 0 ? ' ou-base' : ''));
+    grid.style.bottom = pos;
+    plot.appendChild(grid);
+  }
+
+  // The line itself: a picture under the buttons, in hundredths of the plot so it fits any width.
+  var NS = 'http://www.w3.org/2000/svg';
+  var svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'ou-rline');
+  svg.setAttribute('viewBox', '0 0 100 100');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.setAttribute('aria-hidden', 'true');
+  var n = pts.length;
+  var x = function (i) { return (i + 0.5) / n * 100; };
+  var y = function (c) { return 100 - (top > 0 ? c / top * 100 : 0); };
+  var path = function (from, to, cls) {
+    if (to - from < 1) return;
+    var d = '';
+    for (var i = from; i <= to; i++) d += (i === from ? 'M' : 'L') + x(i).toFixed(3) + ' ' + y(pts[i].cost).toFixed(3);
+    var p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', d);
+    p.setAttribute('class', cls);
+    svg.appendChild(p);
+  };
+  var whole = 0;
+  while (whole < n && pts[whole].partial) whole++;
+  // Days whose 30 days begin before the log are drawn dashed: fewer days are in them.
+  if (whole > 0) path(0, Math.min(whole, n - 1), 'ou-rpart');
+  path(Math.max(whole, 0), n - 1, 'ou-rfull');
+  plot.appendChild(svg);
+
+  var dot = el('i', 'ou-rdot');
+  dot.hidden = true;
+  plot.appendChild(dot);
+  var chosenAt = -1;
+  pts.forEach(function (p, i) { if (p.at === r.chosen) chosenAt = i; });
+  var mark = null;
+  if (chosenAt >= 0) {
+    mark = el('i', 'ou-rdot ou-rchosen');
+    mark.style.left = x(chosenAt) + '%';
+    mark.style.bottom = (100 - y(pts[chosenAt].cost)) + '%';
+    plot.appendChild(mark);
+  }
+
+  var tip = el('div', 'ou-tip');
+  tip.hidden = true;
+  var cols = el('div', 'ou-rcols');
+  var xAxis = el('div', 'ou-xaxis');
+  xAxis.setAttribute('aria-hidden', 'true');
+  var buttons = [];
+  var labs = [];
+  var day = function (iso) { return ouDate(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
+  var said = function (p) {
+    return '30 days to ' + ouDay(p.at) + ': ' + p.said + ', ' + day(p.from) + ' to ' + day(p.at) +
+      (p.partial ? ', only ' + p.days + (p.days === 1 ? ' day' : ' days') + ' of them logged' : '');
+  };
+  var open = function (p) {
+    OU.filters = OU.filters.filter(function (f) { return f[0] !== 'day' && f[0] !== 'hour'; });
+    OU.period = { kind: 'days30', at: p.at, start: p.from, end: p.at };
+    OU.offset = 0;
+    if (OU.view === 'call') OU.view = 'calls';
+    orbUsageLoad(true);
+  };
+  var home = chosenAt >= 0 ? chosenAt : n - 1;
+  pts.forEach(function (p, i) {
+    var b = el('button', 'ou-rcol');
+    b.type = 'button';
+    b.tabIndex = i === home ? 0 : -1;
+    b.setAttribute('aria-label', said(p) + '. Open these 30 days.');
+    if (i === chosenAt) b.setAttribute('aria-current', 'true');
+    b.addEventListener('click', function () { open(p); });
+    b.addEventListener('pointerenter', function () { show(i); });
+    b.addEventListener('focus', function () { show(i); });
+    b.addEventListener('keydown', function (e) {
+      var to = e.key === 'ArrowLeft' ? i - 1 : e.key === 'ArrowRight' ? i + 1 : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -2;
+      if (to === -2) return;
+      e.preventDefault();
+      to = Math.max(0, Math.min(n - 1, to));
+      buttons[i].tabIndex = -1;
+      buttons[to].tabIndex = 0;
+      buttons[to].focus();
+    });
+    cols.appendChild(b);
+    buttons.push(b);
+    var lab = el('span', 'ou-xtick', day(p.at));
+    lab.style.left = x(i) + '%';
+    xAxis.appendChild(lab);
+    labs.push(lab);
+  });
+  plot.appendChild(cols);
+  plot.appendChild(tip);
+
+  var showing = -1;
+  var show = function (i) {
+    if (showing === i) return;
+    showing = i;
+    if (i < 0) { tip.hidden = true; dot.hidden = true; return; }
+    var p = pts[i];
+    dot.style.left = x(i) + '%';
+    dot.style.bottom = (100 - y(p.cost)) + '%';
+    dot.hidden = false;
+    tip.textContent = '';
+    var head = el('div', 'ou-tiphead');
+    head.appendChild(el('span', '', ouDay(p.at)));
+    head.appendChild(el('b', '', p.said));
+    tip.appendChild(head);
+    tip.appendChild(el('div', 'ou-tipnone', 'The 30 days ' + day(p.from) + ' to ' + day(p.at) + ', ' + ouCalls(p.calls) + '.'));
+    if (p.partial) tip.appendChild(el('div', 'ou-tipnone', 'The log begins on ' + ouDay(u.began) + ', so only ' + p.days + ' of these days are in it.'));
+    tip.appendChild(el('div', 'ou-tipnone', i === chosenAt ? 'These are the 30 days shown.' : 'Press to open these 30 days.'));
+    tip.hidden = false;
+    var pw = plot.clientWidth, px = x(i) / 100 * pw, tw = tip.offsetWidth;
+    var left = px < pw / 2 ? px + 10 : px - tw - 10;
+    tip.style.left = Math.max(0, Math.min(pw - tw, left)) + 'px';
+  };
+  plot.addEventListener('pointerleave', function () { show(-1); });
+  plot.addEventListener('focusout', function (e) { if (!plot.contains(/** @type {Node} */ (e.relatedTarget))) show(-1); });
+
+  chart.appendChild(yAxis);
+  chart.appendChild(plot);
+  chart.appendChild(el('span'));
+  chart.appendChild(xAxis);
+  part.appendChild(chart);
+  if (whole > 0) {
+    part.appendChild(el('p', 'ou-hint', 'Dashed: the log begins on ' + ouDay(u.began) + ', so those points add up fewer than 30 days.'));
+  }
+  body.appendChild(part);
+
+  var thin = function () {
+    if (!part.isConnected || !plot.clientWidth) return;
+    var every = Math.max(1, Math.ceil(56 / (plot.clientWidth / n)));
+    labs.forEach(function (lab, i) { lab.hidden = (n - 1 - i) % every !== 0; });
+  };
+  OU.rollingThin = thin;
   requestAnimationFrame(thin);
 }
 
@@ -968,7 +1142,11 @@ function wireOrbUsage() {
   if (!btn || !back) return;
   btn.addEventListener('click', function () { orbUsageShow(!orbUsageOpen()); });
   back.addEventListener('click', function () { orbUsageShow(false); });
-  window.addEventListener('resize', function () { if (OU.thin && orbUsageOpen()) OU.thin(); });
+  window.addEventListener('resize', function () {
+    if (!orbUsageOpen()) return;
+    if (OU.thin) OU.thin();
+    if (OU.rollingThin) OU.rollingThin();
+  });
 }
 
 export { orbUsageOpen, orbUsageShow, orbUsageUp, wireOrbUsage };

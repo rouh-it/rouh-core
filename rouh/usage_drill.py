@@ -51,8 +51,14 @@ ORDER = ("provider", "model", "purpose", "day", "origin")
 DIMS = {"provider": "Company", "model": "Model", "purpose": "Use", "day": "Day",
         "origin": "Chat, job or page", "hour": "Hour"}
 
-#: The periods the screen offers. A range is any two days, both included.
-PERIODS = ("day", "week", "month", "range")
+#: The periods the screen offers. A range is any two days, both included. "days30" is the
+#: rolling 30 days ending on a day, today included (Petar, 18 November 2026: "a 30 day
+#: running cost, not just day/week/month").
+PERIODS = ("day", "week", "month", "days30", "range")
+
+#: How many days the rolling total adds up, and how far back its line reaches at least.
+ROLLING = 30
+ROLLING_SPAN = 90
 
 #: How many rows a level lists before it adds the rest up in one line.
 ROWS = 40
@@ -306,6 +312,13 @@ def period_of(kind: str, at: str | None, start: str | None, end: str | None, zon
         before_first = before_last - timedelta(days=length - 1)
         return _said(kind, first, last, before_first, before_last, today)
     pivot = _day(at, today)
+    if kind == "days30":
+        # The 30 days ending on the day asked for, against the 30 just before them.
+        last = min(pivot, today)
+        first = last - timedelta(days=ROLLING - 1)
+        before_last = first - timedelta(days=1)
+        before_first = before_last - timedelta(days=ROLLING - 1)
+        return _said(kind, first, last, before_first, before_last, today)
     if kind == "day":
         first = last = pivot
         before_first = before_last = pivot - timedelta(days=1)
@@ -338,6 +351,13 @@ def _words(first: date, last: date) -> str:
     return f"{first.strftime('%-d %b') + ('' if same_year else first.strftime(' %Y'))} to {last.strftime('%-d %b %Y')}"
 
 
+def _short(first: date, last: date) -> str:
+    """Two days without their year when both are this year: "19 Oct to 18 Nov"."""
+    if first.year == last.year == date.today().year:
+        return f"{first.strftime('%-d %b')} to {last.strftime('%-d %b')}"
+    return _words(first, last)
+
+
 def _said(kind, first, last, before_first, before_last, today) -> dict:
     said = _words(first, last)
     if kind == "month" and last == today and first.day == 1 and first != today:
@@ -346,6 +366,9 @@ def _said(kind, first, last, before_first, before_last, today) -> dict:
         said = f"This week so far, {_words(first, last)}"
     elif kind == "day" and first == today:
         said = "Today, " + _words(first, last)
+    elif kind == "days30":
+        said = (f"The last {ROLLING} days ({_short(first, last)})" if last == today
+                else f"The {ROLLING} days from {_words(first, last)}")
     return {"kind": kind, "from": first.isoformat(), "to": last.isoformat(), "said": said,
             "before_from": before_first.isoformat(), "before_to": before_last.isoformat(),
             "before_said": _words(before_first, before_last),
@@ -534,6 +557,9 @@ def level(who, *, period: str = "month", at: str | None = None, start: str | Non
     total_cost, before_cost = _sum(total_cost), _sum(before_cost)
 
     series = _series(who, span, filters, by, rows, zone, zone_name)
+    rolling = None
+    if span["kind"] in ("days30", "month") and not ({"day", "hour"} & chosen):
+        rolling = _rolling(who, span, filters, zone, zone_name, began)
     plans = _plans(who, lo, hi) if not ({"model", "purpose", "origin", "hour"} & chosen) else None
     if plans is not None and filters.get("provider") not in (None, "anthropic", "openai"):
         plans = None
@@ -564,6 +590,7 @@ def level(who, *, period: str = "month", at: str | None = None, start: str | Non
         "rows": rows,
         "more": more,
         "series": series,
+        "rolling": rolling,
         "plans": plans,
         "began": datetime.fromtimestamp(began, zone).date().isoformat() if began else None,
         "whose": "organisation" if who.is_admin else "yours",
@@ -637,6 +664,44 @@ def _series(who, span: dict, filters: dict, by: str, rows: list[dict], zone, zon
                                                 key=lambda kv: (top.index(kv[0]) if kv[0] in top else 99))
                              if v > 0]})
     return {"unit": unit, "split": split, "keys": top, "points": out}
+
+
+def _rolling(who, span: dict, filters: dict, zone, zone_name: str, began: float | None) -> dict | None:
+    """The running 30-day cost: for each day, what was paid per use in the 30 days ending
+    that day. It ends today and reaches back at least `ROLLING_SPAN` days, or to the shown
+    window if that is older, never before the log began nor past `MOST_DAYS`. A point whose
+    30 days begin before the log is marked `partial`, because fewer days are in it."""
+    if began is None:
+        return None
+    today = date.fromisoformat(span["today"])
+    began_day = datetime.fromtimestamp(began, zone).date()
+    first = min(today - timedelta(days=ROLLING_SPAN - 1), date.fromisoformat(span["to"]))
+    first = max(first, began_day, today - timedelta(days=MOST_DAYS - 1))
+    if first > today:
+        return None
+    lo, hi = _bounds((first - timedelta(days=ROLLING - 1)).isoformat(), today.isoformat(), zone)
+    where, args = _where(who, [(lo, hi)], filters, zone_name)
+    when, wargs = _expr("day", zone_name)
+    daily = {d: (_sum(c), n) for d, c, n in _rows(
+        f"SELECT {when}, SUM(cost_usd), COUNT(*) FROM llm_requests WHERE {where} GROUP BY 1",
+        wargs + args)}
+    points = []
+    day = first - timedelta(days=ROLLING - 1)
+    window: list[tuple[float, int]] = []
+    while day <= today:
+        window.append(daily.get(day.isoformat(), (0.0, 0)))
+        if len(window) > ROLLING:
+            window.pop(0)
+        if day >= first:
+            cost = sum(c for c, _ in window)
+            start = day - timedelta(days=ROLLING - 1)
+            points.append({"at": day.isoformat(), "from": start.isoformat(), "cost": cost,
+                           "said": _money(cost), "calls": sum(n for _, n in window),
+                           "partial": start < began_day,
+                           "days": (day - max(start, began_day)).days + 1})
+        day += timedelta(days=1)
+    return {"days": ROLLING, "points": points,
+            "chosen": span["to"] if span["kind"] == "days30" else None}
 
 
 # --- the calls ------------------------------------------------------------------------------
