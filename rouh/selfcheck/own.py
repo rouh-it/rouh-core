@@ -135,7 +135,8 @@ def all_off_tells_nothing_personal() -> None:
     from rouh import owner, prompting, reading, ruledefaults, rules
 
     doc = ruledefaults.fallback()
-    off = {"memory": False, "rules": False, "tools": False, "off": []}
+    off = {"memory": False, "rules": False, "tools": False, "rouh_tools": False, "llm_tools": False,
+           "any_tools": False, "off": []}
     placed = []
     for i, r in enumerate(doc["rules"]):
         if "chats" not in rules.reach(r) or not r.get("place"):
@@ -171,21 +172,21 @@ def all_off_tells_nothing_personal() -> None:
     expect("Marta" not in said and "Kowalska" not in said, f"the owner's name is still in: {said}")
 
 
-@check("own", "Simple chat is told only who Rouh is, the clock, safety and the list of tools",
-       "on Simple chat (Memory and Your rules off, tools on demand) the system prompt put together from the "
-       "rules every Rouh starts with holds no built-in rule about the screen, the orb, mail, jobs or the "
-       "workspace and nothing about the person, while the one-line list of tools is still told so a tool "
-       "can be found; a rule told with its tool still goes with the tool")
-def simple_chat_is_light() -> None:
-    """16 November 2026 (Petar: "we still don't have quick chat mode"): Simple chat is the minimal prompt of
-    an all-off chat plus tools on demand (`rouh/reading.py`, `light`)."""
-    from rouh import prompting, reading, ruledefaults, rules
+@check("own", "Simple chat is plain talk with the model",
+       "on Simple chat (Memory, Your rules and Rouh Tools off, LLM Tools on) no rule of Rouh's is told, built in "
+       "or the person's, not even who Rouh is or the safety rules, except the turn marks of a spoken turn; no "
+       "live context but the list of the model's own tools; Rouh's own tools are not offered and the web is")
+def simple_chat_is_plain() -> None:
+    """18 November 2026 (Petar: "we are gearing for simple chat to be plain LLM direct talking"): Simple chat's
+    system prompt is the person's name and the clock (`brain.Brain._plain_system`, `reading.PLAIN_RULES`)."""
+    from rouh import prompting, reading, ruledefaults, rules, toolsides
 
-    expect(reading.SIMPLE["memory"] is False and reading.SIMPLE["rules"] is False and reading.SIMPLE["tools"],
-           "Simple chat is not Memory off, Your rules off and Tools on")
+    expect(reading.SIMPLE["memory"] is False and reading.SIMPLE["rules"] is False
+           and reading.SIMPLE["rouh_tools"] is False and reading.SIMPLE["llm_tools"] is reading.SIMPLE_LLM_TOOLS,
+           "Simple chat is not Memory, Your rules and Rouh Tools off with LLM Tools as SIMPLE_LLM_TOOLS says")
+    plain = reading._reads_of({**reading.DEFAULTS, **reading.SIMPLE, "mode": "simple"})
+    expect(plain["plain"] and not plain["rouh_tools"] and plain["llm_tools"], f"Simple chat's switches: {plain}")
     doc = ruledefaults.fallback()
-    light = {"memory": False, "rules": False, "tools": True, "off": [], "light": True}
-    full = {"memory": True, "rules": True, "tools": True, "off": [], "light": False}
     placed = []
     for i, r in enumerate(doc["rules"]):
         if "chats" not in rules.reach(r) or not r.get("place"):
@@ -193,40 +194,32 @@ def simple_chat_is_light() -> None:
         placed.append({"id": f"r{i}", "key": r["key"], "title": r.get("title") or r["key"], "text": r["text"],
                        "when": rules.when_of(r), "place": r["place"], "group": r.get("group") or "",
                        "fills": "{" in r["text"], "on": True, "made_at": i})
-    placed.sort(key=lambda r: (int(r["place"].get("position") or 0), r["made_at"]))
     for r in placed:
-        src = reading.source_of(r)
-        if src == "tools":
-            expect(reading.rule_told(r, light) == bool(r["when"].get("with")),
-                   f"the built-in rule {r['key']} is told in Simple chat's prompt rather than with its tool")
-        if src in ("safety", "builtin"):
-            expect(reading.rule_told(r, light), f"the rule {r['key']} that is never turned off is off in Simple chat")
-    situation = prompting.Situation(tools=frozenset({"web_search", "web_fetch", "read_workspace"}),
-                                    provider="luna", flags=frozenset())
-    sizes = {}
-    for name, reads in (("simple", light), ("full", full)):
-        text = ""
-        for part in ("cached", "turn"):
-            got = prompting.Prompt(situation, part, {"name": "Luna", "model": "GPT-6 Luna", "company": "OpenAI"},
-                                   placed=[r for r in placed if r["place"].get("part", "cached") == part],
-                                   allow=lambda r, reads=reads: reading.rule_told(r, reads))
-            said, _segs = got.finish(say=lambda t: reading.anonymous(t, owner=None))
-            text += said + "\n\n"
-        sizes[name] = len(text)
-    expect(sizes["simple"] * 2 < sizes["full"],
-           f"Simple chat's prompt ({sizes['simple']} characters) is not well under Full's ({sizes['full']})")
-    expect(reading.context_told("catalogue", light), "Simple chat is not told the list of tools it finds one by")
-    from rouh import toolsearch
-
-    whole = "Your tools:\nHow to load one.\n\nGmail:\n- read_mail: Read one email, whole.\n- send_mail: Send an email."
-    short = toolsearch.shorten(whole)
-    expect("Gmail: read_mail, send_mail" in short and "Read one email" not in short,
-           f"Simple chat's list of tools is not names only: {short!r}")
-    expect({"synapse_find", "synapse_query"} <= reading.MEMORY_TOOLS,
-           "Synapse's search tools are still declared with Memory off, so the person can be looked up")
-    for key, _title, src, _what in reading.CONTEXT:
-        if src in ("memory", "tools") and key != "catalogue":
-            expect(not reading.context_told(key, light), f"{key} is told in Simple chat")
+        expect(reading.rule_told(r, plain) == (r["key"] in reading.PLAIN_RULES),
+               f"the rule {r['key']} is {'told' if reading.rule_told(r, plain) else 'not told'} in Simple chat")
+    for key, _title, _src, _what in reading.CONTEXT:
+        expect(reading.context_told(key, plain) == (key == "catalogue"), f"{key} is told in Simple chat")
+    for name, side in (("send_mail", "rouh"), ("show_on_screen", "rouh"), ("synapse_find", "rouh"),
+                       ("hue", "rouh"), ("web_search", "llm"), ("web_fetch", "llm"), ("code_execution", "llm"),
+                       ("make_picture", "llm"), ("some_mcp_tool", "rouh")):
+        expect(toolsides.side_of(name) == side, f"{name} is on {toolsides.side_of(name)!r}, not {side!r}")
+    expect(not toolsides.keep("send_mail", None, plain) and toolsides.keep("web_search", None, plain)
+           and toolsides.keep("tool_search_tool_regex", None, plain),
+           "Simple chat offers Rouh's own tools, or not the web, or not the search the web tools are found by")
+    # A chat kept with the one "tools" switch of before 18 November 2026 reads as both, set the same.
+    expect(reading._migrated({"mode": "custom", "tools": False}) == {"mode": "custom", "rouh_tools": False,
+                                                                   "llm_tools": False},
+           "a chat's old tools switch is not read as both")
+    expect(reading.mode_of({"tools": False}) == "custom", "an old chat with tools off is not on Custom")
+    situation = prompting.Situation(tools=frozenset({"web_search"}), provider="claude", flags=frozenset())
+    text = ""
+    for part in ("cached", "turn"):
+        got = prompting.Prompt(situation, part, {}, placed=[r for r in placed
+                                                            if r["place"].get("part", "cached") == part],
+                               allow=lambda r: reading.rule_told(r, plain))
+        said, _segs = got.finish(say=lambda t: t)
+        text += said
+    expect(text.strip() == "", f"Simple chat's typed turn is told a rule: {text[:200]!r}")
 
 
 @check("own", "a fork does not take up a turn stopped in the chat it came off",

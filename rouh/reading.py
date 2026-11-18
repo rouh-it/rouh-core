@@ -11,9 +11,12 @@ So every chat has the same settings, kept on the chat (`Chat.reading`), and the 
 draws them (`readingPaint` in app/reading.js):
 
 - **In every chat**: memory (Synapse's background memory and what the message found in it), the person's own
-  rules, and tools. Each on unless the person turns it off for this chat. Rules about permission, privacy and
-  safety are never turned off with the rest (`locked`): turning "Your rules" off leaves them, and Rouh's own
-  built-in rules, as they are.
+  rules, and two sides of tools (18 November 2026, `rouh/toolsides.py`): Rouh Tools, Rouh's own (mail,
+  calendar, Drive, contacts, tasks, the screen, jobs, Synapse, the home, Slack), and LLM Tools, the model's
+  own (web search and fetch, code, pictures). Each on unless the person turns it off for this chat; a side
+  that is off is not offered to the model at all. Rules about permission, privacy and safety are never
+  turned off with the rest (`locked`): turning "Your rules" off leaves them, and Rouh's own built-in rules,
+  as they are.
 - **In a task's chat** (or a subtask's, which is a task inside a task), what the task is: its record (number,
   name, status, summary, meta), the goal when the task is one (`goal.md`), its `AGENTS.md`, and its notes
   (`.md`) and pages (`.html`), read from its folder in the workspace. No subtask by default. The person can
@@ -27,12 +30,14 @@ draws them (`readingPaint` in app/reading.js):
 
 - **Modes** (Petar, 16 November 2026: "we still don't have quick chat mode, which we should, because most of
   the times people will not know what to choose"): a chat is on one of three, picked at the top of Chat
-  Options like the model. *Simple chat* (`SIMPLE`) is Memory and Your rules off, and Tools on demand: the
-  system prompt is the minimal one of an all-off chat, the catalogue of tools, and each tool's own
-  instructions only once the model loads it (`light`), so a quick web search still works and the turn is fast
-  and cheap. It is not incognito: the chat is kept. *Full capabilities* is everything on, and in a task's chat
-  the task's default content. *Custom* is the switches one by one, as they were before; changing any of them
-  puts the chat on Custom by itself. The mode is the chat's own, the way the model beside it is
+  Options like the model. *Simple chat* (`SIMPLE`) is plain talk with the model since 18 November 2026
+  (Petar: "we are gearing for simple chat to be plain LLM direct talking"): Memory, Your rules and Rouh Tools
+  off, LLM Tools on (`SIMPLE_LLM_TOOLS`), and a system prompt of the person's name and the clock and nothing
+  of Rouh's (`plain`, `brain.Brain._plain_system`); until then it was the all-off prompt with tools on demand.
+  It is not incognito: the chat is kept, and what it reads in the strip is the person's, as in any mode.
+  *Full Rouh Capabilities* (until 18 November 2026 "Full capabilities") is everything on, and in a task's chat
+  the task's default content. *Custom* is the switches one by one; changing any of them puts the chat on
+  Custom by itself, and a fork of a Custom chat starts with its parent's switches (`forks.fork`). The mode is the chat's own, the way the model beside it is
   (`chatkinds.choice_of`; Petar, 16 November 2026: "behavior should be like smart/cheap selection"): a choice
   stays with its chat, a fork carries on with its parent's (`forks.fork`), and every new chat starts on
   Rouh's default, Full for General, forks and task chats, Simple for an incognito chat (`incognito.start`).
@@ -66,24 +71,32 @@ from pathlib import Path
 
 log = logging.getLogger("rouh.reading")
 
-#: The defaults. How Rouh works (Chat Options, beside the box): Full capabilities, memory, rules and tools on.
+#: The defaults. How Rouh works (Chat Options, beside the box): Full Rouh Capabilities, everything on.
 #: What the chat is about (the strip under its title, since 17 November 2026): the task whole, its other
 #: files, subtasks and their chats left out; a subtask's chat reads its parent task as background and not the
 #: parent's chats; a fork carries the conversation it came off, as it always has (`memory.Memory._window`).
-DEFAULTS = {"mode": "full", "memory": True, "rules": True, "tools": True, "off": [],
+DEFAULTS = {"mode": "full", "memory": True, "rules": True, "rouh_tools": True, "llm_tools": True, "off": [],
             "task": True, "others": False, "subtasks": "none", "picked": [], "steps_what": "all",
             "step_histories": False, "parent_task": True, "parent_task_history": False, "fork_history": True,
             "parents": {}}
 #: The three modes, as the selector at the top of Chat Options names them.
 MODES = ("simple", "full", "custom")
-MODE_NAMES = {"simple": "Simple chat", "full": "Full capabilities", "custom": "Custom"}
-#: What Simple chat and Full capabilities set; Custom is whatever the switches say. A mode is how Rouh works
-#: and nothing about what the chat is about (Petar, 16 November 2026: "while bottom includes rules, tools,
-#: memory, this should control the other content").
-SIMPLE = {"memory": False, "rules": False, "tools": True, "off": []}
-FULL = {"memory": True, "rules": True, "tools": True, "off": []}
-#: The switches a mode sets, and which Custom leaves to the person one by one.
-SWITCH_KEYS = ("memory", "rules", "tools", "off")
+MODE_NAMES = {"simple": "Simple chat", "full": "Full Rouh Capabilities", "custom": "Custom"}
+#: Whether Simple chat keeps the model's own tools (web search and fetch, code, pictures), as a plain chat
+#: with a model usually does (Petar, 18 November 2026). The one setting to flip for a Simple chat with none.
+SIMPLE_LLM_TOOLS = True
+#: What Simple chat and Full Rouh Capabilities set; Custom is whatever the switches say. A mode is how Rouh
+#: works and nothing about what the chat is about (Petar, 16 November 2026: "while bottom includes rules,
+#: tools, memory, this should control the other content"). Simple chat is plain talk with the model (Petar,
+#: 18 November 2026: "we are gearing for simple chat to be plain LLM direct talking"): no memory, no rules,
+#: none of Rouh's tools, and a system prompt of one line, the person's name and the clock (`plain`,
+#: `brain.Brain._plain_system`).
+SIMPLE = {"memory": False, "rules": False, "rouh_tools": False, "llm_tools": SIMPLE_LLM_TOOLS, "off": []}
+FULL = {"memory": True, "rules": True, "rouh_tools": True, "llm_tools": True, "off": []}
+#: The switches a mode sets, and which Custom leaves to the person one by one. One "tools" switch until 18
+#: November 2026; a chat that kept it reads as both set the same (`_migrated`).
+SWITCH_KEYS = ("memory", "rules", "rouh_tools", "llm_tools", "off")
+TOOL_KEYS = ("rouh_tools", "llm_tools")
 #: What the chat is about: set in the strip's panel, never by a mode, kept with the chat.
 CONTENT_KEYS = ("task", "others", "subtasks", "picked", "steps_what", "step_histories", "parent_task",
                 "parent_task_history", "fork_history", "parents")
@@ -108,9 +121,22 @@ def _chat_row(chat_id: str):
     return Chat.objects.filter(id=chat_id).first()
 
 
+def _migrated(stored: dict) -> dict:
+    """A chat's stored choices with the one "tools" switch kept until 18 November 2026 read as both tool
+    switches, set the way it was. A choice made of either since wins."""
+    if not isinstance(stored, dict) or "tools" not in stored:
+        return stored if isinstance(stored, dict) else {}
+    out = dict(stored)
+    was = bool(out.pop("tools"))
+    for k in TOOL_KEYS:
+        out.setdefault(k, was)
+    return out
+
+
 def mode_of(stored: dict) -> str:
     """The mode a stored set of choices is on. One kept before the modes (16 November 2026) has none: it is
     Full when it changed nothing from the defaults, else Custom, so no switch the person set is lost."""
+    stored = _migrated(stored)
     mode = stored.get("mode")
     if mode in MODES:
         return mode
@@ -132,7 +158,7 @@ def settings(chat_id: str, who=None) -> dict:
     (`_on_mode`). `who` is kept for the callers; the settings are the chat's alone."""
     row = _chat_row(chat_id) if chat_id else None
     got = dict(DEFAULTS)
-    own = row.reading if row is not None and isinstance(row.reading, dict) else {}
+    own = _migrated(row.reading if row is not None and isinstance(row.reading, dict) else {})
     got.update({k: v for k, v in own.items() if k in DEFAULTS})
     if own:
         got["mode"] = mode_of(own) if "mode" in own or any(k in own for k in SWITCH_KEYS) else got["mode"]
@@ -198,8 +224,13 @@ def put(chat_id: str, change: dict, who=None) -> dict:
             row = _chat_row(chat_id)
     if row is None:
         raise LookupError("There is no such chat.")
-    now = dict(row.reading or {}) if isinstance(row.reading, dict) else {}
+    now = _migrated(dict(row.reading or {}) if isinstance(row.reading, dict) else {})
     change = dict(change or {})
+    if "tools" in change:
+        # The one switch of before 18 November 2026, from a page not yet reloaded: both sides at once.
+        was = bool(change.pop("tools"))
+        for k in TOOL_KEYS:
+            change.setdefault(k, was)
     if change.pop("reset", False):
         # Rouh's defaults: Full capabilities, nothing left out. An incognito chat goes back to Simple chat,
         # as it started (`incognito.start`).
@@ -827,7 +858,7 @@ def parent_told(chat_id: str) -> bool:
 # live context follows, and `brain.Brain._system` asks `rule_told` and `context_told` for every one of them.
 
 #: Each source, as Chat Options and its full list name it.
-SOURCES = {"memory": "Memory", "rules": "Your rules", "tools": "Tools",
+SOURCES = {"memory": "Memory", "rules": "Your rules", "tools": "Rouh Tools",
            "safety": "Permission, privacy and safety", "builtin": "Built in", "chat": "This chat"}
 
 #: Rouh's own built-in rules told whatever the switches say: who it is, which model answers, the clock, how
@@ -835,6 +866,10 @@ SOURCES = {"memory": "Memory", "rules": "Your rules", "tools": "Tools",
 #: screen, the orb, jobs, mail, the workspace and the rest work, and goes with Tools.
 CORE = frozenset({"identity", "model-luna", "model-other", "order", "clock", "this-turn-written",
                   "this-turn-spoken", "turn-marks", "from-telegram"})
+#: The only built-in rules Simple chat is told: how a turn spoken into the microphone is marked finished or not,
+#: and that a spoken reply is heard, both told only in a spoken turn (their `when`). Without the marks a voice
+#: turn would never know the person had finished; neither is about Rouh.
+PLAIN_RULES = frozenset({"turn-marks", "this-turn-spoken"})
 #: Built-in rules that hold what this Rouh knows of its setting up: the name it was born with and the
 #: nickname the person gave it. They go with Memory.
 MEMORY_RULES = frozenset({"born-name", "nickname"})
@@ -905,6 +940,9 @@ def rule_item(r: dict) -> str:
 
 def rule_told(r: dict, reads: dict) -> bool:
     """Whether a turn with these switches (`switches`) is told this rule."""
+    if reads.get("plain"):
+        # Simple chat: none of Rouh's rules, only how a spoken turn works mechanically (`PLAIN_RULES`).
+        return str(r.get("key") or "") in PLAIN_RULES and bool(r.get("place"))
     src = source_of(r)
     if src in ("safety", "builtin"):
         return True
@@ -913,26 +951,51 @@ def rule_told(r: dict, reads: dict) -> bool:
     if src == "rules":
         from . import tool_rules
 
-        # A rule of the person's told with its tools goes with them as well.
-        return bool(reads["rules"]) and (bool(reads["tools"]) or not tool_rules.told_with_tools(r))
+        # A rule of the person's told with its tools goes with them as well: with either side of tools on,
+        # it is attached to its tools only if they are offered (`tool_rules.attach`).
+        return bool(reads["rules"]) and (any_tools(reads) or not tool_rules.told_with_tools(r))
     if src == "tools" and reads.get("light"):
         from . import tool_rules
 
         # Simple chat: a built-in rule about a tool comes only with the tool, never in the prompt.
-        return bool(reads["tools"]) and tool_rules.told_with_tools(r)
+        return any_tools(reads) and tool_rules.told_with_tools(r)
+    if src == "tools":
+        from . import tool_rules
+
+        # A built-in rule told with its tools goes with whichever side they are on; the rest of the built-in
+        # rules about how the screen, the orb, mail, jobs and the workspace work go with Rouh Tools.
+        if tool_rules.told_with_tools(r):
+            return any_tools(reads)
+        return rouh_tools(reads)
     return bool(reads[src])
+
+
+def rouh_tools(reads: dict) -> bool:
+    """Whether Rouh's own tools are on in a turn with these switches (`switches`)."""
+    return bool(reads.get("rouh_tools", reads.get("tools", True)))
+
+
+def any_tools(reads: dict) -> bool:
+    """Whether any tool at all is on in a turn with these switches: Rouh's or the model's own."""
+    return rouh_tools(reads) or bool(reads.get("llm_tools", reads.get("tools", True)))
 
 
 def context_told(key: str, reads: dict) -> bool:
     """Whether a turn with these switches is told this piece of live context (`CONTEXT`)."""
     src = _CONTEXT_SOURCE.get(key, "chat")
+    if reads.get("plain"):
+        # Simple chat: only the list of the model's own tools, when they are on, so a picture can be found.
+        return key == "catalogue" and any_tools(reads)
     if "ctx:" + key in set(reads.get("off") or ()):
         return False
     if key in ("inboxes", "synapse"):   # about the person, and about the tools that read it
-        return bool(reads["memory"]) and bool(reads["tools"])
+        return bool(reads["memory"]) and rouh_tools(reads)
+    if key == "catalogue":   # the list of whichever tools are offered
+        return any_tools(reads)
     if src == "tools" and reads.get("light"):
-        # Simple chat: of what goes with Tools, only the one-line list the model finds a tool by.
-        return key == "catalogue" and bool(reads["tools"])
+        return False
+    if src == "tools":
+        return rouh_tools(reads)
     return src == "chat" or bool(reads[src])
 
 
@@ -969,18 +1032,21 @@ def anonymous(text: str, who=None, *, owner=...) -> str:
 
 
 def switches(chat_id: str) -> dict:
-    """{"memory", "rules", "tools", "off", "light"}: what a turn in this chat may use. An incognito chat's are
-    its own. `light` is Simple chat: tools only on demand, so no built-in rule about how the screen, the orb,
-    mail or jobs work is told in the prompt; a rule told with its tool still comes with the tool."""
+    """What a turn in this chat may use (`_reads_of`). An incognito chat's are its own."""
     s = settings(chat_id) if chat_id else dict(DEFAULTS)
-    return {"memory": bool(s["memory"]), "rules": bool(s["rules"]), "tools": bool(s["tools"]),
-            "off": list(s.get("off") or []), "light": s.get("mode") == "simple"}
+    return _reads_of(s)
 
 
 def _reads_of(s: dict) -> dict:
-    """What a turn does with these settings, as `switches` says it."""
-    return {"memory": bool(s["memory"]), "rules": bool(s["rules"]), "tools": bool(s["tools"]), "off": s["off"],
-            "light": s.get("mode") == "simple"}
+    """What a turn does with these settings: "memory", "rules", "rouh_tools" and "llm_tools" (each side of
+    tools, `rouh/toolsides.py`), "tools" (Rouh Tools, which the built-in rules about how Rouh works follow),
+    "any_tools", "off" (items turned off one by one), and "light" and "plain", both Simple chat: plain talk
+    with the model, whose system prompt is the person's name and the clock (`brain.Brain._plain_system`)."""
+    rouh, llm = bool(s.get("rouh_tools", True)), bool(s.get("llm_tools", True))
+    simple = s.get("mode") == "simple"
+    return {"memory": bool(s["memory"]), "rules": bool(s["rules"]), "tools": rouh, "rouh_tools": rouh,
+            "llm_tools": llm, "any_tools": rouh or llm, "off": list(s.get("off") or []),
+            "light": simple, "plain": simple}
 
 
 def _master_for(who=None):
@@ -1246,6 +1312,20 @@ def last_turn(chat_id: str) -> dict | None:
             "ts": row["ts"]}
 
 
+def tool_sides() -> dict:
+    """{"rouh": [{"name", "words"}], "llm": [...]}: every tool this Rouh has, by side; empty sides when the
+    server's registry cannot be read (a panel without its tooltips, never a panel that fails)."""
+    from . import toolsides
+
+    try:
+        from . import runtime
+
+        return toolsides.listing(runtime.tools.all_entries())
+    except Exception:  # noqa: BLE001 - a tooltip
+        log.exception("the tools could not be listed by side")
+        return {toolsides.ROUH: [], toolsides.LLM: []}
+
+
 def view(chat_id: str, who=None) -> dict:
     """Everything the panel draws for this chat."""
     from .models.objects import Chat
@@ -1290,5 +1370,7 @@ def view(chat_id: str, who=None) -> dict:
     out["rules"] = rules_listing(chat_id, who, s)
     out["context"] = context_listing(chat_id, who, s)
     out["synapse"] = {"text": SYNAPSE_LINE, "on": bool(s["memory"])}
+    # Every tool on each side, with a few words each, for the two switches' tooltips (`rouh/toolsides.py`).
+    out["tools"] = tool_sides()
     out["sources"] = SOURCES
     return out

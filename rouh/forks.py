@@ -353,7 +353,7 @@ def task_block(chat_id: str) -> str:
 
 
 def make(parent_id: str, before: int | None = None, *,
-         through: int | None = None) -> str | None:
+         through: int | None = None, options: dict | None = None) -> str | None:
     """A new fork of this chat, laid out beside it, and its id.
 
     It carries the parent as it stands this instant: everything said in it so
@@ -416,6 +416,12 @@ def make(parent_id: str, before: int | None = None, *,
     reading = parent.get("reading") if isinstance(parent.get("reading"), dict) and not parent.get("incognito") else {}
     # Parent chat history is the fork's own choice, and starts on: it is what makes it a fork.
     reading = {k: v for k, v in (reading or {}).items() if k not in ("keep", "fork_history")}
+    # What the person saw in the parent's Chat Options when they forked it, sent with the fork (Petar, 18
+    # November 2026: "when I select custom, the fork carries custom also but should also carry the
+    # subsettings"). The page saves a press after drawing it, so a fork made in the moment after a press
+    # could be made from the parent as it was before; what the page sends is what they chose. Only how Rouh
+    # works, never what the chat is about, and only in the shapes the panel itself saves.
+    reading = _with_options(reading, options)
     with transaction.atomic():
         chat_id = conversations.new_chat(fork=True)
         ChatFork.objects.create(chat_id=chat_id, parent_id=parent_id, at=at,
@@ -428,6 +434,26 @@ def make(parent_id: str, before: int | None = None, *,
              f", above exchange {before}" if before is not None else
              f", through exchange {through}" if through is not None else "")
     return chat_id
+
+
+def _with_options(reading: dict, options) -> dict:
+    """The parent's stored choices with the mode and switches the page sent put over them."""
+    from . import reading as reading_mod
+
+    if not isinstance(options, dict):
+        return reading
+    out = dict(reading or {})
+    mode = options.get("mode")
+    if mode in reading_mod.MODES:
+        out["mode"] = mode
+    if out.get("mode") == "custom":
+        for k in reading_mod.SWITCH_KEYS:
+            if k == "off" and isinstance(options.get("off"), list):
+                out["off"] = sorted({str(x) for x in options["off"] if str(x)})[:500]
+            elif k != "off" and isinstance(options.get(k), bool):
+                out[k] = options[k]
+        out.pop("tools", None)
+    return out
 
 
 def close(chat_id: str) -> str:

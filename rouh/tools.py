@@ -11964,12 +11964,35 @@ class ToolRegistry:
         return [toolsearch.tool_from(d, **self._meta.get(d.get("name", ""), {}))
                 for d in _unique_by_name(self._defs)]
 
+    def _side_off(self, name: str) -> str:
+        """Why this tool cannot be called in the chat being answered, or "": its side of Chat Options, Rouh
+        Tools or LLM Tools, is off there (`rouh/toolsides.py`). Such a tool is only ever declared for the
+        calls already in the history, and this is what stops it being called again."""
+        from . import reading, toolsides
+
+        chat = self.memory.answering_chat() if self.memory is not None else ""
+        if not chat:
+            return ""
+        try:
+            reads = reading.switches(chat)
+        except Exception:  # noqa: BLE001 - a tool is never lost to its settings
+            log.exception("the tool switches of chat %s could not be read", chat)
+            return ""
+        side = toolsides.side_of(name, self._meta.get(name, {}).get("area"))
+        if not side or reads.get(side + "_tools", True):
+            return ""
+        return (f"{toolsides.NAMES[side]} are turned off in this chat's Chat Options, so {name} cannot be "
+                "called here. Answer without it, and say so if it was needed.")
+
     async def call(self, name: str, args, emit, *, call_id: str = ""):
         handler = self._handlers.get(name)
         if handler is None:
             return f"There is no tool called {name}."
         if not self._mcp_theirs(name):
             return f"There is no tool called {name}."
+        off = await asyncio.to_thread(self._side_off, name)
+        if off:
+            return untrusted.ours(off)
         if demo.on_stage():
             if not demo.tool_allowed(name):
                 return untrusted.ours(demo.refused(name))

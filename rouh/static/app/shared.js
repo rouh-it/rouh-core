@@ -21,4 +21,7 @@ export const shared = {
   attached: [], // attachments.js
   /** @type {boolean | 'fork'} Send pressed while an upload was going: true, or 'fork' for Fork. */
   sendWhenUploaded: false, // attachments.js
+  /** @type {(chat: string) => Record<string, any> | null} A chat's Chat Options as the panel draws them, for a
+      fork of it to start with; app/reading.js sets it, outside the chain. */
+  forkOptions: function (/** @type {string} */ _chat) { return null; }, // reading.js
 };

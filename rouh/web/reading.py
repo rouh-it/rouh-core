@@ -3,7 +3,7 @@
     GET  /api/reading?chat=<id>     what the panel draws for that chat
     POST /api/reading               {"chat", "change": {
                                     how Rouh works (Chat Options): "mode": "simple"|"full"|"custom",
-                                    "memory"|"rules"|"tools": bool, "off": [item ids turned off one by one],
+                                    "memory"|"rules"|"rouh_tools"|"llm_tools": bool ("tools", the one switch until 18 November 2026, sets both), "off": [item ids turned off one by one],
                                     "reset": true (how Rouh works back to Rouh's defaults);
                                     what the chat is about (the strip's panel, never moving the mode):
                                     "task"|"others"|"step_histories"|"parent_task"|"parent_task_history"|

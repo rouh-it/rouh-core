@@ -494,6 +494,7 @@
     "rouh/chatkinds.py",
     "rouh/general_summary.py",
     "rouh/reading.py",
+    "rouh/toolsides.py",
     "rouh/tokencount.py",
     "rouh/incognito.py",
     "rouh/page_in_chat.py",

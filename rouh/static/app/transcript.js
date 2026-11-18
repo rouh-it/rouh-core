@@ -974,7 +974,9 @@ function forkFromEdit(turn, text) {
     notify('Rouh is still answering. Stop it first, then fork.', { tone: 'warning' });
     return false;
   }
-  if (!send({ type: 'fork', from: CHATS.active, text: text, root: root })) {
+  var carried = shared.forkOptions(String(CHATS.active || ''));
+  if (!send(carried ? { type: 'fork', from: CHATS.active, text: text, root: root, options: carried }
+    : { type: 'fork', from: CHATS.active, text: text, root: root })) {
     notify('Not connected, so nothing was forked.', { tone: 'error' });
     return false;
   }

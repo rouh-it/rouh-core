@@ -618,7 +618,7 @@ def loaded_by(item: dict) -> list[str]:
     return names
 
 
-def plan_for(entries, cfg) -> toolsearch.Plan:
+def plan_for(entries, cfg, whole: bool = False) -> toolsearch.Plan:
     """What a Luna request declares: its tools, and the catalogue that lists them.
 
     The same choice Claude's requests make (`Config.tool_search`), in OpenAI's
@@ -627,6 +627,8 @@ def plan_for(entries, cfg) -> toolsearch.Plan:
     among them, is OpenAI's own search, run on its side.
     """
     wanted = (getattr(cfg, "tool_search", "regex") or "regex").strip().lower()
+    if whole:   # Simple chat's few tools, whole (`brain._plain_tools`)
+        wanted = "off"
     mode = wanted if wanted in ("off", "client") else "hosted"
     always = getattr(cfg, "tools_always_loaded", ())
     tools = tidied(toolsearch.openai_tools(entries, mode=mode, always=always))
@@ -968,11 +970,12 @@ async def turn(brain, session_id: str, user_content, emit, on_sentence, model: s
     messages = attachments.hydrate(messages, brain.files)
     # Every tool declared, and none loaded until a search asks for it, as
     # for Claude (`plan_for`).
-    entries = brain.tool_entries("luna")
-    plan = plan_for(entries, cfg)
-    from .brain import _has_tool_calls, _reads
+    entries = brain.tool_entries("luna", messages)
+    from .brain import _has_tool_calls, _plain_tools, _reads
 
-    if not _reads(session_id)["tools"] and not _has_tool_calls(messages):
+    plan = plan_for(entries, cfg, whole=_plain_tools(session_id, messages))
+
+    if not _reads(session_id)["any_tools"] and not _has_tool_calls(messages):
         # Tools off and no call in the history to declare them for: none is declared, and the model is told
         # of none (`rouh/reading.py`).
         entries = []
@@ -1039,7 +1042,7 @@ async def turn(brain, session_id: str, user_content, emit, on_sentence, model: s
             # Tools turned off for this chat (`rouh/reading.py`): declared for the history, never called.
             from .brain import _reads
 
-            off = not _reads(session_id)["tools"]
+            off = not _reads(session_id)["any_tools"]
             request.update(tools=tools, tool_choice="none" if off else "auto", parallel_tool_calls=not off)
 
         attempt = 0

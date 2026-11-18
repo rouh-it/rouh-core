@@ -58,6 +58,7 @@ import { composerPopsClose } from 'app/composer_extras.js';
 import { $, el } from 'app/helpers.js';
 import { ASK } from 'app/runs.js';
 import { notify } from 'app/notices.js';
+import { shared } from 'app/shared.js';
 
 /** @typedef {{ id: string, kind: string, label: string, owner: string, path: string, size: string,
  *              tokens: number, on: boolean, how: string, group?: string }} ReadItem */
@@ -73,6 +74,7 @@ import { notify } from 'app/notices.js';
  *              task?: {id: string, label: string}, rules: ReadRule[], context?: ReadRule[], strip: string,
  *              outlined: number, reads: number, budget: number, kept?: string,
  *              synapse?: {text: string, on: boolean}, sources?: Record<string, string>,
+ *              tools?: Record<string, {name: string, words: string}[]>,
  *              last?: {tokens: number, cached: number, requests: number, ts: number} | null }} ReadView */
 
 var btn = /** @type {HTMLButtonElement | null} */ ($('readingBtn'));
@@ -108,13 +110,13 @@ var LOCK = 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1
 
 /** The three modes, as the selector says them (rouh/reading.py `MODES`), each with one line of what it means. */
 var MODES = [
-  ['simple', 'Simple chat', 'Fast and cheap: no memory, none of your rules, tools only when needed.'],
-  ['full', 'Full capabilities', 'Everything on: memory, your rules and tools.'],
+  ['simple', 'Simple chat', 'Plain talk with the model: web search, no memory, rules or Rouh Tools.'],
+  ['full', 'Full Rouh Capabilities', 'Everything on: memory, your rules, Rouh Tools and LLM Tools.'],
   ['custom', 'Custom', 'Choose each of them yourself.']
 ];
 var SAFETY = 'Permission, privacy and safety cannot be turned off.';
 /** The mode in one word, on the button, as the model's button says Smart or Cheap. */
-var SHORT = /** @type {Record<string, string>} */ ({ simple: 'Simple', full: 'Full', custom: 'Custom' });
+var SHORT = /** @type {Record<string, string>} */ ({ simple: 'Simple', full: 'Full Rouh Capabilities', custom: 'Custom' });
 
 function currentChat() { return String((CHATS && CHATS.active) || ''); }
 
@@ -179,7 +181,7 @@ function paintBtn(d) {
   var mode = d && d.settings ? String(d.settings.mode || '') : '';
   btnWord.textContent = SHORT[mode] || 'Options';
   btn.dataset.mode = mode;
-  var says = 'Chat Options: ' + (mode ? modeName(mode) : 'what this chat uses') + '. Memory, your rules and tools';
+  var says = 'Chat Options: ' + (mode ? modeName(mode) : 'what this chat uses') + '. Memory, your rules, Rouh Tools and LLM Tools';
   btn.dataset.tip = says;
   btn.setAttribute('aria-label', 'Chat Options, ' + (mode ? modeName(mode) : 'loading'));
 }
@@ -440,6 +442,7 @@ function openContent(on) {
 /** The panel. @param {ReadView} d */
 function paintPop(d) {
   if (!pop) return;
+  tipHide();
   var s = d.settings;
   var custom = s.mode === 'custom';
   pop.textContent = '';
@@ -454,16 +457,18 @@ function paintPop(d) {
   var reset = el('button', 'reading-reset', 'Reset to defaults');
   reset.type = 'button';
   reset.dataset.reset = '1';
-  reset.title = d.incognito ? 'Back to Simple chat, nothing left out' : 'Back to Full capabilities, nothing left out';
+  reset.title = d.incognito ? 'Back to Simple chat, nothing left out' : 'Back to Full Rouh Capabilities, nothing left out';
   bar.appendChild(reset);
   pop.appendChild(bar);
 
-  // Two columns on Custom when there is the room (a desk): the modes on the left, the choices on the right.
-  var body = el('div', 'reading-body' + (custom ? ' cols' : ''));
+  // Two columns whenever there is the room (a desk): the modes on the left, Custom's choices on the right.
+  // Simple and Full keep the same columns with the right one empty, so nothing moves when the mode does
+  // (Petar, 18 November 2026: "keep their column the same size as custom. just the right side will be empty").
+  var body = el('div', 'reading-body cols');
   var main = el('div', 'reading-main');
-  var side = custom ? el('div', 'reading-side') : main;
+  var side = el('div', 'reading-side');
   body.appendChild(main);
-  if (custom) body.appendChild(side);
+  body.appendChild(side);
   pop.appendChild(body);
 
   // The mode first, in every chat: it is the one choice most people make here.
@@ -480,13 +485,28 @@ function paintPop(d) {
     main.appendChild(top);
   }
 
-  // The switches one by one, on Custom only: Simple and Full set them all.
-  if (custom) {
-    var every = sec('What this chat uses');
-    switches(every, s);
-    side.appendChild(every);
+  // What the last message really came to, from the provider's own count: rules, tools, memory, the history
+  // and the message together (`reading.last_turn`). Under the modes, in every mode.
+  if (d.last && d.last.tokens) {
+    var last = el('p', 'reading-last', 'Last message: ' + kTokens(d.last.tokens) + ' tokens in'
+      + (d.last.cached ? ' · ' + kTokens(d.last.cached) + ' from the cache' : ''));
+    last.title = d.last.tokens.toLocaleString() + ' tokens went to the model with the first request of the last turn'
+      + (d.last.requests > 1 ? ', which took ' + d.last.requests + ' requests' : '') + '.';
+    main.appendChild(last);
+  }
+  if (READ.oops) {
+    var oops = el('p', 'reading-oops', READ.oops);
+    oops.setAttribute('role', 'status');
+    main.appendChild(oops);
   }
 
+  // The switches one by one, and everything this chat is told, on Custom only: Simple and Full set them all
+  // (Petar, 18 November 2026: "see everything this chat is told should only appear in the right column of
+  // customized").
+  if (!custom) return;
+  var every = sec('What this chat uses');
+  switches(every, s, d);
+  side.appendChild(every);
   // Everything this chat is told is a link to the full list, never a list of its own here.
   var foot = sec('');
   var n = toldCount(d);
@@ -501,27 +521,13 @@ function paintPop(d) {
   link.appendChild(words);
   link.appendChild(icon('M9 6l6 6-6 6', 14));
   foot.appendChild(link);
-  // What the last message really came to, from the provider's own count: rules, tools, memory, the history
-  // and the message together (`reading.last_turn`).
-  if (d.last && d.last.tokens) {
-    var last = el('p', 'reading-last', 'Last message: ' + kTokens(d.last.tokens) + ' tokens in'
-      + (d.last.cached ? ' · ' + kTokens(d.last.cached) + ' from the cache' : ''));
-    last.title = d.last.tokens.toLocaleString() + ' tokens went to the model with the first request of the last turn'
-      + (d.last.requests > 1 ? ', which took ' + d.last.requests + ' requests' : '') + '.';
-    foot.appendChild(last);
-  }
   side.appendChild(foot);
-  if (READ.oops) {
-    var oops = el('p', 'reading-oops', READ.oops);
-    oops.setAttribute('role', 'status');
-    side.appendChild(oops);
-  }
 }
 
 /** @param {string} id */
 function modeName(id) {
   for (var i = 0; i < MODES.length; i++) if (MODES[i][0] === id) return MODES[i][1];
-  return 'Full capabilities';
+  return 'Full Rouh Capabilities';
 }
 
 /** The mode selector: three radio rows drawn like the model's (`.model-opt`, app/composer_extras.js).
@@ -546,19 +552,171 @@ function modes(now, id) {
   return g;
 }
 
-/** The three switches, the same in the panel and the full list. Permission, privacy and safety is not one of
+/** The four switches, the same in the panel and the full list. Permission, privacy and safety is not one of
     them: what cannot be turned off is said in a sentence, never drawn as a switch (Petar, 16 November 2026).
-    @param {HTMLElement} into @param {Record<string, any>} s */
-function switches(into, s) {
+    Tools are two since 18 November 2026 (rouh/toolsides.py): each with a line naming a few of its tools and
+    a (?) that lists them all (`toolsRow`).
+    @param {HTMLElement} into @param {Record<string, any>} s @param {ReadView} d */
+function switches(into, s, d) {
   into.appendChild(row('memory', !!s.memory, 'Memory', 'What Rouh has learned about you and your people'));
   into.appendChild(row('rules', !!s.rules, 'Your rules', 'Off keeps the rules about permission, privacy and safety'));
-  into.appendChild(row('tools', !!s.tools, 'Tools', 'Mail, calendar, the browser, jobs and the rest'));
+  into.appendChild(toolsRow('rouh', !!s.rouh_tools, d));
+  into.appendChild(toolsRow('llm', !!s.llm_tools, d));
 }
+
+/** The tools each side's line names first, when this Rouh has them; the rest are in its (?). */
+var FIRST_TOOLS = /** @type {Record<string, string[]>} */ ({
+  rouh: ['send_mail', 'list_calendar_events', 'search_drive', 'make_a_task', 'show_on_screen'],
+  llm: ['web_search', 'web_fetch', 'code_execution', 'make_picture']
+});
+var SIDE_NAMES = /** @type {Record<string, string>} */ ({ rouh: 'Rouh Tools', llm: 'LLM Tools' });
+var SIDE_SUBS = /** @type {Record<string, string>} */ ({
+  rouh: 'Rouh’s own: mail, calendar, Drive, tasks, the screen and the rest',
+  llm: 'The model’s own: the web, code and pictures'
+});
+
+/** One side of tools: its switch, and under it a line of a few of its tools and a (?) for all of them.
+    @param {string} side @param {boolean} on @param {ReadView} d */
+function toolsRow(side, on, d) {
+  var box = el('div', 'reading-tools');
+  box.appendChild(row(side + '_tools', on, SIDE_NAMES[side], SIDE_SUBS[side]));
+  var all = (d.tools && d.tools[side]) || [];
+  if (!all.length) return box;
+  var names = all.map(function (t) { return t.name; });
+  var first = FIRST_TOOLS[side].filter(function (n) { return names.indexOf(n) >= 0; });
+  names.forEach(function (n) { if (first.length < 3 && first.indexOf(n) < 0) first.push(n); });
+  first = first.slice(0, 3);
+  var line = el('p', 'reading-tools-line');
+  line.appendChild(el('span', 'reading-tools-names', first.join(', ') + (all.length > first.length ? ', …' : '')));
+  var q = el('button', 'reading-tools-q', '?');
+  q.type = 'button';
+  q.dataset.tools = side;
+  q.setAttribute('aria-label', 'All ' + all.length + ' ' + SIDE_NAMES[side]);
+  q.setAttribute('aria-expanded', 'false');
+  q.setAttribute('aria-controls', 'toolsTip');
+  line.appendChild(q);
+  box.appendChild(line);
+  return box;
+}
+
+/** The (?)'s list: every tool of one side with a few words each, over the page, beside the (?) pressed or
+    hovered. Hover shows it on a desk; a press (a tap on a phone) keeps it open until Escape, a press
+    elsewhere or the (?) again. */
+var TIP = { el: /** @type {HTMLElement | null} */ (null), side: '', pinned: false, from: /** @type {HTMLElement | null} */ (null),
+            hide: 0 };
+
+/** @param {HTMLElement} q @param {boolean} pin */
+function tipShow(q, pin) {
+  var side = q.dataset.tools || '';
+  var all = (READ.data && READ.data.tools && READ.data.tools[side]) || [];
+  if (!all.length) return;
+  clearTimeout(TIP.hide);
+  if (!TIP.el) {
+    TIP.el = el('div', 'tools-tip');
+    TIP.el.id = 'toolsTip';
+    TIP.el.setAttribute('role', 'tooltip');
+    TIP.el.addEventListener('mouseenter', function () { clearTimeout(TIP.hide); });
+    TIP.el.addEventListener('mouseleave', function () { if (!TIP.pinned) tipLater(); });
+    document.body.appendChild(TIP.el);
+  }
+  var t = TIP.el;
+  if (TIP.side !== side || t.hidden || !t.firstChild) {
+    t.textContent = '';
+    t.appendChild(el('p', 'tools-tip-h', SIDE_NAMES[side] + ' · ' + all.length));
+    var ul = el('ul', '');
+    all.forEach(function (x) {
+      var li = el('li', '');
+      li.appendChild(el('code', '', x.name));
+      li.appendChild(document.createTextNode(' - ' + x.words));
+      ul.appendChild(li);
+    });
+    t.appendChild(ul);
+    t.scrollTop = 0;
+  }
+  if (TIP.from && TIP.from !== q) TIP.from.setAttribute('aria-expanded', 'false');
+  TIP.side = side;
+  TIP.from = q;
+  TIP.pinned = pin || TIP.pinned;
+  q.setAttribute('aria-expanded', 'true');
+  t.hidden = false;
+  // Never over the switches it is about. On a desk, to the left of their column, beside the (?) (a list
+  // above it covered Memory and Your rules, and took the press meant for them); on a phone, where there is
+  // one column, under the (?) or above it, and a tap anywhere else closes it.
+  var r = q.getBoundingClientRect();
+  var w = Math.min(320, window.innerWidth - 32);
+  t.style.width = w + 'px';
+  var col = /** @type {HTMLElement | null} */ (q.closest('.reading-side, .cot-switches'));
+  var c = col ? col.getBoundingClientRect() : r;
+  if (c.left - w - 12 >= 8) {
+    var h0 = Math.min(360, window.innerHeight - 32);
+    t.style.maxHeight = h0 + 'px';
+    var hh = Math.min(h0, t.scrollHeight);
+    t.style.left = (c.left - w - 12) + 'px';
+    t.style.top = Math.max(16, Math.min(window.innerHeight - hh - 16, r.top + r.height / 2 - hh / 2)) + 'px';
+    t.style.bottom = '';
+    return;
+  }
+  t.style.left = Math.max(16, Math.min(window.innerWidth - w - 16, r.left + r.width / 2 - w / 2)) + 'px';
+  var below = window.innerHeight - r.bottom - 16, above = r.top - 16;
+  var h = Math.min(320, Math.max(below, above) - 8);
+  t.style.maxHeight = Math.max(120, h) + 'px';
+  if (below >= Math.min(320, t.scrollHeight) || below >= above) { t.style.top = (r.bottom + 6) + 'px'; t.style.bottom = ''; }
+  else { t.style.top = ''; t.style.bottom = (window.innerHeight - r.top + 6) + 'px'; }
+}
+
+function tipHide() {
+  clearTimeout(TIP.hide);
+  if (TIP.el) TIP.el.hidden = true;
+  if (TIP.from) TIP.from.setAttribute('aria-expanded', 'false');
+  TIP.pinned = false;
+}
+
+/** Hidden a moment after the pointer leaves, so it can move from the (?) onto the list to scroll it. */
+function tipLater() {
+  clearTimeout(TIP.hide);
+  TIP.hide = window.setTimeout(tipHide, 250);
+}
+
+[pop, full].forEach(function (box) {
+  if (!box) return;
+  box.addEventListener('mouseover', function (e) {
+    var q = /** @type {HTMLElement} */ (e.target).closest && /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (e.target).closest('.reading-tools-q'));
+    if (q && !TIP.pinned) tipShow(q, false);
+  });
+  box.addEventListener('mouseout', function (e) {
+    var q = /** @type {HTMLElement} */ (e.target).closest && /** @type {HTMLElement} */ (e.target).closest('.reading-tools-q');
+    if (q && !TIP.pinned) tipLater();
+  });
+  box.addEventListener('focusin', function (e) {
+    var q = /** @type {HTMLElement} */ (e.target);
+    if (q.classList && q.classList.contains('reading-tools-q') && !TIP.pinned) tipShow(q, false);
+  });
+  box.addEventListener('focusout', function (e) {
+    var q = /** @type {HTMLElement} */ (e.target);
+    if (q.classList && q.classList.contains('reading-tools-q') && !TIP.pinned) tipLater();
+  });
+  box.addEventListener('scroll', function () { if (TIP.el && !TIP.el.hidden) tipHide(); }, true);
+});
+document.addEventListener('pointerdown', function (e) {
+  if (!TIP.el || TIP.el.hidden) return;
+  var t = /** @type {HTMLElement} */ (e.target);
+  if (TIP.el.contains(t) || (t.closest && t.closest('.reading-tools-q'))) return;
+  tipHide();
+}, true);
+window.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape' || !TIP.el || TIP.el.hidden) return;
+  e.preventDefault();
+  e.stopPropagation();
+  var back = TIP.from;
+  tipHide();
+  if (back) back.focus();
+}, true);
 
 /** The full list, from the server's words. @param {ReadView} d */
 function fullPaint(d) {
   var inner = $('toldIn'), foot = $('toldFoot');
   if (!full || !inner || !foot) return;
+  tipHide();
   var s = d.settings, names = d.sources || {}, every = allItems(d), n = toldCount(d);
   var keepFocus = document.activeElement && document.activeElement.id === 'toldQ';
   inner.textContent = '';
@@ -571,7 +729,7 @@ function fullPaint(d) {
   inner.appendChild(modes(s.mode, 'toldModes'));
   if (s.mode === 'custom') {
     var sw = el('div', 'cot-switches');
-    switches(sw, s);
+    switches(sw, s, d);
     inner.appendChild(sw);
   }
   inner.appendChild(el('p', 'reading-safety', SAFETY));
@@ -656,7 +814,7 @@ function fullPaint(d) {
     li.appendChild(tags);
     if (!r.on) {
       var why = r.off ? 'Left out: you turned it off here.'
-        : 'Left out: ' + (r.with && !s.tools ? 'Tools' : names[r.source] || r.source) + ' is off.';
+        : 'Left out: ' + (r.with && !s.rouh_tools && !s.llm_tools ? 'Rouh Tools and LLM Tools are' : (names[r.source] || r.source) + ' is') + ' off.';
       li.appendChild(el('p', 'cot-why', why));
     }
     // Lines the source wrapped by hand run on; blank lines and list items stay where they are.
@@ -669,7 +827,7 @@ function fullPaint(d) {
   // Reset to defaults is in the title bar, beside Close (`toldReset`).
   var top = $('toldReset');
   if (top) top.title = d.incognito ? 'Back to Simple chat, nothing left out'
-    : 'Back to Full capabilities, nothing left out';
+    : 'Back to Full Rouh Capabilities, nothing left out';
   var done = el('button', 'cot-btn done', 'Done');
   done.type = 'button';
   done.dataset.done = '1';
@@ -706,7 +864,8 @@ function selectorOf(t) {
   if (b.id) return '#' + b.id;
   return d.key ? '[data-key="' + d.key + '"]' : d.seg ? '[data-seg="' + d.seg + '"]' : d.mode ? '[data-mode="' + d.mode + '"]'
     : d.item ? '[data-item="' + d.item + '"]' : d.filter ? '[data-filter="' + d.filter + '"]' : d.more ? '[data-more]'
-    : d.reset ? '[data-reset]' : d.full ? '[data-full]' : d.cseg ? '[data-cseg="' + d.cseg + '"]' : '';
+    : d.reset ? '[data-reset]' : d.full ? '[data-full]' : d.cseg ? '[data-cseg="' + d.cseg + '"]'
+    : d.tools ? '[data-tools="' + d.tools + '"]' : '';
 }
 
 /** @param {ReadView | null} d */
@@ -773,14 +932,19 @@ function openPop(on) {
   if (!btn || !pop) return;
   if (on) composerPopsClose();
   pop.hidden = !on;
+  if (!on) tipHide();
   btn.setAttribute('aria-expanded', on ? 'true' : 'false');
   if (strip) strip.setAttribute('aria-expanded', on ? 'true' : 'false');
   if (on) place();
-  if (on && !READ.data) {
+  // Only this chat's own choices are drawn: another chat's, still held while this one's are fetched, would
+  // show the wrong mode and switches (a fork just opened showed its parent's, 18 November 2026).
+  var mine = !!(READ.data && READ.data.chat === currentChat());
+  if (on && !mine) {
     pop.textContent = '';
     pop.appendChild(el('p', 'reading-verdict', 'Finding what this chat reads…'));
+    if (currentChat() && READ.chat !== currentChat()) load(currentChat());
   }
-  if (on && READ.data) {
+  if (on && mine && READ.data) {
     paintPop(READ.data);
     var head = $('readingHead');
     if (head) head.focus();
@@ -806,15 +970,16 @@ function load(chat) {
     .catch(function () { /* the next look asks again */ READ.chat = ''; });
 }
 
-/** The changes pressed while another was on its way, in order: sent one by one as each is answered,
-    never dropped. Switches pressed one after another go as one change.
-    @type {Record<string, any>[]} */
+/** The changes pressed while another was on its way, in order, each with the chat it was pressed in: sent
+    one by one as each is answered, never dropped, even once the page has moved to another chat (a fork made
+    the moment after a press, 18 November 2026). Switches pressed one after another in a chat go as one change.
+    @type {{chat: string, wanted: Record<string, any>}[]} */
 var NEXT = [];
 
 /** The switches a mode sets (rouh/reading.py `SIMPLE` and `FULL`); Custom sets none. */
 var MODE_SETS = /** @type {Record<string, Record<string, any>>} */ ({
-  simple: { memory: false, rules: false, tools: true, off: [] },
-  full: { memory: true, rules: true, tools: true, off: [] }
+  simple: { memory: false, rules: false, rouh_tools: false, llm_tools: true, off: [] },
+  full: { memory: true, rules: true, rouh_tools: true, llm_tools: true, off: [] }
 });
 /** What the chat is about (rouh/reading.py `CONTENT_KEYS`): set in the strip's panel, never by a mode. */
 var CONTENT_KEYS = ['task', 'others', 'subtasks', 'picked', 'steps_what', 'step_histories', 'parent_task',
@@ -882,21 +1047,25 @@ function change(wanted) {
     @param {string} chat @param {Record<string, any>} wanted */
 function send(chat, wanted) {
   if (READ.busy) {
-    // Kept, with later switches merged into it; a mode or a reset pressed after replaces what was kept.
-    var last = NEXT[NEXT.length - 1];
-    if (wanted.mode || wanted.reset) NEXT = [wanted];   // what came before it no longer matters
-    else if (last && !last.mode && !last.reset) {
+    // Kept, with later switches merged into it; a mode or a reset pressed after replaces what was kept of
+    // the same chat.
+    var held = NEXT.length && NEXT[NEXT.length - 1].chat === chat ? NEXT[NEXT.length - 1].wanted : null;
+    if (wanted.mode || wanted.reset) {
+      NEXT = NEXT.filter(function (x) { return x.chat !== chat; });   // what came before it no longer matters
+      NEXT.push({ chat: chat, wanted: Object.assign({}, wanted) });
+    } else if (held && !held.mode && !held.reset) {
       // Parent chats pressed one after another are all kept: each is its own choice.
-      var parents = last.parents && wanted.parents ? Object.assign({}, last.parents, wanted.parents) : null;
-      Object.assign(last, wanted);
-      if (parents) last.parents = parents;
+      var parents = held.parents && wanted.parents ? Object.assign({}, held.parents, wanted.parents) : null;
+      Object.assign(held, wanted);
+      if (parents) held.parents = parents;
     }
-    else NEXT.push(Object.assign({}, wanted));
+    else NEXT.push({ chat: chat, wanted: Object.assign({}, wanted) });
     return;
   }
   READ.busy = true;
-  // Whatever an earlier read answers after this, the answer to this change is what is drawn.
-  READ.asked++;
+  // Whatever an earlier read answers after this, the answer to this change is what is drawn: in this chat
+  // only, so a press still being saved for a chat the page has left never drops the read of the one it is in.
+  if (READ.chat === chat) READ.asked++;
   fetch('/api/reading', { method: 'POST', credentials: 'same-origin',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ chat: chat, change: wanted }) })
@@ -909,9 +1078,14 @@ function send(chat, wanted) {
     .then(function (d) {
       READ.busy = false;
       var next = NEXT.shift();
-      if (READ.chat !== chat) { NEXT = []; return; }
+      // The next press goes whichever chat the page is in now: it is saved to the chat it was made in.
+      if (next) {
+        if (READ.chat === chat) READ.confirmed = d;
+        send(next.chat, next.wanted);
+        return;
+      }
+      if (READ.chat !== chat) return;
       READ.confirmed = d;
-      if (next) { send(chat, next); return; }
       // Nothing more on its way: what the server says is drawn, counts and all.
       READ.pending = false;
       paint(d);
@@ -919,7 +1093,10 @@ function send(chat, wanted) {
     })
     .catch(function (err) {
       READ.busy = false;
-      NEXT = [];
+      // What was pressed after it in this chat goes with it; another chat's presses are still sent.
+      NEXT = NEXT.filter(function (x) { return x.chat !== chat; });
+      var other = NEXT.shift();
+      if (other) send(other.chat, other.wanted);
       READ.pending = false;
       if (READ.chat !== chat) return;
       // Back to what the server last said, with a quiet line where the press was.
@@ -1020,6 +1197,12 @@ function modeKeys(e) {
     @param {HTMLElement} t */
 function pressed(t) {
   if (!READ.data) return;
+  if (t.dataset.tools) {
+    // The (?) of a side of tools: a press keeps its list open (a tap on a phone), a second press closes it.
+    if (TIP.pinned && TIP.from === t && TIP.el && !TIP.el.hidden) tipHide();
+    else { TIP.pinned = false; tipShow(t, true); }
+    return;
+  }
   if (t.dataset.reset) { change({ reset: true }); return; }
   if (t.dataset.seg) { change({ subtasks: t.dataset.seg }); return; }
   if (t.dataset.cseg) {
@@ -1195,4 +1378,17 @@ if (btn && pop) {
   window.addEventListener('resize', contentPlace);
 }
 
-export { onIncognito, openPop as readingOpen, READ };
+/** This chat's Chat Options as the panel draws them, presses not yet saved included, for a fork of it to
+    start with (`forks._with_options`, the `fork` message's `options`); null when they are not known here.
+    @param {string} chat @returns {Record<string, any> | null} */
+function forkOptions(chat) {
+  var d = READ.data;
+  if (!d || d.chat !== chat || !d.settings) return null;
+  var s = d.settings;
+  return { mode: s.mode, memory: !!s.memory, rules: !!s.rules, rouh_tools: !!s.rouh_tools,
+           llm_tools: !!s.llm_tools, off: (s.off || []).slice() };
+}
+
+shared.forkOptions = forkOptions;
+
+export { forkOptions, onIncognito, openPop as readingOpen, READ };

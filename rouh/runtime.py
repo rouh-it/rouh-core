@@ -7001,7 +7001,9 @@ class Session:
             uploaded_in = point["uploaded_in"] or parent
         if not text and not attached:
             return
-        made = await asyncio.to_thread(forks.make, parent, before)
+        # The parent's Chat Options as the page draws them, which the fork starts with (`forks._with_options`).
+        options = msg.get("options") if isinstance(msg.get("options"), dict) else None
+        made = await asyncio.to_thread(lambda: forks.make(parent, before, options=options))
         if made is None:
             refused = {"type": "fork_refused", "text": text,
                        "why": "There is nothing in this chat to fork from yet. "

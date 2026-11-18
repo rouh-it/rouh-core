@@ -1989,6 +1989,9 @@ function sendTyped(asFork) {
   /** @type {import('./protocol').ToServer<'fork'> | import('./protocol').ToServer<'text'>} */
   var msg = asFork ? { type: 'fork', from: CHATS.active, text: text, attachments: ids }
     : { type: 'text', text: text, attachments: ids };
+  // A fork starts with its parent's Chat Options as the person sees them, presses not yet saved included.
+  var carried = asFork ? shared.forkOptions(String(CHATS.active || '')) : null;
+  if (carried) /** @type {import('./protocol').ToServer<'fork'>} */ (msg).options = carried;
   // The page's own name for a message that waits, which the server says back
   // when the model has read it (`steer_taken`).
   var steerId = steer ? 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8) : '';

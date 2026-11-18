@@ -256,11 +256,11 @@ async def turn(brain, session_id: str, user_content, emit, on_sentence, model: s
         messages = messages + [{"role": "user", "content": turnmarks.ANSWER_NOW}]
     messages = attachments.hydrate(messages, brain.files)
     # Only Rouh's own tools: the web tools are Anthropic's and OpenAI's, run on their side.
-    entries = [t for t in brain.tool_entries("other") if t.portable]
+    entries = [t for t in brain.tool_entries("other", messages) if t.portable]
     from .brain import _has_tool_calls, _reads
 
     # Tools off and no call in the history: none declared, and the model told of none (`rouh/reading.py`).
-    tools_off = not _reads(session_id)["tools"] and not _has_tool_calls(messages)
+    tools_off = not _reads(session_id)["any_tools"] and not _has_tool_calls(messages)
     if tools_off:
         entries = []
     always = {n for n in getattr(cfg, "tools_always_loaded", ()) if n in {t.name for t in entries}}

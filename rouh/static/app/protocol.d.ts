@@ -208,7 +208,9 @@ export interface ClientMessages {
   peek_chat: { id: string; };
   answer_chat: { task: any; };
   note_to_parent: { chat: any; text: any; };
-  fork: { from: any; text: any; attachments?: any; /** The exchange to fork after, from a message's own Fork. */ root?: any; };
+  fork: { from: any; text: any; attachments?: any; /** The exchange to fork after, from a message's own Fork. */ root?: any;
+    /** The parent's Chat Options as the page draws them: the mode and, on Custom, every switch (`forks._with_options`). */
+    options?: Record<string, any>; };
   close_fork: { id: any; };
   detach_fork: { id: any; /** The task it goes into: a fork is detached into a task or not at all. */ task: string; };
   rename_chat: { id: any; title: any; };

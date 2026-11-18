@@ -211,14 +211,24 @@ def _reads(chat_id: str) -> dict:
         return reading.switches(chat_id)
     except Exception:  # noqa: BLE001 - a turn is never lost to its settings
         log.exception("what chat %s reads could not be read; everything is on", chat_id)
-        return {"memory": True, "rules": True, "tools": True, "off": []}
+        return {"memory": True, "rules": True, "tools": True, "rouh_tools": True, "llm_tools": True,
+                "any_tools": True, "off": []}
 
 
 def _reads_off_line(reads: dict) -> str:
+    tools_off = not reads.get("any_tools", reads.get("tools", True))
     off = [w for k, w in (("memory", "memory: you are told nothing of who the person is, where they are or "
            "what they have told you before, so do not guess it"), ("rules", "the person's own rules, "
-           "except those about permission, privacy and safety"), ("tools", "tools: you cannot call any in "
-           "this chat, so answer from what you know and say so when a tool would be needed")) if not reads[k]]
+           "except those about permission, privacy and safety")) if not reads[k]]
+    if tools_off:
+        off.append("tools: you cannot call any in this chat, so answer from what you know and say so when a "
+                   "tool would be needed")
+    else:
+        if not reads.get("rouh_tools", True):
+            off.append("Rouh's own tools (mail, calendar, Drive, contacts, tasks, the screen, jobs and the rest): "
+                       "you cannot call them here, so say so when one would be needed")
+        if not reads.get("llm_tools", True):
+            off.append("the web, code and pictures: you cannot search or read the web, run code or draw here")
     if not off:
         return ""
     return "The person has turned these off for this chat in Chat Options: " + "; ".join(off) + "."
@@ -296,6 +306,30 @@ def _has_tool_calls(messages) -> bool:
                                                                  and str(b.get("type") or "").endswith("_tool_result")):
                 return True
     return False
+
+
+def _called_names(messages) -> set[str]:
+    """The names of the tools a conversation already called, which a request must still declare for the
+    provider to take the history back (`_has_tool_calls`)."""
+    out: set[str] = set()
+    for m in messages or []:
+        content = m.get("content") if isinstance(m, dict) else None
+        if not isinstance(content, list):
+            continue
+        for b in content:
+            if isinstance(b, dict) and str(b.get("type") or "") in (
+                    "tool_use", "server_tool_use", "mcp_tool_use", "function_call") and b.get("name"):
+                out.add(str(b["name"]))
+    return out
+
+
+def _plain_tools(chat_id: str, messages) -> bool:
+    """Whether this turn's tools go whole, with no search tool and no catalogue: Simple chat, unless the
+    conversation already searched for a tool, whose call the provider refuses without the search declared."""
+    if not _reads(chat_id).get("plain"):
+        return False
+    return not any(n in toolsearch.SEARCH_NAMES or n.startswith("tool_search_tool")
+                   for n in _called_names(messages))
 
 
 def _say_for(reads: dict):
@@ -862,7 +896,7 @@ class Brain:
         """
         return "\n\n".join(block["text"] for block in self._system(openai=openai))
 
-    def tool_entries(self, provider: str = "claude") -> list:
+    def tool_entries(self, provider: str = "claude", messages=None) -> list:
         """This turn's tools, each carrying the person's rules told with it (`rouh/tool_rules.py`)."""
         from . import prompting, reading, tool_rules
 
@@ -871,6 +905,13 @@ class Brain:
         if not reads["memory"]:
             # Memory off for this chat: nothing that reads or keeps the person's memory is declared.
             entries = [t for t in entries if t.name not in reading.MEMORY_TOOLS]
+        # Rouh Tools and LLM Tools (`rouh/toolsides.py`): a side turned off is not offered at all. A tool of it
+        # the conversation already called stays declared, because the provider refuses a history whose
+        # calls name a tool it was not given; calling it again is refused (`tools.ToolRegistry.call`).
+        from . import toolsides
+
+        called = _called_names(messages)
+        entries = [t for t in entries if toolsides.keep(t.name, t.area, reads) or t.name in called]
         situation = prompting.Situation(tools=frozenset(t.name for t in entries), provider=provider)
         try:
             got = [r for r in tool_rules._rules_now(situation) if reading.rule_told(r, reads)]
@@ -879,11 +920,50 @@ class Brain:
             got = []
         return tool_rules.attach(entries, situation, rules_now=got, say=_say_for(reads))
 
-    def _tool_plan(self, entries, model: str) -> toolsearch.Plan:
-        """What a request to this model declares: the tools and their catalogue."""
+    def _tool_plan(self, entries, model: str, messages=None) -> toolsearch.Plan:
+        """What a request to this model declares: the tools and their catalogue. Simple chat's few tools (the
+        model's own, `reading.SIMPLE`) go whole, with no search tool and no catalogue, as a plain chat with
+        the model has them (`_plain_tools`)."""
+        wanted = getattr(self.cfg, "tool_search", "regex")
+        if _plain_tools(self.memory.answering_chat() or "", messages):
+            wanted = "off"
         return toolsearch.anthropic_plan(
-            entries, model=model, wanted=getattr(self.cfg, "tool_search", "regex"),
-            always=getattr(self.cfg, "tools_always_loaded", ()))
+            entries, model=model, wanted=wanted, always=getattr(self.cfg, "tools_always_loaded", ()))
+
+    def _plain_system(self, plan, names, kind: str, mode, chat: str, reads: dict) -> list[dict]:
+        """Simple chat's system prompt: plain talk with the model (Petar, 18 November 2026: "we are gearing for
+        simple chat to be plain LLM direct talking"). Who it is talking with and the clock, the one-line list
+        of the model's own tools when they are on (so a picture can be found), and in a turn spoken into the
+        microphone the turn marks, which the software needs to know the person has finished
+        (`reading.PLAIN_RULES`). Nothing of Rouh's: no rule, no memory, no gene offer, no task or page."""
+        from . import owner, prompting, reading, rules as rules_mod
+        from .modeldefaults import org_now
+
+        org = org_now()
+        situation = prompting.Situation(
+            tools=frozenset(names), provider=kind, reply=mode.reply, heard=mode.heard, marks=mode.marks,
+            channel="telegram" if telegram_chat.FROM_PHONE.get() is not None else "", flags=frozenset())
+        ds = _master_now()
+        allow = (lambda r: reading.rule_told(r, reads))
+        cached = prompting.Prompt(situation, "cached", {}, placed=[], allow=allow)
+        cached.context("You are talking with ‹owner_full›.", "Who the person is", "rouh/owner.py")
+        if plan is not None and plan.catalogue and reading.context_told("catalogue", reads):
+            cached.add(toolsearch.shorten(plan.catalogue), kind="catalogue", key="rouh/toolsearch.py",
+                       title="The tool catalogue", why="the model's own tools, named; never a rule")
+        text, segments = cached.finish(say=owner.say)
+        prompting.keep(org, text, segments)
+        now = clock.now()
+        turn = prompting.Prompt(situation, "turn", {
+            "came": replymode.came(mode), "finished": turnmarks.FINISHED,
+            "cut_off": turnmarks.CUT_OFF_MID_THOUGHT, "still_thinking": turnmarks.STILL_THINKING},
+            placed=rules_mod.placed(ds, "turn"), allow=allow)
+        turn.at(CLOCK_AT)
+        turn.context(f"Today is {now.strftime('%A, %d %B %Y')}. The time is {now.strftime('%H:%M')} "
+                     f"(UTC{clock.offset(now)}).", "The date and the time", "rouh/clock.py")
+        said, told = turn.finish(say=owner.say)
+        prompting.keep(org, said, told)
+        return [{"type": "text", "text": text, "cache_control": dict(promptcache.LONG)},
+                {"type": "text", "text": said}]
 
     def _system(self, plan: toolsearch.Plan | None = None,
                 openai: bool | str = False, seeds: str = "", recall: str = "",
@@ -927,16 +1007,21 @@ class Brain:
         if not reads["memory"]:
             seeds = recall = ""
             names = {n for n in names if n not in reading.MEMORY_TOOLS}
-        if not reads["tools"]:
-            # Tools off: no rule about a tool is told, and nothing says what the screen, the orb, mail, jobs
-            # or the workspace are (`reading.rule_told`).
-            names = set()
+        # A side of tools turned off (`rouh/toolsides.py`): no rule about one of its tools is told, and with
+        # Rouh Tools off nothing says what the screen, the orb, mail, jobs or the workspace are
+        # (`reading.rule_told`).
+        from . import toolsides
+
+        names = {n for n in names if toolsides.keep(n, None, reads)}
+        if reads.get("plain"):
+            # Simple chat: plain talk with the model, told the person's name and the clock and no more.
+            return self._plain_system(plan, names, kind, mode, chat, reads)
         # Every stretch of the prompt follows one of the switches (`rouh/reading.py`, "where everything a chat
         # is told comes from"); with Memory off the person is "the person", never their name.
         say = _say_for(reads)
         org = org_now()
         mine = _own_mail() if reading.context_told("own-mail", reads) else ""
-        flags = {"own_mail" if mine else "no_own_mail"} if reads["tools"] else set()
+        flags = {"own_mail" if mine else "no_own_mail"} if reads["rouh_tools"] else set()
         # Its own name, once it is born, and the rest of setting up for a few days after its
         # first run (`rouh/birth.py`, `rouh/web/firstrun.py`). What this Rouh knows of its setting up goes
         # with Memory.
@@ -947,7 +1032,7 @@ class Brain:
         nick = _nickname_now(org) if reads["memory"] else ""
         if nick:
             flags.add("nicknamed")
-        if reads["tools"] and _new_rouh(org):
+        if reads["rouh_tools"] and _new_rouh(org):
             flags.add("new_rouh")
         if untrusted.rule_needed(names):
             flags.add("untrusted")
@@ -1341,9 +1426,9 @@ class Brain:
         # one is deferred: the model is handed a search tool and a catalogue,
         # and loads what it needs (`rouh/toolsearch.py`). Which mode depends on
         # the model, so a fallback to one that cannot defer gets its own plan.
-        entries = self.tool_entries("claude")
-        plan = self._tool_plan(entries, model)
-        if not _reads(session_id)["tools"] and not _has_tool_calls(messages):
+        entries = self.tool_entries("claude", messages)
+        plan = self._tool_plan(entries, model, messages)
+        if not _reads(session_id)["any_tools"] and not _has_tool_calls(messages):
             # Tools off and no call in the history to declare them for: none is declared at all, so the
             # model is told of none (`rouh/reading.py`).
             entries = []
@@ -1476,7 +1561,7 @@ class Brain:
             )
             # Tools turned off for this chat in Chat Options: still declared, because the history may
             # hold earlier calls and the API refuses those without their tools, but none may be called.
-            if not _reads(session_id)["tools"] and plan.tools:
+            if not _reads(session_id)["any_tools"] and plan.tools:
                 request["tool_choice"] = {"type": "none"}
             if not request["tools"]:
                 del request["tools"]
@@ -1736,8 +1821,8 @@ class Brain:
                 # The tools and the catalogue are the plan of the model this
                 # attempt asks, and only differ from the turn's when a fallback
                 # cannot defer tools at all.
-                if entries and toolsearch.mode_for(asked, getattr(self.cfg, "tool_search", "regex")) != plan.mode:
-                    other = self._tool_plan(entries, asked)
+                other = self._tool_plan(entries, asked, messages) if entries else plan
+                if other.mode != plan.mode:
                     request["tools"] = other.tools
                     request["system"] = self._system(other, seeds=found, recall=remembered,
                                                      asked=again)
