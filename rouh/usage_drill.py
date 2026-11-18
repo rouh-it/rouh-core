@@ -49,7 +49,27 @@ ORDER = ("provider", "model", "purpose", "day", "origin")
 
 #: Every one of them as the screen says it.
 DIMS = {"provider": "Company", "model": "Model", "purpose": "Use", "day": "Day",
-        "origin": "Chat, job or page", "hour": "Hour"}
+        "origin": "Chat, job or page", "hour": "Hour", "why": "Why no price"}
+
+#: Why a call has no price, as the log lets it be worked out (`llmlog`, `costs.request_cost`):
+#: a call that failed, was stopped or never heard back has no usage to price; a company that
+#: sent no token counts has none either; anything else is a model missing from the price list.
+WHY_SQL = r"""(CASE
+  WHEN status = 'sent' THEN 'never_back'
+  WHEN status = 'error' THEN 'failed'
+  WHEN status = 'stopped' THEN 'stopped'
+  WHEN input_tokens = 0 AND output_tokens = 0 AND cache_read_tokens = 0 AND cache_write_tokens = 0 THEN 'no_tokens'
+  ELSE 'no_price' END)"""
+
+#: Each reason in words.
+WHY = {"never_back": "Never heard back, so nothing to price",
+       "failed": "The call failed, so nothing to price",
+       "stopped": "Stopped half way, before the usage came",
+       "no_tokens": "The company sent no token counts",
+       "no_price": "The model is not on the price list"}
+
+#: Every token of a call, read or written, for the view of the calls with no price.
+TOKENS_SQL = "(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens)"
 
 #: The periods the screen offers. A range is any two days, both included. "days30" is the
 #: rolling 30 days ending on a day, today included (Petar, 18 November 2026: "a 30 day
@@ -398,13 +418,17 @@ def _expr(dim: str, zone_name: str) -> tuple[str, list]:
         return "to_char(to_timestamp(started_at) AT TIME ZONE %s, 'HH24')", [zone_name]
     if dim == "origin":
         return ORIGIN_SQL, []
+    if dim == "why":
+        return WHY_SQL, []
     raise Refused(f"a level is split by one of {', '.join(ORDER)}")
 
 
-def _where(who, windows, filters: dict, zone_name: str) -> tuple[str, list]:
+def _where(who, windows, filters: dict, zone_name: str, unpriced: bool = False) -> tuple[str, list]:
     """The rows of this person's in these stretches of time, `(start, end)` in epoch seconds,
-    that match every choice made on the way down."""
+    that match every choice made on the way down; only the calls with no price when asked."""
     sql = ["org_id = %s", "(" + " OR ".join(["(started_at >= %s AND started_at < %s)"] * len(windows)) + ")"]
+    if unpriced:
+        sql.append("cost_usd IS NULL")
     args: list = [who.org_id] + [t for w in windows for t in w]
     if not who.is_admin:
         sql.append("user_id = %s")
@@ -428,7 +452,7 @@ def _filters_of(asked: dict) -> dict:
     # In the order they were made, which is the order of the trail.
     out = {}
     for dim, value in asked.items():
-        if dim in (*ORDER, "hour") and value is not None and value != "":
+        if dim in (*ORDER, "hour", "why") and value is not None and value != "":
             out[dim] = str(value)
     if "hour" in out and "day" not in out:
         raise Refused("an hour is always of a day")
@@ -443,8 +467,13 @@ def _sum(cost) -> float:
     return float(cost or 0)
 
 
-def _change(now: float, before: float, began_after: bool) -> dict:
-    """What grew, in words and in dollars, or nothing to say when there was no before."""
+def _calls_said(n) -> str:
+    return f"{int(n or 0):,} call" + ("" if n == 1 else "s")
+
+
+def _change(now: float, before: float, began_after: bool, calls: bool = False) -> dict:
+    """What grew, in words and in dollars (or in calls, for the calls with no price), or
+    nothing to say when there was no before."""
     if began_after:
         return {"said": "no log before this", "delta": None, "pct": None, "dir": "none"}
     delta = now - before
@@ -452,11 +481,12 @@ def _change(now: float, before: float, began_after: bool) -> dict:
         return {"said": "about the same", "delta": 0.0, "pct": 0, "dir": "same"}
     pct = None if before <= 0 else round(delta / before * 100)
     arrow = "up" if delta > 0 else "down"
-    said = f"{arrow} {costs.money(abs(delta))}"
+    amount = _calls_said(abs(int(delta))) if calls else costs.money(abs(delta))
+    said = f"{arrow} {amount}"
     if pct is not None and abs(pct) < 1000:
         said += f" ({abs(pct)}%)"
     elif before <= 0:
-        said = f"new, {costs.money(abs(delta))}"
+        said = f"new, {amount}"
     return {"said": said, "delta": delta, "pct": pct, "dir": arrow}
 
 
@@ -481,19 +511,27 @@ def _plans(who, lo: float, hi: float) -> dict | None:
 
 
 def level(who, *, period: str = "month", at: str | None = None, start: str | None = None,
-          end: str | None = None, by: str | None = None, **asked) -> dict:
+          end: str | None = None, by: str | None = None, unpriced: bool = False, **asked) -> dict:
     """One level of the drill-down: the period, the trail, the total against the period before,
     a row for each thing it splits into, the chart by day (or by hour, for one day), and on the
-    top levels the runs the subscriptions paid for."""
+    top levels the runs the subscriptions paid for.
+
+    With `unpriced`, only the calls with no price are counted (Petar, 18 November 2026: "show
+    us ONLY the calls without price. so I can drill in the same way"): dollars mean nothing
+    there, so everything is measured in calls, with their tokens beside them, and the level
+    may also be split by why a call has no price."""
     zone = clock.zone_of(who)
     zone_name = _zone_name(zone)
     filters = _filters_of(asked)
+    if "why" in filters and not unpriced:
+        raise Refused("why a call has no price is asked only of the calls with no price")
     if "day" in filters:
         span = period_of("day", filters["day"], None, None, zone)
     else:
         span = period_of(period, at, start, end, zone)
     chosen = set(filters)
-    left = [d for d in ORDER if d not in chosen and not (d == "day" and span["days"] == 1)]
+    left = [d for d in ORDER + (("why",) if unpriced else ()) if d not in chosen
+            and not (d == "day" and span["days"] == 1)]
     if by is None or by == "":
         by = left[0] if left else ""
     if by and by not in left:
@@ -508,7 +546,7 @@ def level(who, *, period: str = "month", at: str | None = None, start: str | Non
         h = int(filters["hour"])
         blo, bhi = blo + h * 3600, blo + (h + 1) * 3600
     # The period and the one before it, in one question: everything before `lo` is the before.
-    where, args = _where(who, [(blo, bhi), (lo, hi)], filters, zone_name)
+    where, args = _where(who, [(blo, bhi), (lo, hi)], filters, zone_name, unpriced)
     began = _began(who)
     # Nothing was logged in the period before, so there is nothing to compare with; or the log
     # began part way through it, which the screen says.
@@ -525,20 +563,26 @@ def level(who, *, period: str = "month", at: str | None = None, start: str | Non
             " COUNT(*) FILTER (WHERE started_at >= %s),"
             " COUNT(*) FILTER (WHERE started_at >= %s AND cost_usd IS NULL),"
             " SUM(CASE WHEN started_at < %s THEN cost_usd END),"
-            " COUNT(*) FILTER (WHERE started_at < %s)"
+            " COUNT(*) FILTER (WHERE started_at < %s),"
+            f" SUM(CASE WHEN started_at >= %s THEN {TOKENS_SQL} END)"
             f" FROM llm_requests WHERE {where} GROUP BY 1",
-            eargs + [lo, lo, lo, lo, lo] + args)
+            eargs + [lo, lo, lo, lo, lo, lo] + args)
         got = [g for g in got if g[2]]  # in the period itself, not only the one before
-        got.sort(key=lambda g: (-_sum(g[1]), -g[2], str(g[0])))
+        if unpriced:
+            got.sort(key=lambda g: (-g[2], -int(g[6] or 0), str(g[0])))
+        else:
+            got.sort(key=lambda g: (-_sum(g[1]), -g[2], str(g[0])))
         keys = [g[0] for g in got[:ROWS]]
         known = _titles(keys, who.org_id) if by == "origin" else {}
-        for k, cost, calls, unpriced, bcost, bcalls in got[:ROWS]:
+        for k, cost, calls, nopay, bcost, bcalls, tokens in got[:ROWS]:
             k = k or ""
             cost, bcost = _sum(cost), _sum(bcost)
-            row = {"key": k, "cost": cost, "said": _money(cost) if calls > unpriced else "not priced",
-                   "calls": calls, "unpriced": unpriced, "before": bcost, "before_calls": bcalls,
-                   "change": _change(cost, bcost, began_after),
-                   **_per_call(cost, calls - unpriced)}
+            row = {"key": k, "cost": cost, "said": _money(cost) if calls > nopay else "not priced",
+                   "calls": calls, "unpriced": nopay, "before": bcost, "before_calls": bcalls,
+                   "tokens": int(tokens or 0),
+                   "change": (_change(calls, bcalls, began_after, calls=True) if unpriced
+                              else _change(cost, bcost, began_after)),
+                   **_per_call(cost, calls - nopay)}
             row.update(_row_name(by, k, known))
             rows.append(row)
         rest = got[ROWS:]
@@ -547,19 +591,20 @@ def level(who, *, period: str = "month", at: str | None = None, start: str | Non
             more = {"count": len(rest), "cost": cost, "said": _money(cost),
                     "calls": sum(g[2] for g in rest)}
 
-    total_cost, total_calls, total_unpriced, before_cost, before_calls = _rows(
+    total_cost, total_calls, total_unpriced, before_cost, before_calls, total_tokens = _rows(
         "SELECT SUM(CASE WHEN started_at >= %s THEN cost_usd END),"
         " COUNT(*) FILTER (WHERE started_at >= %s),"
         " COUNT(*) FILTER (WHERE started_at >= %s AND cost_usd IS NULL),"
         " SUM(CASE WHEN started_at < %s THEN cost_usd END),"
-        " COUNT(*) FILTER (WHERE started_at < %s)"
-        f" FROM llm_requests WHERE {where}", [lo, lo, lo, lo, lo] + args)[0]
+        " COUNT(*) FILTER (WHERE started_at < %s),"
+        f" SUM(CASE WHEN started_at >= %s THEN {TOKENS_SQL} END)"
+        f" FROM llm_requests WHERE {where}", [lo, lo, lo, lo, lo, lo] + args)[0]
     total_cost, before_cost = _sum(total_cost), _sum(before_cost)
 
-    series = _series(who, span, filters, by, rows, zone, zone_name)
+    series = _series(who, span, filters, by, rows, zone, zone_name, unpriced)
     rolling = None
     if span["kind"] in ("days30", "month") and not ({"day", "hour"} & chosen):
-        rolling = _rolling(who, span, filters, zone, zone_name, began)
+        rolling = _rolling(who, span, filters, zone, zone_name, began, unpriced)
     plans = _plans(who, lo, hi) if not ({"model", "purpose", "origin", "hour"} & chosen) else None
     if plans is not None and filters.get("provider") not in (None, "anthropic", "openai"):
         plans = None
@@ -574,19 +619,26 @@ def level(who, *, period: str = "month", at: str | None = None, start: str | Non
         trail.append({"dim": dim, "value": value, "name": named_["name"], "what": DIMS[dim],
                       "link": named_.get("link", "")})
 
+    if unpriced:
+        total_said, before_said = _calls_said(total_calls), _calls_said(before_calls)
+        change = _change(total_calls, before_calls, began_after, calls=True)
+    else:
+        total_said = _money(total_cost) if total_calls > total_unpriced or not total_calls else "not priced"
+        before_said = _money(before_cost)
+        change = _change(total_cost, before_cost, began_after)
     return {
         "period": span,
+        "unpriced": unpriced,
         "trail": trail,
         "by": by,
         "by_said": DIMS.get(by, ""),
         "can_split": [{"dim": d, "said": DIMS[d]} for d in left],
-        "total": {"cost": total_cost, "said": _money(total_cost) if total_calls > total_unpriced or not total_calls
-                  else "not priced",
-                  "calls": total_calls, "unpriced": total_unpriced,
+        "total": {"cost": total_cost, "said": total_said,
+                  "calls": total_calls, "unpriced": total_unpriced, "tokens": int(total_tokens or 0),
                   **_per_call(total_cost, total_calls - total_unpriced)},
-        "before": {"cost": before_cost, "said": _money(before_cost), "calls": before_calls,
+        "before": {"cost": before_cost, "said": before_said, "calls": before_calls,
                    "partial": before_partial, "none": began_after},
-        "change": _change(total_cost, before_cost, began_after),
+        "change": change,
         "rows": rows,
         "more": more,
         "series": series,
@@ -619,6 +671,8 @@ def _row_name(dim: str, key: str, known: dict) -> dict:
     if dim == "origin":
         got = origin_named(key, known)
         return {"name": got["name"], "link": got["link"], "kind": got["kind"]}
+    if dim == "why":
+        return {"name": WHY.get(key, key), "link": ""}
     return {"name": key, "link": ""}
 
 
@@ -626,15 +680,19 @@ def _row_name(dim: str, key: str, known: dict) -> dict:
 SEGMENTS = 6
 
 
-def _series(who, span: dict, filters: dict, by: str, rows: list[dict], zone, zone_name: str) -> dict:
+def _series(who, span: dict, filters: dict, by: str, rows: list[dict], zone, zone_name: str,
+            unpriced: bool = False) -> dict:
     """The chart: one bar a day, or one an hour for a single day, each split into the level's
-    largest rows."""
+    largest rows. Each bar is dollars, or calls for the calls with no price (`measure`), and
+    its `v` is that number either way."""
     unit = "hour" if span["days"] == 1 else "day"
     lo, hi = _bounds(span["from"], span["to"], zone)
-    where, args = _where(who, [(lo, hi)], {k: v for k, v in filters.items() if k != "hour"}, zone_name)
+    where, args = _where(who, [(lo, hi)], {k: v for k, v in filters.items() if k != "hour"}, zone_name,
+                         unpriced)
     when, wargs = _expr(unit, zone_name)
     split = by if by and by not in ("day",) else ""
-    top = [r["key"] for r in rows[:SEGMENTS] if r["cost"] > 0] if split else []
+    big = "calls" if unpriced else "cost"
+    top = [r["key"] for r in rows[:SEGMENTS] if r[big] > 0] if split else []
     if split:
         expr, eargs = _expr(split, zone_name)
         got = _rows(f"SELECT {when}, {expr}, SUM(cost_usd), COUNT(*) FROM llm_requests"
@@ -643,13 +701,14 @@ def _series(who, span: dict, filters: dict, by: str, rows: list[dict], zone, zon
         got = [(w, "", c, n) for w, c, n in _rows(
             f"SELECT {when}, SUM(cost_usd), COUNT(*) FROM llm_requests WHERE {where} GROUP BY 1",
             wargs + args)]
+    say = _calls_said if unpriced else _money
     points: dict[str, dict] = {}
     for at, key, cost, calls in got:
         p = points.setdefault(at, {"at": at, "cost": 0.0, "calls": 0, "segs": {}})
         p["cost"] += _sum(cost)
         p["calls"] += calls
         seg = (key or "") if (key or "") in top else "__other__"
-        p["segs"][seg] = p["segs"].get(seg, 0.0) + _sum(cost)
+        p["segs"][seg] = p["segs"].get(seg, 0.0) + (calls if unpriced else _sum(cost))
     out = []
     if unit == "hour":
         slots = [f"{h:02d}" for h in range(24)]
@@ -658,15 +717,18 @@ def _series(who, span: dict, filters: dict, by: str, rows: list[dict], zone, zon
         slots = [(first + timedelta(days=i)).isoformat() for i in range((last - first).days + 1)]
     for at in slots:
         p = points.get(at, {"at": at, "cost": 0.0, "calls": 0, "segs": {}})
-        out.append({"at": at, "cost": p["cost"], "said": _money(p["cost"]), "calls": p["calls"],
-                    "segs": [{"key": k, "cost": v, "said": _money(v)}
+        v_ = p["calls"] if unpriced else p["cost"]
+        out.append({"at": at, "cost": p["cost"], "v": v_, "said": say(v_), "calls": p["calls"],
+                    "segs": [{"key": k, "cost": v, "v": v, "said": say(v)}
                              for k, v in sorted(p["segs"].items(),
                                                 key=lambda kv: (top.index(kv[0]) if kv[0] in top else 99))
                              if v > 0]})
-    return {"unit": unit, "split": split, "keys": top, "points": out}
+    return {"unit": unit, "split": split, "keys": top, "points": out,
+            "measure": "calls" if unpriced else "cost"}
 
 
-def _rolling(who, span: dict, filters: dict, zone, zone_name: str, began: float | None) -> dict | None:
+def _rolling(who, span: dict, filters: dict, zone, zone_name: str, began: float | None,
+             unpriced: bool = False) -> dict | None:
     """The running 30-day cost: for each day, what was paid per use in the 30 days ending
     that day. It ends today and reaches back at least `ROLLING_SPAN` days, or to the shown
     window if that is older, never before the log began nor past `MOST_DAYS`. A point whose
@@ -680,7 +742,7 @@ def _rolling(who, span: dict, filters: dict, zone, zone_name: str, began: float 
     if first > today:
         return None
     lo, hi = _bounds((first - timedelta(days=ROLLING - 1)).isoformat(), today.isoformat(), zone)
-    where, args = _where(who, [(lo, hi)], filters, zone_name)
+    where, args = _where(who, [(lo, hi)], filters, zone_name, unpriced)
     when, wargs = _expr("day", zone_name)
     daily = {d: (_sum(c), n) for d, c, n in _rows(
         f"SELECT {when}, SUM(cost_usd), COUNT(*) FROM llm_requests WHERE {where} GROUP BY 1",
@@ -694,13 +756,15 @@ def _rolling(who, span: dict, filters: dict, zone, zone_name: str, began: float 
             window.pop(0)
         if day >= first:
             cost = sum(c for c, _ in window)
+            calls = sum(n for _, n in window)
             start = day - timedelta(days=ROLLING - 1)
             points.append({"at": day.isoformat(), "from": start.isoformat(), "cost": cost,
-                           "said": _money(cost), "calls": sum(n for _, n in window),
+                           "v": calls if unpriced else cost,
+                           "said": _calls_said(calls) if unpriced else _money(cost), "calls": calls,
                            "partial": start < began_day,
                            "days": (day - max(start, began_day)).days + 1})
         day += timedelta(days=1)
-    return {"days": ROLLING, "points": points,
+    return {"days": ROLLING, "points": points, "measure": "calls" if unpriced else "cost",
             "chosen": span["to"] if span["kind"] == "days30" else None}
 
 
@@ -713,8 +777,10 @@ _CALL_FIELDS = ("id", "started_at", "provider", "model", "served_model", "purpos
 
 
 def calls(who, *, period: str = "month", at: str | None = None, start: str | None = None,
-          end: str | None = None, order: str = "cost", offset: int = 0, **asked) -> dict:
-    """The calls of a level, dearest or newest first, a page at a time."""
+          end: str | None = None, order: str = "cost", offset: int = 0, unpriced: bool = False,
+          **asked) -> dict:
+    """The calls of a level, dearest or newest first, a page at a time; only the calls with
+    no price when asked, the ones with the most tokens first instead of the dearest."""
     zone = clock.zone_of(who)
     zone_name = _zone_name(zone)
     filters = _filters_of(asked)
@@ -724,7 +790,7 @@ def calls(who, *, period: str = "month", at: str | None = None, start: str | Non
     if "hour" in filters:
         h = int(filters["hour"])
         lo, hi = lo + h * 3600, lo + (h + 1) * 3600
-    where, args = _where(who, [(lo, hi)], filters, zone_name)
+    where, args = _where(who, [(lo, hi)], filters, zone_name, unpriced)
     offset = max(0, int(offset or 0))
     order = order if order in ("cost", "time", "failed") else "cost"
     if order == "failed":
@@ -732,6 +798,8 @@ def calls(who, *, period: str = "month", at: str | None = None, start: str | Non
         # one was sent and may have been paid for.
         where += " AND status IN ('error', 'stopped', 'sent')"
     sort = "cost_usd DESC NULLS LAST, started_at DESC" if order == "cost" else "started_at DESC"
+    if unpriced and order == "cost":
+        sort = f"{TOKENS_SQL} DESC, started_at DESC"
     got = _rows(f"SELECT {', '.join(_CALL_FIELDS)}, {ORIGIN_SQL} FROM llm_requests WHERE {where}"
                 f" ORDER BY {sort} LIMIT %s OFFSET %s", args + [CALLS + 1, offset])
     count = _rows(f"SELECT COUNT(*) FROM llm_requests WHERE {where}", args)[0][0]
@@ -743,7 +811,7 @@ def calls(who, *, period: str = "month", at: str | None = None, start: str | Non
         trail.append({"dim": dim, "value": value, "name": named_["name"], "what": DIMS[dim],
                       "link": named_.get("link", "")})
     return {"period": span, "trail": trail, "calls": out, "count": count, "offset": offset,
-            "more": len(got) > CALLS, "order": order}
+            "more": len(got) > CALLS, "order": order, "unpriced": unpriced}
 
 
 def _call_row(r: dict, zone, known: dict) -> dict:
@@ -766,7 +834,25 @@ def _call_row(r: dict, zone, known: dict) -> dict:
         "status_said": _status(r["status"], r.get("stop_reason") or ""),
         "attempt": r["attempt"],
         "origin": origin,
+        "why_unpriced": why_unpriced(r) if cost is None else "",
     }
+
+
+def why_unpriced(r: dict) -> str:
+    """Why a call has no price, in words, the same as `WHY_SQL` says it in the database."""
+    status = r.get("status")
+    if status == "sent":
+        key = "never_back"
+    elif status == "error":
+        key = "failed"
+    elif status == "stopped":
+        key = "stopped"
+    elif not any(r.get(k) for k in ("input_tokens", "output_tokens", "cache_read_tokens",
+                                    "cache_write_tokens")):
+        key = "no_tokens"
+    else:
+        key = "no_price"
+    return WHY[key]
 
 
 def _took(ms) -> str:
@@ -901,6 +987,8 @@ def _why(row: dict, split: dict, sent: int, parts: list[dict], logged: float | N
             after = f" after {row['took']}" if row["took"] != "not logged" else ""
             return (f"This call {row['status_said']}{after}, before it said what it used, "
                     "so it has no price.")
+        if row.get("why_unpriced") == WHY["no_tokens"]:
+            return f"This call has no price: {row['company']} sent no token counts for it."
         return f"This call has no price: Rouh has no price for {row['model']}."
     if not parts:
         return f"This call cost {row['said']}, at {row['model']}'s own rate."

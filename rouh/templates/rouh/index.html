@@ -4772,9 +4772,17 @@ with {% asset %}, which gives it its hashed address.
             <h2 class="ou-k" id="orbUsageTitle">What the models cost</h2>
             <button id="orbUsageBack" class="ou-back" type="button" title="Back to the orb">Back to the orb</button>
           </header>
-          <nav class="ou-trail" id="orbUsageTrail" aria-label="Where you are"></nav>
-          <div class="ou-period" id="orbUsagePeriod"></div>
-          <div class="ou-body" id="orbUsageBody" aria-live="polite"></div>
+          {% comment %} Petar, 18 November 2026: full width, two columns: the numbers in the
+               main two thirds, and the notes that explain them (Subscriptions, Not priced)
+               in a side third, stacked under the main column on a phone. {% endcomment %}
+          <div class="ou-cols">
+            <div class="ou-main">
+              <nav class="ou-trail" id="orbUsageTrail" aria-label="Where you are"></nav>
+              <div class="ou-period" id="orbUsagePeriod"></div>
+              <div class="ou-body" id="orbUsageBody" aria-live="polite"></div>
+            </div>
+            <aside class="ou-side" id="orbUsageSide" aria-label="What the numbers leave out"></aside>
+          </div>
         </div>
       </section>
       <button id="orbCog" class="orb-cog" type="button" hidden

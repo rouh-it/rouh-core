@@ -151,12 +151,15 @@ async def machine_load_now(request: HttpRequest):
 
 
 #: What the drill-down may be asked, beside the period: the choices made on the way down.
-_DRILL_ASKS = ("provider", "model", "purpose", "day", "hour", "origin")
+_DRILL_ASKS = ("provider", "model", "purpose", "day", "hour", "origin", "why")
 
 
 def _drill_args(request: HttpRequest) -> dict:
     got = request.GET
     out = {k: got.get(k) for k in ("period", "at", "start", "end") if got.get(k)}
+    # Only the calls with no price (the stats screen's "Not priced" note).
+    if got.get("unpriced") in ("1", "true", "yes"):
+        out["unpriced"] = True
     # In the order the address gives them, which is the order they were chosen in.
     out.update({k: v for k, v in got.items() if k in _DRILL_ASKS})
     return out

@@ -55,10 +55,16 @@ var OU_ORDER = ['provider', 'model', 'purpose', 'day', 'origin'];
  * level, its calls or one call.
  * @type {{seq: number, period: {kind: string, at: string, start: string, end: string},
  *   filters: Array<[string, string]>, by: string, view: string, call: number, order: string,
- *   offset: number, last: any, trail: any, thin: (() => void) | null, rollingThin: (() => void) | null}}
+ *   offset: number, last: any, trail: any, thin: (() => void) | null, rollingThin: (() => void) | null,
+ *   unpriced: boolean, side: any}}
+ *
+ * `unpriced` is the view of the calls with no price only (Petar, 18 November 2026: "make
+ * the number a link and it should ... show us ONLY the calls without price. so I can drill
+ * in the same way"), and `side` the level whose notes the side column shows.
  */
 var OU = { seq: 0, period: { kind: 'month', at: '', start: '', end: '' }, filters: [], by: '',
-  view: 'level', call: 0, order: 'cost', offset: 0, last: null, trail: null, thin: null, rollingThin: null };
+  view: 'level', call: 0, order: 'cost', offset: 0, last: null, trail: null, thin: null, rollingThin: null,
+  unpriced: false, side: null };
 
 function orbUsageOpen() {
   var v = $('orbUsageView');
@@ -114,17 +120,35 @@ function ouDown(dim, value, view) {
   orbUsageLoad(true);
 }
 
-// One step back up the trail. False at the top, where Escape means the orb.
+// One step back up the trail. False at the top, where Escape means the orb; at the top of
+// the calls with no price it goes back to every call first.
 function orbUsageUp() {
   if (OU.view === 'call') { OU.view = 'calls'; orbUsageLoad(true); return true; }
   if (OU.view === 'calls') { OU.view = 'level'; OU.offset = 0; orbUsageLoad(true); return true; }
-  if (!OU.filters.length) return false;
+  if (!OU.filters.length) {
+    if (!OU.unpriced) return false;
+    ouUnpriced(false);
+    return true;
+  }
   var last = OU.filters[OU.filters.length - 1];
   OU.filters = OU.filters.slice(0, -1);
   if (last[0] === 'hour') OU.filters = OU.filters.filter(function (f) { return f[0] !== 'hour'; });
   OU.by = last[0] === 'hour' ? '' : last[0];
   orbUsageLoad(true);
   return true;
+}
+
+// The calls with no price only, on or off, at the same period and level. Off, a split by why
+// a call has no price means nothing, so it goes.
+function ouUnpriced(on) {
+  OU.unpriced = !!on;
+  if (!on) {
+    OU.filters = OU.filters.filter(function (f) { return f[0] !== 'why'; });
+    if (OU.by === 'why') OU.by = '';
+  }
+  if (OU.view === 'call') OU.view = 'calls';
+  OU.offset = 0;
+  orbUsageLoad(true);
 }
 
 function ouTo(depth) {
@@ -146,6 +170,7 @@ function ouQuery(extra) {
     q.set('at', p.at);
   }
   OU.filters.forEach(function (f) { q.set(f[0], f[1]); });
+  if (OU.unpriced) q.set('unpriced', '1');
   Object.keys(extra || {}).forEach(function (k) { if (extra[k] !== '' && extra[k] != null) q.set(k, String(extra[k])); });
   return q.toString();
 }
@@ -175,7 +200,8 @@ function orbUsageLoad(moved) {
       body.removeAttribute('aria-busy');
       if (OU.view === 'call') ouPaintCall(u);
       else if (OU.view === 'calls') ouPaintCalls(u);
-      else ouPaintLevel(u);
+      else { OU.side = u; ouPaintLevel(u); }
+      ouPaintSide(OU.side);
       if (moved) {
         var view = $('orbUsageView');
         if (view) view.scrollTop = 0;
@@ -207,8 +233,12 @@ function ouPaintTrail(u) {
   up.hidden = !OU.filters.length && OU.view === 'level';
   up.addEventListener('click', function () { orbUsageUp(); });
   nav.appendChild(up);
+  // At the top of every call there is nowhere to go back to, so there is no trail at all;
+  // the calls with no price always say so in it.
+  nav.hidden = up.hidden && !OU.unpriced;
   var list = el('ol', 'ou-crumbs');
-  var steps = [{ name: 'Paid per use', what: 'Everything' }].concat(
+  var steps = [OU.unpriced ? { name: 'Calls with no price', what: 'Only the calls with no price' }
+    : { name: 'Everything', what: 'Every call paid per use' }].concat(
     (u.trail || []).map(function (t) { return { name: t.name, what: t.what }; }));
   if (OU.view === 'calls' || OU.view === 'call') steps.push({ name: 'Calls', what: '' });
   if (OU.view === 'call') steps.push({ name: 'One call', what: '' });
@@ -371,15 +401,17 @@ function ouPaintLevel(u) {
   // The headline: what this level cost, against the period before.
   var where = (u.trail || []).filter(function (t) { return t.dim !== 'day' && t.dim !== 'hour'; })
     .map(function (t) { return t.name; });
-  var subject = where.length ? where[where.length - 1] : 'Paid per use';
-  var h = el('h2', 'ou-headline');
+  var subject = where.length ? where[where.length - 1] : OU.unpriced ? 'Calls with no price' : 'Paid per use';
+  // Said to screen readers only (Petar, 18 November 2026: the sentence above the big number
+  // goes); it is still where the focus lands when a level opens.
+  var h = el('h2', 'ou-headline ou-sr');
   h.tabIndex = -1;
   var before = u.before || {};
   var then = u.period.days === 1 ? 'the day before'
     : u.period.kind === 'month' && u.period.is_now && !ouHas('day') ? 'the same days of ' + ouMonth(u.period.before_from)
       : u.period.kind === 'month' ? ouMonth(u.period.before_from)
         : u.period.kind === 'week' ? 'the week before' : 'the ' + u.period.days + ' days before';
-  var vs = before.none ? '' : !(before.cost > 0) ? ', with nothing in ' + then
+  var vs = before.none ? '' : !((OU.unpriced ? before.calls : before.cost) > 0) ? ', with nothing in ' + then
     : u.change.dir === 'same' ? ', about the same as ' + then : ', ' + u.change.said + ' on ' + then;
   var hourSaid = ouHas('hour') ? ' between ' + (u.trail.filter(function (t) { return t.dim === 'hour'; })[0] || {}).name : '';
   var span = ouLower(u.period.said);
@@ -394,6 +426,17 @@ function ouPaintLevel(u) {
     body.appendChild(go);
   }
 
+  if (OU.unpriced) {
+    var only = el('div', 'ou-only');
+    only.appendChild(el('span', '', 'Showing only the ' + ouCalls(u.total.calls) + ' with no price'));
+    var off = el('button', 'ou-onlyx', '×');
+    off.type = 'button';
+    off.setAttribute('aria-label', 'Show every call again');
+    off.title = 'Show every call again';
+    off.addEventListener('click', function () { ouUnpriced(false); });
+    only.appendChild(off);
+    body.appendChild(only);
+  }
   var figs = el('div', 'ou-figs');
   var big = el('div', 'ou-total', u.total.said);
   figs.appendChild(big);
@@ -406,9 +449,17 @@ function ouPaintLevel(u) {
     d.appendChild(dd);
     facts.appendChild(d);
   };
-  fact('Calls', ouCount(u.total.calls));
-  fact('Per priced call', u.total.per_call_said);
-  fact('Whose', u.whose === 'organisation' ? 'Everyone in your organisation' : 'Only your own calls');
+  if (OU.unpriced) {
+    fact('Tokens', ouCount(u.total.tokens));
+  } else {
+    fact('Calls', ouCount(u.total.calls));
+    fact('Avg$/Message', u.total.per_call_said);
+    var avg = facts.lastElementChild;
+    if (avg) {
+      /** @type {HTMLElement} */ (avg).title = 'Average cost per priced model call';
+      avg.firstElementChild && avg.firstElementChild.setAttribute('aria-label', 'Average cost per priced model call');
+    }
+  }
   if (!before.none) {
     fact(u.period.days === 1 ? 'The day before' : 'The period before', before.said + ' ', el('small', '', u.period.before_said));
     var cd = el('div');
@@ -421,25 +472,9 @@ function ouPaintLevel(u) {
   figs.appendChild(facts);
   body.appendChild(figs);
 
-  // What is not in these dollars, said where it matters.
+  // What is not in these dollars is said in the side column (`ouPaintSide`); what is left
+  // here is about the log itself.
   var notes = [];
-  if (u.plans && (u.plans.claude || u.plans.codex || u.plans.codex_on_key)) {
-    var runs = [];
-    if (u.plans.claude) runs.push(ouCount(u.plans.claude) + ' Claude Code ' + (u.plans.claude === 1 ? 'run' : 'runs'));
-    if (u.plans.codex) runs.push(ouCount(u.plans.codex) + ' Codex ' + (u.plans.codex === 1 ? 'run' : 'runs'));
-    var plan = el('div', 'ou-plans');
-    plan.appendChild(el('b', '', 'Not in these dollars: '));
-    plan.appendChild(document.createTextNode(
-      (runs.length ? runs.join(' and ') + ' on the subscriptions, paid by the monthly plans. Their tokens are not logged. ' +
-        'Every dollar above is extra, paid per use through Rouh\'s own keys.' : '') +
-      (u.plans.codex_on_key ? ' ' + ouCount(u.plans.codex_on_key) + ' Codex ' + (u.plans.codex_on_key === 1 ? 'run was' : 'runs were') +
-        ' billed to the OpenAI key instead; that cost is not logged either.' : '')));
-    body.appendChild(plan);
-  }
-  if (u.total.unpriced) {
-    notes.push(ouCalls(u.total.unpriced) + ' had no price, so ' + (u.total.unpriced === 1 ? 'it is' : 'they are') +
-      ' counted in the calls but not in the dollars.');
-  }
   if (before.none) notes.push('The log begins on ' + ouDay(u.began) + ', so there is nothing before this to compare with.');
   else if (before.partial) notes.push('The log begins on ' + ouDay(u.began) + ', part way through the period before, so that period is not complete.');
   if (u.began && u.period.from < u.began && !before.none) notes.push('The log begins on ' + ouDay(u.began) + '.');
@@ -474,6 +509,67 @@ function ouPaintLevel(u) {
   all.appendChild(see);
   all.appendChild(el('span', 'ou-hint', 'Each call with its tokens, cost and what started it.'));
   body.appendChild(all);
+}
+
+/* ---- the side column: what the numbers leave out ---------------------------
+ *
+ * Petar, 18 November 2026: "2 columns. 1 main that takes 2/3s and one clarification that
+ * takes 1/3." Two notes, each a box of its own: Subscriptions (the runs the monthly plans
+ * paid for, which are not in these dollars) and Not priced (the calls with no price, whose
+ * number opens them alone). They follow the level last read, so the calls and one call keep
+ * the notes of the level they came from.
+ */
+function ouPaintSide(u) {
+  var side = $('orbUsageSide');
+  if (!side) return;
+  side.textContent = '';
+  if (!u || !u.total) return;
+  var shown = 0;
+  var box = function (title) {
+    var b = el('section', 'ou-sidenote');
+    b.appendChild(el('h3', 'ou-h', title));
+    side.appendChild(b);
+    shown++;
+    return b;
+  };
+  var plans = u.plans;
+  if (plans && (plans.claude || plans.codex || plans.codex_on_key)) {
+    var runs = [];
+    if (plans.claude) runs.push(ouCount(plans.claude) + ' Claude Code ' + (plans.claude === 1 ? 'run' : 'runs'));
+    if (plans.codex) runs.push(ouCount(plans.codex) + ' Codex ' + (plans.codex === 1 ? 'run' : 'runs'));
+    var sub = box('Subscriptions');
+    sub.appendChild(el('p', '',
+      (runs.length ? runs.join(' and ') + ' on the subscriptions, paid by the monthly plans. Their tokens are not logged. ' +
+        'Every dollar here is extra, paid per use through Rouh\'s own keys.' : '') +
+      (plans.codex_on_key ? ' ' + ouCount(plans.codex_on_key) + ' Codex ' + (plans.codex_on_key === 1 ? 'run was' : 'runs were') +
+        ' billed to the OpenAI key instead; that cost is not logged either.' : '')));
+  }
+  var n = u.total.unpriced || 0;
+  if (u.unpriced) {
+    var on = box('Not priced');
+    on.appendChild(el('p', '', 'Showing only the ' + ouCalls(u.total.calls) + ' with no price. Without a price they are ' +
+      'counted in calls and tokens, not dollars; each call says why it has none.'));
+    var back = el('button', 'ou-btn', 'Show every call');
+    back.type = 'button';
+    back.addEventListener('click', function () { ouUnpriced(false); });
+    on.appendChild(back);
+  } else if (n) {
+    var np = box('Not priced');
+    var p = el('p');
+    var open = el('button', 'ou-numlink', ouCalls(n));
+    open.type = 'button';
+    open.title = 'Show only these calls';
+    open.setAttribute('aria-label', ouCalls(n) + ' with no price: show only these');
+    open.addEventListener('click', function () { ouUnpriced(true); });
+    p.appendChild(open);
+    p.appendChild(document.createTextNode(' had no price, so ' + (n === 1 ? 'it is' : 'they are') +
+      ' counted in the calls but not in the dollars. Press the number to see only ' + (n === 1 ? 'it' : 'them') + '.'));
+    np.appendChild(p);
+  }
+  if (!shown) {
+    var none = el('p', 'ou-sideempty', 'Nothing is left out here: every call at this level was priced and paid per use.');
+    side.appendChild(none);
+  }
 }
 
 function ouMonth(iso) {
@@ -524,21 +620,24 @@ function ouPaintChart(body, u, paint) {
   part.appendChild(title);
   var names = {};
   (u.rows || []).forEach(function (r) { names[r.key] = r.name; });
-  part.appendChild(el('p', 'ou-hint', hourly ? 'Press an hour to see its calls by use.' : 'Press a day to see what it was spent on.'));
+  part.appendChild(el('p', 'ou-hint', hourly ? 'Press an hour to see its calls by use.'
+    : s.measure === 'calls' ? 'Press a day to see its calls by use.' : 'Press a day to see what it was spent on.'));
 
+  // Dollars, or calls in the view of the calls with no price (`s.measure`).
+  var counting = s.measure === 'calls';
   var most = 0;
-  pts.forEach(function (d) { if (d.cost > most) most = d.cost; });
-  var step = orbUsageStep(most);
+  pts.forEach(function (d) { if (d.v > most) most = d.v; });
+  var step = counting ? Math.max(1, orbUsageStep(most)) : orbUsageStep(most);
   var top = Math.max(step, Math.ceil(most / step - 1e-9) * step);
-  var places = (String(+step.toFixed(6)).split('.')[1] || '').length;
-  var money = function (v) { return '$' + v.toFixed(places); };
+  var places = counting ? 0 : (String(+step.toFixed(6)).split('.')[1] || '').length;
+  var money = function (v) { return (counting ? '' : '$') + v.toLocaleString('en-GB', { minimumFractionDigits: places, maximumFractionDigits: places }); };
 
   var chart = el('div', 'ou-chart');
   var yAxis = el('div', 'ou-yaxis');
   yAxis.setAttribute('aria-hidden', 'true');
   var plot = el('div', 'ou-plot');
   plot.setAttribute('role', 'group');
-  plot.setAttribute('aria-label', hourly ? 'Cost per hour' : 'Cost per day, oldest first');
+  plot.setAttribute('aria-label', (counting ? 'Calls with no price per ' : 'Cost per ') + (hourly ? 'hour' : 'day, oldest first'));
   for (var v = 0; v <= top + 1e-9; v += step) {
     var pos = (v / top * 100) + '%';
     var tick = el('span', 'ou-ytick', money(v));
@@ -575,11 +674,11 @@ function ouPaintChart(body, u, paint) {
       : d.said + ', ' + ouCalls(d.calls) + (d.calls ? '. Open it.' : '.')));
     if (!d.calls) col.disabled = true;
     var stack = el('span', 'ou-stack');
-    stack.style.height = (top > 0 ? d.cost / top * 100 : 0) + '%';
+    stack.style.height = (top > 0 ? d.v / top * 100 : 0) + '%';
     (d.segs || []).forEach(function (g) {
-      if (!(g.cost > 0)) return;
+      if (!(g.v > 0)) return;
       var seg = el('span', 'ou-seg');
-      seg.style.flex = (g.cost / d.cost * 100) + ' 1 0';
+      seg.style.flex = (g.v / d.v * 100) + ' 1 0';
       seg.style.background = paint(g.key);
       seg.dataset.key = g.key;
       stack.appendChild(seg);
@@ -679,26 +778,28 @@ function ouPaintRolling(body, u) {
   var r = u.rolling;
   var pts = r && r.points || [];
   if (pts.length < 2) return;
+  var counting = r.measure === 'calls';
   var part = el('section', 'ou-part ou-rolling');
-  part.appendChild(el('h3', 'ou-h', 'Running 30-day cost'));
-  part.appendChild(el('p', 'ou-hint', 'Each point is what was paid per use in the 30 days ending that day. ' +
-    'Press one to open those 30 days.'));
+  part.appendChild(el('h3', 'ou-h', counting ? 'Running 30-day count' : 'Running 30-day cost'));
+  part.appendChild(el('p', 'ou-hint', (counting ? 'Each point is how many calls had no price in the 30 days ending that day. '
+    : 'Each point is what was paid per use in the 30 days ending that day. ') + 'Press one to open those 30 days.'));
 
   var most = 0;
-  pts.forEach(function (p) { if (p.cost > most) most = p.cost; });
-  var step = orbUsageStep(most);
+  pts.forEach(function (p) { if (p.v > most) most = p.v; });
+  var step = counting ? Math.max(1, orbUsageStep(most)) : orbUsageStep(most);
   var top = Math.max(step, Math.ceil(most / step - 1e-9) * step);
-  var places = (String(+step.toFixed(6)).split('.')[1] || '').length;
+  var places = counting ? 0 : (String(+step.toFixed(6)).split('.')[1] || '').length;
 
   var chart = el('div', 'ou-chart ou-rchart');
   var yAxis = el('div', 'ou-yaxis');
   yAxis.setAttribute('aria-hidden', 'true');
   var plot = el('div', 'ou-plot ou-rplot');
   plot.setAttribute('role', 'group');
-  plot.setAttribute('aria-label', 'Running 30-day cost, one point a day, oldest first. Use the arrow keys to move.');
+  plot.setAttribute('aria-label', (counting ? 'Running 30-day count of calls with no price' : 'Running 30-day cost') +
+    ', one point a day, oldest first. Use the arrow keys to move.');
   for (var v = 0; v <= top + 1e-9; v += step) {
     var pos = (v / top * 100) + '%';
-    var tick = el('span', 'ou-ytick', '$' + v.toLocaleString('en-GB', { minimumFractionDigits: places, maximumFractionDigits: places }));
+    var tick = el('span', 'ou-ytick', (counting ? '' : '$') + v.toLocaleString('en-GB', { minimumFractionDigits: places, maximumFractionDigits: places }));
     tick.style.bottom = pos;
     yAxis.appendChild(tick);
     var grid = el('i', 'ou-grid' + (v === 0 ? ' ou-base' : ''));
@@ -719,7 +820,7 @@ function ouPaintRolling(body, u) {
   var path = function (from, to, cls) {
     if (to - from < 1) return;
     var d = '';
-    for (var i = from; i <= to; i++) d += (i === from ? 'M' : 'L') + x(i).toFixed(3) + ' ' + y(pts[i].cost).toFixed(3);
+    for (var i = from; i <= to; i++) d += (i === from ? 'M' : 'L') + x(i).toFixed(3) + ' ' + y(pts[i].v).toFixed(3);
     var p = document.createElementNS(NS, 'path');
     p.setAttribute('d', d);
     p.setAttribute('class', cls);
@@ -741,7 +842,7 @@ function ouPaintRolling(body, u) {
   if (chosenAt >= 0) {
     mark = el('i', 'ou-rdot ou-rchosen');
     mark.style.left = x(chosenAt) + '%';
-    mark.style.bottom = (100 - y(pts[chosenAt].cost)) + '%';
+    mark.style.bottom = (100 - y(pts[chosenAt].v)) + '%';
     plot.appendChild(mark);
   }
 
@@ -800,14 +901,14 @@ function ouPaintRolling(body, u) {
     if (i < 0) { tip.hidden = true; dot.hidden = true; return; }
     var p = pts[i];
     dot.style.left = x(i) + '%';
-    dot.style.bottom = (100 - y(p.cost)) + '%';
+    dot.style.bottom = (100 - y(p.v)) + '%';
     dot.hidden = false;
     tip.textContent = '';
     var head = el('div', 'ou-tiphead');
     head.appendChild(el('span', '', ouDay(p.at)));
     head.appendChild(el('b', '', p.said));
     tip.appendChild(head);
-    tip.appendChild(el('div', 'ou-tipnone', 'The 30 days ' + day(p.from) + ' to ' + day(p.at) + ', ' + ouCalls(p.calls) + '.'));
+    tip.appendChild(el('div', 'ou-tipnone', 'The 30 days ' + day(p.from) + ' to ' + day(p.at) + (counting ? '.' : ', ' + ouCalls(p.calls) + '.')));
     if (p.partial) tip.appendChild(el('div', 'ou-tipnone', 'The log begins on ' + ouDay(u.began) + ', so only ' + p.days + ' of these days are in it.'));
     tip.appendChild(el('div', 'ou-tipnone', i === chosenAt ? 'These are the 30 days shown.' : 'Press to open these 30 days.'));
     tip.hidden = false;
@@ -856,8 +957,11 @@ function ouPaintSplit(body, u, paint) {
   part.appendChild(head);
 
   var rows = u.rows || [];
+  // In the view of the calls with no price, rows are measured in calls, with their tokens.
+  var counting = !!u.unpriced;
+  var size = function (r) { return counting ? r.calls : r.cost; };
   var dearest = 0;
-  rows.forEach(function (r) { if (r.cost > dearest) dearest = r.cost; });
+  rows.forEach(function (r) { if (size(r) > dearest) dearest = size(r); });
   /** @type {any} */
   var grow = null;
   if (u.by !== 'day') rows.forEach(function (r) { if (r.change && r.change.delta > 0.005 && (!grow || r.change.delta > grow.change.delta)) grow = r; });
@@ -867,7 +971,7 @@ function ouPaintSplit(body, u, paint) {
   var list = el('ul', 'ou-rows');
   var labels = el('li', 'ou-row ou-rowhead');
   labels.setAttribute('aria-hidden', 'true');
-  [[u.by_said, 'ou-rname'], ['', 'ou-rbar ou-rbarhead'], ['Cost', 'ou-rfig'], ['Calls', 'ou-rfig'], ['Against before', 'ou-rfig']]
+  [[u.by_said, 'ou-rname'], ['', 'ou-rbar ou-rbarhead'], [counting ? 'Calls' : 'Cost', 'ou-rfig'], [counting ? 'Tokens' : 'Calls', 'ou-rfig'], ['Against before', 'ou-rfig']]
     .forEach(function (t) { labels.appendChild(el('span', t[1], t[0])); });
   list.appendChild(labels);
   var next = ouNextAfter(u.by);
@@ -883,15 +987,15 @@ function ouPaintSplit(body, u, paint) {
     var bar = el('span', 'ou-rbar');
     bar.setAttribute('aria-hidden', 'true');
     var fill = el('i');
-    fill.style.width = (dearest > 0 && r.cost > 0 ? Math.max(r.cost / dearest * 100, 0.8) : 0) + '%';
+    fill.style.width = (dearest > 0 && size(r) > 0 ? Math.max(size(r) / dearest * 100, 0.8) : 0) + '%';
     fill.style.background = paint(r.key);
     bar.appendChild(fill);
-    var cost = el('span', 'ou-rfig ou-rcost', r.said);
+    var cost = el('span', 'ou-rfig ou-rcost', counting ? ouCount(r.calls) : r.said);
     var calls = el('span', 'ou-rfig');
-    var n = el('span', 'ou-n', ouCount(r.calls));
-    n.dataset.unit = r.calls === 1 ? ' call' : ' calls';
+    var n = el('span', 'ou-n', ouCount(counting ? r.tokens : r.calls));
+    n.dataset.unit = counting ? ' tokens' : r.calls === 1 ? ' call' : ' calls';
     calls.appendChild(n);
-    if (r.unpriced) calls.appendChild(el('small', '', ouCount(r.unpriced) + ' not priced'));
+    if (r.unpriced && !counting) calls.appendChild(el('small', '', ouCount(r.unpriced) + ' not priced'));
     var chg = el('span', 'ou-rfig');
     // Days are each their own, so a day against the period before says nothing.
     if (u.by !== 'day') chg.appendChild(ouChange(r.change));
@@ -900,7 +1004,8 @@ function ouPaintSplit(body, u, paint) {
     b.appendChild(cost);
     b.appendChild(calls);
     b.appendChild(chg);
-    b.setAttribute('aria-label', r.name + ': ' + r.said + ', ' + ouCalls(r.calls) + ', ' + (r.change ? r.change.said : '') +
+    b.setAttribute('aria-label', r.name + ': ' + (counting ? ouCalls(r.calls) + ', ' + ouCount(r.tokens) + ' tokens'
+      : r.said + ', ' + ouCalls(r.calls)) + ', ' + (r.change ? r.change.said : '') +
       '. Open it' + (next ? ', split by ' + next : '') + '.');
     b.addEventListener('click', function () { ouDown(u.by, r.key); });
     li.appendChild(b);
@@ -919,7 +1024,7 @@ function ouNextAfter(dim) {
   OU.filters = keep.concat([[dim, '_']]);
   var n = ouNext();
   OU.filters = keep;
-  return ({ provider: 'company', model: 'model', purpose: 'use', day: 'day', origin: 'chat, job or page' })[n] || '';
+  return ({ provider: 'company', model: 'model', purpose: 'use', day: 'day', origin: 'chat, job or page', why: 'why no price' })[n] || '';
 }
 
 /* ---- the calls ---------------------------------------------------------- */
@@ -941,14 +1046,15 @@ function ouPaintCalls(u) {
   var h = el('h2', 'ou-headline');
   h.tabIndex = -1;
   h.textContent = ouCount(u.count) + (u.order === 'failed' ? ' failed' : '') + (u.count === 1 ? ' call' : ' calls') +
+    (u.unpriced ? ' with no price' : '') +
     (where.length ? ' for ' + where[where.length - 1] : '') + (u.period.days === 1 ? ' on ' : ' in ') + ouLower(u.period.said) +
-    (u.order === 'failed' ? ', newest first.' : ', ' + (u.order === 'time' ? 'newest' : 'dearest') + ' first.');
+    (u.order === 'failed' ? ', newest first.' : ', ' + (u.order === 'time' ? 'newest' : u.unpriced ? 'most tokens' : 'dearest') + ' first.');
   body.appendChild(h);
 
   var sort = el('div', 'ou-chips');
   sort.setAttribute('role', 'group');
   sort.setAttribute('aria-label', 'Order');
-  [['cost', 'Dearest first'], ['time', 'Newest first'], ['failed', 'Failed only']].forEach(function (o) {
+  [['cost', u.unpriced ? 'Most tokens first' : 'Dearest first'], ['time', 'Newest first'], ['failed', 'Failed only']].forEach(function (o) {
     var b = el('button', 'ou-chip', o[1]);
     b.type = 'button';
     b.setAttribute('aria-pressed', u.order === o[0] ? 'true' : 'false');
@@ -974,6 +1080,8 @@ function ouPaintCalls(u) {
     var what = el('span', 'ou-cw ou-cwhat');
     what.appendChild(el('b', '', c.use));
     what.appendChild(el('small', '', c.model + ' – ' + c.origin.name + (c.status !== 'ok' ? ' – ' + c.status_said : '')));
+    // Why it has no price, when Rouh can tell (`usage_drill.why_unpriced`).
+    if (c.why_unpriced) what.appendChild(el('small', 'ou-why', 'No price: ' + c.why_unpriced.charAt(0).toLowerCase() + c.why_unpriced.slice(1)));
     b.appendChild(when);
     b.appendChild(what);
     [['Fresh in', c.fresh], ['From cache', c.cache_read], ['To cache', c.cache_write], ['Out', c.output]].forEach(function (t) {
@@ -1121,6 +1229,7 @@ function ouPaintCall(c) {
   }
   fact('What started it', started ? '' : (c.origin && c.origin.name), started);
   fact('Paid', 'Per use, through Rouh\'s own ' + c.company + ' key');
+  fact('No price because', c.why_unpriced);
   fact('Thinking', [c.thinking, c.effort ? 'effort ' + c.effort : ''].filter(Boolean).join(', '));
   fact('Longest answer allowed', c.max_tokens ? ouCount(c.max_tokens) + ' tokens' : '');
   fact('How it ended', c.status_said + (c.error ? ': ' + c.error : ''));
