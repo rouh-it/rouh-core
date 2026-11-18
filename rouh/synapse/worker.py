@@ -4,7 +4,10 @@ The spec has one worker service, `rouh-memory-worker`, taking jobs with
 `FOR UPDATE SKIP LOCKED`. In this lab the same loop runs inside Rouh's own
 process, in a thread, so nothing new has to be installed on the server; the
 jobs, their table and the locking are the spec's. A job a restart cut off is
-taken again (its lock is older than ten minutes), up to three tries.
+given back the moment the next Rouh starts (`release_dead`), and one of a worker
+that is gone some other way is taken again once its lock is twenty minutes old
+(ten until 18 November 2026, when one model call could take up to about eleven
+and a half: `ai.GENERATE_LIMIT`), up to three tries.
 
 Two lanes (migration 0071). `live` is everything a person or live mail is
 waiting on, and has its own `WORKERS` slots. `backfill` is an import's model
@@ -28,6 +31,7 @@ import os
 import socket
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 from django.db import connection
@@ -46,17 +50,34 @@ _pool: ThreadPoolExecutor | None = None
 _backfill: ThreadPoolExecutor | None = None
 _busy = 0
 _busy_backfill = 0
-_me = f"{socket.gethostname()}:{os.getpid()}"
+#: Which start of Rouh this is. In a container a new process often gets the very number the old one
+#: had, so the number alone cannot tell a lock of this process from one of the process before it
+#: (task 182, step 182-05: Memory waited ten minutes after every restart to take its work back).
+_BOOT = uuid.uuid4().hex[:8]
+#: How this process signs the jobs it takes: machine, process number, start.
+_me = f"{socket.gethostname()}:{os.getpid()}:{_BOOT}"
+#: The words a lock may end with that say which lane of this process took it, not which start.
+_LANES = ("drain", "now")
 
 
 def poke() -> None:
     _wake.set()
 
 
+def _boot_of(locked_by: str) -> str:
+    """The start a lock was taken by ("" for a lock from before starts were written, which was
+    `machine:number` or `machine:number:drain`)."""
+    parts = str(locked_by).split(":")
+    return parts[2] if len(parts) > 2 and parts[2] not in _LANES else ""
+
+
 def release_dead() -> int:
     """Jobs locked by a process of this machine that is gone, given back now rather than when their
     lock is ten minutes old (card 1125, change 5): a restart of Rouh no longer holds an item's links
-    back for ten minutes. The try it was on is not counted. Returns how many were given back."""
+    back for ten minutes. The try it was on is not counted. Returns how many were given back.
+
+    A lock with this process's own number and another start (or none) is the process before this one,
+    which had the same number in its container: gone, and given back at once."""
     host = socket.gethostname()
     mine = db.rows("SELECT DISTINCT locked_by FROM synapse.job WHERE done_at IS NULL AND locked_by LIKE %s",
                    (host + ":%",))
@@ -68,6 +89,8 @@ def release_dead() -> int:
         except (IndexError, ValueError):
             continue
         if pid == os.getpid():
+            if _boot_of(r["locked_by"]) != _BOOT:
+                dead.append(r["locked_by"])
             continue
         try:
             os.kill(pid, 0)
@@ -125,14 +148,14 @@ def _claim(lane: str = "live", n: int = 1, dataset_id: str | None = None, me: st
         "UPDATE synapse.job SET locked_by = %s, locked_at = now(), started_at = coalesce(started_at, now()), "
         "tries = tries + 1 WHERE id IN ("
         " SELECT j.id FROM synapse.job j WHERE j.done_at IS NULL AND j.lane = %s AND j.not_before <= now() "
-        " AND j.tries < %s AND (j.locked_by IS NULL OR j.locked_at < now() - interval '10 minutes') "
+        " AND j.tries < %s AND (j.locked_by IS NULL OR j.locked_at < now() - interval '20 minutes') "
         " AND (%s::uuid IS NULL OR j.dataset_id = %s::uuid) "
         # Never a read for somebody else's Synapse Master: only the owner has one (18 November 2026, `master.owner_id`).
         " AND NOT EXISTS (SELECT 1 FROM synapse.dataset d WHERE d.id = j.dataset_id AND d.master AND d.user_id <> %s) "
         f" AND NOT (j.kind IN {ONE_AT_A_TIME} AND j.item_id IS NOT NULL AND EXISTS ("
         "   SELECT 1 FROM synapse.job o WHERE o.dataset_id = j.dataset_id AND o.item_id = j.item_id "
         f"  AND o.kind IN {ONE_AT_A_TIME} AND o.done_at IS NULL AND o.id <> j.id AND "
-        "   ((o.locked_by IS NOT NULL AND o.locked_at >= now() - interval '10 minutes') OR "
+        "   ((o.locked_by IS NOT NULL AND o.locked_at >= now() - interval '20 minutes') OR "
         f"   (o.id < j.id AND o.locked_by IS NULL AND o.not_before <= now() AND o.tries < {MAX_TRIES})))) "
         " ORDER BY j.priority, j.not_before, j.id FOR UPDATE SKIP LOCKED LIMIT %s) RETURNING *",
         (me or _me, lane, MAX_TRIES, dataset_id, dataset_id, master.owner_id() or "-", int(n)))
@@ -202,6 +225,16 @@ def _release() -> None:
         log.exception("could not give back Synapse jobs of stopped workers")
 
 
+def _held() -> bool:
+    """Whether a restart is waiting for Rouh, so no new job is to be taken."""
+    try:
+        from .. import answers_now
+
+        return answers_now.quiet()
+    except Exception:  # noqa: BLE001 - never in the way of the work
+        return False
+
+
 def _loop() -> None:
     global _busy, _busy_backfill
     time.sleep(2)
@@ -221,6 +254,13 @@ def _loop() -> None:
                 # on a thread of its own (`master.start_sync`).
                 master.start_sync()
             took = 0
+            if _held():
+                # A deploy is about to restart Rouh: nothing new is taken, so what is running can end
+                # before it (`rouh/answers_now.py`, `quiet`), and nothing is cut half way.
+                connection.close()
+                _wake.wait(1.0)
+                _wake.clear()
+                continue
             if _busy < WORKERS:
                 for job in _claim("live", WORKERS - _busy):
                     with _lock:
@@ -299,7 +339,7 @@ def drain(ds_id: str, concurrency: int, *, stop=None, on_batch=None) -> dict:
                 # on a thread of its own (`master.start_sync`).
                 master.start_sync()
             free = int(concurrency) - len(running)
-            jobs = _claim("backfill", free, dataset_id=ds_id, me=me) if free > 0 else []
+            jobs = _claim("backfill", free, dataset_id=ds_id, me=me) if free > 0 and not _held() else []
             connection.close()
             for job in jobs:
                 running.add(pool.submit(_finish, job))
@@ -374,7 +414,7 @@ def run_job_now(job_id: int) -> None:
     """Run one job here and now (the chat's tools wait for their own)."""
     job = db.row("UPDATE synapse.job SET locked_by = %s, locked_at = now(), started_at = coalesce(started_at, now()), "
                  "tries = tries + 1 WHERE id = %s "
-                 "AND done_at IS NULL AND (locked_by IS NULL OR locked_at < now() - interval '10 minutes') RETURNING *",
+                 "AND done_at IS NULL AND (locked_by IS NULL OR locked_at < now() - interval '20 minutes') RETURNING *",
                  (_me + ":now", job_id))
     if job is None:
         return

@@ -127,6 +127,46 @@ FIELDS = ("purpose", "subject", "session_id", "turn_id", "user_id", "org_id", "a
 #: This package's folder, for naming the code that sent a request.
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
+#: When this process began to write the log. A row still "sent" from before it was never answered
+#: in this process, and is marked "lost" when Rouh starts (`mark_lost`).
+STARTED = time.time()
+
+#: What a row says when the process it was sent from went away before its answer came: the new
+#: status of 18 November 2026 (task 182, step 182-05), so no call stays "sent" for good.
+LOST = "lost"
+
+#: The requests sent and not yet ended, in this process, from every caller (a chat's turn, Memory,
+#: Ask AI, anything): what a restart waits for (`rouh/answers_now.py`, `in_flight`).
+_FLIGHT: dict[int, "Entry"] = {}
+_flight_lock = threading.Lock()
+
+
+def in_flight(now: float | None = None) -> list[dict]:
+    """Each model call sent and not yet ended in this process: what it is for, its model and since when."""
+    with _flight_lock:
+        entries = list(_FLIGHT.values())
+    out = []
+    for e in entries:
+        purpose = str(e.about.get("purpose") or "") or (
+            os.path.splitext(os.path.basename(e.caller.split(":")[0]))[0] if e.caller else "")
+        out.append({"id": f"call-{id(e):x}", "purpose": purpose, "model": e.model_named(),
+                    "provider": e.provider, "since": e.started})
+    return out
+
+
+def mark_lost(before: float | None = None) -> int:
+    """Every row still "sent" from before this process began, marked "lost": the process it was sent
+    from went away (a restart, a crash) before its answer came, so none stays "sent" for good. A call
+    of another process that is still going (a `manage.py` command) is written over by its own end."""
+    from .models import LLMRequest
+
+    before = STARTED if before is None else before
+    n = LLMRequest.objects.filter(status="sent", started_at__lt=before).update(
+        status=LOST, error="Rouh stopped (a restart, most likely for an update) before the answer came")
+    if n:
+        log.info("%d model call(s) sent before this start never heard back: marked lost in a restart", n)
+    return n
+
 
 @contextlib.contextmanager
 def about(who=None, **said):
@@ -511,7 +551,25 @@ class Entry:
         self.trace = turntrace.current() if self.about.get("purpose") == "turn" else None
         self.trace_lane = self.trace.request_started("turn") if self.trace is not None else ""
         self.phase = ""
+        # Only in memory, never written down: the key, so OpenAI can be asked later for the counts of
+        # an answer Rouh stopped reading (`_counts_later`).
+        self._auth = request.headers.get("authorization", "") if provider == OPENAI else ""
+        self._url = str(request.url)
+        with _flight_lock:
+            _FLIGHT[id(self)] = self
         WRITER.put(self._begin)
+
+    def model_named(self) -> str:
+        """The model asked, read from the body without the writer (cheap: its first `"model"`)."""
+        if self.fields.get("model"):
+            return str(self.fields["model"])
+        at = self.body.find(b'"model"')
+        if at < 0:
+            return ""
+        rest = self.body[at + 7:at + 200].lstrip(b" :")
+        if rest[:1] != b'"':
+            return ""
+        return rest[1:].split(b'"', 1)[0].decode("utf-8", errors="replace")
 
     # --- on the event loop ------------------------------------------------
 
@@ -559,6 +617,8 @@ class Entry:
         if self.done:
             return
         self.done = True
+        with _flight_lock:
+            _FLIGHT.pop(id(self), None)
         self.finished = time.time()
         self.duration_ms = self._since()
         if isinstance(exc, (asyncio.CancelledError, GeneratorExit)) or (exc is None and stopped):
@@ -716,9 +776,13 @@ class Entry:
         tools = usage.get("server_tool_use")
         tools = tools if isinstance(tools, dict) else {}
 
+        # An OpenAI stream that ended before its last part never said how the answer ended: its first
+        # part says "in_progress", which until 18 November 2026 was taken for the ending and the call
+        # marked "ok" with no counts (task 182, step 182-05). It was stopped (`read_openai_answer`).
+        unfinished = bool(message.get("unfinished"))
         if (self.status is not None and self.status >= 400) or error or self.outcome == "broken":
             status = "error"
-        elif self.outcome == "stopped" and not message.get("stop_reason"):
+        elif (self.outcome == "stopped" and not message.get("stop_reason")) or unfinished:
             status = "stopped"
         else:
             status = "ok"
@@ -772,6 +836,42 @@ class Entry:
         from . import modeloutcomes
 
         modeloutcomes.request_done(self.fields, done, self.row, use=self.use)
+        if status == "error":
+            # A provider's spending limit, told to the person once (`rouh/spend_limits.py`).
+            from . import spend_limits
+
+            spend_limits.seen(self.provider, self.status, done["error_type"], said)
+        if (status == "stopped" and self.provider == OPENAI and not usage and done["message_id"]
+                and self.row is not None):
+            self._counts_later(done["message_id"])
+        self._auth = ""
+
+    # --- the counts of an answer Rouh stopped reading -----------------------
+
+    #: How long OpenAI is left before it is asked for an answer's counts, and between the asks after:
+    #: one minute after it was stopped, then five, then twenty.
+    COUNTS_AFTER = (60.0, 240.0, 900.0)
+
+    def _counts_later(self, response_id: str) -> None:
+        """OpenAI puts an answer's token counts only in the last part of its stream, so an answer Rouh
+        stopped reading has none (task 182, step 182-05). The response id is kept on the row
+        (`message_id`); OpenAI is asked for that response later, and its usage, once there, is
+        written onto the row with its price. A request sent with `store: false` is not kept by
+        OpenAI and cannot be asked for: the row says so, and keeps its id."""
+        settings = self.fields.get("settings") if isinstance(self.fields.get("settings"), dict) else {}
+        stored = True
+        with contextlib.suppress(Exception):
+            body = json.loads(self.body) if self.body else {}
+            stored = not (isinstance(body, dict) and body.get("store") is False)
+        if not stored or settings.get("store") is False:
+            _note_on_row(self.row, "OpenAI was asked not to keep this answer (store: false), so its "
+                                   "token counts cannot be asked for; the response id is kept")
+            return
+        if not self._auth or "/responses" not in self._url:
+            return
+        base = self._url.split("/responses", 1)[0]
+        _COUNTS.start(self.row, base, response_id, self._auth, self.provider, self.endpoint,
+                      list(self.COUNTS_AFTER))
 
     def _whose(self) -> tuple[str, str]:
         user_id = str(self.about.get("user_id") or "")
@@ -786,6 +886,100 @@ class Entry:
         if who is None:
             return "", org_id
         return str(who.user_id or ""), org_id or str(who.org_id or "")
+
+
+def _note_on_row(row: int | None, words: str) -> None:
+    from .models import LLMRequest
+
+    if row is None:
+        return
+    with contextlib.suppress(Exception):
+        LLMRequest.objects.filter(pk=row, error="").update(error=words[:4000])
+
+
+class _Counts:
+    """Asks OpenAI, a while after an answer was stopped, for that answer's token counts, on one thread
+    of its own; each row is asked about at most a few times, and then left with its response id."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._jobs: list[tuple[float, int, str, str, str, str, str, list[float]]] = []
+        self._thread: threading.Thread | None = None
+        self._wake = threading.Event()
+
+    def start(self, row: int, base: str, response_id: str, auth: str, provider: str, endpoint: str,
+              after: list[float]) -> None:
+        if not after:
+            return
+        with self._lock:
+            self._jobs.append((time.time() + after[0], row, base, response_id, auth, provider, endpoint,
+                               after[1:]))
+            if self._thread is None or not self._thread.is_alive():
+                self._thread = threading.Thread(target=self._run, name="rouh-llmlog-counts", daemon=True)
+                self._thread.start()
+        self._wake.set()
+
+    def _run(self) -> None:
+        while True:
+            with self._lock:
+                now = time.time()
+                due = [j for j in self._jobs if j[0] <= now]
+                self._jobs = [j for j in self._jobs if j[0] > now]
+                soonest = min((j[0] for j in self._jobs), default=now + 3600) - now
+            for job in due:
+                try:
+                    again = self._ask(*job[1:7])
+                except Exception:  # noqa: BLE001 - only tidiness; never anybody's problem
+                    log.warning("OpenAI could not be asked for the counts of a stopped answer", exc_info=True)
+                    again = True
+                rest = job[7]
+                if again and rest:
+                    with self._lock:
+                        self._jobs.append((job[0] + rest[0], *job[1:7], rest[1:]))
+                elif again:
+                    _note_on_row(job[1], "Rouh stopped reading before OpenAI's last part, which carries the "
+                                         "token counts, and OpenAI did not give them when asked later; the "
+                                         "response id is kept")
+            self._wake.wait(max(1.0, min(soonest, 3600)))
+            self._wake.clear()
+
+    def _ask(self, row: int, base: str, response_id: str, auth: str, provider: str, endpoint: str) -> bool:
+        """True when it is worth asking again later."""
+        from .models import LLMRequest
+
+        with httpx.Client(timeout=httpx.Timeout(30.0, connect=10.0)) as http:
+            got = http.get(f"{base}/responses/{response_id}", headers={"authorization": auth})
+        if got.status_code == 404:
+            _note_on_row(row, "OpenAI no longer has this answer, so its token counts cannot be asked for; "
+                              "the response id is kept")
+            return False
+        if got.status_code >= 400:
+            return True
+        body = got.json() if got.content else {}
+        if not isinstance(body, dict):
+            return True
+        message = _openai_message(body, "")
+        usage = message.get("usage") or {}
+        if not usage:
+            return str(body.get("status") or "") in ("in_progress", "queued", "")
+        from . import costs
+
+        took = costs.tokens_of(usage)
+        model = str(message.get("model") or "")
+        cost = priced(usage, model, provider, endpoint)
+        fields = dict(input_tokens=took["input"], output_tokens=took["output"],
+                      cache_read_tokens=took["cache_read"], cache_write_tokens=took["cache_write"],
+                      usage=usage, cost_usd=None if cost is None else Decimal(f"{cost:.6f}"),
+                      error="The token counts were asked of OpenAI after Rouh stopped reading")
+        if model:
+            fields["served_model"] = model
+        LLMRequest.objects.filter(pk=row).update(**fields)
+        log.info("the counts of stopped OpenAI answer %s came later: %s tokens out, $%s", response_id,
+                 took["output"], "?" if cost is None else f"{cost:.4f}")
+        return False
+
+
+_COUNTS = _Counts()
 
 
 def priced(usage, model: str, provider: str, endpoint: str) -> float | None:
@@ -1347,8 +1541,13 @@ def _openai_message(response: dict, streamed: str) -> dict:
     wrote = _number(details.get("cache_write_tokens"), 0)
     reason = (response.get("incomplete_details") or {}).get("reason") if isinstance(
         response.get("incomplete_details"), dict) else None
+    # "in_progress" and "queued" are how a response begins, never how it ends: a stream with nothing
+    # later was stopped before its last part, and has no ending to say.
+    status = str(response.get("status") or "")
+    unfinished = status in ("in_progress", "queued")
     out = {"id": response.get("id") or "", "model": response.get("model") or "",
-           "stop_reason": reason or response.get("status") or "",
+           "stop_reason": reason or ("" if unfinished else status),
+           "unfinished": unfinished,
            "content": output, "text": words or streamed, "reasoning": thought,
            "web_searches": sum(1 for i in output if i.get("type") == "web_search_call")}
     if usage:

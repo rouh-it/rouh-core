@@ -7691,6 +7691,17 @@ async def startup() -> None:
     if cut_short:
         log.info("%d turn(s) were cut short by the last restart", len(cut_short))
     answers_now.LAST_START.update(cut_short=list(cut_short), cut_by_deploy=sorted(cut_by_deploy))
+    # The model calls the process before this one sent and never heard back from, marked "lost in a
+    # restart" rather than left "sent" for good (`llmlog.mark_lost`, task 182, step 182-05).
+    try:
+        lost = await asyncio.to_thread(llmlog.mark_lost)
+        answers_now.LAST_START.update(model_calls_lost=lost)
+    except Exception:
+        log.exception("the model calls left without an answer could not be marked")
+    # A provider's spending limit is told on this loop (`rouh/spend_limits.py`).
+    from . import spend_limits
+
+    spend_limits.remember_loop()
 
     # Held (config.hold): nothing that reaches out in anyone's name is started.
     held = bool(getattr(config, "hold", False))

@@ -30,6 +30,15 @@ has the shape of each.
   "cut short" sentence (`memory.Memory.mark_interrupted`).
 - If the restart never comes (``HOLD_MAX`` after ready, or the ask taken away), Rouh lets the held
   turns go and carries on.
+- **Model calls in flight are waited for too** (Petar, 18 November 2026, task 182, step 182-05: "so
+  let's wait for memory too"). Every request sent to a model and not yet answered, from any caller
+  (`llmlog.in_flight`), keeps Rouh from saying it is ready, as an answer does. Memory reads up to
+  16 items at once in the background, so the moment a deploy asks, Memory claims nothing new
+  (`quiet`, read by `rouh/synapse/worker.py`), and what it already has finishes. A call is waited
+  for only if it was sent before new turns were held back, and for at most ``MODEL_WAIT`` from when
+  it was sent: the longest a Memory call may take (`rouh/synapse/ai.py`, ``READ_TIMEOUT``), and the
+  waiter's own cap besides. What was waited for is said in the log, once when the wait begins and
+  once when it ends. Before this, a restart for an update cut about 2,000 Memory calls a month.
 """
 from __future__ import annotations
 
@@ -56,6 +65,9 @@ HOLD_MAX = float(os.environ.get("ROUH_DEPLOY_HOLD_MAX", "300"))
 CAP = float(os.environ.get("ROUH_DEPLOY_WAIT_CAP", "600"))
 #: How often the state is written.
 EVERY = 1.0
+#: The longest a restart waits for one model call, counted from when it was sent: the longest a
+#: Memory call may wait for its answer (`rouh/synapse/ai.py`, READ_TIMEOUT, 10 minutes).
+MODEL_WAIT = float(os.environ.get("ROUH_DEPLOY_MODEL_WAIT", "600"))
 
 #: When this process started, wall clock: an ask older than this was for the restart that made it.
 STARTED = time.time()
@@ -68,7 +80,7 @@ _lock = threading.Lock()
 _answers: dict[str, dict] = {}
 _dropped: set[str] = set()
 _state = {"ask": "", "asked_at": 0.0, "holding": False, "hold_since": 0.0, "ready_for": "", "ready_at": 0.0,
-          "stopping": False}
+          "stopping": False, "calls_said": 0, "calls_seen": {}}
 
 
 def folder() -> Path:
@@ -187,6 +199,35 @@ def enter(kind: str, where: str) -> str:
         _answers[ident] = {"id": ident, "kind": kind, "where": str(where or ""), "since": now, "beat": now,
                            "tasks": []}
         return ident
+
+
+# --- model calls in flight -------------------------------------------------------------------------
+
+def _calls(now: float, *, sent_by: float | None) -> list[dict]:
+    """The model calls a restart waits for: sent and not yet answered, sent before `sent_by` (when new
+    turns were held back; None is any time), and sent less than ``MODEL_WAIT`` ago."""
+    try:
+        from . import llmlog
+
+        calls = llmlog.in_flight(now)
+    except Exception:  # noqa: BLE001 - never in the way of a deploy
+        log.exception("the model calls in flight could not be read")
+        return []
+    return [c for c in calls if now - c["since"] < MODEL_WAIT and (sent_by is None or c["since"] <= sent_by)]
+
+
+def _calls_said(calls: list[dict]) -> str:
+    by: dict[str, int] = {}
+    for c in calls:
+        name = f"{c.get('purpose') or 'unnamed'} on {c.get('model') or 'a model'}"
+        by[name] = by.get(name, 0) + 1
+    return ", ".join(f"{n} x {k}" if n > 1 else k for k, n in sorted(by.items(), key=lambda kv: -kv[1]))
+
+
+def quiet() -> bool:
+    """A deploy has asked to restart Rouh (or Rouh is stopping): background work that can wait, such as
+    Memory's next item, starts nothing new, so the restart has only calls that will end to wait for."""
+    return bool(_state["ask"] or _state["holding"] or _state["stopping"])
 
 
 # --- holding new turns back ------------------------------------------------------------------------
@@ -332,24 +373,39 @@ def step(now: float | None = None) -> dict:
     spent = False
     with _lock:
         answers = _in_progress(now)
+        calls: list[dict] = []
         if ident:
             if ident != _state["ask"]:
-                _state.update(ask=ident, asked_at=now, ready_for="", ready_at=0.0)
-                log.info("a deploy asks to restart Rouh (%s); answers in progress: %d",
-                         ask.get("why") or ask.get("who") or "", len(answers))
+                _state.update(ask=ident, asked_at=now, ready_for="", ready_at=0.0, calls_said=0, calls_seen={})
+                waiting = _calls(now, sent_by=None)
+                log.info("a deploy asks to restart Rouh (%s); answers in progress: %d; model calls in flight: %d%s",
+                         ask.get("why") or ask.get("who") or "", len(answers), len(waiting),
+                         f" ({_calls_said(waiting)})" if waiting else "")
+            if _state["ready_for"] != ident:
+                # Sent before new turns were held back: a call a held turn never started is not one.
+                calls = _calls(now, sent_by=_state["hold_since"] if _state["holding"] else None)
+                for c in calls:
+                    _state["calls_seen"].setdefault(c["id"], c)
             if _state["ready_for"] == ident:
                 if now - _state["ready_at"] > HOLD_MAX and not _state["stopping"]:
                     log.warning("Rouh said it was ready to be restarted %d s ago and nothing restarted it",
                                 int(now - _state["ready_at"]))
                     spent = True
                     _release(now, "the restart never came")
-            elif not answers:
+            elif not answers and not calls:
                 _hold(now, "ready to be restarted")
                 _state.update(ready_for=ident, ready_at=now)
-                log.info("no answer in progress: ready to be restarted, %.1f s after the ask",
-                         now - _state["asked_at"])
+                seen = list(_state["calls_seen"].values())
+                log.info("no answer and no model call in progress: ready to be restarted, %.1f s after the ask%s",
+                         now - _state["asked_at"],
+                         f"; waited for {len(seen)} model call(s): {_calls_said(seen)}" if seen else "")
             elif now - _state["asked_at"] >= GRACE:
-                _hold(now, f"{len(answers)} answer(s) still in progress after {int(GRACE)} s")
+                _hold(now, f"{len(answers)} answer(s) and {len(calls)} model call(s) still in progress "
+                           f"after {int(GRACE)} s")
+            if calls and not _state["calls_said"] and _state["ready_for"] != ident:
+                _state["calls_said"] = len(calls)
+                log.info("waiting for %d model call(s) in flight before the restart (at most %d s from "
+                         "when each was sent): %s", len(calls), int(MODEL_WAIT), _calls_said(calls))
         elif _state["stopping"]:
             pass
         elif _state["ready_for"] and now - _state["ready_at"] > HOLD_MAX:
@@ -362,6 +418,7 @@ def step(now: float | None = None) -> dict:
         with contextlib.suppress(OSError):
             (here / "ask.json").unlink()
     state = {"pid": os.getpid(), "started": STARTED, "at": now, "answers": answers,
+             "model_calls": [{k: c.get(k) for k in ("id", "purpose", "model", "since")} for c in calls],
              "holding": _state["holding"], "ready_for": _state["ready_for"], "ask": _state["ask"],
              "held": len(_held_rows()) if _state["holding"] else 0, "this_start": LAST_START}
     for where in (here, mirror()):

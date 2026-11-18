@@ -560,6 +560,7 @@ function ouPaintSide(u) {
     var on = box('Not priced');
     on.appendChild(el('p', '', 'Showing only the ' + ouCalls(u.total.calls) + ' with no price. Without a price they are ' +
       'counted in calls and tokens, not dollars; each call says why it has none.'));
+    ouNotCounted(on, u.total.not_counted);
     var back = el('button', 'ou-btn', 'Show every call');
     back.type = 'button';
     back.addEventListener('click', function () { ouUnpriced(false); });
@@ -576,11 +577,31 @@ function ouPaintSide(u) {
     p.appendChild(document.createTextNode(' had no price, so ' + (n === 1 ? 'it is' : 'they are') +
       ' counted in the calls but not in the dollars. Press the number to see only ' + (n === 1 ? 'it' : 'them') + '.'));
     np.appendChild(p);
+    ouNotCounted(np, u.total.not_counted);
   }
   if (!shown) {
     var none = el('p', 'ou-sideempty', 'Nothing is left out here: every call at this level was priced and paid per use.');
     side.appendChild(none);
   }
+}
+
+/* What the calls with no price most likely cost (Petar, 18 November 2026, task 182, step 182-05:
+ * "about $X not counted"), so the dollars are never silently short. Worked out on the server
+ * (`usage_drill.not_counted`): each call at the average price of finished calls of the same use
+ * and model, in full where the company most likely charged, at half where nobody can tell, and not
+ * at all where the call never reached the model. */
+function ouNotCounted(box, nc) {
+  if (!nc || !nc.calls) return;
+  var p = el('p', 'ou-notcounted');
+  p.appendChild(el('strong', '', nc.said + ' not counted'));
+  p.appendChild(document.createTextNode(nc.estimated
+    ? ', from finished calls of the same use and model, weighed by whether the company most likely charged.' +
+      (nc.most > nc.usd + 0.005 ? ' At most ' + nc.most_said + '.' : '')
+    : ': no finished calls of the same use and model to go by.'));
+  p.title = 'Counted in full where the company most likely charged (lost in a restart, timed out, dropped), at half ' +
+    'where it cannot be told, and not at all where the call never reached the model.' +
+    (nc.estimated && nc.estimated < nc.calls ? ' ' + ouCalls(nc.calls - nc.estimated) + ' had nothing to go by.' : '');
+  box.appendChild(p);
 }
 
 function ouMonth(iso) {

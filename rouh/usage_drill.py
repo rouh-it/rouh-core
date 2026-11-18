@@ -52,21 +52,58 @@ DIMS = {"provider": "Company", "model": "Model", "purpose": "Use", "day": "Day",
         "origin": "Chat, job or page", "hour": "Hour", "why": "Why no price"}
 
 #: Why a call has no price, as the log lets it be worked out (`llmlog`, `costs.request_cost`):
-#: a call that failed, was stopped or never heard back has no usage to price; a company that
-#: sent no token counts has none either; anything else is a model missing from the price list.
+#: a call that failed, was stopped, was lost in a restart or is still waiting has no usage to
+#: price; a company that sent no token counts has none either; anything else is a model missing
+#: from the price list.
+#: A call "sent" is still waiting for its answer; one "lost" was sent by a Rouh that stopped before its
+#: answer came (`llmlog.mark_lost`, since 18 November 2026; until then those stayed "sent" for good).
 WHY_SQL = r"""(CASE
-  WHEN status = 'sent' THEN 'never_back'
+  WHEN status = 'sent' THEN 'waiting'
+  WHEN status = 'lost' THEN 'lost'
   WHEN status = 'error' THEN 'failed'
   WHEN status = 'stopped' THEN 'stopped'
   WHEN input_tokens = 0 AND output_tokens = 0 AND cache_read_tokens = 0 AND cache_write_tokens = 0 THEN 'no_tokens'
   ELSE 'no_price' END)"""
 
 #: Each reason in words.
-WHY = {"never_back": "Never heard back, so nothing to price",
+WHY = {"waiting": "Still waiting for its answer",
+       "lost": "Lost in a restart: Rouh stopped before the answer came",
        "failed": "The call failed, so nothing to price",
        "stopped": "Stopped half way, before the usage came",
        "no_tokens": "The company sent no token counts",
        "no_price": "The model has no price in the model template or Rouh's own list"}
+
+# --- what the calls with no price most likely cost ------------------------------------------------
+#
+# Petar, 18 November 2026 (task 182, step 182-05): beside "Not priced", "about $X not counted", worked
+# out the way that page did it. Each call with no price is given the average price of the calls of the
+# same use on the same model that did finish (for one that timed out or ran long before it was stopped,
+# the average of the slow ones, a minute or more), and is then counted in full where the company most
+# likely charged (lost in a restart, timed out, dropped half way, stopped after a minute), at half
+# where nobody can tell (stopped early, an answer with no counts, OpenAI's 520, a stream that failed
+# part way), and not at all where the call never reached the model (no connection, refused, too busy).
+
+#: How likely the company charged for a call with no price: 1, 0.5 or 0.
+CHARGED_SQL = r"""(CASE
+  WHEN status IN ('lost', 'sent') THEN 1.0
+  WHEN status = 'error' AND http_status IS NULL AND (error LIKE 'ConnectError%%' OR error LIKE 'ConnectTimeout%%'
+       OR error LIKE 'PoolTimeout%%' OR error LIKE 'UnsupportedProtocol%%') THEN 0.0
+  WHEN status = 'error' AND http_status IS NULL THEN 1.0
+  WHEN status = 'error' AND http_status IN (200, 520) THEN 0.5
+  WHEN status = 'error' THEN 0.0
+  WHEN status = 'stopped' AND coalesce(duration_ms, 0) >= 60000 THEN 1.0
+  ELSE 0.5 END)"""
+
+#: Whether a call ran long enough that the slow calls' average is the fairer one.
+SLOW_SQL = r"""((status = 'error' AND http_status IS NULL AND error LIKE 'ReadTimeout%%')
+  OR (status = 'stopped' AND coalesce(duration_ms, 0) >= 60000))"""
+
+#: How far back the finished calls whose average is used reach, from the end of the period.
+AVERAGE_DAYS = 90
+#: A slow call takes at least this long.
+SLOW_MS = 60000
+#: The model of a call, as `_expr("model")` says it, of the finished calls (`r`) the average is taken of.
+R_MODEL = "(CASE WHEN r.model <> '' THEN r.model ELSE r.served_model END)"
 
 #: Every token of a call, read or written, for the view of the calls with no price.
 TOKENS_SQL = "(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens)"
@@ -603,6 +640,9 @@ def level(who, *, period: str = "days30", at: str | None = None, start: str | No
 
     # The calls on a model no price list has (Petar, 18 November 2026): said by name on the
     # screen, rather than counted as nothing.
+    # And what they most likely cost, so the total is never silently short (`not_counted`).
+    gap = not_counted(who, where, args, lo, hi, zone_name) if total_unpriced else None
+
     missing = _rows(
         f"SELECT {_expr('model', zone_name)[0]}, COUNT(*) FROM llm_requests"
         f" WHERE {where} AND started_at >= %s AND cost_usd IS NULL AND {WHY_SQL} = 'no_price'"
@@ -642,7 +682,7 @@ def level(who, *, period: str = "days30", at: str | None = None, start: str | No
         "can_split": [{"dim": d, "said": DIMS[d]} for d in left],
         "total": {"cost": total_cost, "said": total_said,
                   "calls": total_calls, "unpriced": total_unpriced, "tokens": int(total_tokens or 0),
-                  "no_price": no_price,
+                  "no_price": no_price, "not_counted": gap,
                   **_per_call(total_cost, total_calls - total_unpriced)},
         "before": {"cost": before_cost, "said": before_said, "calls": before_calls,
                    "partial": before_partial, "none": began_after},
@@ -655,6 +695,36 @@ def level(who, *, period: str = "days30", at: str | None = None, start: str | No
         "whose": "organisation" if who.is_admin else "yours",
         "currency": "USD",
     }
+
+
+def not_counted(who, where: str, args: list, lo: float, hi: float, zone_name: str) -> dict:
+    """What the calls with no price at this level most likely cost, and the most they could have:
+    `{"usd", "most", "said", "calls", "estimated"}` (`CHARGED_SQL`, `SLOW_SQL`). Calls whose use and
+    model never finished in the `AVERAGE_DAYS` before the end of the period have nothing to go by and
+    are left out of the dollars (`estimated` counts the ones that were not)."""
+    model = _expr("model", zone_name)[0]
+    got = _rows(
+        "WITH miss AS ("
+        f" SELECT purpose, {model} AS m, {CHARGED_SQL} AS w, {SLOW_SQL} AS slow, COUNT(*) AS n"
+        f" FROM llm_requests WHERE {where} AND started_at >= %s AND cost_usd IS NULL GROUP BY 1, 2, 3, 4),"
+        " pairs AS (SELECT DISTINCT purpose, m FROM miss),"
+        " paid AS ("
+        f" SELECT r.purpose, {R_MODEL} AS m,"
+        "  AVG(r.cost_usd) AS avg_all, AVG(r.cost_usd) FILTER (WHERE r.duration_ms >= %s) AS avg_slow"
+        " FROM llm_requests r JOIN pairs p ON p.purpose = r.purpose"
+        f"  AND p.m = {R_MODEL}"
+        " WHERE r.org_id = %s AND r.cost_usd IS NOT NULL AND r.started_at >= %s AND r.started_at < %s"
+        " GROUP BY 1, 2)"
+        " SELECT SUM(miss.n),"
+        "  SUM(miss.n) FILTER (WHERE paid.avg_all IS NOT NULL),"
+        "  SUM(miss.n * miss.w * COALESCE(CASE WHEN miss.slow THEN paid.avg_slow END, paid.avg_all, 0)),"
+        "  SUM(miss.n * COALESCE(CASE WHEN miss.slow THEN paid.avg_slow END, paid.avg_all, 0))"
+        " FROM miss LEFT JOIN paid ON paid.purpose = miss.purpose AND paid.m = miss.m",
+        args + [lo, SLOW_MS, who.org_id, hi - AVERAGE_DAYS * 86400, hi])[0]
+    calls, estimated, usd, most = int(got[0] or 0), int(got[1] or 0), _sum(got[2]), _sum(got[3])
+    return {"calls": calls, "estimated": estimated, "usd": usd, "most": most,
+            "said": f"about {_money(usd)}" if usd >= 0.005 or not estimated else "under 1 cent",
+            "most_said": _money(most)}
 
 
 def _per_call(cost: float, priced: int) -> dict:
@@ -760,9 +830,9 @@ def calls(who, *, period: str = "days30", at: str | None = None, start: str | No
     offset = max(0, int(offset or 0))
     order = order if order in ("cost", "time", "failed") else "cost"
     if order == "failed":
-        # Calls that failed, were stopped half way or never heard back, newest first: each
+        # Calls that failed, were stopped half way or were lost in a restart, newest first: each
         # one was sent and may have been paid for.
-        where += " AND status IN ('error', 'stopped', 'sent')"
+        where += " AND status IN ('error', 'stopped', 'sent', 'lost')"
     sort = "cost_usd DESC NULLS LAST, started_at DESC" if order == "cost" else "started_at DESC"
     if unpriced and order == "cost":
         sort = f"{TOKENS_SQL} DESC, started_at DESC"
@@ -808,7 +878,9 @@ def why_unpriced(r: dict) -> str:
     """Why a call has no price, in words, the same as `WHY_SQL` says it in the database."""
     status = r.get("status")
     if status == "sent":
-        key = "never_back"
+        key = "waiting"
+    elif status == "lost":
+        key = "lost"
     elif status == "error":
         key = "failed"
     elif status == "stopped":
@@ -838,7 +910,9 @@ def _status(status: str, stop: str) -> str:
     if status == "stopped":
         return "stopped before it finished"
     if status == "sent":
-        return "never heard back"
+        return "still waiting for its answer"
+    if status == "lost":
+        return "lost in a restart"
     return status
 
 

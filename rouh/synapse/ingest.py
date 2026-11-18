@@ -966,8 +966,7 @@ def tier_call(ds: dict, item: dict, sig: dict, s, trace, owner) -> dict:
     try:
         got = ai.generate(model=s.helper_model, name="tier_call", purpose="tier", trace=trace, items=[item["id"]],
                           owner=owner, instructions=TIER_INSTRUCTIONS.format(owner=who, words=words),
-                          text="SIGNALS:\n" + shown, schema=TIER_SCHEMA, max_tokens=2000,
-                          timeout=120.0)
+                          text="SIGNALS:\n" + shown, schema=TIER_SCHEMA, max_tokens=2000)
         tier = int(str(got.get("tier")))
         if tier not in (0, 1, 2):
             raise ValueError(f"the model answered tier {got.get('tier')!r}")

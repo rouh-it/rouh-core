@@ -41,6 +41,7 @@ once (`run`).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import math
@@ -131,6 +132,47 @@ def _openai():
     return _client
 
 
+# How long Memory waits for a model to read something (Petar, 18 November 2026, task 182, step
+# 182-05: "lets not stop waiting at 2 and 3 minutes"). Until then OpenAI's connection gave up at
+# 120 s and `generate` at 180 s, and the SDK's own second try after a time-out was always cut off
+# about 60 s in: 1,060 X-ray reads on gpt-6-luna timed out at 2 minutes, most likely charged, and
+# 144 second tries were cut off. In the live log for the 30 days to 18 November the reads that did
+# finish took 40 s at the median, 62 s at the 90th percentile and 77 s at the 99th (X-ray, 127,892
+# calls), so the long tail past 2 minutes is the one that was being thrown away.
+#: The longest a generative call may wait for its answer (httpx's read timeout: the whole answer, as
+#: these calls are not streamed).
+READ_TIMEOUT = 600.0
+#: The longest it may take to reach the provider at all, so a dead network still fails fast.
+CONNECT_TIMEOUT = 15.0
+#: A failure that came this soon is tried once more, and only then: a time-out never is, so the
+#: second try always has its whole `READ_TIMEOUT` inside `GENERATE_LIMIT`.
+RETRY_WITHIN = 60.0
+#: The most a second try waits before it goes (a rate limit's own retry-after, capped).
+RETRY_PAUSE_MOST = 20.0
+#: The outer limit of one `generate`: one failed first try that came within `RETRY_WITHIN`, the
+#: pause, a whole second try, and a margin. Always longer than all of them together.
+GENERATE_LIMIT = RETRY_WITHIN + RETRY_PAUSE_MOST + READ_TIMEOUT + 10.0
+
+_long = None
+_long_key = ""
+
+
+def _openai_long():
+    """OpenAI's client for Memory's generative calls: `READ_TIMEOUT` to answer, `CONNECT_TIMEOUT` to
+    connect, and no retry of the SDK's own (`_generate` retries what is worth it, never a time-out)."""
+    global _long, _long_key
+    key = getattr(config, "openai_api_key", "")
+    if not key:
+        raise NoKey("This machine has no OPENAI_API_KEY, so Synapse cannot ask OpenAI anything.")
+    if _long is None or key != _long_key:
+        import openai
+
+        _long = llmlog.openai_client(key, max_retries=0,
+                                     timeout=openai.Timeout(READ_TIMEOUT, connect=CONNECT_TIMEOUT))
+        _long_key = key
+    return _long
+
+
 def is_claude(model: str) -> bool:
     return str(model or "").startswith("claude-")
 
@@ -142,7 +184,10 @@ def _anthropic():
     if not key:
         raise NoKey("This machine has no ANTHROPIC_API_KEY, so Synapse cannot ask Claude anything.")
     if _claude is None or key != _claude_key:
-        _claude = llmlog.client(key, max_retries=2, timeout=300.0)
+        import anthropic
+
+        _claude = llmlog.client(key, max_retries=0,
+                                timeout=anthropic.Timeout(READ_TIMEOUT, connect=CONNECT_TIMEOUT))
         _claude_key = key
     return _claude
 
@@ -385,14 +430,63 @@ async def _generate_compat(model: str, instructions: str, text: str, schema: dic
     return parsed, usage, str(getattr(got, "model", model) or model)
 
 
+def _worth_again(exc: BaseException) -> float | None:
+    """How long to wait before trying a failed generative call once more, or None when it is not
+    worth it. A time-out never is (the provider most likely did the work, and charged for it); a
+    refused request, a missing key or a malformed answer is not either. A connection that could not
+    be made or was dropped, a rate limit and the provider's own failure (5xx) are."""
+    names = {k.__name__ for k in type(exc).__mro__}
+    # Either HTTP library's (`httpx` for Anthropic's SDK, `httpx2` for OpenAI's), by name.
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError)) or names & {"APITimeoutError", "TimeoutException"}:
+        return None
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int):
+        if status in (408, 409, 429) or status >= 500:
+            after = 0.0
+            response = getattr(exc, "response", None)
+            try:
+                after = float((response.headers.get("retry-after") if response is not None else 0) or 0)
+            except (TypeError, ValueError):
+                after = 0.0
+            return min(RETRY_PAUSE_MOST, max(2.0, after))
+        return None
+    if names & {"APIConnectionError", "TransportError"}:
+        return 2.0
+    return None
+
+
 async def _generate(model: str, instructions: str, text: str, schema: dict, name: str,
                     effort: str, max_tokens: int, about, cache_key: str = "") -> tuple[dict, dict, str]:
+    """One generative call, tried once more when a failure that is worth it came quickly
+    (`_worth_again`, `RETRY_WITHIN`). `about` is what `llmlog.about` said for the first try."""
+    began = time.monotonic()
+    said = {}
+    try:
+        with about as said:
+            return await _generate_once(model, instructions, text, schema, name, effort, max_tokens,
+                                        contextlib.nullcontext(), cache_key)
+    except Exception as exc:
+        pause = _worth_again(exc)
+        if pause is None or time.monotonic() - began > RETRY_WITHIN:
+            raise
+        log.info("Synapse's %s call on %s failed after %.1f s (%s: %s); trying once more in %.0f s",
+                 name, model, time.monotonic() - began, type(exc).__name__, str(exc)[:200], pause)
+    await asyncio.sleep(pause)
+    again = {k: v for k, v in (said or {}).items() if k in llmlog.FIELDS}
+    again["attempt"] = int(again.get("attempt") or 1) + 1
+    with llmlog.about(**again):
+        return await _generate_once(model, instructions, text, schema, name, effort, max_tokens,
+                                    contextlib.nullcontext(), cache_key)
+
+
+async def _generate_once(model: str, instructions: str, text: str, schema: dict, name: str,
+                         effort: str, max_tokens: int, about, cache_key: str = "") -> tuple[dict, dict, str]:
     if is_claude(model):
         return await _generate_claude(model, instructions, text, schema, effort, max_tokens, about,
                                       cache=bool(cache_key))
     if str(model or "").startswith(("gemini-", "grok-")):
         return await _generate_compat(model, instructions, text, schema, name, effort, max_tokens, about)
-    client = _openai()
+    client = _openai_long()
     body = dict(model=model, instructions=instructions, input=text,
                 text={"format": {"type": "json_schema", "name": name, "schema": schema, "strict": True}},
                 max_output_tokens=max_tokens)
@@ -421,7 +515,7 @@ def backend_of(model: str) -> str:
 
 def generate(*, model: str, instructions: str, text: str, schema: dict, name: str,
              purpose: str, trace=None, items=(), effort: str | None = None, max_tokens: int = 4000,
-             owner: dict | None = None, timeout: float = 180.0, cache_key: str = "") -> dict:
+             owner: dict | None = None, timeout: float | None = None, cache_key: str = "") -> dict:
     """One structured answer from a generative model, written down on the trace.
 
     `model` is the one the Models page has for the job asking (`numbers.MODEL_USES`): nothing here
@@ -432,6 +526,7 @@ def generate(*, model: str, instructions: str, text: str, schema: dict, name: st
 
         effort = modelstandard.effort(model)
         effort = "" if effort == "none" and is_claude(model) else effort
+    timeout = GENERATE_LIMIT if timeout is None else timeout
     began = time.time()
     try:
         parsed, usage, served = run(_generate(model, instructions, text, schema, name, effort, max_tokens,

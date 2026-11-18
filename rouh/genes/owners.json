@@ -260,6 +260,7 @@
    "core": true,
    "files": [
     "rouh/llmlog.py",
+    "rouh/spend_limits.py",
     "rouh/models/llmlog.py",
     "rouh/management/commands/llm_log.py",
     "rouh/reasoning_scrub.py",
