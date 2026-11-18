@@ -191,6 +191,7 @@ urlpatterns = [
     path("api/link/accept", link_web.api_accept),
     path("api/link/connect", link_web.api_connect),
     path("api/link/settings", link_web.api_settings),
+    path("api/link/calendars", link_web.api_calendars),
     path("api/link/grant", link_web.api_grant),
     path("api/link/handoff", link_web.api_handoff),
     path("api/link/find", link_web.api_find),

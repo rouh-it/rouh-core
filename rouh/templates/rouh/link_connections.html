@@ -104,10 +104,19 @@
             <div class="row"><button type="submit">Find</button><span id="findSaid" class="small dim"></span></div>
           </form>
         </section>
+        <section class="box" id="meetCalBox" hidden>
+          <header><h2>Agreed meetings</h2></header>
+          <form id="meetCals" class="stack">
+            <p class="small dim" id="meetCalSaid">Reading your calendars…</p>
+            <div><label for="calWork">Meetings agreed on the Work side go in</label><select id="calWork"></select></div>
+            <div><label for="calPersonal">Meetings agreed on the Personal side go in</label><select id="calPersonal"></select></div>
+          </form>
+        </section>
         <section class="box">
-          <header><h2>Off for now</h2></header>
+          <header><h2>Who else may reach your Rouh</h2></header>
           <div class="stack">
             <p class="small dim" id="heldWhy"></p>
+            <p class="small dim">What the relay, the mailbox and being found keep, and who answers for what: <a href="https://rouh.land/terms/link/" target="_blank" rel="noopener">Rouh Link and Relay Terms</a>.</p>
             <label class="row"><input id="strangers" type="checkbox"> Rouhs you do not know may introduce themselves and hand over a brief</label>
             <label class="row"><input id="openNet" type="checkbox"> Other makers’ agents may reach your Rouh</label>
             <label class="row"><input id="findable" type="checkbox"> People can find your Rouh by your email, through rouh.land</label>

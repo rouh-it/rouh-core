@@ -72,6 +72,7 @@
     drawSpaces();
     drawInvites();
     drawOff();
+    drawMeetCals();
     drawHandoffs();
     if (window.LINK_ACCEPT && !draw.accepted) { draw.accepted = true; $('bringLink').value = window.LINK_ACCEPT; $('bringLink').focus(); }
   }
@@ -194,6 +195,56 @@
     $('heldWhy').textContent = st.held ? st.held_why : 'You choose. Each stays off until you turn it on.';
   }
 
+  // Where an agreed meeting goes, one calendar per side (`meeting.book_calendar`). The list is read
+  // once, from the calendars this Rouh may write to; the choice is drawn from the settings each load.
+  var CALS = null;
+  var SIDE_WORD = { work: 'Work', personal: 'Personal' };
+  function loadCalendars() {
+    return API.get('/api/link/calendars').then(function (got) { CALS = got; drawMeetCals(); })
+      .catch(function () { CALS = { connected: true, calendars: [], fallback: {}, trouble: 'Your calendars could not be read.' }; drawMeetCals(); });
+  }
+  function calName(id) {
+    var c = ((CALS && CALS.calendars) || []).filter(function (x) { return x.id === id; })[0];
+    return c ? c.name : '';
+  }
+  function drawMeetCals() {
+    if (!CALS || !S || !S.born) return;
+    if (CALS.admin === false) { $('meetCalBox').hidden = true; return; }
+    $('meetCalBox').hidden = false;
+    var st = S.settings || {}, list = CALS.calendars || [], fb = CALS.fallback || {};
+    var said = !CALS.connected ? 'Connect Google in Settings to choose where agreed meetings go.'
+      : CALS.trouble ? CALS.trouble
+      : !list.length ? 'None of your calendars can be written to by Rouh.'
+      : 'Only calendars Rouh can add events to. A Personal meeting never goes in a Work calendar by itself.';
+    $('meetCalSaid').textContent = said;
+    [['calWork', 'work'], ['calPersonal', 'personal']].forEach(function (pair) {
+      var sel = $(pair[0]), side = pair[1], chosen = st['book_calendar_' + side] || '';
+      if (document.activeElement === sel) return;
+      clear(sel);
+      var first = fb[side] ? 'Not chosen: ' + (calName(fb[side]) || fb[side])
+        : side === 'work' ? 'Not chosen: the usual calendar' : 'Not chosen: not put in a calendar';
+      sel.appendChild(el('option', { value: '', text: first }));
+      list.forEach(function (c) {
+        var tag = c.side && SIDE_WORD[c.side] ? ' (' + SIDE_WORD[c.side] + ')' : '';
+        sel.appendChild(el('option', { value: c.id, text: c.name + tag }));
+      });
+      if (chosen && !list.some(function (c) { return c.id === chosen; }))
+        sel.appendChild(el('option', { value: chosen, text: 'Can no longer be written to: ' + chosen }));
+      sel.value = chosen;
+      sel.disabled = !CALS.connected || !list.length;
+    });
+  }
+  function chooseCal(side) {
+    var sel = $(side === 'work' ? 'calWork' : 'calPersonal'), body = {};
+    body['book_calendar_' + side] = sel.value;
+    API.post('/api/link/settings', body).then(function (st) {
+      S.settings = st; sel.blur();
+      var fb = (CALS && CALS.fallback || {})[side], into = sel.value ? calName(sel.value) || sel.value : fb ? calName(fb) || fb : side === 'work' ? 'the usual calendar' : '';
+      toast(into ? SIDE_WORD[side] + '-side meetings go in ' + into + ' now.' : SIDE_WORD[side] + '-side meetings are not put in a calendar until you choose one.');
+      drawMeetCals();
+    }).catch(function (e) { fail(e); sel.blur(); drawMeetCals(); });
+  }
+
   // A written grant to a delegate: what it may decide for you, with its limits, shown to both people.
   function grantForm(p, box) {
     var mins = el('select', { 'aria-label': 'Longest meeting' });
@@ -302,6 +353,8 @@
         $('bringLink').value = ''; toast('Connected to ' + p.name + '.'); load();
       }).catch(fail).then(function () { $('bringGo').disabled = false; });
     });
+    $('calWork').addEventListener('change', function () { chooseCal('work'); });
+    $('calPersonal').addEventListener('change', function () { chooseCal('personal'); });
     $('mostMembers').addEventListener('change', function () {
       API.post('/api/link/settings', { most_members: +$('mostMembers').value }).then(function () { toast('Spaces hold at most ' + $('mostMembers').value + ' Rouhs now.'); load(); }).catch(fail);
     });
@@ -346,7 +399,7 @@
       try { localStorage.setItem('link-theme', root.getAttribute('data-theme')); } catch (e) {}
     });
     try { var th = localStorage.getItem('link-theme'); if (th) document.documentElement.setAttribute('data-theme', th); } catch (e) {}
-    load();
+    load().then(loadCalendars);
     setInterval(load, 20000);
   });
 })();

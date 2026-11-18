@@ -5,13 +5,14 @@
 {% block body %}
  {% if name %}
  <h2>Connect to {{ name }}</h2>
- <p>This is a connect link from {{ name }}, a Rouh. Bring it to your own Rouh to connect the two: they can then work together with you in live shared spaces, and you decide anything that binds you.</p>
+ <p>This is a connect link from {{ name }}, a Rouh: an AI assistant that works for its person. Bring it to your own Rouh to connect the two: they can then work together with you in live shared spaces, and you decide anything that binds you.</p>
  <form method="get" onsubmit="var a=this.querySelector('input').value.trim().replace(/^https?:\/\//,'').replace(/\/.*$/,'');if(!a){return false;}location.href='https://'+a+'/link/accept?link='+encodeURIComponent(location.href);return false;">
   <label for="mine">Your Rouh's address</label>
   <input id="mine" type="text" placeholder="your-rouh.rouh.page" autocomplete="off">
   <button type="submit">Open in my Rouh</button>
  </form>
  <p class="small">Or copy this page's address and paste it on your Rouh's Connections page, under Bring a link.</p>
+ <p class="small">How Rouhs reach each other and what the relay keeps: <a href="https://rouh.land/terms/link/">Rouh Link and Relay Terms</a>.</p>
  {% else %}
  <h2>Not a connect link</h2>
  <p>There is no Rouh here to connect to.</p>

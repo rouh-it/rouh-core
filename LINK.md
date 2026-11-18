@@ -19,7 +19,7 @@ Rouh Link is part of Rouh's core (`rouh/link/`, gene `rouh-link`, no off switch)
 | Connections | `rouh/link/peers.py` | A connect link (or its QR code), good once for 14 days, optionally for one Rouh only; bringing it to your own Rouh connects at once. A contact's "Their Rouh" line notes that contact's Rouh; a hello from a noted Rouh connects at once, and Connect asks it now. Lowering a level, cutting or blocking is one press, here at once, and every space is held to it again (`spaces.connection_changed`). |
 | Live spaces | `rouh/link/spaces.py`, `rouh/link/doc.py`, `rouh/link/kinds.py` | One room per space, in the process of the Rouh that made it, never on the relay. Every change goes to `spaces.submit`, which checks it, gives it the next number and wakes everyone waiting. Fields: last writer wins. Long text: a text CRDT (RGA: each character has an id, an insert names the one it follows). Lists: items by id, each with last-writer-wins fields. Claims: first to reach the room wins; a person may take any part back. Proposals: never merged. A member's Rouh long-polls the room (`room.poll`) and keeps every confirmed change in its own database; its own changes show at once and wait (outbox, then mailbox) when the room is off, and go on top on its return. The space as it stands is its changes replayed, which makes history, Bring back this version and Undo one Rouh's edits exact. Presence lives in memory only. |
 | A Rouh at work | `rouh/link/worker.py`, `rouh/link/pacing.py` | The person's own words are the only order. A model with no tools (use `link_space_work` on the Models page) reads the space, with what others wrote boxed as untrusted, and answers a plan in a fixed form; code turns it into changes to that space only. A change of four steps or more, or one that removes anything, is said first ("is about to"), with a moment for anyone to press Stop. Edits go a sentence or a row at a time while a person watches; Skip to the end sends the rest. |
-| Book a meeting | `rouh/link/meeting.py` | Find a meeting time asks each other member's Rouh for busy times only (`meeting.ask`), finds three times all are free in working hours, and proposes them in the space. Each person says yes on their own screen; when all said yes to the same time the room marks it agreed, and each Rouh books it in its own person's calendar, with "added by Rouh", because that person said yes to that time. A Rouh that was off answers from the mailbox. |
+| Book a meeting | `rouh/link/meeting.py` | Find a meeting time asks each other member's Rouh for busy times only (`meeting.ask`), finds three times all are free in working hours, and proposes them in the space. Each person says yes on their own screen; when all said yes to the same time the room marks it agreed, and each Rouh books it in its own person's calendar, with "added by Rouh", because that person said yes to that time. A Rouh that was off answers from the mailbox. The meeting's side is the space's, else the one side every other member's connection is on (`meeting.effective_side`); busy times are read from that side's calendars and the calendar it is booked in. Connections, Agreed meetings, sets one calendar per side (`book_calendar_work`, `book_calendar_personal`, only calendars Rouh can write to): Work falls back to the usual calendar; Personal is never guessed: until its calendar is chosen it is not booked and the space says to choose one; choosing then books what waited (`meeting.book_waiting`). A Personal meeting never goes in the work calendar by default. |
 | The orb | `app/orb.js`, `app/orb3d.js`, `link_partner_working` | A second, amber ring (or halo) while a partner's Rouh is at work in a live space with this one. |
 
 ## Phase 2: everything live, small groups
@@ -40,7 +40,7 @@ Rouh Link is part of Rouh's core (`rouh/link/`, gene `rouh-link`, no off switch)
 | Delegate grants | `rouh/link/grants.py`, Connections | Written to a connection trusted as Delegate: what (meetings), limits (longest meeting, weekdays, hours, most a week; money always 0), its words, an end, signed. Sent to the other side (`grant.shown`) and shown on both Connections pages. The delegate's person says yes for the granter (`grant.decide`); the granter's own code checks the grant is in force, of this kind, and every limit, then records the yes as the granter's, "by grant", or refuses, saying which limit. Withdraw is one press; from then on every decision is refused and the other side is told. |
 | Work and Personal apart | `trust.silo_ok`, `spaces.invite`, `meeting.my_busy`, Connections | Each connection and each space has a side. A space of one side is never offered to, joined by or kept with a connection of the other (a change of side or level takes it out at once); a meeting reads only the calendars of the space's side; a space is started with its side. |
 
-## Phase 4: strangers and hand-offs (built, held off)
+## Phase 4: strangers and hand-offs (built; each Rouh's owner turns it on)
 
 | Piece | Where | What |
 |---|---|---|
@@ -50,9 +50,9 @@ Rouh Link is part of Rouh's core (`rouh/link/`, gene `rouh-link`, no off switch)
 | Money only as a proposal | `handoff.send_money`, `/link/money/<id>` | A proposal of money is shown on a page of its own with no AI on it; only the person's own press says "I agree", signed into the log. Nothing is ever paid by Rouh Link. |
 | Block in one press | Connections | Blocked: every message from that Rouh is refused before it is read. |
 
-**Held off for every Rouh**: the strangers switch cannot be turned on until `ROUH_LINK_OPEN=1` (rouh.land's terms covering the relay and Rouhs talking); with it held, a Rouh with no link is refused. Test worlds lift it with `ROUH_TEST_LINK_OPEN=1`.
+**The hold**: the strangers switch cannot be turned on unless the installation sets `ROUH_LINK_OPEN=1`; with it held, a Rouh with no link is refused. rouh.land's terms cover the relay and Rouhs talking since 18 November 2026 (https://rouh.land/terms/link/, the Rouh Link and Relay Terms), so an installation may set it; the creator's own did that day. Test worlds lift it with `ROUH_TEST_LINK_OPEN=1`.
 
-## Phase 5: the open network (built, held off)
+## Phase 5: the open network (built; each Rouh's owner turns it on)
 
 | Piece | Where | What |
 |---|---|---|
@@ -61,7 +61,7 @@ Rouh Link is part of Rouh's core (`rouh/link/`, gene `rouh-link`, no off switch)
 | Spaces with many members | `me.DEFAULTS["most_members"]`, Connections | The owner chooses how many Rouhs a space holds: 5, 10, 25 or 50. |
 | Other makers' agents | `/link/a2a`, `open_network.a2a_endpoint` | Any A2A agent may send `message/send` (JSON-RPC). It is read as a Stranger's note and less: its text parts only, by code, into one fixed form (`a2a.note`) kept for the person to read; it is answered with one fixed sentence; 20 a minute from one network. Nothing it says is obeyed. |
 
-**Held off for every Rouh**, like phase 4: the open network and being found by email cannot be turned on until `ROUH_LINK_OPEN=1`.
+**The hold**, like phase 4: the open network and being found by email cannot be turned on unless the installation sets `ROUH_LINK_OPEN=1`.
 
 ## The pages
 
@@ -71,9 +71,12 @@ Rouh Link is part of Rouh's core (`rouh/link/`, gene `rouh-link`, no off switch)
 - A contact card: Their Rouh.
 - `/link/join/<secret>`: a connect link opened in a browser; it says what it is and sends the person to their own Rouh.
 
-## Off for now
+## The terms, and what each owner turns on
 
-Reaching strangers, other makers' agents and being found by email are held off for every Rouh until rouh.land's terms cover the relay and Rouhs talking (the gap task 131 found in step 131-10). `ROUH_LINK_OPEN=1` lifts the hold for an installation; then its owner turns each on, on Connections. Nothing involving money moves, in any phase.
+rouh.land's Rouh Link and Relay Terms (https://rouh.land/terms/link/, since 18 November 2026, part of rouh.land's Terms; task 131, step 131-10) cover the relay, the mailbox, being found by email and Rouhs working together. Connections, the connect-link page, mailbox.rouh.page and the relay's empty-address page link them.
+Reaching strangers, other makers' agents and being found by email stay held for an installation until it sets `ROUH_LINK_OPEN=1`; then its owner turns each on, on Connections ("Who else may reach your Rouh"); each starts off.
+Every Rouh says it is an AI (the EU AI Act's Article 50, the Terms' section 8): its card's description, the connect-link page, and its fixed answer to other makers' agents.
+Nothing involving money moves, in any phase: money is only a proposal a person agrees to on a page with no AI.
 
 ## Proving it
 

@@ -30,8 +30,9 @@ from . import forms, log
 A2A_PER_MINUTE = 20
 _SEEN: dict[str, deque] = {}
 _LOCK = threading.Lock()
-ANSWER = ("Received. This Rouh keeps your message for its person to read; nothing in it is acted on. "
-          "If its person wants to answer, they will.")
+#: Says it is an AI first (the EU AI Act's Article 50; rouh.land's Rouh Link and Relay Terms, section 8).
+ANSWER = ("Received by a Rouh, an AI assistant. It keeps your message for its person to read; nothing in it is "
+          "acted on. If its person wants to answer, they will. Terms: https://rouh.land/terms/link/")
 
 
 def _rate(key: str) -> bool:

@@ -371,11 +371,43 @@ async def api_settings(request):
                 await sync_to_async(open_network.set_findable)(str(me.org_id), bool(b["findable_by_email"]))
             if "most_members" in b:
                 b["most_members"] = max(2, min(50, int(b.get("most_members") or 5)))
-            return await sync_to_async(_me.set_settings)(str(me.org_id), **{k: v for k, v in b.items() if k in _me.DEFAULTS})
+            chose = [k for k in ("book_calendar_work", "book_calendar_personal") if k in b]
+            for k in chose:
+                b[k] = str(b.get(k) or "").strip()[:300]
+                if b[k]:
+                    from rouh.link import meeting
+
+                    got = await meeting.writable_calendars(str(me.org_id))
+                    one = next((c for c in got.get("calendars") or [] if c["id"] == b[k]), None)
+                    if one is None:
+                        raise ValueError("That calendar is not one this Rouh can put meetings in.")
+                    side = k.rsplit("_", 1)[1]
+                    if one.get("side") and one["side"] not in (side, "*"):
+                        raise ValueError(f"{one['name']} is on the {meeting._side_words(one['side'])} side, so "
+                                         f"{meeting._side_words(side)} meetings do not go in it.")
+            kept = await sync_to_async(_me.set_settings)(str(me.org_id), **{k: v for k, v in b.items() if k in _me.DEFAULTS})
+            if chose:
+                from rouh.link import meeting
+
+                asyncio.ensure_future(meeting.book_waiting(str(me.org_id)))
+            return kept
         except ValueError as exc:
             from rouh.link import peers
 
             raise peers.Problem(str(exc)) from None
+    return await _guard(request, go)
+
+
+@only("GET")
+async def api_calendars(request):
+    """The calendars Connections offers for agreed meetings, one choice per side: the owner's
+    calendars this Rouh may write to (owner or writer), each with its side by the silo rules."""
+    from rouh.link import meeting
+
+    async def go(me, b):
+        if not getattr(me, "is_admin", False):
+            return {"connected": False, "calendars": [], "fallback": {}, "admin": False}
+        return await meeting.writable_calendars(str(me.org_id))
     return await _guard(request, go)
 
 
