@@ -345,6 +345,8 @@ export interface Blocks {
              directions?: boolean;
              /** Send their card under the rows, while Send their contact card is on (rouh/card_share.py). */
              share?: boolean;
+             /** Files they can open under the rows, while Files they can open is on (rouh/their_files.py). */
+             files?: boolean;
              /** A pet's card: its kind, and the contacts it belongs to (rouh/pets.py). */
              pet?: { species?: string; owners?: Array<{ id: string; name: string; photo?: string; }>; kinds?: string[]; };
              /** A person's card: their pets, each one press from its own card, and the kinds offered for a new one. */

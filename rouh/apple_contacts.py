@@ -1480,6 +1480,10 @@ def profile_card(person, *, state: str = SHOWN, status: str = "") -> dict:
     from . import card_share
 
     card_share.mark(block, person)
+    # Files they can open (night 47, `rouh/their_files.py`): which of the person's files they can open.
+    from . import their_files
+
+    their_files.mark(block, person)
     return {"title": f"{'You' if person.is_me else 'Contact'}: {name}",
             "description": (f"the contact {name}, with who they are to you and the online "
                             "research about them"),
@@ -1545,6 +1549,10 @@ def contact_card(after, before, state: str, *, remark: str = "", person=None,
     from . import card_share
 
     card_share.mark(block, person)
+    # Files they can open (night 47, `rouh/their_files.py`): which of the person's files they can open.
+    from . import their_files
+
+    their_files.mark(block, person)
     return {"title": title, "description": description, "blocks": [block]}
 
 

@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 
 from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, calendar_away, clock, demo,
                composing, conversations, filing, imaging, inbox, inbox_grants, inboxes,
-               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, past_guard, open_files, share_twice, take_off, link_access, rouh_invited, no_company, sent_twice, same_contact, draft_twice, contact_card, pets, forward_twice, contact_changes, relationships, postal_address, related_people, meeting_hours, meet_link, no_place,
+               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, past_guard, open_files, share_twice, share_address, share_until, take_off, link_access, rouh_invited, no_company, sent_twice, same_contact, draft_twice, contact_card, pets, forward_twice, contact_changes, relationships, postal_address, related_people, meeting_hours, meet_link, no_place,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer, reply_times,
                their_clock, their_hours, unread_lists, their_language, promised_to_you,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer,
@@ -6974,6 +6974,8 @@ class ToolRegistry:
                                          "enum": ["reader", "commenter", "writer"],
                                          "description": "What they may do with it. "
                                                         "Default reader."},
+                                # Shared until a day (night 47, `rouh/share_until.py`).
+                                "until": share_until.FIELD,
                             },
                             "required": ["email"],
                         },
@@ -6985,6 +6987,8 @@ class ToolRegistry:
                                               "send them the link yourself."},
                     "message": {"type": "string",
                                 "description": "A line to put in that invitation mail."},
+                    # A mistyped address caught when sharing (night 47, `rouh/share_address.py`).
+                    "address_checked": share_address.FIELD,
                 },
                 "required": ["file_id"],
             },
@@ -7483,6 +7487,8 @@ class ToolRegistry:
                     "even_if_twice": not_twice.FIELD,
                     # Not booked in the past (night 45, `rouh/past_guard.py`).
                     "even_if_past": past_guard.FIELD,
+                    # A mistyped address caught when inviting (night 47, `rouh/share_address.py`).
+                    "address_checked": share_address.FIELD,
                 },
                 "required": ["title", "start"],
             },
@@ -10320,6 +10326,14 @@ class ToolRegistry:
         link = name = ""
         notify = args.get("notify")
         notify = True if notify is None else bool(notify)
+        named = [(one if isinstance(one, str) else (one or {}).get("email") or "")
+                 for one in args.get("people") or [] if isinstance(one, (str, dict))]
+        if named and not args.get("address_checked"):
+            # A mistyped address caught when sharing (night 47, `rouh/share_address.py`): held
+            # before anything about the file changes.
+            stop = await self._share_address(named, booking=False)
+            if stop:
+                return did, link, name, stop
         try:
             wanted = str(args.get("anyone_with_link") or "").strip().lower()
             if wanted in ("off", "none", "private", "no"):
@@ -10336,6 +10350,11 @@ class ToolRegistry:
             people = [({"email": one} if isinstance(one, str) else one)
                       for one in args.get("people") or []]
             people = [one for one in people if isinstance(one, dict)]
+            # Shared until a day (night 47, `rouh/share_until.py`): every end read before anybody
+            # is shared, so a day that cannot be is said with nothing changed for anyone.
+            ends, stop = await self._share_until(people)
+            if stop:
+                return did, link, name, stop
             held = await self._share_twice_held(drive, file_id) if people else None
             for one in people:
                 if held is not None:
@@ -10349,11 +10368,20 @@ class ToolRegistry:
                                                 who=self.google.person(),
                                                 detail=f"not shared again: could already {has}")
                         continue
+                end = ends.get(id(one))
                 given = await drive.share_with_person(
                     file_id, one.get("email") or "", one.get("role") or "reader",
-                    notify=notify, message=(args.get("message") or "").strip())
+                    notify=notify, message=(args.get("message") or "").strip(),
+                    expires=share_until.rfc3339(end) if end else "")
                 did.append(f"{given['email']} can now {can(given['role'])} it"
+                           + (f" until {share_until.day_said(end, clock.zone_of(self.google.person()))}, "
+                              "when Google takes it away by itself" if end else "")
                            + ("" if notify else ", and Google told them nothing"))
+                if end:
+                    from . import evolution
+
+                    await asyncio.to_thread(evolution.used, share_until.SWITCH, "shared", who=self.google.person(),
+                                            detail=f"shared to {given['role']} for {(end - datetime.now(end.tzinfo)).days + 1} days")
             if did and not link:
                 # Only people were named, so nothing has fetched the file yet.
                 # The link is asked for once, at the end: it is what Rouh
@@ -10363,6 +10391,49 @@ class ToolRegistry:
         except Exception as exc:
             return did, link, name, _google_trouble(exc)
         return did, link, name, ""
+
+    async def _share_until(self, people: list[dict]) -> tuple[dict, str]:
+        """Shared until a day (night 47, `rouh/share_until.py`): {id(person): when it ends} for each
+        person given `until`, or why nothing is shared."""
+        asked = [one for one in people if str(one.get("until") or "").strip()]
+        if not asked:
+            return {}, ""
+        who = self.google.person()
+        if not await asyncio.to_thread(share_until.on, who):
+            return {}, ("Not shared, and nobody was given the file: sharing until a day is switched off "
+                        "(Shared until a day, in Evolution, Mutations). Say so, and share it with no end "
+                        "only if the person agrees.")
+        zone = clock.zone_of(who)
+        ends: dict = {}
+        for one in asked:
+            try:
+                ends[id(one)] = share_until.expires(one.get("until"), zone)
+            except ValueError as exc:
+                return {}, f"Not shared, and nobody was given the file: {exc}"
+        return ends, ""
+
+    async def _share_address(self, addresses: list[str], *, booking: bool) -> str:
+        """A mistyped address caught when sharing or inviting (night 47, `rouh/share_address.py`):
+        why not, when an address is a letter or two off one the person has; "" when it is off or
+        all is well."""
+        who = self.google.person()
+        if not await asyncio.to_thread(share_address.on, who):
+            return ""
+        try:
+            found = await asyncio.to_thread(share_address.check, who, addresses)
+        except Exception:  # noqa: BLE001 - shared as asked when the check itself cannot be made
+            log.exception("the addresses to share with could not be checked")
+            return ""
+        if not found:
+            return ""
+        from . import evolution
+
+        detail = f"{len(found)} address{'es' if len(found) != 1 else ''} held"
+        if booking:
+            await asyncio.to_thread(evolution.used, "share_address", "held_invite", who=who, detail=detail)
+        else:
+            await asyncio.to_thread(evolution.used, "share_address", "held_share", who=who, detail=detail)
+        return share_address.said(found, booking=booking)
 
     async def _share_twice_held(self, drive, file_id: str) -> list[dict] | None:
         """Not shared twice (night 46, `rouh/share_twice.py`): who can already open the file, read
@@ -10496,10 +10567,15 @@ class ToolRegistry:
         # Widest access first: a link anyone can open is the thing somebody
         # asking "who can see this" is really asking about, and the owner is
         # the answer they already know.
+        zone = None
         for one in sorted(held, key=_how_wide):
             said = f"{one['who']} can {can(one['role'])} it"
             if one["email"] and one["email"] not in one["who"]:
                 said += f" ({one['email']})"
+            if one.get("until"):
+                # Shared until a day (night 47, `rouh/share_until.py`): when Google ends it.
+                zone = zone or clock.zone_of(self.google.person())
+                said += f", until {share_until.day_said(one['until'], zone)}, when Google takes it away"
             lines.append(said)
         return (f"{about['name']!r} - {about['link']}\n" + "\n".join(lines)
                 + f"\nfile id {file_id}")
@@ -10974,6 +11050,11 @@ class ToolRegistry:
             if refused:
                 return untrusted.ours(refused)
             checked = ""
+            if guests and not args.get("address_checked"):
+                # A mistyped address caught when inviting (night 47, `rouh/share_address.py`).
+                stop = await self._share_address(guests, booking=True)
+                if stop:
+                    return untrusted.ours(stop)
             if not args.get("even_if_past"):
                 # Not booked in the past (night 45, `rouh/past_guard.py`): a time already gone.
                 stop = await self._past_guard(args.get("start"), title)

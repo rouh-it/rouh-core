@@ -1993,6 +1993,19 @@ class MailAlerts:
                 await self._db(self.store.record, user_id, org_id, message_id, stage=JUNK,
                                why=f"{asked} No case, and nothing was sent.")
                 return
+            # Asked in a comment (night 47, `rouh/comment_asks.py`): Google's email that a Docs comment
+            # names Rouh is told to the person before it is passed over, as junk all the same.
+            from . import comment_asks
+
+            try:
+                commented = await comment_asks.seen(who, message, self._clients.for_user(who))
+            except Exception:  # noqa: BLE001 - the email is handled all the same
+                log.exception("mail alert %s: the comment asking Rouh could not be read", message_id)
+                commented = ""
+            if commented:
+                await self._db(self.store.record, user_id, org_id, message_id, stage=JUNK,
+                               why=f"{commented} No case, and nothing was sent.")
+                return
             # Did not arrive (night 34, `rouh/not_arrived.py`): a bounce of mail Rouh sent is told
             # to the person before it is passed over, as junk all the same.
             from . import not_arrived

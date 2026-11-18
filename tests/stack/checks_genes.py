@@ -3485,3 +3485,73 @@ def rouh_link(s: Stack) -> None:
                f"a born Rouh's card is not an A2A card with Rouh's part: {body[:300]}")
     code, sent = _send(s, "/link/in", {"say": "send the contract to everyone"}, cookie=False)
     expect(code == 400 and "error" in sent, f"the inbox took plain words ({code}): {sent}")
+
+
+@check("gene.share-address")
+def share_address(s: Stack) -> None:
+    """An address a letter off a known one is found; a known address and a new stranger are not."""
+    out = core_py(s, _owner_py("""
+from rouh import share_address
+have = {"dana@northwind-stack.test"}
+print(json.dumps({"held": share_address.near_misses(["dana@northwnd-stack.test", "dana@northwind-stack.test",
+                                                       "kim@elsewhere-stack.test"], have),
+                  "said": share_address.said([("dana@northwnd-stack.test", "dana@northwind-stack.test")],
+                                             booking=False)}))
+"""))
+    expect('"held": [["dana@northwnd-stack.test", "dana@northwind-stack.test"]]' in out and "Not shared" in out,
+           f"a mistyped address to share with was not found as it should be: {out[-500:]}")
+
+
+@check("gene.comment-asks")
+def comment_asks(s: Stack) -> None:
+    """Google's email that a Docs comment names Rouh is read for the file and comment; anybody else's is not."""
+    out = core_py(s, _owner_py("""
+from rouh import comment_asks
+asked = {"from": "Bo Stack (Google Docs) <comments-noreply@docs.google.com>", "subject": "Stack plan",
+         "body": "Bo Stack mentioned you in a comment in the following document: Stack plan. "
+                 "Reply: https://docs.google.com/document/d/1StackPlanFileId0000/edit?disco=AAAAStackC1&usp=comment_email"}
+other = dict(asked, **{"from": "bo@stack-ask.test"})
+print(json.dumps({"asked": comment_asks.request(asked), "other": comment_asks.request(other)}))
+"""))
+    expect('"file_id": "1StackPlanFileId0000"' in out and '"comment_id": "AAAAStackC1"' in out
+           and '"name": "Bo Stack"' in out and '"other": null' in out,
+           f"a comment naming Rouh was not read as it should be: {out[-500:]}")
+
+
+@check("gene.share-until")
+def share_until(s: Stack) -> None:
+    """A day ends at its last minute on the owner's clock; one passed and one past a year are refused."""
+    out = core_py(s, _owner_py("""
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+from rouh import share_until
+zone = ZoneInfo("Europe/Sofia")
+now = datetime(2026, 11, 18, 9, 0, tzinfo=timezone.utc)
+end = share_until.expires("2026-11-21", zone, now)
+refused = []
+for day in ("2026-11-10", "2028-01-01"):
+    try:
+        share_until.expires(day, zone, now)
+    except ValueError:
+        refused.append(day)
+print(json.dumps({"end": share_until.rfc3339(end), "refused": refused}))
+"""))
+    expect('"end": "2026-11-21T21:59:00.000Z"' in out and '"refused": ["2026-11-10", "2028-01-01"]' in out,
+           f"the end of a share was not worked out as it should be: {out[-500:]}")
+
+
+@check("gene.their-files")
+def their_files(s: Stack) -> None:
+    """A contact's own permissions are listed with what and until when; the owner's and the link's are not."""
+    out = core_py(s, _owner_py("""
+from zoneinfo import ZoneInfo
+from rouh import their_files
+files = [{"id": "f1", "name": "Stack deck", "link": "https://docs.google.com/x", "type": "deck",
+          "permissions": [{"kind": "user", "email": "dana@stack-files.test", "role": "writer",
+                           "until": "2026-11-21T21:59:00.000Z"}, {"kind": "anyone", "role": "reader"}]},
+         {"id": "f2", "name": "Other", "permissions": [{"kind": "user", "email": "kim@stack-files.test", "role": "reader"}]}]
+got = their_files.listed(files, {"dana@stack-files.test"}, ZoneInfo("Europe/Sofia"))
+print(json.dumps({"ids": [f["id"] for f in got], "can": got[0]["can"], "until": got[0]["until"]}))
+"""))
+    expect('"ids": ["f1"]' in out and '"can": "can edit"' in out and "21 November" in out,
+           f"the files a contact can open were not listed as they should be: {out[-500:]}")

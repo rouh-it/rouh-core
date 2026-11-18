@@ -364,11 +364,18 @@ def _drive_routes(app, world, seen, note, made_up, file_named, drive_named, hold
                 "role": body.get("role") or "reader"}
         if body.get("emailAddress"):
             made["emailAddress"] = body["emailAddress"]
+        if body.get("expirationTime"):
+            # Drive keeps when the access ends, and only for a person or a group.
+            if made["type"] not in ("user", "group"):
+                return _refused("Expiration dates can only be set on user and group permissions.",
+                                400, "expirationDatesOnlyForUsersAndGroups")
+            made["expirationTime"] = str(body["expirationTime"])
         found.setdefault("permissions", []).append(made)
         note("shared drive member added" if found in world["drives"] else "file shared",
              {"id": file_id, "name": found.get("name", ""),
                              "type": made["type"], "role": made["role"],
                              "email": made.get("emailAddress", ""),
+                             "until": made.get("expirationTime", ""),
                              "notified": sendNotificationEmail == "true",
                              "message": emailMessage})
         return JSONResponse(made)

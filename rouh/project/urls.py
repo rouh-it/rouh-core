@@ -63,7 +63,7 @@ from rouh.web import (apple, assets, auth, boxes, brief, changes as changes_web,
                       page_gdoc as page_gdoc_web, page_listen as page_listen_web, read_aloud as read_aloud_web, page_pdf as page_pdf_web,
                       pagestate as pagestate_web,
                       since_read as since_read_web,
-                      doc_on_page as doc_on_page_web, meeting_attach as meeting_attach_web, task_docs as task_docs_web, to_send as to_send_web, open_items as open_items_web, task_time as task_time_web, not_arrived as not_arrived_web, away_after as away_after_web, new_number as new_number_web, new_address as new_address_web, new_company as new_company_web, told_address as told_address_web, card_call as card_call_web, card_directions as card_directions_web, new_title as new_title_web, sig_address as sig_address_web, rouh_invited as rouh_invited_web, access_asked as access_asked_web, card_share as card_share_web, renewal as renewal_web, objecttreeapi, taskapi, telegram_account, service_keys as service_keys_web, trusted, views)
+                      doc_on_page as doc_on_page_web, meeting_attach as meeting_attach_web, task_docs as task_docs_web, to_send as to_send_web, open_items as open_items_web, task_time as task_time_web, not_arrived as not_arrived_web, away_after as away_after_web, new_number as new_number_web, new_address as new_address_web, new_company as new_company_web, told_address as told_address_web, card_call as card_call_web, card_directions as card_directions_web, new_title as new_title_web, sig_address as sig_address_web, rouh_invited as rouh_invited_web, access_asked as access_asked_web, comment_asks as comment_asks_web, card_share as card_share_web, their_files as their_files_web, renewal as renewal_web, objecttreeapi, taskapi, telegram_account, service_keys as service_keys_web, trusted, views)
 
 
 def _admin_sign_in(request, extra_context=None):
@@ -299,6 +299,8 @@ urlpatterns = [
     path("api/card-call", card_call_web.pressed),
     path("api/card-directions", card_directions_web.pressed),
     path("api/contact-card/<str:contact>", card_share_web.vcard),
+    path("api/contact-files/<str:contact>", their_files_web.listing),
+    path("api/contact-files/<str:contact>/take-off", their_files_web.take_off),
     # Listen to this page, the speaker in a page's floating control (`rouh/web/page_listen.py`,
     # `rouh/page_listen.py`), carried by the canvas's relay.
     path("api/page-listen", page_listen_web.for_owner),
@@ -569,6 +571,7 @@ urlpatterns = [
     path("mail/new-address-sig/<str:key>", sig_address_web.add_it),
     path("mail/rouh-invited/<str:key>", rouh_invited_web.put_it_on),
     path("mail/access-asked/<str:key>", access_asked_web.let_in),
+    path("mail/comment-asks/<str:key>", comment_asks_web.answer_it),
     path("mail/renewal/<str:key>", renewal_web.open_it),
     path("mail/case/<str:key>", trusted.case),
     path("mail/case/<str:key>/trace", trusted.case_trace),

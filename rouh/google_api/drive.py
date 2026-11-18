@@ -755,7 +755,8 @@ class Drive:
                 "role": role, "permission_id": made.get("id") or ""}
 
     async def share_with_person(self, file_id: str, email: str, role: str = "reader",
-                                *, notify: bool = True, message: str = "") -> dict:
+                                *, notify: bool = True, message: str = "",
+                                expires: str = "") -> dict:
         """Give one named address access, by their Google account.
 
         `notify` is Google's own invitation mail, sent from the person's own
@@ -776,13 +777,15 @@ class Drive:
             self._who, "POST",
             self._url("/files/" + urllib.parse.quote(file_id) + "/permissions"),
             params=params,
-            json_body={"type": "user", "role": role, "emailAddress": address},
+            json_body={"type": "user", "role": role, "emailAddress": address,
+                       **({"expirationTime": expires} if expires else {})},
             needs_scope=DRIVE_SCOPE)
         # No metadata lookup here, unlike `share_with_link`: sharing with five
         # people would be five round trips for the same answer, and the caller
         # that wants the link asks for it once when it is finished.
         return {"id": file_id, "email": address, "role": role,
-                "notified": bool(notify), "permission_id": made.get("id") or ""}
+                "notified": bool(notify), "permission_id": made.get("id") or "",
+                "until": made.get("expirationTime") or expires or ""}
 
     async def remove_permission(self, file_id: str, permission_id: str) -> None:
         """Take one permission off a file: one person, group, company or the link (Taken off your
@@ -927,8 +930,8 @@ class Drive:
 #: there for a person Google can name; the link permission has none, which is
 #: why `_a_permission` falls back to the kind of thing it is.
 PERMISSION_FIELDS = ("permissions(id,type,role,emailAddress,displayName,domain,"
-                     "allowFileDiscovery)")
-PERMISSION_FIELDS_ONE = "id,type,role,emailAddress,displayName,domain"
+                     "allowFileDiscovery,expirationTime)")
+PERMISSION_FIELDS_ONE = "id,type,role,emailAddress,displayName,domain,expirationTime"
 
 #: The three things somebody can be allowed to do, and the words for them.
 #: Drive has others - owner, organizer - which are read back but never handed
@@ -1036,7 +1039,8 @@ def _a_permission(one: dict) -> dict:
     return {"id": one.get("id") or "", "who": who, "kind": kind,
             "role": one.get("role") or "", "email": email,
             "discoverable": bool(one.get("allowFileDiscovery")),
-            "domain": (one.get("domain") or "").lower()}
+            "domain": (one.get("domain") or "").lower(),
+            "until": one.get("expirationTime") or ""}
 
 
 def _a_listed_file(found: dict) -> dict:

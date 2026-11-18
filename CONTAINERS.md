@@ -435,6 +435,10 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `gene.access-asked` | Asked to open a file | untested | works | Google's request for access is read for who asked, which file and to do what; an email from anybody else is not | not checked |
 | `gene.take-off` | Taken off your files | untested | works | a person or everybody at a company is matched on a file's sharing; the owner and the link anyone can open never are | not checked |
 | `gene.link-access` | A link they can open | untested | works | an email linking a Drive file somebody it goes to cannot open is held with who and which file; one everybody can open is not | not checked |
+| `gene.share-address` | A mistyped address caught when sharing | untested | works | an address a letter off a known one is found with the one it is meant to be; a known address and a new stranger are not | not checked |
+| `gene.comment-asks` | Asked in a comment | untested | works | Google's email that a Docs comment names Rouh is read for the file and the comment; an email from anybody else is not | not checked |
+| `gene.share-until` | Shared until a day | untested | works | a day ends at its last minute on the owner's clock, in UTC for Google; a day passed and one more than a year away are refused | not checked |
+| `gene.their-files` | Files they can open | untested | works | a contact's own permissions on files are listed with what they can do and until when; the owner's, the link's and other people's are not | not checked |
 | `core.commands-open-credentials` | A command run in the core beside Rouh (`docker compose exec core python manage.py ...`) opens what Rouh sealed | broken | works | with Google connected, Python in the core opens the sealed refresh token with the key from the keys volume (`ROUH_ENCRYPTION_KEY_FILE`), and Google is still connected after. It was broken: only the core's start put the key in Rouh's environment, so a command beside it made a key of its own in `/data`, could open no credential, and marked the owner's Google to be connected again | not checked |
 
 ## Rouh on Windows

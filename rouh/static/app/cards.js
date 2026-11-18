@@ -1021,6 +1021,101 @@ function contactShare(b) {
   return line;
 }
 
+/* ---------- Files they can open (night 47, rouh/their_files.py) ----------
+
+   A card marked `files` has Files they can open under its rows: one press
+   reads which of the person's own Drive files the contact can open
+   (GET /api/contact-files/<id>) and lists them, each with what they can do,
+   when it ends, and Take off, which takes their own access off that file
+   alone (POST /api/contact-files/<id>/take-off). Nothing is read before. */
+
+function contactFiles(b) {
+  var box = el('div', 'ct-files');
+  var line = el('div', 'ct-share');
+  var button = el('button', 'ct-act', 'Files they can open');
+  button.type = 'button';
+  button.setAttribute('aria-expanded', 'false');
+  button.setAttribute('aria-label', 'Which of your files ' + (b.name || 'they') + ' can open');
+  var said = el('span', 'ct-share-said');
+  said.setAttribute('role', 'status');
+  line.appendChild(button);
+  line.appendChild(said);
+  box.appendChild(line);
+  var list = el('ul', 'ct-files-list');
+  list.hidden = true;
+  box.appendChild(list);
+  var base = '/api/contact-files/' + encodeURIComponent(String(b.contact));
+
+  function answer(got) {
+    return got.json().catch(function () { return {}; }).then(function (body) {
+      if (!got.ok || (body && body.error)) throw new Error((body && (body.error || body.message)) || 'Your files could not be read.');
+      return body;
+    });
+  }
+
+  function row(f) {
+    var li = el('li', 'ct-file');
+    var name;
+    if (f.link) {
+      var a = /** @type {HTMLAnchorElement} */ (el('a', 'ct-file-name', f.name));
+      a.href = f.link; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      name = a;
+    } else {
+      name = el('span', 'ct-file-name', f.name);
+    }
+    var what = el('span', 'ct-file-can', f.can + (f.until ? ' until ' + f.until : ''));
+    var text = el('span', 'ct-file-text');
+    text.appendChild(name);
+    text.appendChild(what);
+    li.appendChild(text);
+    var off = el('button', 'ct-act ct-file-off', 'Take off');
+    off.type = 'button';
+    off.setAttribute('aria-label', 'Take ' + (b.name || 'them') + ' off ' + f.name);
+    off.addEventListener('click', function () {
+      off.disabled = true;
+      fetch(base + '/take-off', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: f.id })
+      }).then(answer).then(function (body) {
+        li.classList.add('is-gone');
+        what.textContent = body.said || 'Taken off.';
+        off.remove();
+      }).catch(function (e) {
+        what.textContent = (e && e.message) || 'They could not be taken off.';
+        off.disabled = false;
+      });
+    });
+    li.appendChild(off);
+    return li;
+  }
+
+  button.addEventListener('click', function () {
+    if (!list.hidden) {
+      list.hidden = true;
+      button.setAttribute('aria-expanded', 'false');
+      return;
+    }
+    button.disabled = true;
+    said.textContent = 'Reading your files\u2026';
+    fetch(base, { credentials: 'same-origin' }).then(answer).then(function (body) {
+      list.textContent = '';
+      var files = body.files || [];
+      files.forEach(function (f) { list.appendChild(row(f)); });
+      if (!files.length) {
+        list.appendChild(el('li', 'ct-file ct-file-none', (b.name || 'They') + ' can open none of your files by name.'));
+      }
+      said.textContent = files.length
+        ? files.length + ' file' + (files.length === 1 ? '' : 's') + (body.more ? ', and ' + body.more + ' more' : '')
+        : '';
+      list.hidden = false;
+      button.setAttribute('aria-expanded', 'true');
+    }).catch(function (e) {
+      said.textContent = (e && e.message) || 'Your files could not be read.';
+    }).then(function () { button.disabled = false; });
+  });
+  return box;
+}
+
 function contactCalled(how) {
   try {
     fetch('/api/card-call', {
@@ -1110,6 +1205,7 @@ function contactBlock(b) {
     node.appendChild(petKind(b));
   }
   if (b.share && b.contact) node.appendChild(contactShare(b));
+  if (b.files && b.contact) node.appendChild(contactFiles(b));
   if (listed) {
     var addresses = window.RouhAddresses.list({ data: b.addresses, ds: b.people_ds, editable: !!b.contact });
     addresses.classList.add('ct-own', 'is-addresses');
@@ -1171,7 +1267,7 @@ function contactRouh(b) {
       body.appendChild(el('p', 'ct-rel', said));
       var acts = el('div', 'ct-rouh-acts');
       acts.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap';
-      var go = el('a', 'ct-own-edit', 'Open Connections');
+      var go = el('a', 'ct-edit', 'Open Connections');
       go.setAttribute('href', '/link');
       acts.appendChild(go);
       if (line.state === 'noted') acts.appendChild(button('Connect', true));
@@ -1182,17 +1278,24 @@ function contactRouh(b) {
     input.setAttribute('aria-label', 'Their Rouh’s address');
     input.setAttribute('placeholder', 'their-rouh.rouh.page');
     body.appendChild(input);
-    var save = el('button', 'ct-own-edit', 'Save');
+    // The card's own button look (`ct-edit`, as Add a pet), in a row under the field: `ct-own-edit`
+    // has no style of its own, so these drew as the browser's grey buttons.
+    var row = el('div', 'ct-rouh-acts');
+    row.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px';
+    var save = el('button', 'ct-edit', 'Save');
     save.type = 'button';
     save.addEventListener('click', function () { keep(input.value, false); });
-    body.appendChild(save);
-    var con = el('button', 'ct-own-edit', 'Save and connect');
+    row.appendChild(save);
+    var con = el('button', 'ct-edit', 'Save and connect');
     con.type = 'button';
     con.addEventListener('click', function () { keep(input.value, true); });
-    body.appendChild(con);
+    row.appendChild(con);
+    // `ct-edit` sits at the right of a section's heading; under a field the two start at the left.
+    [save, con].forEach(function (one) { one.style.marginLeft = '0'; });
+    body.appendChild(row);
   }
   function button(words, connect) {
-    var bt = el('button', 'ct-own-edit', words);
+    var bt = el('button', 'ct-edit', words);
     bt.type = 'button';
     bt.addEventListener('click', function () { keep('', connect, true); });
     return bt;

@@ -3350,6 +3350,66 @@
    "files": [
     "rouh/link/meeting.py"
    ]
+  },
+  "n47-share-address": {
+   "name": "A mistyped address caught when sharing",
+   "what": "Before Rouh shares a file with somebody by name, or invites a guest to a meeting, each address is compared with the ones you already have; one that is a letter or two off a known one is not shared or invited, and Rouh asks whether you meant the known one.",
+   "switch": "share_address",
+   "signals": {
+    "events": {
+     "held_share": "You asked Rouh to share a file with an address a letter or two off one you know, and it asked first",
+     "held_invite": "You asked Rouh to invite a guest at an address a letter or two off one you know, and it asked first"
+    }
+   },
+   "files": [
+    "rouh/share_address.py"
+   ]
+  },
+  "n47-comment-asks": {
+   "name": "Asked in a comment",
+   "what": "When somebody names Rouh in a Google Docs comment or gives it an action item, Google's email to Rouh's inbox is told to you at once in a notice, with the comment's words, Open the comment and Say Rouh has seen it.",
+   "switch": "comment_asks",
+   "signals": {
+    "events": {
+     "opened": "You pressed Open the comment on a notice about a comment asking Rouh",
+     "answered": "You pressed Say Rouh has seen it, and Rouh wrote it under the comment"
+    },
+    "runs": {
+     "told": "A comment asking Rouh reached its inbox and was told in a notice"
+    }
+   },
+   "files": [
+    "rouh/comment_asks.py",
+    "rouh/web/comment_asks.py"
+   ]
+  },
+  "n47-share-until": {
+   "name": "Shared until a day",
+   "what": "Asked to share a file with somebody until a day, Rouh shares it and Google takes their access away by itself on that day; who can open a file says when each person's access ends.",
+   "switch": "share_until",
+   "signals": {
+    "events": {
+     "shared": "You asked Rouh to share a file with somebody until a day, and it was shared to end then"
+    }
+   },
+   "files": [
+    "rouh/share_until.py"
+   ]
+  },
+  "n47-their-files": {
+   "name": "Files they can open",
+   "what": "A contact's card in the chat has Files they can open: one press lists which of your Drive files that person can open, what they can do and until when, each with Take off.",
+   "switch": "their_files",
+   "signals": {
+    "events": {
+     "listed": "You pressed Files they can open on a contact's card",
+     "taken_off": "You pressed Take off beside a file on a contact's card"
+    }
+   },
+   "files": [
+    "rouh/their_files.py",
+    "rouh/web/their_files.py"
+   ]
   }
  }
 }
