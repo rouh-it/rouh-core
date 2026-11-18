@@ -119,19 +119,23 @@ def _claim(lane: str = "live", n: int = 1, dataset_id: str | None = None, me: st
     An item's ingest or reingest is taken only when none of that item is running and no older one is
     waiting that could run now, so one item's model part never runs twice at once (the others wait
     their turn; one held until tomorrow, or out of tries, holds nothing back)."""
+    from . import master
+
     got = db.rows(
         "UPDATE synapse.job SET locked_by = %s, locked_at = now(), started_at = coalesce(started_at, now()), "
         "tries = tries + 1 WHERE id IN ("
         " SELECT j.id FROM synapse.job j WHERE j.done_at IS NULL AND j.lane = %s AND j.not_before <= now() "
         " AND j.tries < %s AND (j.locked_by IS NULL OR j.locked_at < now() - interval '10 minutes') "
         " AND (%s::uuid IS NULL OR j.dataset_id = %s::uuid) "
+        # Never a read for somebody else's Synapse Master: only the owner has one (18 November 2026, `master.owner_id`).
+        " AND NOT EXISTS (SELECT 1 FROM synapse.dataset d WHERE d.id = j.dataset_id AND d.master AND d.user_id <> %s) "
         f" AND NOT (j.kind IN {ONE_AT_A_TIME} AND j.item_id IS NOT NULL AND EXISTS ("
         "   SELECT 1 FROM synapse.job o WHERE o.dataset_id = j.dataset_id AND o.item_id = j.item_id "
         f"  AND o.kind IN {ONE_AT_A_TIME} AND o.done_at IS NULL AND o.id <> j.id AND "
         "   ((o.locked_by IS NOT NULL AND o.locked_at >= now() - interval '10 minutes') OR "
         f"   (o.id < j.id AND o.locked_by IS NULL AND o.not_before <= now() AND o.tries < {MAX_TRIES})))) "
         " ORDER BY j.priority, j.not_before, j.id FOR UPDATE SKIP LOCKED LIMIT %s) RETURNING *",
-        (me or _me, lane, MAX_TRIES, dataset_id, dataset_id, int(n)))
+        (me or _me, lane, MAX_TRIES, dataset_id, dataset_id, master.owner_id() or "-", int(n)))
     if lane == "backfill":
         got = [j for j in got if not _over_cap(j)]
     return got

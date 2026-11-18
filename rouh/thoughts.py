@@ -421,7 +421,7 @@ def mirror(t) -> str:
     from .synapse import contacts, datasets, db, ingest
     from .synapse.db import Json
 
-    ds = contacts.master_of(t.user_id, t.org_id)
+    ds = contacts.master_of(t.user_id, t.org_id, make=False)
     if ds is None or ds.get("frozen"):
         return "no master"
     key = f"thought:{t.id}"

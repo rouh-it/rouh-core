@@ -41,6 +41,8 @@ CARD_FIELDS = ("id", "uid", "href", "etag", "kind", "name", "phones", "emails", 
 
 
 def master_of(user_id: str, org_id: str, *, make: bool = True) -> dict | None:
+    """The owner's Synapse Master, made empty the first time. For anybody else: None with `make=False`, and
+    `master.NotOwner` with `make=True`, because nobody but the owner is ever given one (18 November 2026)."""
     from .. import master
 
     ds = master.of(str(org_id), str(user_id))

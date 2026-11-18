@@ -52,16 +52,20 @@ MODES = ("text", "voice")
 
 def master(user_id: str | None = None, org_id: str | None = None) -> dict | None:
     """The person's Synapse Master: the given person's, or this turn's. Made empty when there is none."""
-    from .synapse import chat, contacts
+    from .synapse import chat, contacts, master as synapse_master
 
-    if user_id and org_id:
-        return contacts.master_of(str(user_id), str(org_id))
-    got = chat.master_for_turn()
-    if got is None:
-        who = chat._who()
-        if who:
-            got = contacts.master_of(who[1], who[0])
-    return got
+    try:
+        if user_id and org_id:
+            return contacts.master_of(str(user_id), str(org_id))
+        got = chat.master_for_turn()
+        if got is None:
+            who = chat._who()
+            if who:
+                got = contacts.master_of(who[1], who[0])
+        return got
+    except synapse_master.NotOwner:
+        # Only the owner has a Synapse Master, so only the owner has rules (18 November 2026).
+        return None
 
 
 def _me(ds: dict) -> str:

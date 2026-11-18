@@ -55,8 +55,48 @@ SYNC_EVERY = 600.0
 NOTES_MAX = 120_000
 
 
+class NotOwner(ValueError):
+    """Asked for a Synapse Master for somebody who is not this Rouh's owner: there is never one."""
+
+
+def owner_id() -> str:
+    """This installation's owner's account id, as text; "" while there is none.
+
+    Petar, 18 November 2026 (task 182, step 182-07): "Sharing is now done through the rouh.land accounts. so
+    other people should not have accounts in my rouh. this feature should be deleted, along with the accounts
+    and the synapse for them." Five copies of his workspace, one for each login shared with, had cost about
+    $590 in 30 days. So a Rouh has one Synapse Master, its owner's (`rouh/web/firstrun.the_owner`: the first
+    active account that is not a guest), and nobody else is ever given one."""
+    global _owner
+    if _owner and time.time() - _owner[1] < OWNER_SECONDS:
+        return _owner[0]
+    try:
+        from rouh.web import firstrun
+
+        got = firstrun.the_owner()
+    except Exception:  # noqa: BLE001 - no accounts table yet: nobody is the owner
+        return ""
+    mine = str(got.pk) if got is not None else ""
+    if mine:
+        _owner = (mine, time.time())
+    return mine
+
+
+#: The owner's id, and when it was read; read again after `OWNER_SECONDS` (the worker asks on every claim).
+_owner: tuple[str, float] | None = None
+OWNER_SECONDS = 60.0
+
+
+def is_owner(user_id) -> bool:
+    """Whether this account is the installation's owner, the one person a Synapse Master is kept for."""
+    mine = owner_id()
+    return bool(mine) and str(user_id or "") == mine
+
+
 def of(org_id: str, user_id: str) -> dict | None:
-    """The person's master dataset, or None."""
+    """The person's master dataset, or None. Only the owner has one (`owner_id`)."""
+    if not is_owner(user_id):
+        return None
     if not db.value("SELECT to_regclass('synapse.dataset') IS NOT NULL"):
         return None
     if not db.value("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'synapse' "
@@ -69,7 +109,11 @@ def of(org_id: str, user_id: str) -> dict | None:
 def make(org_id: str, user_id: str, name: str = NAME) -> dict:
     """The person's master dataset, made empty with its owner in it the first time (the iCloud sync and the
     task sync fill it); the existing one after that. Returns `{"dataset": row, "made": bool, "people": n}`.
-    The first one, on 4 October 2026, was a copy of the people set, which is gone since."""
+    The first one, on 4 October 2026, was a copy of the people set, which is gone since.
+
+    Refuses anybody but the owner with `NotOwner` (Petar, 18 November 2026, `owner_id`)."""
+    if not is_owner(user_id):
+        raise NotOwner(f"Synapse Master is kept for this Rouh's owner only, not for account {user_id}.")
     got = of(org_id, user_id)
     if got:
         return {"dataset": got, "made": False, "people": int(db.value(
@@ -691,7 +735,10 @@ _synced = 0.0
 
 
 def sync_all() -> None:
-    """Every person's master dataset brought up to date with the tasks; the worker calls this."""
+    """The owner's master dataset brought up to date with the tasks; the worker calls this.
+
+    Only the owner's: until 18 November 2026 every master was synced, and each login shared with had its own
+    copy of the whole workspace read again and again (`owner_id`)."""
     global _synced
     _synced = time.time()
     try:
@@ -702,7 +749,10 @@ def sync_all() -> None:
             return
         from .. import silos
 
-        for ds in db.rows("SELECT * FROM synapse.dataset WHERE master"):
+        mine = owner_id()
+        if not mine:
+            return
+        for ds in db.rows("SELECT * FROM synapse.dataset WHERE master AND user_id = %s", (mine,)):
             got = sync_everything(ds)
             # The silos, wherever the source decides them (`rouh/silos.py`): each task's project, and what is
             # inside it, every event's calendar, the meetings, the contacts, the email, the layers.
