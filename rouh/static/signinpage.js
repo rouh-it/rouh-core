@@ -232,40 +232,4 @@
     shown: function () { S.open = true; S.said = ''; S.error = ''; draw(); load(); },
     hidden: function () { S.open = false; S.editing = false; },
   };
-
-  /* ---- On a guest's contact card, for the owner ---- */
-
-  /** @param {string[]} emails the card's addresses */
-  function guestSection(emails) {
-    var box = el('div', 'ct-own signin-guest');
-    box.hidden = true;
-    if (!emails || !emails.length) return box;
-    call('/api/sign-in/guest?email=' + encodeURIComponent(emails.join(','))).then(function (j) {
-      if (!j.guests || !j.guests.length) return;
-      box.hidden = false;
-      box.appendChild(el('h5', 'ct-own-title', 'Signs in to this Rouh'));
-      j.guests.forEach(function (g) {
-        var p = el('p', 'ct-own-empty', g.email + ' signs in as a guest. Locked out? Send them a new way in.');
-        box.appendChild(p);
-        var acts = el('div', 'hb-actions');
-        var said = el('p', 'ct-own-empty');
-        if (j.can_send) {
-          acts.appendChild(button('Send a sign-in email', '', function () {
-            call('/api/sign-in/guest/send', { email: g.email }).then(function (r) { said.textContent = r.said; })
-              .catch(function (e) { said.textContent = e.message; });
-          }));
-        }
-        acts.appendChild(button('Make a one-time link', '', function () {
-          call('/api/sign-in/guest/link', { email: g.email }).then(function (r) {
-            said.textContent = r.said + ' ' + r.link + '  (or the code ' + r.code + ')';
-          }).catch(function (e) { said.textContent = e.message; });
-        }));
-        box.appendChild(acts);
-        box.appendChild(said);
-      });
-    }).catch(function () { /* not the owner, or nothing to say */ });
-    return box;
-  }
-
-  window.RouhGuestSignIn = { section: guestSection };
 })();

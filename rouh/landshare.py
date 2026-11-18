@@ -36,9 +36,11 @@ Ask AI questions apart: a guest record by their email (`User.is_guest`) with rou
 them (`User.land_id`), made the first time they come back from rouh.land. It has no name, no
 password and no sign-in of its own: only rouh.land lets them in (`may_stay`). Nobody fills in a form.
 
-**Recipients from before.** A guest who made an account from an invitation keeps it, and its sign-in
-here, until they first come in through rouh.land: from then that record is theirs by rouh.land
-(`land_id` set) and the sign-in here stops (`may_stay`). Every share is by email already, so nothing
+**Recipients from before.** Until 18 November 2026 a guest who made an account from an invitation
+kept its sign-in here until they first came in through rouh.land. Petar, that day: "other people
+should not have accounts in my rouh", so those accounts were deleted and no guest signs in here
+any more but by rouh.land (`may_stay`, `signin._land_guest`, `accounts.second_person`); the next
+time they open a share, rouh.land vouches for them and a new guest record is made. Every share is by email already, so nothing
 shared is lost or moved by hand. An account of this Rouh's own people (not a guest) is never signed
 in by rouh.land's word: somebody with one signs in here as always (`guest_for` refuses).
 
@@ -280,7 +282,8 @@ def vouched(request) -> None:
 
 
 def may_stay(user, session) -> bool:
-    """Whether this signed-in user may stay signed in: a guest who is rouh.land's only by rouh.land."""
-    if not getattr(user, "is_guest", False) or not getattr(user, "land_id", ""):
+    """Whether this signed-in user may stay signed in: a guest only by rouh.land's word, and since
+    18 November 2026 also a guest from before rouh.land, whose own sign-in here is gone."""
+    if not getattr(user, "is_guest", False):
         return True
     return bool(session.get(VOUCHED))

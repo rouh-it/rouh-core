@@ -428,7 +428,6 @@
     "rouh/management/commands/signin_link.py",
     "rouh/management/commands/signin_email.py",
     "rouh/templates/rouh/forgot.html",
-    "rouh/templates/rouh/join.html",
     "rouh/templates/rouh/login.html",
     "rouh/templates/rouh/password_rules.html",
     "rouh/templates/rouh/reset.html",

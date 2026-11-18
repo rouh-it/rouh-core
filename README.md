@@ -2129,12 +2129,13 @@ There is no shared word and no way to turn the sign-in off - until 16 September 
 Accounts are Django's, in PostgreSQL, with the organisation a person is in and whether they manage it added on top (`rouh/models/accounts.py`).
 A password is stored by Django's scrypt hasher with its own salt and the cost written into the stored string; nothing anywhere can turn one back into a password.
 The hashes the SQLite accounts table held were carried over as they were and are read by `rouh.accounts.LegacyScryptHasher`, which Django rewrites into its own format the first time each is used.
-Make an account, or change a password, with the admin command:
+Make the owner's account, or change a password, with the admin command.
+**A Rouh is its owner's alone since 18 November 2026** (task 182, step 182-07; Petar: "Sharing is now done through the rouh.land accounts. so other people should not have accounts in my rouh."): `account add`, `account ensure` and the Django admin make no account once there is an owner (`accounts.second_person`), a guest never signs in with a password or an email link here, only through rouh.land, and nobody but the owner has a Synapse Master (`synapse/master.owner_id`, and the database's own trigger, migration 0260).
 
 ```bash
 # on the server, as root
 cd /var/www/rouh/app
-/var/www/rouh/.venv/bin/python manage.py account add alice --email alice@example.com --generate
+/var/www/rouh/.venv/bin/python manage.py account add alex --email alex@example.com --generate   # the owner's, once
 /var/www/rouh/.venv/bin/python manage.py account passwd alex
 /var/www/rouh/.venv/bin/python manage.py account list
 /var/www/rouh/.venv/bin/python manage.py account signout alex
@@ -2189,9 +2190,9 @@ Since the evening of 11 November 2026 nobody gets an account by opening a link (
 rouh.land sends them back to `/shared/in/back` with a note of their email signed by its own key (kind `rouh-identity`), which this Rouh holds to its signature, to itself, to its relay name, to the one-time state in that browser's session and to its five minutes; the share then lets in only the address it names, view or edit as before.
 rouh.land never sees what was shared: it only vouches for an email.
 What is kept here is a bare guest record by that email with rouh.land's id for it (`User.land_id`): no name, no password, and no sign-in of its own (`landshare.may_stay` ends any other).
-A guest from before keeps their account and its sign-in until they first come in through rouh.land; an account of this Rouh's own people is never signed in on rouh.land's word.
+Guests from before, who made an account from an invitation, were deleted on 18 November 2026, and no guest signs in here but by rouh.land; an account of this Rouh's own people is never signed in on rouh.land's word.
 A Rouh On its own cannot share with a person and says so (`landshare.refusal`); public links are unchanged.
-**Before then, and still on a Rouh On its own for an invitation already sent:** somebody with no account yet gets an invitation: `/join/<token>`, where the address is the invitation's and cannot be changed, and they give their first name and last name, both of them, kept apart on the account, and, only when this Rouh cannot send mail, a password. Opening the invitation proves the address; from then on they sign in by email (above), to this Rouh. On a Connected Rouh `/join/<token>` now goes straight to the share.
+**Before then** somebody with no account yet made one from the invitation, `/join/<token>`, with their first and last name and sometimes a password. Since 18 November 2026 `/join/<token>` makes nothing on any Rouh: it goes straight to the share, query and all, and an invitation taken back says so.
 Every invitation to the address is put on the account (`Guests.claim`), and somebody whose address already has an account is signed in to it instead.
 The invitation sends somebody who already has an account to the sign-in page with their address filled in (`/login?next=/shared/<token>&email=`), so the link works the second time as well.
 An empty name is refused by the server as well as the form, and the form says under the box which one is missing.

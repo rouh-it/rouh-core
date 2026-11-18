@@ -333,6 +333,13 @@ def _titles(keys, org_id: str) -> dict:
         for i, name, owner in _rows("SELECT id::text, name, owner_name FROM synapse.dataset"
                                     " WHERE id::text = ANY(%s) AND org_id = %s", [set_ids, org_id]):
             out[f"synapse/{i}"] = f"{name} ({owner})" if owner and owner not in (name or "") else name
+        # A memory deleted with the login it was kept for (18 November 2026, migration 0260): the call log
+        # keeps its calls as history, and the screen names whose it was.
+        gone = [i for i in set_ids if f"synapse/{i}" not in out]
+        if gone:
+            for i, owner in _rows("SELECT id::text, owner_name FROM synapse.gone_dataset"
+                                  " WHERE id::text = ANY(%s) AND org_id = %s", [gone, org_id]):
+                out[f"synapse/{i}"] = f"Deleted login ({owner})" if owner else "Deleted login"
     return out
 
 

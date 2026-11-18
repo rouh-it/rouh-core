@@ -130,8 +130,9 @@ def user_for(email: str):
 
 
 def _land_guest(user) -> bool:
-    """A guest rouh.land vouches for signs in only through rouh.land (`rouh/landshare.py`), never here."""
-    return bool(getattr(user, "is_guest", False) and getattr(user, "land_id", ""))
+    """A guest signs in only through rouh.land (`rouh/landshare.py`), never here: since 18 November 2026
+    also one from before rouh.land, who made an account from an invitation (`accounts.second_person`)."""
+    return bool(getattr(user, "is_guest", False))
 
 
 def primary(user) -> str:

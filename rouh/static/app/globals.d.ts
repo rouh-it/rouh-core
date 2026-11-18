@@ -65,7 +65,6 @@ interface Window {
   RouhPoolStand?: any;
   /** Anatomy, You, Account, and a guest's way back in on their contact card (signinpage.js). */
   RouhSignIn?: any;
-  RouhGuestSignIn?: any;
   RouhCloudflare?: any;
   RouhKeys?: any;
   RouhPhone?: any;

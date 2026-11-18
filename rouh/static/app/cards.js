@@ -1220,12 +1220,6 @@ function contactBlock(b) {
   }
   var aka = contactAka(b);
   if (aka) node.appendChild(aka);
-  // A guest of this Rouh's: the owner's two ways to get them back in (signinpage.js).
-  if (b.contact && window.RouhGuestSignIn && b.state !== 'unsaved' && b.state !== 'declined') {
-    var mails = (b.rows || []).filter(function (r) { return r.kind === 'email' && r.value; })
-      .map(function (r) { return String(r.value); });
-    if (mails.length) node.appendChild(window.RouhGuestSignIn.section(mails));
-  }
   // Shown whenever there is something in them, and always on a card that
   // says which contact it is, because that is a card they can be written on.
   if (b.me && b.contact) node.appendChild(contactOwn(b, 'organisation', own.organisation || ''));

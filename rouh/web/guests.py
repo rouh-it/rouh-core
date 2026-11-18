@@ -18,18 +18,19 @@ Petar, 24 September 2026 (fr_edecde0ad6e6):
 So there are two readers who are not the owner, and one page that serves both.
 
 - **A person the page was shared with**, by their email address, from the
-  Share panel (`invite`). With no account yet, they get a letter with a link
-  to make one (`join`): the address is the invitation's, fixed, and what they
-  give is their first name and last name, and, only when this Rouh cannot send
-  mail, a password, the rules it is held to listed and ticked off as they type
-  (`rouh/password_rules.py`). Opening the invitation proves the address, so
-  from then on they sign in to this Rouh by email (`rouh/signin.py`), never
-  through rouh.land and never with Google (4 November 2026). With
-  an account already, they get a note that there is something new. Either way
-  it is `/shared/<token>`, which answers only somebody signed in with that
-  address, and `/shared` lists everything shared with them. An account made
-  this way is a **guest** (`users.is_guest`): the gate lets it reach `/shared`
-  and nothing else (`rouh/web/gate.py`).
+  Share panel (`invite`). They get a letter with a link to the share on this
+  Rouh's relay address, and they say who they are with their own rouh.land
+  account (`rouh/landshare.py`, `shared_in`). Then it is `/shared/<token>`,
+  which answers only somebody signed in with that address, and `/shared`
+  lists everything shared with them. What this Rouh keeps of them is a
+  **guest** record (`users.is_guest`) with rouh.land's id for them and no
+  password or name: it holds their sign-in and keeps their Ask AI questions
+  apart, the gate lets it reach `/shared` and nothing else
+  (`rouh/web/gate.py`), and it never has a Synapse Master
+  (`synapse/master.owner_id`). Until 18 November 2026 an invitation could
+  also make an account here, with a name and a password (`join`); Petar
+  that day: "other people should not have accounts in my rouh", so nobody
+  is given one any more.
 - **A visitor to a public link the owner said may be changed**
   (`public_pages.role = "edit"`). `/p/<token>` stays exactly what it was for a
   read-only link; for one that may be changed it is this page too.
@@ -60,15 +61,12 @@ from urllib.parse import urlencode
 
 from asgiref.sync import sync_to_async
 from django.contrib.auth import alogin
-from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError
-from django.db import IntegrityError
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect, StreamingHttpResponse
 from django.middleware.csrf import get_token
 from django.shortcuts import render
 
 from rouh import (askai, comments, mailer, modeldefaults, pagehistory, pages,
-                  password_rules, sharing, taskshare)
+                  sharing, taskshare)
 from rouh.config import config
 from rouh.tenancy import GUEST_ORG, Identity
 
@@ -505,29 +503,7 @@ async def uninvite(request: HttpRequest):
                   headers=NO_STORE)
 
 
-# --- the invitation: making an account from it ---------------------------------------------
-
-
-def _join_page(request, share, *, problems=(), missing=(), first_name="", last_name="",
-               status=200, there=""):
-    from rouh import signin
-
-    email = share["email"] if share else ""
-    # Opening the invitation proves the address. A Rouh that can send mail signs them in by email
-    # from then on and asks for no password; one that cannot asks for one, set here, once.
-    needs_password = not signin.can_send()
-    response = render(request, "rouh/join.html", {
-        "share": share, "problems": problems, "missing": list(missing), "needs_password": needs_password,
-        "first_name": first_name, "last_name": last_name,
-        "min_length": password_rules.min_length(),
-        "password_rules": password_rules.for_page({"username": email, "email": email},
-                                                  username_is_email=True),
-        "owner": share.get("owner_name", "") if share else "",
-        "what": "task" if share and taskshare.is_task(share["rel"]) else "page",
-    }, status=status)
-    response["Cache-Control"] = "no-store"
-    response["Referrer-Policy"] = "same-origin"
-    return response
+# --- the invitation's link --------------------------------------------------------------------
 
 
 def _with_owner(share: dict | None) -> dict | None:
@@ -540,111 +516,27 @@ def _with_owner(share: dict | None) -> dict | None:
     return {**share, "owner_name": _owner_name(owner) if owner else "Somebody"}
 
 
-def _guest(email: str, first_name: str, last_name: str):
-    """The account an invitation makes, before it is saved: what its password
-    is checked against, so "not too like your name" holds here as it does
-    everywhere else a password is set, and what `_make_guest` then saves.
-    A guest: the pages shared with this address and nothing else. Its name to
-    sign in with is the address itself."""
-    from rouh.models import User
-
-    return User(username=email, email=email, first_name=first_name, last_name=last_name,
-                is_guest=True)
-
-
-def _make_guest(guest, password: str):
-    """The account, made, with both names kept apart, and its address as its way in. With no
-    password given (this Rouh sends sign-in emails), it has none, and signs in by email."""
-    from rouh import signin
-    from rouh.models import User
-
-    user = User.objects.create_user(username=guest.username, email=guest.email,
-                                    password=password or None, first_name=guest.first_name,
-                                    last_name=guest.last_name, is_guest=True)
-    _store().claim(guest.email, str(user.pk))
-    try:
-        signin.set_primary(user, guest.email, source="invitation")
-    except signin.Taken:
-        log.warning("a guest's address already signs another account in")
-    return user
-
-
-def _name(request, field: str) -> str:
-    """One name off the form, its spaces tidied. Empty if it was only spaces."""
-    return " ".join(str(request.POST.get(field) or "").split())[:150]
-
-
 async def join(request: HttpRequest, token: str):
-    """The link in an invitation: make an account for that address, and open
-    the page. Somebody who already has an account is sent to sign in."""
+    """The link in an older invitation, or in a comment's letter: the share itself, query and all,
+    where rouh.land says who is opening it (`/shared/in`).
+
+    Until 18 November 2026 this page made an account on this Rouh from the invitation: a form with
+    the person's first and last name and, where this Rouh could not send mail, a password. Petar, that
+    day (task 182, step 182-07): "Sharing is now done through the rouh.land accounts. so other people
+    should not have accounts in my rouh. this feature should be deleted." So nobody is given an account
+    here from an invitation any more, on any Rouh."""
     if request.method not in ("GET", "HEAD", "POST"):
         return HttpResponse(status=405, headers={"Allow": "GET, HEAD, POST"})
-    share = await asyncio.to_thread(lambda: _with_owner(_store().find(token)))
+    share = await asyncio.to_thread(_store().find, token)
     if share is None:
-        return await asyncio.to_thread(_join_page, request, None, status=404)
-    there = "/shared/" + share["token"]
-    from rouh import landshare
-
-    if await asyncio.to_thread(landshare.ready):
-        # Since step 176-26 nobody makes an account from an invitation: the share itself, where
-        # rouh.land says who they are. An older letter's link lands there too, query and all.
-        query = request.META.get("QUERY_STRING", "")
-        return HttpResponseRedirect(there + ("?" + query if query else ""), status=303)
-    # A comment thread to open once they are in: the letter that tagged
-    # somebody with no account yet links here (`rouh/comments.py`). The form
-    # posts back to this same address, so it is still here after the post.
-    thread = _number(request.GET.get("comment"))
-    # And the page of a task it is on, for a task shared with them to change.
-    at = str(request.GET.get("at") or "")[:taskshare.AT_MAX]
-    asked = {**({"at": at} if at else {}), **({"comment": thread} if thread else {})}
-    if asked:
-        there += "?" + urlencode(asked)
-    user = await request.auser()
-    if user.is_authenticated and sharing.Guests.belongs_to(share, user):
-        return HttpResponseRedirect(there, status=303)
-    if await asyncio.to_thread(_existing_account, share["email"]) is not None:
-        return HttpResponseRedirect("/login?" + urlencode({"next": there, "email": share["email"]}), status=303)
-    if request.method != "POST":
-        return await asyncio.to_thread(_join_page, request, share, there=there)
-
-    # Both names, always: Petar, 24 September 2026 (fr_a5aa0123f5d1), "the
-    # registration of guest users needs to have first and last names
-    # separately, and they need to be obligatory". Held here, not only by the
-    # form, which a request need not come from.
-    first_name, last_name = _name(request, "first_name"), _name(request, "last_name")
-    missing = [field for field, value in (("first_name", first_name),
-                                          ("last_name", last_name)) if not value]
-    guest = _guest(share["email"], first_name, last_name)
-    from rouh import signin
-
-    needs_password = await asyncio.to_thread(lambda: not signin.can_send())
-    first = request.POST.get("password1") or "" if needs_password else ""
-    again = request.POST.get("password2") or "" if needs_password else ""
-    problems: list[str] = []
-    if not needs_password:
-        pass
-    elif first != again:
-        problems.append("The two passwords are not the same.")
-    else:
-        try:
-            await asyncio.to_thread(validate_password, first, guest)
-        except ValidationError as exc:
-            # A guest's username is their address, so Django's "too similar
-            # to the username" would name something they never chose.
-            problems.extend("The password is too like your name or email address."
-                            if one.code == "password_too_similar" else said
-                            for one in exc.error_list for said in one.messages)
-    if problems or missing:
-        return await asyncio.to_thread(_join_page, request, share, problems=problems,
-                                       missing=missing, first_name=first_name,
-                                       last_name=last_name, status=400, there=there)
-    try:
-        made = await asyncio.to_thread(_make_guest, guest, first)
-    except IntegrityError:
-        return HttpResponseRedirect("/login?" + urlencode({"next": there}), status=303)
-    await alogin(request, made, backend="rouh.accounts.CaseInsensitiveBackend")
-    log.info("a guest account was made from an invitation")
-    return HttpResponseRedirect(there, status=303)
+        response = await asyncio.to_thread(render, request, "rouh/shared_in.html", {
+            "said": "This invitation is not there any more. Ask the person who shared it to share it again."},
+            status=404)
+        for name, value in READER_HEADERS.items():
+            response[name] = value
+        return response
+    query = request.META.get("QUERY_STRING", "")
+    return HttpResponseRedirect("/shared/" + share["token"] + ("?" + query if query else ""), status=303)
 
 
 # --- through rouh.land: who is opening it (`rouh/landshare.py`) ---------------------------------

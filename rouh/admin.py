@@ -1,11 +1,10 @@
 """The Django admin, for whoever manages accounts on this install.
 
 At ``/admin/``, behind the same sign-in as everything else, and open only to
-an account marked staff (`python manage.py account add <name> --staff`, or
-`is_staff` on the account). It is where a team member is added, given an
-organisation, switched off, or given a new password - and where an
-organisation says its people sign in with Google (its domain, and whether a
-first sign-in makes the account).
+an account marked staff (`is_staff` on the account). It is where the owner's
+account is switched off or given a new password. Nobody else's account is
+added here: a Rouh is its owner's alone, and other people open what is shared
+with them through rouh.land (18 November 2026, `accounts.second_person`).
 
 Nothing of anybody's own is shown here: not their chats, not their mail, not
 a Google token. Those stay behind their own scoped queries.
@@ -42,3 +41,10 @@ class RouhUserAdmin(UserAdmin):
     add_fieldsets = UserAdmin.add_fieldsets + (
         ("Organisation", {"fields": ("email", "org", "is_org_admin")}),
     )
+
+    def has_add_permission(self, request):
+        # A Rouh is its owner's alone (`accounts.second_person`): the owner's account is made by
+        # `manage.py setup` or the first run, and nobody else's is made at all.
+        from .accounts import second_person
+
+        return not second_person("")

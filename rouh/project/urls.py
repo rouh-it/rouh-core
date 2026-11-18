@@ -394,15 +394,12 @@ urlpatterns = [
     path("api/rouh-land/account", landaccount_web.page),
     path("api/rouh-land/account/check", landaccount_web.check),
     path("api/rouh-land/account/confirm", landaccount_web.confirm),
-    # Signing in, from the signed-in side (`rouh/web/signin.py`): Anatomy, You, Account, and a guest's card.
+    # Signing in, from the signed-in side (`rouh/web/signin.py`): Anatomy, You, Account.
     path("api/sign-in/me", signin_web.me_state),
     path("api/sign-in/email", signin_web.change_email),
     path("api/sign-in/passkey/options", signin_web.passkey_options),
     path("api/sign-in/passkey/add", signin_web.passkey_add),
     path("api/sign-in/passkey/remove", signin_web.passkey_remove),
-    path("api/sign-in/guest", signin_web.guest_state),
-    path("api/sign-in/guest/send", signin_web.guest_send),
-    path("api/sign-in/guest/link", signin_web.guest_link),
     path("api/birth", birth_web.page),
     path("api/birth/born", birth_web.born),
     path("api/birth/nickname", birth_web.nickname),

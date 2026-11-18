@@ -20,8 +20,9 @@ What stays here is what Django does not do, and what Rouh has always done:
 - **Refused attempts** (:class:`SignInFailure`), by address and by the name
   that was tried. They decide how long the next attempt has to wait and when
   an account or an address is shut out for a while.
-- **The admin command**, now `python manage.py account`, which makes an
-  account, changes a password, lists them and signs one out everywhere.
+- **The admin command**, now `python manage.py account`, which makes the
+  owner's account, changes a password, lists them and signs one out everywhere.
+  It makes nobody else's (18 November 2026, `second_person`).
   ``python -m rouh.accounts`` still works and runs the same thing.
 
 Passwords are never logged, never returned and never stored. A generated one
@@ -165,6 +166,11 @@ class CaseInsensitiveBackend(ModelBackend):
             # out which names exist.
             User().set_password(password)
             return None
+        if getattr(user, "is_guest", False):
+            # Somebody something was shared with signs in only through rouh.land, never with a password
+            # here (18 November 2026, `second_person`).
+            User().set_password(password)
+            return None
         if user.check_password(password) and self.user_can_authenticate(user):
             return user
         return None
@@ -224,6 +230,28 @@ def get_user(username: str):
 def count() -> int:
     """How many accounts there are. Never who they are."""
     return get_user_model().objects.count()
+
+
+#: Why nobody but the owner is given a login here, as the command says it.
+ONE_PERSON = ("This Rouh already has its owner, and nobody else has a login on it: other people open what is "
+              "shared with them through their own rouh.land account (`rouh/landshare.py`). Nothing was made.")
+
+
+def second_person(username: str = "") -> str:
+    """Why an account for `username` may not be made, or "" when it may: a Rouh is its owner's alone.
+
+    Petar, 18 November 2026 (task 182, step 182-07): "Sharing is now done through the rouh.land
+    accounts. so other people should not have accounts in my rouh. this feature should be deleted."
+    So `manage.py account add`, `account ensure` and the Django admin make the owner's account and no
+    other. `add_user` itself stays a plain function: the security checks (`rouh/checkface.py`,
+    `rouh/selfcheck/security.py`) make two accounts on a throwaway database to prove that one person
+    never sees another's data, and a rouh.land guest record is made by `landshare.guest_for`."""
+    from .web import firstrun
+
+    owner = firstrun.the_owner()
+    if owner is None or owner.username.lower() == (username or "").strip().lower():
+        return ""
+    return ONE_PERSON
 
 
 def add_user(username: str, password: str | None, email: str = "", *,
@@ -479,10 +507,15 @@ def run(args: argparse.Namespace, out=print) -> int:
         if get_user(args.username) is not None:
             out(f"{args.username} already has an account")
             return 0
+        if why := second_person(args.username):
+            raise SystemExit(why)
         password = generate_password()
         add_user(args.username, password, args.email)
         _announce(args.username, password, out)
         return 0
+
+    if args.what == "add" and (why := second_person(args.username)):
+        raise SystemExit(why)
 
     password, made_up = _ask_for_a_password(args.generate, args.password)
 
