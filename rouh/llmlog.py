@@ -709,13 +709,10 @@ class Entry:
         usage = message.get("usage") if isinstance(message.get("usage"), dict) else {}
         took = costs.tokens_of(usage)
         model = str(message.get("model") or self.fields.get("model") or "")
-        if picture:
-            cost = costs.image_cost(usage, model) if usage else None
-        elif self.provider == OPENAI and self.endpoint.rstrip("/").endswith("/decisions"):
-            # OpenAI's Decisions API charges input alone (`costs.DECISION_PRICES`).
-            cost = costs.decision_cost(usage, model) if usage else None
-        else:
-            cost = costs.request_cost(usage, model) if usage else None
+        cost = priced(usage, model, self.provider, self.endpoint)
+        if cost is None and usage and any(took.values()):
+            # A call that said what it used, on a model priced nowhere: said once a day.
+            costs.note_unpriced(model)
         tools = usage.get("server_tool_use")
         tools = tools if isinstance(tools, dict) else {}
 
@@ -789,6 +786,64 @@ class Entry:
         if who is None:
             return "", org_id
         return str(who.user_id or ""), org_id or str(who.org_id or "")
+
+
+def priced(usage, model: str, provider: str, endpoint: str) -> float | None:
+    """What one call cost, from the usage it reported, priced by the model standard in use
+    (`rouh/costs.py`): a picture by its picture tokens, OpenAI's Decisions API by its input
+    alone (`costs.decision_cost`), anything else by its tokens and web searches. Nothing for a
+    call with no usage, or on a model priced nowhere."""
+    from . import costs
+
+    if not usage:
+        return None
+    if is_image_endpoint(endpoint):
+        return costs.image_cost(usage, model)
+    if provider == OPENAI and str(endpoint or "").rstrip("/").endswith("/decisions"):
+        return costs.decision_cost(usage, model)
+    return costs.request_cost(usage, model)
+
+
+def reprice(*, apply: bool = True, since: float | None = None) -> dict:
+    """Price the calls that were logged with no price only because their model was on no list,
+    now that the model standard may carry it (Petar, 18 November 2026: the template synced from
+    rouh.land carries the prices, so a Rouh never needs its code changed to price a model).
+
+    Only a call that said what it used is priced: one that failed, was stopped or never heard
+    back before reporting any usage is left as it is, with no price. Gives back how many calls
+    were priced and what that added, in all, by model and by month (`apply=False` only says
+    it). Run after every fetch of the standard (`modelstandard.fetch`), and by hand as
+    `manage.py reprice_calls`."""
+    from collections import defaultdict
+    from datetime import datetime, timezone
+
+    from . import costs
+    from .models import LLMRequest
+
+    rows = (LLMRequest.objects.filter(cost_usd__isnull=True)
+            .exclude(usage__isnull=True).exclude(usage={})
+            .values_list("id", "model", "served_model", "provider", "endpoint", "usage", "started_at"))
+    if since is not None:
+        rows = rows.filter(started_at__gte=since)
+    out = {"calls": 0, "dollars": 0.0, "models": defaultdict(lambda: {"calls": 0, "dollars": 0.0}),
+           "months": defaultdict(lambda: {"calls": 0, "dollars": 0.0}), "applied": apply}
+    for pk, model, served, provider, endpoint, usage, started in rows.iterator(chunk_size=2000):
+        if not isinstance(usage, dict):
+            continue
+        if not any(costs.tokens_of(usage).values()):
+            continue
+        name = served or model
+        cost = priced(usage, name, provider, endpoint)
+        if cost is None:
+            continue
+        if apply:
+            LLMRequest.objects.filter(pk=pk, cost_usd__isnull=True).update(cost_usd=Decimal(f"{cost:.6f}"))
+        month = datetime.fromtimestamp(float(started or 0), timezone.utc).strftime("%Y-%m")
+        for bucket in (out, out["models"][name], out["months"][month]):
+            bucket["calls"] += 1
+            bucket["dollars"] += cost
+    out["models"], out["months"] = dict(out["models"]), dict(out["months"])
+    return out
 
 
 def _case_use() -> str:

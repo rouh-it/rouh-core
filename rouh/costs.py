@@ -34,10 +34,33 @@ and each after it should read nearly all of it back (`rouh/promptcache.py`).
 So the four numbers of each request are kept beside the turn's totals, in
 `calls`, in the order they were made: on the line under the answer, in the
 spend table, and in the log.
+
+Where the prices come from
+--------------------------
+
+From the model standard, the template rouh.land publishes and every Rouh fetches once a day
+(`rouh/modelstandard.py`, `prices`). Petar, 18 November 2026: "the template by rouh.land that
+gets synced to every connected rouh should carry the pricing. rouh instances should not be
+responsible in having to update the pricing, especially the connected ones." Until then the
+prices were only the tables below, so a model rouh.land moved a use onto that was not in them
+was logged with no cost, and the stats screen added nothing for it and said nothing.
+
+So every price is read from the standard this Rouh last fetched, over the standard built into
+it, model by model (`rates_of`), and the tables below are only the fallback for a model no
+standard prices at all. A call on a model priced nowhere is still logged with no cost, but it
+is said once a day in the log (`note_unpriced`) and on the orb's stats screen
+(`usage_drill`, `no_price`), and it is priced the day a standard brings its price
+(`llmlog.reprice`).
 """
 from __future__ import annotations
 
-#: Dollars per million tokens: (input, output). From Anthropic's list prices.
+import datetime
+import logging
+
+log = logging.getLogger("rouh.costs")
+
+#: The fallback, used only for a model no standard prices (`rates_of`). Dollars per million
+#: tokens: (input, output). From Anthropic's list prices.
 PRICES = {
     "claude-opus-5-5": (4.00, 20.00),
     "claude-opus-5": (5.00, 25.00),
@@ -156,8 +179,42 @@ IMAGE_PRICES = {
 }
 
 
-def priced_as(model: str) -> str | None:
-    """Which name in `PRICES` a model id is priced as, or nothing.
+def _fallback() -> dict:
+    """The tables above as a standard's prices say them (`modelstandard.RATES`)."""
+    out = {}
+    for name, (per_in, per_out) in PRICES.items():
+        out[name] = {"in": per_in, "out": per_out, "cache_write": per_in * CACHE_WRITE,
+                     "cache_write_1h": per_in * CACHE_WRITE_HOUR,
+                     "cache_read": per_in * CACHE_READS.get(name, CACHE_READ)}
+    for name, (per_text, per_image, per_out) in IMAGE_PRICES.items():
+        out[name] = {"in": per_text, "image_in": per_image, "image_out": per_out}
+    return out
+
+
+_FALLBACK = _fallback()
+_FALLBACK_DECISIONS = {name: {"in": a, "cache_read": b, "cache_write": w}
+                       for name, (a, b, w) in DECISION_PRICES.items()}
+
+
+def _standard() -> dict:
+    """The prices of the model standard in use, or nothing when it cannot be read."""
+    try:
+        from . import modelstandard
+
+        got = modelstandard.prices()
+        return got if isinstance(got, dict) else {}
+    except Exception:
+        log.exception("the model standard's prices could not be read; the built-in list is used")
+        return {}
+
+
+def price_list() -> dict:
+    """Every model's price: the standard's, over the fallback list."""
+    return {**_FALLBACK, **(_standard().get("models") or {})}
+
+
+def _match(model: str, listed: dict) -> str | None:
+    """Which name in `listed` a model id is priced as, or nothing.
 
     Matched on the longest prefix, because a dated model id is the same model
     at the same price: `claude-opus-5-20260401` is `claude-opus-5`. Longest
@@ -167,24 +224,77 @@ def priced_as(model: str) -> str | None:
     name = str(model or "").strip()
     if not name:
         return None
-    if name in PRICES:
+    if name in listed:
         return name
     best = ""
-    for known in PRICES:
+    for known in listed:
         if name.startswith(known) and len(known) > len(best):
             best = known
     return best or None
 
 
+def priced_as(model: str) -> str | None:
+    """Which name in the price list a model id is priced as, or nothing."""
+    return _match(model, price_list())
+
+
+def rates_of(model: str) -> dict | None:
+    """A model's price, every rate filled in, in dollars per million tokens: `in`, `out`,
+    `cache_write`, `cache_write_1h`, `cache_read`, and `image_in` and `image_out` for a picture
+    model. A rate the standard leaves out is the rule it always was: a cache write a quarter
+    more than input, one kept an hour twice input, a cache read a tenth of it. Nothing for a
+    model priced nowhere."""
+    listed = price_list()
+    name = _match(model, listed)
+    if name is None:
+        return None
+    got = listed[name]
+    per_in = float(got.get("in") or 0)
+    return {"name": name, "in": per_in, "out": float(got.get("out") or 0),
+            "cache_write": float(got.get("cache_write", per_in * CACHE_WRITE)),
+            "cache_write_1h": float(got.get("cache_write_1h", per_in * CACHE_WRITE_HOUR)),
+            "cache_read": float(got.get("cache_read", per_in * CACHE_READ)),
+            "image_in": float(got.get("image_in") or 0), "image_out": float(got.get("image_out") or 0)}
+
+
 def price_of(model: str) -> tuple[float, float] | None:
-    """The two prices for a model, or nothing if it is not priced here."""
-    name = priced_as(model)
-    return PRICES[name] if name else None
+    """The two prices for a model, or nothing if it is not priced anywhere."""
+    rates = rates_of(model)
+    return (rates["in"], rates["out"]) if rates else None
 
 
 def cache_read_of(model: str) -> float:
     """What a cached input token costs this model, against its input price."""
-    return CACHE_READS.get(priced_as(model) or "", CACHE_READ)
+    rates = rates_of(model)
+    if not rates or not rates["in"]:
+        return CACHE_READ
+    return rates["cache_read"] / rates["in"]
+
+
+def web_search_price() -> float:
+    """One web search, in dollars, by the standard."""
+    got = _standard().get("web_search")
+    return float(got) if isinstance(got, (int, float)) else WEB_SEARCH
+
+
+#: The day each model priced nowhere was last said in the log (`note_unpriced`).
+_SAID: dict[str, str] = {}
+
+
+def note_unpriced(model: str) -> None:
+    """Say in the log, once a day for each model, that a call on it was logged with no cost
+    because no standard and no fallback prices it. Without this a model rouh.land moved a use
+    onto counted as nothing on every screen, and nobody was told."""
+    model = str(model or "").strip()
+    if not model:
+        return
+    day = datetime.date.today().isoformat()
+    if _SAID.get(model) == day:
+        return
+    _SAID[model] = day
+    log.warning("a call on %s was logged with no price: neither the model standard (rouh.land's "
+                "template) nor the built-in list prices it, so its cost is left out until the "
+                "standard carries its price", model)
 
 
 def tokens_of(usage) -> dict:
@@ -219,18 +329,17 @@ def tokens_of(usage) -> dict:
 
 def cost_of(usage, model: str) -> float | None:
     """What those tokens cost, in dollars, or nothing for an unpriced model."""
-    price = price_of(model)
-    if price is None:
+    rates = rates_of(model)
+    if rates is None:
         return None
     took = tokens_of(usage)
-    per_in, per_out = price
     hour = min(took["cache_write_1h"], took["cache_write"])
     return (
-        took["input"] * per_in
-        + took["output"] * per_out
-        + took["cache_read"] * per_in * cache_read_of(model)
-        + (took["cache_write"] - hour) * per_in * CACHE_WRITE
-        + hour * per_in * CACHE_WRITE_HOUR
+        took["input"] * rates["in"]
+        + took["output"] * rates["out"]
+        + took["cache_read"] * rates["cache_read"]
+        + (took["cache_write"] - hour) * rates["cache_write"]
+        + hour * rates["cache_write_1h"]
     ) / PER
 
 
@@ -239,16 +348,18 @@ def decision_cost(usage, model: str) -> float | None:
     written to it or neither, and never its output, which is not charged. `usage` is in
     the names `tokens_of` reads, with `input` the uncached tokens alone (`llm.decision_usage`
     makes it from what the API sends). Nothing for a model the Decisions API is not priced
-    for here."""
+    for, by the standard (`prices.decisions`) or the fallback above."""
+    listed = {**_FALLBACK_DECISIONS, **(_standard().get("decisions") or {})}
     name = str(model or "").strip()
-    price = DECISION_PRICES.get(name) or next(
-        (p for known, p in DECISION_PRICES.items() if name.startswith(known + "-")), None)
+    price = listed.get(name) or next(
+        (p for known, p in listed.items() if name.startswith(known + "-")), None)
     if price is None:
         return None
     took = tokens_of(usage)
-    per_in, per_read, per_write = price
-    return (took["input"] * per_in + took["cache_read"] * per_read
-            + took["cache_write"] * per_write) / PER
+    per_in = float(price.get("in") or 0)
+    return (took["input"] * per_in
+            + took["cache_read"] * float(price.get("cache_read", per_in * CACHE_READ))
+            + took["cache_write"] * float(price.get("cache_write", per_in * CACHE_WRITE))) / PER
 
 
 def request_cost(usage, model: str) -> float | None:
@@ -256,7 +367,7 @@ def request_cost(usage, model: str) -> float | None:
 
     The tokens as `cost_of` prices them, and every web search the request
     made on top, which a turn's four added-up numbers leave out. Nothing for a
-    model nobody has priced here.
+    model nobody has priced.
     """
     cost = cost_of(usage, model)
     if cost is None:
@@ -267,19 +378,19 @@ def request_cost(usage, model: str) -> float | None:
     searches = getattr(tools, "web_search_requests", None)
     if searches is None and isinstance(tools, dict):
         searches = tools.get("web_search_requests")
-    return cost + int(searches or 0) * WEB_SEARCH
+    return cost + (int(searches) * web_search_price() if searches else 0)
 
 
 def image_cost(usage, model: str) -> float | None:
     """What drawing one picture cost, from the usage OpenAI sent with it.
 
-    Nothing for a model not priced here, or a usage that says nothing, which is
+    Nothing for a model not priced as a picture model, or a usage that says nothing, which is
     "nobody knows" rather than "free".
     """
-    name = str(model or "")
-    price = IMAGE_PRICES.get(name) or next(
-        (p for known, p in IMAGE_PRICES.items() if name.startswith(known)), None)
-    if price is None or not isinstance(usage, dict) or not usage:
+    rates = rates_of(model)
+    if rates is None or not (rates["image_in"] or rates["image_out"]):
+        return None
+    if not isinstance(usage, dict) or not usage:
         return None
 
     def number(of, key) -> int:
@@ -294,9 +405,8 @@ def image_cost(usage, model: str) -> float | None:
     image_in = number(details, "image_tokens")
     if not details:
         text_in = number(usage, "input_tokens")
-    per_text, per_image, per_out = price
-    return (text_in * per_text + image_in * per_image
-            + number(usage, "output_tokens") * per_out) / PER
+    return (text_in * rates["in"] + image_in * rates["image_in"]
+            + number(usage, "output_tokens") * rates["image_out"]) / PER
 
 
 def summarise(usage, model: str) -> dict:

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://rouh.land/models/standard.schema.json",
   "title": "Rouh model standard, version 4",
-  "description": "Which models each of the two tiers holds, Smart and Cheaper, as an ordered list across Anthropic, OpenAI, Google and xAI (a Rouh asks the first one it has a key for), how deeply each model thinks, which tier each use of a model starts on and in which order it asks each tier's models, what each of the three modes (Best, Balanced, Saver) means, and the router's confidence bar. Published once at https://rouh.land/models/standard.json and fetched by every Rouh once a day (rouh/modelstandard.py). A Rouh uses what this says for everything its people have not changed themselves; what it leaves out is the Rouh's own built-in standard. A model, a use or a level a Rouh does not know is left out by that Rouh.",
+  "description": "Which models each of the two tiers holds, Smart and Cheaper, as an ordered list across Anthropic, OpenAI, Google and xAI (a Rouh asks the first one it has a key for), how deeply each model thinks, which tier each use of a model starts on and in which order it asks each tier's models, what each of the three modes (Best, Balanced, Saver) means, and the router's confidence bar. Published once at https://rouh.land/models/standard.json and fetched by every Rouh once a day (rouh/modelstandard.py). A Rouh uses what this says for everything its people have not changed themselves; what it leaves out is the Rouh's own built-in standard. A model, a use or a level a Rouh does not know is left out by that Rouh. Since 18 November 2026 it also carries the price of every model it can name (prices), so a Rouh prices each call from the standard it last fetched and never needs a change of its own code for a new model.",
   "type": "object",
   "required": [
     "schema",
@@ -196,6 +196,41 @@
           "type": "string"
         }
       }
+    },
+    "prices": {
+      "type": "object",
+      "description": "What each model costs, so every Rouh prices its calls from the standard it last fetched: checked is the day the prices were last read off the companies' own pages; models is each model id's price ($defs/price), matched by the longest id a call's model starts with; decisions is OpenAI's Decisions API, which charges input alone (in, cache_read, cache_write); web_search is one web search, in dollars.",
+      "required": [
+        "checked",
+        "models"
+      ],
+      "properties": {
+        "checked": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "web_search": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "models": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/price"
+          }
+        },
+        "decisions": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/price"
+          }
+        }
+      }
     }
   },
   "$defs": {
@@ -215,6 +250,51 @@
         },
         "why": {
           "type": "string"
+        }
+      }
+    },
+    "price": {
+      "type": "object",
+      "description": "One model's list price, in US dollars per million tokens: in and out, what writing the prompt cache costs (cache_write, kept 5 minutes; cache_write_1h, kept an hour, twice in when left out) and reading it back (cache_read). An embedding model has only in; a picture model has in for the words, image_in for a picture handed in and image_out for what it draws.",
+      "required": [
+        "in"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "in": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "out": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "cache_write": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "cache_write_1h": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "cache_read": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "image_in": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "image_out": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10000
         }
       }
     }

@@ -543,6 +543,20 @@ function ouPaintSide(u) {
       (plans.codex_on_key ? ' ' + ouCount(plans.codex_on_key) + ' Codex ' + (plans.codex_on_key === 1 ? 'run was' : 'runs were') +
         ' billed to the OpenAI key instead; that cost is not logged either.' : '')));
   }
+  // Calls on a model no price list has, by name (Petar, 18 November 2026): never a silent $0.
+  var np0 = u.total.no_price;
+  if (np0 && np0.calls) {
+    var miss = box('Models with no price');
+    miss.classList.add('ou-sidenote-warn');
+    var names = (np0.models || []).map(function (m) {
+      return m.model + (np0.models.length > 1 ? ' (' + ouCount(m.calls) + ')' : '');
+    });
+    miss.appendChild(el('p', 'ou-missing', ouCount(np0.calls) + ' ' + (np0.calls === 1 ? 'call' : 'calls') +
+      ' on models with no price: ' + names.join(', ') + '.'));
+    miss.appendChild(el('p', '', 'Their cost is not in the dollars here. Prices come from the model template ' +
+      'rouh.land sends every Rouh each day; once it lists ' + (names.length === 1 ? 'this model' : 'these models') +
+      ', ' + (np0.calls === 1 ? 'this call is priced by itself.' : 'these calls are priced by themselves.')));
+  }
   var n = u.total.unpriced || 0;
   if (u.unpriced) {
     var on = box('Not priced');

@@ -66,7 +66,7 @@ WHY = {"never_back": "Never heard back, so nothing to price",
        "failed": "The call failed, so nothing to price",
        "stopped": "Stopped half way, before the usage came",
        "no_tokens": "The company sent no token counts",
-       "no_price": "The model is not on the price list"}
+       "no_price": "The model has no price in the model template or Rouh's own list"}
 
 #: Every token of a call, read or written, for the view of the calls with no price.
 TOKENS_SQL = "(input_tokens + output_tokens + cache_read_tokens + cache_write_tokens)"
@@ -601,6 +601,16 @@ def level(who, *, period: str = "days30", at: str | None = None, start: str | No
         f" FROM llm_requests WHERE {where}", [lo, lo, lo, lo, lo, lo] + args)[0]
     total_cost, before_cost = _sum(total_cost), _sum(before_cost)
 
+    # The calls on a model no price list has (Petar, 18 November 2026): said by name on the
+    # screen, rather than counted as nothing.
+    missing = _rows(
+        f"SELECT {_expr('model', zone_name)[0]}, COUNT(*) FROM llm_requests"
+        f" WHERE {where} AND started_at >= %s AND cost_usd IS NULL AND {WHY_SQL} = 'no_price'"
+        " GROUP BY 1 ORDER BY 2 DESC, 1", args + [lo])
+    no_price = {"calls": sum(int(n) for _, n in missing),
+                "models": [{"model": m or "", "name": named(m or "") if m else "an unnamed model",
+                            "calls": int(n)} for m, n in missing]}
+
     series = _series(who, span, filters, by, rows, zone, zone_name, unpriced)
     plans = _plans(who, lo, hi) if not ({"model", "purpose", "origin", "hour"} & chosen) else None
     if plans is not None and filters.get("provider") not in (None, "anthropic", "openai"):
@@ -632,6 +642,7 @@ def level(who, *, period: str = "days30", at: str | None = None, start: str | No
         "can_split": [{"dim": d, "said": DIMS[d]} for d in left],
         "total": {"cost": total_cost, "said": total_said,
                   "calls": total_calls, "unpriced": total_unpriced, "tokens": int(total_tokens or 0),
+                  "no_price": no_price,
                   **_per_call(total_cost, total_calls - total_unpriced)},
         "before": {"cost": before_cost, "said": before_said, "calls": before_calls,
                    "partial": before_partial, "none": began_after},
@@ -861,12 +872,16 @@ def one_call(who, call_id: int) -> dict:
     split = costs.tokens_of(usage) if usage else {
         "input": r["input_tokens"], "output": r["output_tokens"],
         "cache_read": r["cache_read_tokens"], "cache_write": r["cache_write_tokens"], "cache_write_1h": 0}
-    price = costs.price_of(model)
+    rates = costs.rates_of(model)
+    price = (rates["in"], rates["out"]) if rates else None
     parts = []
-    if price and r["cost_usd"] is not None:
+    if rates and r["cost_usd"] is not None:
         per_in, per_out = price
         hour = min(split["cache_write_1h"], split["cache_write"])
-        read_rate = per_in * costs.cache_read_of(model)
+        read_rate = rates["cache_read"]
+
+        def share(rate):
+            return f"{round(rate / per_in * 100)}% of the input price" if per_in else "its own rate"
 
         def part(name, tokens, rate, said):
             if tokens or name == "Output":
@@ -874,15 +889,17 @@ def one_call(who, call_id: int) -> dict:
                               "cost": tokens * rate / costs.PER, "said": said})
         part("Fresh input", split["input"], per_in, "sent at the full input price")
         part("Read from the cache", split["cache_read"], read_rate,
-             f"sent before and read back cheaply, at {round(costs.cache_read_of(model) * 100)}% of the input price")
-        part("Written to the cache", split["cache_write"] - hour, per_in * costs.CACHE_WRITE,
-             "kept for 5 minutes, at 125% of the input price")
-        part("Written to the cache for an hour", hour, per_in * costs.CACHE_WRITE_HOUR,
-             "kept for an hour, at twice the input price")
+             f"sent before and read back cheaply, at {share(read_rate)}")
+        part("Written to the cache", split["cache_write"] - hour, rates["cache_write"],
+             f"kept for 5 minutes, at {share(rates['cache_write'])}")
+        part("Written to the cache for an hour", hour, rates["cache_write_1h"],
+             f"kept for an hour, at {share(rates['cache_write_1h'])}")
         part("Output", split["output"], per_out, "the answer and its thinking")
         if r["web_searches"]:
+            each = costs.web_search_price()
             parts.append({"name": "Web searches", "tokens": None, "count": r["web_searches"],
-                          "cost": r["web_searches"] * costs.WEB_SEARCH, "said": "1 cent each"})
+                          "cost": r["web_searches"] * each,
+                          "said": f"{costs.money(each)} each" if each != 0.01 else "1 cent each"})
     worked = sum(p["cost"] for p in parts)
     logged = None if r["cost_usd"] is None else float(r["cost_usd"])
     for p in parts:
@@ -944,7 +961,8 @@ def _why(row: dict, split: dict, sent: int, parts: list[dict], logged: float | N
                     "so it has no price.")
         if row.get("why_unpriced") == WHY["no_tokens"]:
             return f"This call has no price: {row['company']} sent no token counts for it."
-        return f"This call has no price: Rouh has no price for {row['model']}."
+        return (f"This call has no price: neither the model template from rouh.land nor Rouh's own "
+                f"list has a price for {row['model']}.")
     if not parts:
         return f"This call cost {row['said']}, at {row['model']}'s own rate."
     # The two kinds of cache write are one cause, so they are added together before the largest

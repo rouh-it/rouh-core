@@ -51,6 +51,17 @@ failure is written down quietly (`FETCHED`), never shown as a notice: a
 standard a day old is still a standard. Before the first good fetch, and on an
 install that fetches nothing, the one built in is the standard.
 
+**The standard carries the prices** (Petar, 18 November 2026: "the template by rouh.land that
+gets synced to every connected rouh should carry the pricing"): `prices` is what every model
+it can name costs, in dollars per million tokens (in, out, cache write and cache read; a
+picture model's picture tokens; OpenAI's Decisions API apart; a web search apiece) with the day
+they were last checked. A fetched standard's prices go over the built-in one's model by model
+(`_merged_prices`), every call is priced from them (`prices`, `rouh/costs.py`), and a price
+that is not one is left out rather than refusing the rest. A model the template names must have
+a price in it: the built-in standard refuses to load without one, and rouh.land refuses to
+publish without one. After a fetch, a call logged with no price only because its model was on
+no list is priced again (`llmlog.reprice`).
+
 What a fetched standard may say is narrow on purpose: only models on this
 install's list (`config.MODEL_CHOICES`), only the five levels, only uses this
 install has. Anything else in it is left out, and what it leaves out is the
@@ -58,10 +69,12 @@ built-in standard's, so a published standard can be small.
 """
 from __future__ import annotations
 
+import asyncio
 import copy
 import json
 import logging
 import os
+import re
 import time
 
 from .config import EFFORTS, MODEL_CHOICES, PROVIDERS, config as _config, is_openai, provider_of
@@ -315,6 +328,8 @@ def check(doc, *, whole: bool = False) -> dict:
         if not 0.5 <= bar <= 1.0:
             raise Bad(f"router.bar {bar} is not between 0.5 and 1")
         out["router"] = {"bar": bar, "why": str(router.get("why") or "")[:400]}
+    if isinstance(doc.get("prices"), dict):
+        out["prices"] = _prices(doc["prices"])
     doubles = doc.get("double_calls")
     if isinstance(doubles, dict):
         try:
@@ -331,6 +346,75 @@ def check(doc, *, whole: bool = False) -> dict:
         missing = sorted(set(BY_ID) - set(out["uses"]))
         if missing:
             raise Bad("no tier for " + ", ".join(missing))
+        listed = (out.get("prices") or {}).get("models") or {}
+        missing = sorted(m for m in out["efforts"] if not _priced_in(m, listed))
+        if missing:
+            raise Bad("no price for " + ", ".join(missing))
+    return out
+
+
+# --- the prices ----------------------------------------------------------------------------
+#
+# Petar, 18 November 2026: "the template by rouh.land that gets synced to every connected rouh
+# should carry the pricing. rouh instances should not be responsible in having to update the
+# pricing." So the standard carries what every model it can name costs (`prices`), and every
+# call is priced from the standard this Rouh last fetched (`rouh/costs.py`); the list written
+# into costs.py is only what is used when no standard has a price at all.
+
+#: The rates a model's price may have, each in dollars per million tokens.
+RATES = ("in", "out", "cache_write", "cache_write_1h", "cache_read", "image_in", "image_out")
+#: What a model's id may look like, as rouh.land holds it.
+_PRICE_ID = re.compile(r"^[a-z0-9][a-z0-9.\-]{1,63}$")
+
+
+def _rates(raw) -> dict | None:
+    """One model's price as it may be used, or nothing: every rate a number of dollars."""
+    if not isinstance(raw, dict):
+        return None
+    out = {}
+    for key in RATES:
+        value = raw.get(key)
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 10000:
+            return None
+        out[key] = float(value)
+    return out if "in" in out else None
+
+
+def _prices(raw: dict) -> dict:
+    """The prices a standard carries, as they may be used. A price that is not one (a rate that
+    is not a number, no input rate) is left out, and the rest kept: one wrong line on rouh.land
+    must not leave every other model with no price."""
+    out: dict = {"checked": str(raw.get("checked") or "")[:10], "models": {}, "decisions": {}}
+    for part in ("models", "decisions"):
+        for model, rates in (raw.get(part) or {}).items() if isinstance(raw.get(part), dict) else ():
+            model = str(model or "").strip().lower()
+            got = _rates(rates)
+            if got is not None and _PRICE_ID.match(model):
+                out[part][model] = got
+            else:
+                log.info("the model standard's price for %r is not one, and is left out", model)
+    search = raw.get("web_search")
+    if isinstance(search, (int, float)) and not isinstance(search, bool) and 0 <= search <= 100:
+        out["web_search"] = float(search)
+    return out
+
+
+def _priced_in(model: str, listed: dict) -> bool:
+    return model in listed or any(model.startswith(known) for known in listed)
+
+
+def _merged_prices(base: dict, fetched: dict) -> dict:
+    """The fetched standard's prices over the built-in one's, model by model, so a standard
+    that prices one new model leaves every other price as it was."""
+    out = copy.deepcopy(base or {"models": {}, "decisions": {}})
+    for part in ("models", "decisions"):
+        out.setdefault(part, {}).update(copy.deepcopy(fetched.get(part) or {}))
+    if fetched.get("checked"):
+        out["checked"] = fetched["checked"]
+    if "web_search" in fetched:
+        out["web_search"] = fetched["web_search"]
     return out
 
 
@@ -357,6 +441,8 @@ def merged(fetched: dict | None) -> dict:
         out["router"] = copy.deepcopy(fetched["router"])
     if fetched.get("double_calls"):
         out["double_calls"] = copy.deepcopy(fetched["double_calls"])
+    if fetched.get("prices"):
+        out["prices"] = _merged_prices(base.get("prices"), fetched["prices"])
     # The mark of a fetched standard, a word and not an address: kept as it was before the move
     # to rouh.land (task 165), as the page and the rule defaults' stamps read it.
     out["source"] = "rouh.it"
@@ -404,6 +490,32 @@ def current() -> dict:
 
 def forget_cache() -> None:
     _CACHE.clear()
+
+
+#: The built-in standard, read once, for `prices` inside an event loop before any was read.
+_BUILT: dict = {}
+
+
+def prices() -> dict:
+    """The prices in use: those of the standard last fetched, over the built-in standard's.
+
+    Called for every call a model answers (`rouh/costs.py`), some of them inside a chat's event
+    loop, where the database may not be read: there it uses the standard last read, or the
+    built-in one, and never waits on anything. Never raises."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return current().get("prices") or {}
+    doc = _CACHE.get("doc")
+    if doc is None:
+        if "doc" not in _BUILT:
+            try:
+                _BUILT["doc"] = built_in()
+            except Exception:
+                log.exception("the built-in model standard could not be read for its prices")
+                _BUILT["doc"] = {}
+        doc = _BUILT["doc"]
+    return doc.get("prices") or {}
 
 
 def fetched_said() -> dict:
@@ -470,6 +582,18 @@ def fetch(cfg=None, *, url: str | None = None) -> dict:
     _say(said)
     forget_cache()
     log.info("model standard %s fetched from %s", doc["revision"], url)
+    if doc.get("prices"):
+        # A call logged with no price because its model was on no list is priced now that the
+        # standard may carry its price, so the stats screen catches up by itself.
+        try:
+            from .llmlog import reprice
+
+            done = reprice()
+            if done["calls"]:
+                log.info("the model standard's prices priced %d calls that had none, $%.2f in all",
+                         done["calls"], done["dollars"])
+        except Exception:
+            log.exception("the calls with no price could not be priced again")
     return said
 
 

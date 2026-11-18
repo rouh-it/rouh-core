@@ -223,7 +223,8 @@
     "rouh/promptcache.py",
     "rouh/costs.py",
     "rouh/usage.py",
-    "rouh/usage_drill.py"
+    "rouh/usage_drill.py",
+    "rouh/management/commands/reprice_calls.py"
    ],
    "needed_by": [
     "answered-in-chat",

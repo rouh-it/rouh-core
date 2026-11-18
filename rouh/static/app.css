@@ -858,6 +858,10 @@ button { font: inherit; color: inherit; }
 .ou-sidenote .ou-h { margin-bottom: 6px; }
 .ou-sidenote p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--dim); }
 .ou-sidenote .ou-btn { margin-top: 10px; }
+/* Calls on a model no price list has: a warning, named by its title as well as its colour. */
+.ou-sidenote-warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line-soft)); }
+.ou-sidenote-warn .ou-h { color: var(--warn); }
+.ou-sidenote p.ou-missing { color: var(--text); margin-bottom: 6px; overflow-wrap: anywhere; }
 .ou-sideempty { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--dim); }
 .ou-numlink {
   appearance: none; border: 0; background: none; padding: 0; margin: 0; cursor: pointer;
