@@ -230,6 +230,12 @@ function paintStrip(d) {
     if (i) words.appendChild(document.createTextNode(' · '));
     words.appendChild(el('span', 'reading-strip-bit', bit));
   });
+  // The phone's chip: what is included in a word or two, never a name (`shortSaid`).
+  var short = $('readingStripShort');
+  if (short) {
+    short.textContent = shortSaid(d, bits);
+    short.classList.toggle('pending', READ.pending && !!(cpop && !cpop.hidden));
+  }
   // Faded while a choice made here is being saved: the summary is the server's.
   words.classList.toggle('pending', READ.pending && !!(cpop && !cpop.hidden));
   var chev = $('readingStripChev');
@@ -239,6 +245,26 @@ function paintStrip(d) {
   strip.title = says;
   strip.setAttribute('aria-label', says);
   if (quiet && cpop && !cpop.hidden) openContent(false);
+}
+
+/** The strip as a phone's chip says it, in a word or two and with no names (Petar, 19 November 2026: "On
+    mobile it doesn't have to name anything details because we don't have space. Details will appear after
+    tapping"): "Nothing kept" in an incognito chat (its head already says Incognito), a fork's "Parent included", "Parent left out" or "1 of 2 parents", and otherwise
+    how many of the choices are on, "3 included", or "Nothing included". The whole line is on its label.
+    @param {ReadView} d @param {string[]} bits */
+function shortSaid(d, bits) {
+  if (d.incognito) return 'Nothing kept';
+  var groups = d.content || [];
+  var parents = (d.tree || []).filter(function (c) { return !c.self; });
+  var page = ASK.doc ? 1 : 0;
+  if (!groups.length && !parents.length) return bits.length === 1 && page ? 'This page' : 'Content';
+  var onParents = parents.filter(function (c) { return c.on; }).length;
+  if (!groups.length && !page) {
+    if (parents.length === 1) return onParents ? 'Parent included' : 'Parent left out';
+    return onParents ? onParents + ' of ' + parents.length + ' parents' : 'Parents left out';
+  }
+  var n = groups.filter(function (g) { return g.on; }).length + onParents + page;
+  return n ? n + ' included' : 'Nothing included';
 }
 
 /** Tokens said short: 840, 3.1k, 74k, 1.2M. @param {number} n */
@@ -439,6 +465,38 @@ function openContent(on) {
   // Drawn at once from what was last fetched; the sizes are asked again behind it, because what was said
   // since the chat was opened changes them (the chat itself, from 0 Tokens at its first message).
   if (READ.chat && !READ.busy && !READ.pending) load(READ.chat);
+}
+
+/** On a phone the panel is a sheet from the bottom, and a sheet is swiped down to close it: a drag that starts
+    with the sheet scrolled to its top follows the finger down, and let go past a quarter of its height (or 90
+    pixels) it closes; short of that it springs back. A drag up, or one that starts with the sheet scrolled,
+    is the sheet's own scrolling and left alone. @param {HTMLElement} sheet */
+function sheetSwipe(sheet) {
+  /** @type {{ y: number, dy: number, on: boolean } | null} */
+  var drag = null;
+  sheet.addEventListener('touchstart', function (e) {
+    drag = sheet.classList.contains('sheet') && sheet.scrollTop <= 0 && e.touches.length === 1
+      ? { y: e.touches[0].clientY, dy: 0, on: false } : null;
+  }, { passive: true });
+  sheet.addEventListener('touchmove', function (e) {
+    if (!drag) return;
+    drag.dy = e.touches[0].clientY - drag.y;
+    if (!drag.on && drag.dy < 6) { if (drag.dy < 0) drag = null; return; }
+    drag.on = true;
+    sheet.style.transition = 'none';
+    sheet.style.transform = 'translateY(' + Math.max(0, drag.dy) + 'px)';
+    if (e.cancelable) e.preventDefault();
+  }, { passive: false });
+  function done() {
+    if (!drag) return;
+    var go = drag.on && drag.dy > Math.min(90, sheet.offsetHeight / 4);
+    drag = null;
+    sheet.style.transition = '';
+    sheet.style.transform = '';
+    if (go) openContent(false);
+  }
+  sheet.addEventListener('touchend', done);
+  sheet.addEventListener('touchcancel', done);
 }
 
 /** The panel. @param {ReadView} d */
@@ -1280,6 +1338,7 @@ if (btn && pop) {
       pressed(t);
     });
     if (cback) cback.addEventListener('click', function () { openContent(false); });
+    sheetSwipe(cpop);
   }
   pop.addEventListener('keydown', modeKeys);
   if (full) full.addEventListener('keydown', modeKeys);

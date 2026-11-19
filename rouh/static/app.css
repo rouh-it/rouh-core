@@ -11319,7 +11319,13 @@ html:not(.demo) .demo-dot:not(.keep) { display: none; }
 /* Incognito, or a chat with nothing to choose: a line that says, not a control. */
 .reading-strip.quiet { cursor: default; }
 .reading-strip.quiet:hover { color: var(--dim); }
-.reading-strip-words.pending { opacity: 0.55; }
+.reading-strip-words.pending, .reading-strip-short.pending { opacity: 0.55; }
+/* At a desk the pill is only a wrapper and the short words are not drawn: the strip is the line it was. */
+.reading-strip-pill { display: contents; }
+.reading-strip-short { display: none; }
+/* Never squeezed by the column it is in: a strip pressed shorter than its words drew them over the
+   conversation under it (Petar's phone, 19 November 2026). */
+.reading-strip { flex: 0 0 auto; }
 /* The strip's panel, what this chat reads (app/reading.js `contentPaint`): under the strip on a desk, placed
    by the script, and a sheet from the bottom on a phone. */
 .reading-pop.content-pop {
@@ -11521,15 +11527,43 @@ body.chat-incognito .content-pop { --accent: var(--incog); --accent-ink: var(--i
   /* On a phone the head floats over the conversation (`.crumb`, fixed), and the conversation is
      padded down to clear it. The strip takes that room instead, under the head, and the
      conversation starts under the strip. */
-  .col-chat:has(#chatTabs[hidden]) .reading-strip { margin-top: calc(var(--top-air) * 2 + var(--top-chip) + 2px); }
+  /* On a phone the strip is one small chip (Petar, 19 November 2026: "Included Content should be small
+     bubble text on near top ... Details will appear after tapping"): a small layers mark and a word or two
+     (`shortSaid` in app/reading.js), never the heading, never a name, never a second line. The button is
+     44 pixels tall for the thumb and the pill drawn inside it is 28, tucked up under the head; in a fork it
+     sits at the left of the second row, beside the fork's cross, so it costs no room at all. Its own row
+     either way, so the conversation always starts under it and is never drawn beneath it. */
+  .reading-strip, .reading-strip:not(.quiet) {
+    align-self: flex-start; width: auto; max-width: calc(100% - var(--top-chip) - 32px);
+    min-height: 44px; padding: 0 0 0 16px; align-items: center; font-size: 12px; line-height: 16px;
+  }
+  /* Its left edge is the title's: 16 pixels in, and in a fork, whose card is set in, 8. */
+  .col-chat:has(.fork-x) .reading-strip { padding-left: 8px; }
+  .reading-strip-pill {
+    display: inline-flex; align-items: center; gap: 5px; min-width: 0; height: 28px; padding: 0 9px 0 8px;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); color: var(--dim);
+    box-sizing: border-box; white-space: nowrap;
+  }
+  .reading-strip:not(.quiet):hover .reading-strip-pill { color: var(--text); border-color: var(--dim); }
+  .reading-strip:focus-visible { outline: 0; }
+  .reading-strip:focus-visible .reading-strip-pill { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .reading-strip[aria-expanded="true"] .reading-strip-pill { color: var(--text); border-color: var(--accent); }
+  .reading-strip-words { display: none; }
+  .reading-strip-short { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+  .reading-strip-mark, .reading-strip-chev { height: auto; }
+  .reading-strip-mark svg { width: 13px; height: 13px; }
+  .reading-strip-chev svg { width: 10px; height: 10px; }
+  body.chat-incognito .reading-strip-short { color: var(--incog); }
+  /* The pill is 8 pixels into its button: under the head it starts 6 pixels below the head's chips, and in a
+     fork's second row its middle is the cross's middle. */
+  .col-chat:has(#chatTabs[hidden]) .reading-strip { margin-top: calc(var(--top-air) + var(--top-chip) - 2px); }
   .col-chat:has(#chatTabs[hidden]):has(.fork-x) .reading-strip {
-    margin-top: calc(var(--top-air) * 2 + var(--top-chip) * 2 + var(--top-gap) + 2px);
+    margin-top: calc(var(--top-air) + var(--top-chip) + var(--top-gap) + (var(--top-chip) - 44px) / 2);
   }
   .col-chat:has(#chatTabs[hidden]):has(#readingStrip:not([hidden])) .transcript,
-  .col-chat:has(#chatTabs[hidden]):has(.fork-x):has(#readingStrip:not([hidden])) .transcript { padding-top: 6px; }
+  .col-chat:has(#chatTabs[hidden]):has(.fork-x):has(#readingStrip:not([hidden])) .transcript { padding-top: 4px; }
   .reading-row-t b { font-size: 15px; }
   .reading-row-t span { font-size: 13px; }
-  .reading-strip { padding: 2px 16px 6px; font-size: 13px; }
 }
 
 /* Incognito (rouh/incognito.py): the whole conversation column changes, so it is never mistaken for a

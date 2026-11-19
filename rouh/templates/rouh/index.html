@@ -1026,9 +1026,16 @@ with {% asset %}, which gives it its hashed address.
            the model is how Rouh works. None in General; a quiet line in an incognito chat. {% endcomment %}
       <button id="readingStrip" class="reading-strip" type="button" aria-controls="contentPop" aria-haspopup="dialog"
               aria-expanded="false" hidden>
-        <span class="reading-strip-mark" id="readingStripMark" aria-hidden="true"></span>
-        <span class="reading-strip-words" id="readingStripWords"></span>
-        <span class="reading-strip-chev" id="readingStripChev" aria-hidden="true"></span>
+        {% comment %} On a phone the strip is one small chip under the head (Petar, 19 November 2026:
+             "Included Content should be small bubble text on near top ... Details will appear after
+             tapping"): `-pill` draws it, and `-short` says what is included in a word or two, with no names
+             ("Parent left out", "3 included"). At a desk the pill is not drawn and the line is as it was. {% endcomment %}
+        <span class="reading-strip-pill">
+          <span class="reading-strip-mark" id="readingStripMark" aria-hidden="true"></span>
+          <span class="reading-strip-words" id="readingStripWords"></span>
+          <span class="reading-strip-short" id="readingStripShort" aria-hidden="true"></span>
+          <span class="reading-strip-chev" id="readingStripChev" aria-hidden="true"></span>
+        </span>
       </button>
       <div class="reading-pop content-pop" id="contentPop" role="dialog" aria-labelledby="contentHead" hidden></div>
       <div class="content-back" id="contentBack" hidden></div>
