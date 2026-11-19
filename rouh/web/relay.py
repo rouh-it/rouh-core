@@ -136,7 +136,9 @@ async def name(request: HttpRequest) -> HttpResponse:
         if body.get("do") == "seen":
             await asyncio.to_thread(relay.rename_seen)
         else:
-            await asyncio.to_thread(relay.change_name, str(body.get("name") or ""))
+            from rouh import clock
+
+            await asyncio.to_thread(relay.change_name, str(body.get("name") or ""), None, clock.zone_of(me))
         return await asyncio.to_thread(relay.status)
 
     return await _admin_do(request, work)

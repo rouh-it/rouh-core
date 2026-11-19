@@ -1610,10 +1610,12 @@ def _share_state(me, rel: str, title: str = "") -> dict:
         "kind": "task" if taskshare.is_task(rel) else "page",
         "title": row.get("title") or title,
         "public": bool(row.get("public")),
-        # The path and not the whole address. The browser puts its own origin
-        # in front of it (`shareLink` in app.js), so the link the person copies
-        # is a link to the Rouh they are looking at.
+        # The path and not the whole address. The browser puts `base` in front
+        # of it when there is one (`shareLink` in runs.js): the Rouh's born relay
+        # name, which never changes, so a copied link survives renaming its
+        # address (Petar, 19 November 2026). With no relay, its own origin.
         "path": row.get("path") or "",
+        "base": sharing.share_base(""),
         "role": row.get("role") or sharing.VIEW,
         # With when each last opened it, while that gene is on (`rouh/share_opens.py`).
         "people": guests_web._people(me, rel),

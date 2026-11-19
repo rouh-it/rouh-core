@@ -552,8 +552,9 @@ def _landshare_page(request, said: str, *, again: str = "", status: int = 400):
 @only("GET")
 async def shared_in(request: HttpRequest):
     """GET /shared/in?next=: somebody opening what was shared with them, not signed in here. On the
-    relay address, sent to rouh.land to say who they are; anywhere else, first to the relay address,
-    where the sign-in will be kept."""
+    born relay address, sent to rouh.land to say who they are; anywhere else (a chosen name an older
+    letter was sent on, while this Rouh still answers on it), first to the born address, where the
+    sign-in is kept: a share's whole way in stays on the name that never changes (`landshare.address`)."""
     from rouh import landshare
 
     then = landshare._then(request.GET.get("next"))

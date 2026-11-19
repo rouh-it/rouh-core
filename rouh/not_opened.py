@@ -97,9 +97,16 @@ def _title(row) -> str:
 
 
 def _base() -> str:
+    """Where a link to a page shared with a person points: the address the share flow runs on (the
+    born relay name, `landshare.address`) when there is one, else the installation's own."""
+    from . import landshare
     from .config import config
 
-    return str(getattr(config, "public_url", "") or "").rstrip("/")
+    try:
+        there = landshare.address()
+    except Exception:  # noqa: BLE001 - no relay
+        there = ""
+    return (there or str(getattr(config, "public_url", "") or "")).rstrip("/")
 
 
 def compose_link(inbox: str, to: str, title: str, link: str) -> str:

@@ -177,6 +177,7 @@
           addr.appendChild(ch);
         }
         page.appendChild(addr);
+        page.appendChild(sharedLine(d));
       }
       if (d.rename && !(P.edit && d.rename.state !== 'working')) page.appendChild(moving(d));
       if (L.kind === 'stopped') {
@@ -249,6 +250,42 @@
     body.replaceChildren(page);
     tell();
   }
+
+  /* Under the address and in Change (Petar, 19 November 2026): a chosen name is the way in, and
+     every link this Rouh shares is on the born name, which never changes (`relay.share_address`). */
+  /** @param {any} d */
+  function sharedLine(d) {
+    var born = String(d.share || d.address || '').replace(/^https:\/\//, '');
+    var p = el('p', 'settings-help ph-shared');
+    p.id = 'phShared';
+    p.appendChild(document.createTextNode('The name you choose is how you reach your Rouh. Links you share always use '));
+    p.appendChild(el('b', '', born));
+    p.appendChild(document.createTextNode(', which never changes, so renaming never breaks a shared link.'));
+    return p;
+  }
+
+  /** "today at 14:05", "tomorrow at 09:30", on this browser's clock. @param {number} at */
+  function when(at) {
+    var t = new Date(at * 1000), now = new Date();
+    var morrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    var dayWord = t.toDateString() === now.toDateString() ? 'today'
+      : t.toDateString() === morrow.toDateString() ? 'tomorrow'
+      : t.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+    return dayWord + ' at ' + clock(at);
+  }
+
+  /** How many changes are left today, or when the next is allowed. @param {any} d */
+  function changesLine(d) {
+    var c = d.changes || { left: 1, limit: 2, next_at: 0 };
+    var p = el('p', 'ph-limit' + (c.left ? '' : ' none'));
+    p.id = 'phLimit';
+    p.textContent = c.left
+      ? 'You can change your address ' + c.limit + ' times in any 24 hours. '
+        + (c.left === c.limit ? 'Both are left.' : c.left === 1 ? 'One is left.' : c.left + ' are left.')
+      : 'You have changed your address ' + c.limit + ' times in the last 24 hours. You can change it again ' + when(c.next_at) + '.';
+    return p;
+  }
+  function noneLeft() { var c = P.data && P.data.changes; return !!(c && c.left === 0); }
 
   /* --- Change --------------------------------------------------------------------------------- */
 
@@ -337,7 +374,7 @@
     line.className = 'ph-verdict ' + (v === 'ok' ? 'ok' : v === 'bad' || v === 'error' ? 'bad' : 'wait');
     line.innerHTML = v === 'ok' ? MARKS.ok : v === 'bad' || v === 'error' ? MARKS.bad : v === 'checking' ? MARKS.wait : '';
     line.appendChild(el('span', '', E.why));
-    if (save) save.disabled = P.busy || v !== 'ok';
+    if (save) save.disabled = P.busy || v !== 'ok' || noneLeft();
   }
 
   /** @param {any} d */
@@ -376,6 +413,7 @@
     if (d.chosen && cur === d.chosen) {
       old.appendChild(el('b', '', cur));
       old.appendChild(document.createTextNode(' stops working when you save. Phones and bookmarks that use it will need the new address. '
+        + 'It is kept for you for ' + ((d.changes && d.changes.held_days) || 15) + ' days before anyone else can take it. '
         + d.hostname + ', the address it was born with, keeps working.'));
     } else {
       old.appendChild(el('b', '', cur));
@@ -383,6 +421,8 @@
         + 'Your Rouh opens on the new one from then on.'));
     }
     f.appendChild(old);
+    f.appendChild(sharedLine(d));
+    f.appendChild(changesLine(d));
     var acts = el('div', 'hb-actions');
     var save = /** @type {HTMLButtonElement} */ (el('button', 'ctl small primary', 'Save'));
     save.type = 'submit';

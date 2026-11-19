@@ -7581,12 +7581,14 @@ $('gdocOpen').addEventListener('click', function () {
   gdocOpenIt(GDOC.state && GDOC.state.made, GDOC.rel);
 });
 
-// The link, built from where this browser actually is. The server hands back
-// the path and no more: a link to the Rouh in front of the person is the one
-// that will answer it, and this page cannot know what another one is called.
+// The link: the server's `base`, this Rouh's born rouh.page name, which never
+// changes, so a link copied today still opens after the address is renamed
+// (Petar, 19 November 2026). With no relay there is no base, and it is built
+// from where this browser actually is.
 function shareLink() {
   var path = SHARE.state && SHARE.state.path;
-  return path ? location.origin + path : '';
+  var base = (SHARE.state && SHARE.state.base) || location.origin;
+  return path ? base + path : '';
 }
 
 function shareSay(words, kind) {

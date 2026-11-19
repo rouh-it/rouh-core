@@ -211,8 +211,18 @@ def preferred_address(held: dict | None = None) -> str:
     return f"https://{chosen}" + ("" if port == 443 else f":{port}")
 
 
+def share_address(held: dict | None = None) -> str:
+    """Where every link this Rouh shares points: its born name, never the chosen one.
+
+    Petar, 19 November 2026: "sharing links should be with the id of the rouh and never change. you
+    can change the url and that will help you with access to rouh. but sharing links should be
+    always with the original url." The born name is rouh.land's for good and answers for as long as
+    this Rouh does, so a link sent before or after any number of changes of the chosen name opens."""
+    return address(held)
+
+
 def address(held: dict | None = None) -> str:
-    """The whole address, https and the port when it is not 443; "" before the claim."""
+    """The born address, whole: https and the port when it is not 443; "" before the claim."""
     held = read() if held is None else held
     host = held.get("hostname") or ""
     if not host:
@@ -617,12 +627,21 @@ def address_letter(user=None) -> dict:
 # Petar: "make sure people can change their rouh.page link through their rouh settings ... there
 # should be a "Change/update" link next to my current link." The address shown is the chosen one
 # once it works, else the born one; Change takes a new chosen name the way `choose_name` does
-# (rouh.land checks it, keeps it for this Rouh only, at most five changes a day, and lets the old
-# chosen name rest for 30 days before anyone else may take it), then watches the relay route, the
+# (rouh.land checks it, keeps it for this Rouh only, and lets the old chosen name rest for
+# `NAME_HELD_DAYS` days before anyone else may take it), then watches the relay route, the
 # certificate and the check from outside. When the new name is not working after `NAME_PATIENCE`,
 # the old name is taken back, so the person is never left without the address they had. The born
 # name is rouh.land's for good and keeps answering throughout: it is the floor under all of this.
 
+#: How many changes of the name a Rouh may make in any `CHANGES_WINDOW` (Petar, 19 November 2026:
+#: "at most 2 name changes per day"). Going back to the born name is a change too; a change that did
+#: not come up and was put back is not counted (`_count_change`).
+CHANGES_PER_DAY = 2
+CHANGES_WINDOW = 24 * 3600.0
+#: How long a chosen name that was given up is kept for this Rouh before anyone else may take it.
+#: rouh.land's rule, 30 days until Petar made it 15 on 19 November 2026: the hold itself is
+#: rouh.land's (rouh-land/rouh-land, `birth/relay.py`, `QUARANTINE_DAYS`); this is what Rouh says.
+NAME_HELD_DAYS = 15
 #: How often the change is looked at while it is on its way.
 RENAME_LOOK = 3.0
 #: How long the result of a change stays on the card unless the person closes it.
@@ -635,15 +654,80 @@ def current_host(held: dict | None = None) -> str:
     return urlsplit(preferred_address(held)).hostname or ""
 
 
-def change_name(text: str, user=None) -> dict:
+def changes_made(held: dict | None = None, now: float | None = None) -> list[float]:
+    """When each change of the name in the last `CHANGES_WINDOW` was made, oldest first."""
+    held = read() if held is None else held
+    now = time.time() if now is None else now
+    out = []
+    for at in held.get("name_changes") or []:
+        try:
+            at = float(at)
+        except (TypeError, ValueError):
+            continue
+        if now - CHANGES_WINDOW < at <= now + 60:
+            out.append(at)
+    return sorted(out)
+
+
+def changes_left(held: dict | None = None, now: float | None = None) -> dict:
+    """{left, limit, next_at}: how many changes may still be made now, and when the next one is
+    allowed once none are left (0 while one is)."""
+    now = time.time() if now is None else now
+    made = changes_made(held, now)
+    left = max(0, CHANGES_PER_DAY - len(made))
+    next_at = 0.0 if left else made[len(made) - CHANGES_PER_DAY] + CHANGES_WINDOW
+    return {"left": left, "limit": CHANGES_PER_DAY, "next_at": next_at, "held_days": NAME_HELD_DAYS}
+
+
+def _when(at: float, zone=None) -> str:
+    """A time as the person reads it on their own clock: "today at 14:05", "tomorrow at 09:30"."""
+    from datetime import datetime
+
+    if zone is None:
+        with contextlib.suppress(Exception):
+            from . import clock
+
+            zone = clock.zone()
+    then = datetime.fromtimestamp(at, zone)
+    today = datetime.now(zone).date()
+    day = ("today" if then.date() == today else "tomorrow" if (then.date() - today).days == 1
+           else then.strftime("%A %-d %B"))
+    return f"{day} at {then.strftime('%H:%M')}"
+
+
+def _count_change(at: float) -> None:
+    """Write a change down as made, at the time it was asked for (`change_name`)."""
+    with _LOCK:
+        held = read()
+        kept = [a for a in changes_made(held) if a != at] + [at]
+        _change(name_changes=kept[-(CHANGES_PER_DAY * 4):])
+
+
+def _uncount_change(at: float) -> None:
+    """A change that did not come up and was put back is not a change."""
+    with _LOCK:
+        held = read()
+        kept = [a for a in held.get("name_changes") or [] if a != at]
+        _change(name_changes=kept or None)
+
+
+def change_name(text: str, user=None, zone=None) -> dict:
     """Change the address to ``text`` (the part before the relay's domain). The born name typed
-    back gives up the chosen one. Answers at once; `rename_status` says how it goes."""
+    back gives up the chosen one. Answers at once; `rename_status` says how it goes.
+
+    At most `CHANGES_PER_DAY` changes in any `CHANGES_WINDOW`: one more is refused before anything
+    is touched, saying when the next is allowed on the person's clock (``zone``)."""
     name = plain_name(text)
     bad = _shape_problem(name) if name else NAME_SHAPE
     if bad:
         raise Refused(bad)
     with _LOCK:  # one change at a time: a second press is not a second claim
         held = read()
+        room = changes_left(held)
+        if not room["left"]:
+            raise Refused(f"You have changed your address {CHANGES_PER_DAY} times in the last 24 hours, "
+                          f"which is the most there may be. You can change it again "
+                          f"{_when(room['next_at'], zone)}.")
         host = str(held.get("hostname") or "")
         if not host:
             raise Refused("This Rouh has no address yet.")
@@ -656,13 +740,16 @@ def change_name(text: str, user=None) -> dict:
         to_born = new_host == host
         if (to_born and not old_chosen) or (not to_born and new_host == old_chosen):
             raise Refused("That is already your address.")
+        at = time.time()
         _change(rename={"from": current_host(held) or host, "to": new_host, "back_to": old_chosen,
-                        "at": time.time(), "state": "working", "said": ""})
+                        "at": at, "state": "working", "said": ""})
     try:
         choose_name("" if to_born else name, user)
     except Refused as exc:
         _change(rename=None)
         raise Refused(str(exc)) from None
+    # rouh.land took it: it counts from now, and stops counting only if it is put back (`_roll_back`).
+    _count_change(at)
     if to_born:
         _rename_end("done", f"{host} is your address again.")
     else:
@@ -688,6 +775,8 @@ def _roll_back(r: dict, why: str) -> None:
     """The new name did not come up: take the old chosen name back (or none, for the born one).
     rouh.land lets a Rouh take back a name it gave up, at once. If even that is refused, the
     chosen name is given up, which leaves the born name, which always answers."""
+    with contextlib.suppress(Exception):
+        _uncount_change(float(r.get("at") or 0))
     back = str(r.get("back_to") or "")
     label = back[: -len(domain()) - 1] if back.endswith("." + domain()) else ""
     born = str(read().get("hostname") or "")
@@ -1507,6 +1596,9 @@ def status() -> dict:
         "preferred": preferred_address(held),
         "current": current_host(held),
         "rename": rename_status(held),
+        # Where every shared link points, which never changes (`share_address`).
+        "share": share_address(held),
+        "changes": changes_left(held),
         "domain": domain(),
         "service": urlsplit(service_url()).hostname or "",
         # Where the owner of a Rouh never asked signs in to link it (Rouh profile's own link).

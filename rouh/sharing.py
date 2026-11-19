@@ -148,9 +148,25 @@ def link_for(public_url: str, token: str) -> str:
     The panel builds its link from the address the browser is at. The
     assistant has no browser to ask, and the link it hands over is going into
     a message to somebody else, so it is built from the address this Rouh is
-    reached at from outside (`config.public_url`).
+    reached at from outside (`config.public_url`), or, on a Rouh reached through
+    the relay, its born name (`share_base`).
     """
-    return str(public_url or "").rstrip("/") + path_for(token)
+    return share_base(public_url) + path_for(token)
+
+
+def share_base(fallback: str = "") -> str:
+    """The start of every link this Rouh shares, with no slash at the end: its born relay name while
+    the relay is on, never the name its owner chose, so a link never changes (Petar, 19 November
+    2026: "sharing links should be with the id of the rouh and never change"); else ``fallback``."""
+    try:
+        from . import relay
+
+        held = relay.read()
+        if held.get("on") and held.get("hostname"):
+            return relay.share_address(held).rstrip("/")
+    except Exception:  # noqa: BLE001 - no relay, the installation's own address
+        pass
+    return str(fallback or "").rstrip("/")
 
 
 #: The kind of file that may be made public. A share is a page, not a folder

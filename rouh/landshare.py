@@ -8,8 +8,10 @@ with a form on this Rouh: their first name and last name, and from then on a sig
 **Connected Rouh** (registered on rouh.land, with its own relay address, `rouh/relay.py`) asks
 rouh.land who they are instead:
 
-1. **The letter** links to the share on this Rouh's relay address (`address`), the same address the
-   phone uses: `https://<its name>.rouh.page/shared/<token>`.
+1. **The letter** links to the share on this Rouh's born relay address (`address`), never the name
+   its owner chose, so renaming never breaks a link: `https://<its born name>.rouh.page/shared/<token>`.
+   A letter sent on a chosen name before 19 November 2026 still opens while this Rouh answers on
+   that name: `/shared/in` there sends the person on to the born name, where the sign-in is kept.
 2. **Not signed in here**, they are sent to `/shared/in` (`rouh/web/gate.py`), which says who shared
    what with them and that they need a rouh.land account to view it, with two presses: **Create a
    rouh.land account** and **Sign in** (Petar, 11 November 2026: "people should not have accounts in
@@ -121,14 +123,19 @@ def ready(org: str = "") -> bool:
 
 
 def address() -> str:
-    """Where a person a page is shared with reaches this Rouh: its relay address, the phone's.
+    """Where a person a page is shared with reaches this Rouh: its born relay address, for good.
+
+    Never the name its owner chose (Petar, 19 November 2026: "sharing links should be with the id of
+    the rouh and never change"): the chosen name can be changed, and a letter sent on it would stop
+    opening, while the born name answers for as long as this Rouh does (`relay.share_address`). The
+    whole of a guest's way in stays on it too - the link, rouh.land's round trip, the session.
 
     ``ROUH_LANDSHARE_ADDRESS`` names another, for a test world on this machine, which has no relay.
     """
     from . import relay
 
     return (os.environ.get("ROUH_LANDSHARE_ADDRESS", "").strip().rstrip("/")
-            or relay.preferred_address() or relay.address())
+            or relay.share_address())
 
 
 def link(path: str) -> str:
