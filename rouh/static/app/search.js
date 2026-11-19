@@ -94,7 +94,7 @@ var FIND_ICON = {
          'M3 9h18', 'M6 6.5h.01M8.5 6.5h.01', 'M7 13h10M7 16h6'],
   run: ['M4 6l5 5-5 5', 'M12 18h8'],
   // The same branch the Fork button and a fork's mark wear (`forkIcon`).
-  fork: ['M6 20V4', 'M6 15c0-4.5 3.5-7 12-7', 'M15 5l3 3-3 3'],
+  fork: ['M7 3v18', 'M7 15c0-5 4-8 11-8', 'm15 4 3 3-3 3'],
   file: ['M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9']
 };
 

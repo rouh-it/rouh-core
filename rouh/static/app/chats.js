@@ -927,10 +927,11 @@ function forkIcon(size) {
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('fill', 'none');
   svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', '1.8');
+  svg.setAttribute('stroke-width', '2');
   svg.setAttribute('stroke-linecap', 'round');
   svg.setAttribute('stroke-linejoin', 'round');
-  svg.innerHTML = '<path d="M6 20V4"/><path d="M6 15c0-4.5 3.5-7 12-7"/><path d="M15 5l3 3-3 3"/>';
+  // Petar's pick, 19 November 2026 ("6c"), the same as the Fork button's.
+  svg.innerHTML = '<path d="M7 3v18"/><path d="M7 15c0-5 4-8 11-8"/><path d="m15 4 3 3-3 3"/>';
   return svg;
 }
 

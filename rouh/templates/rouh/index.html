@@ -827,9 +827,8 @@ with {% asset %}, which gives it its hashed address.
           <button id="forkCount" class="fork-nav-count" type="button"
                   aria-haspopup="true" aria-expanded="false" aria-controls="forkPath">
             <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none"
-                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M6 3v12"/><circle cx="18" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/>
-              <path d="M18 8.6a9 9 0 0 1-9 9"/>
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 3v18"/><path d="M7 15c0-5 4-8 11-8"/><path d="m15 4 3 3-3 3"/>
             </svg>
             <span id="forkNavAt"></span><span class="fork-nav-of">/</span><span id="forkNavOf"></span>
             <svg class="fork-nav-caret" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="none"
@@ -879,8 +878,8 @@ with {% asset %}, which gives it its hashed address.
                (`rouh/forks.py`). {% endcomment %}
           <a id="crumbFork" class="crumb-fork" data-inapp hidden>
             <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none"
-                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M6 20V4"/><path d="M6 15c0-4.5 3.5-7 12-7"/><path d="M15 5l3 3-3 3"/>
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 3v18"/><path d="M7 15c0-5 4-8 11-8"/><path d="m15 4 3 3-3 3"/>
             </svg>
             <span class="crumb-fork-tip" role="tooltip" aria-hidden="true">
               <span class="crumb-fork-of">Forked from</span>
@@ -1304,13 +1303,13 @@ with {% asset %}, which gives it its hashed address.
           <button id="forkBtn" class="tog fork-btn" type="button" hidden disabled
                   aria-label="Fork this chat"
                   aria-keyshortcuts="Meta+Enter Control+Enter Meta+Shift+Enter Control+Shift+Enter">
-            {% comment %} Icon only since 18 November 2026 (Petar: "remove the "Fork" letters ... maybe a
-                 new icon that is more natural to people and splitting up a chat"): a speech bubble with a
-                 branch leaving it, up and to the right, where the fork opens. {% endcomment %}
+            {% comment %} Icon only since 18 November 2026 (Petar: "remove the "Fork" letters"); the icon is
+                 the one he picked on 19 November 2026 ("6c"): the chat as a straight line, with a branch
+                 curving off it to the right and ending in an arrow. The same icon wherever a fork is
+                 shown (`forkIcon` in app/chats.js, the head's `crumbFork`, search's `fork`). {% endcomment %}
             <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none"
-                 stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 10.5h7a1.5 1.5 0 0 1 1.5 1.5v4a1.5 1.5 0 0 1-1.5 1.5H7.5L5 20v-2.5H4A1.5 1.5 0 0 1 2.5 16v-4A1.5 1.5 0 0 1 4 10.5z"/>
-              <path d="M12.5 13c4 0 4-7 8.5-7"/><path d="M18 3.5L21 6l-3 2.5"/>
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 3v18"/><path d="M7 15c0-5 4-8 11-8"/><path d="m15 4 3 3-3 3"/>
             </svg>
           </button>
 
