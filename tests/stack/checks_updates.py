@@ -225,7 +225,9 @@ def _drive(s: Stack, why: str, limit: float = 1800) -> str:
     run = ""
     while time.time() < end and not run:
         try:
-            run = str((_updates(s).get("run") or {}).get("id") or "")
+            got = _updates(s).get("run") or {}
+            # Only a run that is going: the card keeps showing the last one after it said it was over.
+            run = str(got.get("id") or "") if got.get("going") else ""
         except Failed:
             pass
         if not run:
