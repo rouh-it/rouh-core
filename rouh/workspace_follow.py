@@ -175,14 +175,14 @@ def take_landings() -> list[str]:
     for bundle in sorted(glob.glob(os.path.join(LANDINGS, "*.bundle"))):
         name = bundle[: -len(".bundle")]
         result = name + ".result.json"
-        if os.path.exists(result):
+        if os.path.exists(result) and not _cut_off(result):
             continue
         try:
             with open(name + ".json", encoding="utf-8") as fh:
                 about = json.load(fh)
         except (OSError, ValueError):
             about = {}
-        _write(result, {"state": "landing"})
+        _write(result, {"state": "landing", "start": _START})
         work = tempfile.mkdtemp(prefix="landing-", dir=config.data_dir)
         try:
             got = gitutil.run(work, "clone", "-q", origin, ".", timeout=600)
@@ -217,6 +217,23 @@ def take_landings() -> list[str]:
         finally:
             shutil.rmtree(work, ignore_errors=True)
     return said
+
+
+#: This start of Rouh. A landing it began and never finished is its own; one another start began and
+#: left at "landing" was cut off by a restart (19 November 2026: a landing handed over as Rouh started
+#: again on new code sat at "landing" for an hour, and its run waited the whole of it), and is taken again.
+_START = f"{os.getpid()}-{time.time():.0f}"
+
+
+def _cut_off(result: str) -> bool:
+    import json
+
+    try:
+        with open(result, encoding="utf-8") as fh:
+            got = json.load(fh)
+    except (OSError, ValueError):
+        return False
+    return isinstance(got, dict) and got.get("state") == "landing" and got.get("start") != _START
 
 
 def _write(path: str, data: dict) -> None:
