@@ -43,6 +43,14 @@
     return d.toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   }
   function short(c) { return String(c || '').slice(0, 12); }
+  /* While Rouh takes released changes, each one starts it again (an undo point a change), so the page
+     cannot reach it for a minute or so each time. That is the update going on, not a fault. */
+  var RESTARTING = 'Rouh is starting again on a change it just took. This page comes back by itself in a minute or two.';
+  function updating() {
+    var d = U.data;
+    return !!(d && (d.busy || d.pending)) || !!(C.data && C.data.busy);
+  }
+  function unreachable() { return updating() ? RESTARTING : 'Rouh could not be reached.'; }
 
   function call(method, url, body) {
     if (method === 'POST') { C.busy = true; draw(); }
@@ -56,11 +64,12 @@
           if (j && (j.guard !== undefined)) C.data = j;
           if (!r.ok) C.error = (j && j.error) || 'That did not work. Try again.';
           else if (method === 'POST') { C.error = ''; C.said = (j && j.said) || ''; }
+          else C.error = '';
           draw();
           return j;
         });
       })
-      .catch(function () { C.busy = false; C.error = 'Rouh could not be reached.'; draw(); });
+      .catch(function () { C.busy = false; C.error = unreachable(); draw(); });
   }
   function load() { loadUpdates(false); return call('GET', '/api/settings/changes'); }
 
@@ -77,11 +86,12 @@
           if (j && j.mode) U.data = j;
           if (!r.ok) U.error = (j && j.error) || 'That did not work. Try again.';
           else if (method === 'POST') { U.error = ''; U.said = (j && j.said) || ''; }
+          else U.error = '';
           draw();
           return j;
         });
       })
-      .catch(function () { U.busy = false; U.loaded = true; U.error = 'Rouh could not be reached.'; draw(); });
+      .catch(function () { U.busy = false; U.loaded = true; U.error = unreachable(); draw(); });
   }
   function loadUpdates(look) {
     if (look) { U.said = ''; U.error = ''; }
@@ -217,7 +227,7 @@
 
     var say = U.busy ? 'Working…' : (U.error || U.said);
     if (d.busy && d.busy.step) say = 'Updating: ' + d.busy.step + '…';
-    if (say) s.appendChild(el('p', 'hb-say' + (U.error ? ' bad' : ''), say));
+    if (say) s.appendChild(el('p', 'hb-say' + (U.error && U.error !== RESTARTING ? ' bad' : ''), say));
 
     var acts = el('div', 'hb-actions cu-actions');
     if (d.admin && !d.makes_releases) {
@@ -350,7 +360,7 @@
     body.textContent = '';
     var page = el('div', 'hb-page ch-page');
     var say = C.busy ? 'Working…' : (C.error || C.said);
-    if (say) page.appendChild(el('p', 'hb-say' + (C.error ? ' bad' : ''), say));
+    if (say) page.appendChild(el('p', 'hb-say' + (C.error && C.error !== RESTARTING ? ' bad' : ''), say));
     var d = C.data;
     if (!d) {
       if (!C.error) page.appendChild(el('p', 'hb-empty', 'Asking the protected core…'));

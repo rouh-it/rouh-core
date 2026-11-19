@@ -65,6 +65,18 @@ OPAQUE_PROSE_LINE = 50000
 CLASSIFIED = 3
 
 
+#: Why a change that was put back with an earlier undo point waits.
+PUT_BACK = ("Put back with an earlier undo point (by the doctor, because Rouh did not answer after it, or in "
+            "Changes), so the update does not take it again by itself. Changes can put it back in place.")
+
+
+def was_put_back(row: dict) -> bool:
+    """Whether a change waits because an earlier undo point was put back over it (the doctor or its
+    person). A row put back before 19 November 2026 says so only in its reason."""
+    return bool(row.get("put_back")) or (row.get("status") not in TAKEN and
+                                         str(row.get("reason") or "").startswith("Put back with an earlier undo point"))
+
+
 def ledger() -> dict:
     return u._read(u.folder() / "ledger.json")
 
@@ -85,7 +97,16 @@ def reconcile_ledger() -> None:
     for row in doc["changes"]:
         if row.get("status") in TAKEN and row.get("local") and \
                 u._git("merge-base", "--is-ancestor", row["local"], head, cwd=u.code_dir()).returncode:
-            row.update(status="waiting", reason="Put back with an earlier undo point; this change is not running.")
+            # Put back by the doctor (Rouh did not answer after it) or by its person. Never taken
+            # again by the update on its own: a change that stopped Rouh starting would stop it again,
+            # fifteen minutes at a time, with each walk (19 November 2026).
+            row.update(status="waiting", put_back=row["status"],
+                       reason=PUT_BACK)
+            changed = True
+        elif was_put_back(row) and row.get("local") and row.get("status") not in TAKEN and \
+                u._git("merge-base", "--is-ancestor", row["local"], head, cwd=u.code_dir()).returncode == 0:
+            # Its person pressed Put the change back in Changes: it runs again.
+            row.update(status=row.get("put_back") or "copied", put_back=None, reason="Put back in place in Changes.")
             changed = True
     if changed:
         through = doc["installed"]
@@ -870,7 +891,7 @@ def advance(rel: dict, by: str, work: Path) -> None:
     u._git("fetch", "-q", str(master_repo()), rel["commit"], cwd=work, check=True)
     _END[:] = [rel["commit"]]
     for i, row in enumerate(doc["changes"]):
-        if row.get("status") in TAKEN:
+        if row.get("status") in TAKEN or was_put_back(row):
             continue
         found = blockers(row, doc["changes"][:i], work)
         if found:

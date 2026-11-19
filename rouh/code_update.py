@@ -83,6 +83,9 @@ COPY_AT_MOST = float(os.environ.get("ROUH_CODE_UPDATE_COPY_AGE", str(26 * 3600))
 RUN_STALE = 6 * 3600
 #: How long an update handed to the protected core is waited for before it is called lost.
 PENDING_MOST = 3 * 3600
+#: A change handed to the protected core that it is not checking, and neither took nor refused, after
+#: this long was cut off by a restart of the core, and is proposed again.
+LOST_AFTER = float(os.environ.get("ROUH_CODE_UPDATE_LOST_AFTER", "600"))
 KEEP_BACKUPS = 3
 TRAILER = "Rouh-release"
 #: This start of Rouh: an update it began is its own until it starts again (a pid may come back).
@@ -706,6 +709,13 @@ def reconcile() -> None:
             _fail({"commit": p["release"], "released_at": ""}, p.get("by") or "", _plain_refusal(str(ev.get("said") or "")))
             return
     if p["commit"][:12] in str(st.get("busy") or ""):
+        return
+    if not st.get("busy") and time.time() - float(p.get("at") or 0) > LOST_AFTER:
+        # The protected core answers, is checking nothing, and neither took nor refused this change:
+        # its check was cut off (Restart Rouh, or the Mac slept, while it ran). The walk goes on and
+        # proposes it again, rather than waiting hours for an answer that will never come.
+        log.warning("update: the protected core lost the check of %s; it is proposed again", p["commit"][:12])
+        _change(pending=None, busy=None)
         return
     if time.time() - float(p.get("at") or 0) > PENDING_MOST:
         _fail({"commit": p["release"]}, p.get("by") or "",
