@@ -270,19 +270,20 @@
     var morrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     var dayWord = t.toDateString() === now.toDateString() ? 'today'
       : t.toDateString() === morrow.toDateString() ? 'tomorrow'
-      : t.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+      : 'on ' + t.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
     return dayWord + ' at ' + clock(at);
   }
 
   /** How many changes are left today, or when the next is allowed. @param {any} d */
   function changesLine(d) {
-    var c = d.changes || { left: 1, limit: 2, next_at: 0 };
+    var c = d.changes || { left: 1, limit: 2, days: 15, next_at: 0 };
     var p = el('p', 'ph-limit' + (c.left ? '' : ' none'));
     p.id = 'phLimit';
     p.textContent = c.left
-      ? 'You can change your address ' + c.limit + ' times in any 24 hours. '
-        + (c.left === c.limit ? 'Both are left.' : c.left === 1 ? 'One is left.' : c.left + ' are left.')
-      : 'You have changed your address ' + c.limit + ' times in the last 24 hours. You can change it again ' + when(c.next_at) + '.';
+      ? 'You can change your address ' + c.limit + ' times in any ' + (c.days || 15) + ' days. '
+        + (c.left === c.limit ? 'Both are left.' : (c.left === 1 ? 'One is left' : c.left + ' are left')
+          + (c.back_at ? '; another comes back ' + when(c.back_at) + '.' : '.'))
+      : 'You have changed your address ' + c.limit + ' times in the last ' + (c.days || 15) + ' days. You can change it again ' + when(c.next_at) + '.';
     return p;
   }
   function noneLeft() { var c = P.data && P.data.changes; return !!(c && c.left === 0); }
@@ -371,6 +372,15 @@
     var E = P.edit, line = $('phVerdict'), save = /** @type {HTMLButtonElement | null} */ ($('phSave'));
     if (!E || !line) return;
     var v = E.verdict;
+    // No change left in the window: a good name is not offered as if Save would take it (`changesLine`).
+    var held = v === 'ok' && noneLeft();
+    if (held) {
+      line.className = 'ph-verdict wait';
+      line.innerHTML = '';
+      line.appendChild(el('span', '', 'You can save this once a change is allowed again, below.'));
+      if (save) save.disabled = true;
+      return;
+    }
     line.className = 'ph-verdict ' + (v === 'ok' ? 'ok' : v === 'bad' || v === 'error' ? 'bad' : 'wait');
     line.innerHTML = v === 'ok' ? MARKS.ok : v === 'bad' || v === 'error' ? MARKS.bad : v === 'checking' ? MARKS.wait : '';
     line.appendChild(el('span', '', E.why));

@@ -633,11 +633,12 @@ def address_letter(user=None) -> dict:
 # the old name is taken back, so the person is never left without the address they had. The born
 # name is rouh.land's for good and keeps answering throughout: it is the floor under all of this.
 
-#: How many changes of the name a Rouh may make in any `CHANGES_WINDOW` (Petar, 19 November 2026:
-#: "at most 2 name changes per day"). Going back to the born name is a change too; a change that did
-#: not come up and was put back is not counted (`_count_change`).
-CHANGES_PER_DAY = 2
-CHANGES_WINDOW = 24 * 3600.0
+#: How many changes of the name a Rouh may make in any `CHANGES_DAYS` days, a rolling window (Petar,
+#: 19 November 2026: at most 2 name changes, "so it is not 24h it is 15 days"). Going back to the born
+#: name is a change too; a change that did not come up and was put back is not counted (`_count_change`).
+CHANGES_ALLOWED = 2
+CHANGES_DAYS = 15
+CHANGES_WINDOW = CHANGES_DAYS * 24 * 3600.0
 #: How long a chosen name that was given up is kept for this Rouh before anyone else may take it.
 #: rouh.land's rule, 30 days until Petar made it 15 on 19 November 2026: the hold itself is
 #: rouh.land's (rouh-land/rouh-land, `birth/relay.py`, `QUARANTINE_DAYS`); this is what Rouh says.
@@ -670,17 +671,20 @@ def changes_made(held: dict | None = None, now: float | None = None) -> list[flo
 
 
 def changes_left(held: dict | None = None, now: float | None = None) -> dict:
-    """{left, limit, next_at}: how many changes may still be made now, and when the next one is
-    allowed once none are left (0 while one is)."""
+    """{left, limit, days, next_at, back_at}: how many changes may still be made now; when the next
+    one is allowed once none are left (0 while one is); and when the oldest change counted stops
+    counting, which gives one back (0 when none is counted)."""
     now = time.time() if now is None else now
     made = changes_made(held, now)
-    left = max(0, CHANGES_PER_DAY - len(made))
-    next_at = 0.0 if left else made[len(made) - CHANGES_PER_DAY] + CHANGES_WINDOW
-    return {"left": left, "limit": CHANGES_PER_DAY, "next_at": next_at, "held_days": NAME_HELD_DAYS}
+    left = max(0, CHANGES_ALLOWED - len(made))
+    next_at = 0.0 if left else made[len(made) - CHANGES_ALLOWED] + CHANGES_WINDOW
+    return {"left": left, "limit": CHANGES_ALLOWED, "days": CHANGES_DAYS, "next_at": next_at,
+            "back_at": made[0] + CHANGES_WINDOW if made else 0.0, "held_days": NAME_HELD_DAYS}
 
 
 def _when(at: float, zone=None) -> str:
-    """A time as the person reads it on their own clock: "today at 14:05", "tomorrow at 09:30"."""
+    """A date and time as the person reads it on their own clock: "today at 14:05", "tomorrow at
+    09:30", "on Friday 4 December at 19:32"."""
     from datetime import datetime
 
     if zone is None:
@@ -691,7 +695,7 @@ def _when(at: float, zone=None) -> str:
     then = datetime.fromtimestamp(at, zone)
     today = datetime.now(zone).date()
     day = ("today" if then.date() == today else "tomorrow" if (then.date() - today).days == 1
-           else then.strftime("%A %-d %B"))
+           else "on " + then.strftime("%A %-d %B"))
     return f"{day} at {then.strftime('%H:%M')}"
 
 
@@ -700,7 +704,7 @@ def _count_change(at: float) -> None:
     with _LOCK:
         held = read()
         kept = [a for a in changes_made(held) if a != at] + [at]
-        _change(name_changes=kept[-(CHANGES_PER_DAY * 4):])
+        _change(name_changes=kept[-(CHANGES_ALLOWED * 4):])
 
 
 def _uncount_change(at: float) -> None:
@@ -715,7 +719,7 @@ def change_name(text: str, user=None, zone=None) -> dict:
     """Change the address to ``text`` (the part before the relay's domain). The born name typed
     back gives up the chosen one. Answers at once; `rename_status` says how it goes.
 
-    At most `CHANGES_PER_DAY` changes in any `CHANGES_WINDOW`: one more is refused before anything
+    At most `CHANGES_ALLOWED` changes in any `CHANGES_WINDOW`: one more is refused before anything
     is touched, saying when the next is allowed on the person's clock (``zone``)."""
     name = plain_name(text)
     bad = _shape_problem(name) if name else NAME_SHAPE
@@ -725,7 +729,7 @@ def change_name(text: str, user=None, zone=None) -> dict:
         held = read()
         room = changes_left(held)
         if not room["left"]:
-            raise Refused(f"You have changed your address {CHANGES_PER_DAY} times in the last 24 hours, "
+            raise Refused(f"You have changed your address {CHANGES_ALLOWED} times in the last {CHANGES_DAYS} days, "
                           f"which is the most there may be. You can change it again "
                           f"{_when(room['next_at'], zone)}.")
         host = str(held.get("hostname") or "")
