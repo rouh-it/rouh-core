@@ -2760,9 +2760,9 @@ class ToolRegistry:
                 "delegate_task",
                 "Fix or change this server or Rouh itself, and nothing else: a "
                 "service, a setting, a fault or a log to dig through on this machine. "
-                "It starts a background worker running Claude Code and returns at "
-                "once with an id; say that you have started it. In the containers that "
-                "worker has no sudo on this machine; it reaches the person's own "
+                "It starts a run of the one program, which works unattended to the end, "
+                "and returns at once with an id; say that you have started it. In the "
+                "containers that run has no sudo on this machine; it reaches the person's own "
                 "servers by ssh where they are set up for it, with whatever access "
                 "each one gives its key. For a change to Rouh's own code, improve_myself is the "
                 "better route."
@@ -2793,19 +2793,6 @@ class ToolRegistry:
                             "description": 'The files or folders the job is expected to touch, as paths inside the repository, when you can name them. A job that says where its work is waits for another job working in the same place instead of both starting and one of them finding at the end that its work will not go onto main. Leave it out when you do not know.',
                         },
                         "boxes": BOXES_PROPERTY,
-                        "mode": {
-                            "type": "string",
-                            "enum": ["yolo", "auto", "safe", "local-only", "direct-pr"],
-                            "description": (
-                                "yolo is the default and what you should use: no "
-                                "permission prompts at all, so the job runs to the end "
-                                "unattended. auto asks only about the riskiest things. "
-                                "local-only and safe stop and ask, so they stall unless "
-                                "somebody is watching. direct-pr may open a pull "
-                                "request. Only pick something other than yolo if the "
-                                "person says they want to approve the steps."
-                            ),
-                        },
                     },
                     "required": ["task"],
                 },
@@ -14504,7 +14491,7 @@ class ToolRegistry:
         if repo:
             task = task + f"\n\nIt concerns the repository at {repo}."
         return await self._started(args, emit, "delegate_task", task,
-                                   mode=str(args.get("mode") or ""), repo=repo)
+                                   repo=repo)
 
     def _read_workspace(self, args, emit):
         """Search or read the person's assistant workspace. Read-only, instant."""

@@ -1228,11 +1228,7 @@ function jobOf(n) {
 var MODE_WORDS = {
   one: 'a run of the one program',
   self: 'Rouh changing its own code, landed on main',
-  safe: 'a job that asks before every edit and command',
-  auto: 'a job that works on its own and never pushes',
-  'local-only': 'a job that edits only its own copy and never pushes',
-  'direct-pr': 'a job that may push its own branch and open a pull request',
-  yolo: 'a job with every permission check skipped'
+  auto: 'a job that works on its own and never pushes'
 };
 
 // The model a job uses, as its card says it: "Opus 5.5 claude-opus-5-5", the

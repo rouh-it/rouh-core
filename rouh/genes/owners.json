@@ -729,6 +729,7 @@
    "core": true,
    "files": [
     "rouh/runs.py",
+    "rouh/migrations/0262_three_run_policies.py",
     "rouh/run_report.py",
     "rouh/runsummary.py",
     "rouh/runfiles.py",

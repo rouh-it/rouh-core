@@ -1181,12 +1181,12 @@ function gtRunSection(row) {
     o.value = p;
     polPick.appendChild(o);
   });
-  // The program's own rules when this machine has a one program, and an
-  // unattended worker here when it has not. The server answers that, not
+  // The program's own rules when this machine has a one program, and a
+  // worker here changing Rouh's own code when it has not. The server answers that, not
   // this browser: whether the page has paired with the program is a
   // different question, and using it here offered a worker on a machine that
   // has none.
-  polPick.value = options.one_program ? 'one' : 'yolo';
+  polPick.value = options.one_program ? 'one' : 'self';
   var polLabel = el('label', null, 'under');
   polLabel.htmlFor = polPick.id;
   row1.appendChild(polLabel);

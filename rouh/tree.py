@@ -106,9 +106,10 @@ MAX_CHILDREN = 40
 #: showing only what runs this instant would say nothing of what the job did.
 RECENT_STEPS = 6
 
-#: Who runs a worker, from its mode. "auto" is the person's own assistant (task
-#: 36), "self" is Rouh changing its own code, and every other mode is a job
-#: Rouh started on the server.
+#: Who runs a worker, from its mode, the only two a worker has (`crew.MODES`).
+#: "auto" is the person's own assistant (task 36), "self" is Rouh changing its
+#: own code; a worker of an older row whose mode was taken out on 19 November
+#: 2026 is a job Rouh started on the server.
 _OWNER = {"auto": "assistant", "self": "self"}
 
 #: How a crewmate's status reads as a node state.

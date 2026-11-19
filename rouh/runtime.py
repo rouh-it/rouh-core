@@ -135,7 +135,6 @@ if config.enable_delegate:
             workspace=config.crew_workspace,
             session=config.crew_session,
             socket=config.crew_tmux_socket or None,
-            allow_yolo=config.allow_yolo,
             # A worker is Claude Code in a terminal, and it needs its own
             # credentials. root on this box has no subscription login, so the
             # API key is what makes it run. tmux keeps its own environment

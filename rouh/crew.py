@@ -124,7 +124,7 @@ is documented as "comma or space-separated", and every useful rule contains a sp
 ``permissions.deny`` array in the settings file cannot be split. It is passed on the
 command line as well, purely as a second line of defence.
 
-**Honesty about what a mode guarantees.** ``local-only`` and ``direct-pr`` are a
+**Honesty about what a mode guarantees.** ``auto`` and ``self`` are each a
 permission mode, a set of deny rules and an instruction block. A determined model
 could reach a shell another way. The hard boundary is the one that does not depend on
 the model behaving: the crewmate works in its own git worktree on its own branch, so
@@ -196,7 +196,6 @@ __all__ = [
     "Crewmate",
     "CrewError",
     "UnknownCrewmate",
-    "YoloRefused",
     "TmuxError",
     "MODES",
     "ModeSpec",
@@ -481,16 +480,6 @@ class UnknownCrewmate(CrewError):
     """No crewmate with that id is on record."""
 
 
-class YoloRefused(CrewError):
-    """A caller asked for yolo mode without saying ``allow_yolo=True``.
-
-    Deliberately loud. ``yolo`` runs Claude Code with ``--dangerously-skip-permissions``,
-    which means nothing at all stands between the model and the machine. Silently
-    downgrading to a safer mode would be worse than refusing, because the caller would
-    believe permissions were off when they were not.
-    """
-
-
 class TmuxError(CrewError):
     """A tmux command failed. Carries the command, exit code and stderr."""
 
@@ -516,7 +505,6 @@ class ModeSpec:
     ``extra_flags``       further flags, each already split into argv elements
     ``deny``              ``permissions.deny`` rules written into the settings file
     ``instructions``      appended to the prompt so the model knows its own limits
-    ``requires_opt_in``   the caller must pass ``allow_yolo=True``
     """
 
     name: str
@@ -525,7 +513,6 @@ class ModeSpec:
     extra_flags: tuple[str, ...] = ()
     deny: tuple[str, ...] = ()
     instructions: str = ""
-    requires_opt_in: bool = False
 
     def claude_flags(self) -> list[str]:
         flags: list[str] = []
@@ -545,56 +532,22 @@ _PR_DENY = (
     "Bash(gh pr:*)",
     "Bash(glab:*)",
 )
-#: Pushing, for the one mode whose work goes to main. Since cards 488 and 489
+#: Pushing, for the mode whose work goes to main. Since cards 488 and 489
 #: `land.sh` is the only thing allowed to push there, and a rule the model is
 #: merely told is a rule a model can talk itself round, so this is the rule it
 #: cannot: the script's own push happens inside the script, which Claude Code
-#: sees as one `Bash(./land.sh)` call. It is not on the other modes, because a
-#: job whose work is a pull request somewhere else has a push to make.
+#: sees as one `Bash(./land.sh)` call.
 _MAIN_PUSH_DENY = (
     "Bash(git push:*)",
     "Bash(git push)",
 )
-_MAIN_BRANCH_DENY = (
-    "Bash(git checkout main:*)",
-    "Bash(git checkout master:*)",
-    "Bash(git switch main:*)",
-    "Bash(git switch master:*)",
-    "Bash(git push:* --force:*)",
-    "Bash(git push:* -f:*)",
-)
 
+#: The two ways a worker here runs, and the only two (Petar, 19 November 2026:
+#: "Delete the ones we don't use"). A job on this server is a run of the one
+#: program, under its rules (`runs.ONE_POLICY`), not a worker here, so the
+#: crew has no mode for it. "safe", "local-only", "direct-pr" and "yolo" went
+#: that day; a row still carrying one is read as `RETIRED_MODES` says.
 MODES: dict[str, ModeSpec] = {
-    "safe": ModeSpec(
-        name="safe",
-        summary="Claude Code asks a human before every edit and every command.",
-        # "manual" is the documented CLI spelling; inside Claude Code it resolves to
-        # "default", described in-product as "ask before every edit".
-        permission_mode="manual",
-        deny=_PUSH_DENY + _PR_DENY,
-        instructions=(
-            "You are running with permission prompts on. Every edit and every command "
-            "needs a person to approve it, and nobody may be watching. Prefer reading, "
-            "searching and explaining over acting. If the job cannot be finished "
-            "without approvals, do the reading, write down exactly what you would "
-            "change, and stop."
-        ),
-    ),
-    "local-only": ModeSpec(
-        name="local-only",
-        summary="May edit files in its own worktree. Never pushes, never opens a pull request.",
-        permission_mode="acceptEdits",
-        deny=_PUSH_DENY + _PR_DENY,
-        instructions=(
-            "You may create, edit and delete files inside this worktree, and you may "
-            "commit. You must not push to any remote and you must not open a pull "
-            "request. When you are finished, leave the work committed on this branch "
-            "and say what you changed. Rouh lands it for you through `land.sh`, "
-            "which is the only thing here allowed to push to main; if your work "
-            "collides with something that landed while you worked, you will be sent "
-            "both sides and asked to reconcile them yourself."
-        ),
-    ),
     "auto": ModeSpec(
         name="auto",
         summary=(
@@ -653,33 +606,25 @@ MODES: dict[str, ModeSpec] = {
             "assistant is how anyone would ask you to fix it."
         ),
     ),
-    "direct-pr": ModeSpec(
-        name="direct-pr",
-        summary="May commit, push its own branch and open a pull request. Never touches the default branch.",
-        permission_mode="acceptEdits",
-        deny=_MAIN_BRANCH_DENY,
-        instructions=(
-            "You may edit files, commit, push this branch and open a pull request. "
-            "You must not commit to, push to, or force-push the default branch "
-            "(main or master), and you must not merge your own pull request. Work only "
-            "on the branch this worktree is already on. Finish by opening a pull "
-            "request and giving its URL."
-        ),
-    ),
-    "yolo": ModeSpec(
-        name="yolo",
-        summary="All permission checks skipped. Refused unless the caller passes allow_yolo=True.",
-        permission_mode=None,
-        extra_flags=("--dangerously-skip-permissions",),
-        deny=(),
-        instructions=(
-            "Permission checks are off. Nothing will stop you, so stop yourself: stay "
-            "inside this worktree, do not touch anything outside it, and do not act on "
-            "the default branch."
-        ),
-        requires_opt_in=True,
-    ),
 }
+
+#: The modes taken out on 19 November 2026, and the mode a job that carried one
+#: runs under if it is ever started again (a restart, a retry). Each of the four
+#: was a worker here that did not push; "auto" is that, unattended.
+RETIRED_MODES: dict[str, str] = {
+    "safe": "auto",
+    "local-only": "auto",
+    "direct-pr": "auto",
+    "yolo": "auto",
+}
+
+
+def mode_now(mode: str | None) -> str:
+    """The mode a job runs under today: its own, or what a retired one became."""
+    name = str(mode or "").strip().lower()
+    if name in MODES:
+        return name
+    return RETIRED_MODES.get(name, "auto")
 
 
 @dataclass(frozen=True)
@@ -1412,7 +1357,6 @@ class CrewManager:
         launcher: Sequence[str] | Callable[..., Sequence[str]] | None = None,
         hook_transport: str = "http",
         hook_timeout: int = 10,
-        allow_yolo: bool = False,
         default_env: Mapping[str, str] | None = None,
         effort: str | None = None,
         defaults: Callable[[], Any] | None = None,
@@ -1449,10 +1393,6 @@ class CrewManager:
         )
         self.hook_transport = hook_transport
         self.hook_timeout = hook_timeout
-        # A deployment-wide standing permission for yolo mode, so the whole process can
-        # be opted in once instead of every call saying so. A single spawn can still opt
-        # in on its own with allow_yolo=True. Either one is enough; neither is a veto.
-        self.allow_yolo = allow_yolo
         self.default_env = dict(default_env or {})
         #: How hard every crewmate thinks, passed as `claude --effort`, when
         #: nothing hands the manager `defaults`. Blank leaves the flag off and
@@ -1638,10 +1578,9 @@ class CrewManager:
         self,
         task: str,
         repo: str | None = None,
-        mode: str = "safe",
+        mode: str = "auto",
         title: str | None = None,
         *,
-        allow_yolo: bool = False,
         base: str = "HEAD",
         env: Mapping[str, str] | None = None,
         profile: str | None = None,
@@ -1655,7 +1594,7 @@ class CrewManager:
                   created for it, and when none can be, nothing is started and
                   ``CrewError`` says why. Only a job given no repo (None) gets a
                   scratch directory under the workspace.
-        ``mode``  one of ``safe``, ``local-only``, ``direct-pr``, ``yolo``.
+        ``mode``  ``auto`` or ``self`` (`MODES`).
         ``base``  what the new branch starts from. Defaults to the repo's current HEAD.
         ``expects``  the files this job says it will touch. Kept on the row, and
                   compared against the jobs already running: see
@@ -1683,14 +1622,6 @@ class CrewManager:
         spec = MODES.get(mode)
         if spec is None:
             raise ValueError(f"unknown mode {mode!r}; expected one of {', '.join(MODES)}")
-        if spec.requires_opt_in and not (allow_yolo or self.allow_yolo):
-            raise YoloRefused(
-                "Refusing to spawn in yolo mode. yolo runs Claude Code with "
-                "--dangerously-skip-permissions, so nothing stands between the model and "
-                "this machine. Pass allow_yolo=True to say you meant it, or set "
-                "allow_yolo=True on the manager to opt the whole process in. Nothing was "
-                "spawned and no worktree was created."
-            )
 
         if not await self.tmux.available():
             raise CrewError(

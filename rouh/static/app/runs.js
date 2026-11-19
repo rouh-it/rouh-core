@@ -2029,12 +2029,8 @@ function oneShowAdd() {
 //: behind: a policy with nothing said about it here is still offered.
 var POLICY_MEANS = {
   one: "the one program's own rules - a terminal can take it over",
-  yolo: 'no permission prompts at all; it runs to the end unattended',
   auto: 'unattended, and the riskiest steps stop and ask',
-  safe: 'it stops and asks, so somebody has to be watching',
-  self: "Rouh's own code, landed with land.sh",
-  'local-only': 'it stops and asks, and may not push',
-  'direct-pr': 'it may open a pull request'
+  self: "Rouh's own code, landed with land.sh"
 };
 
 function fillPolicies() {
@@ -2050,7 +2046,7 @@ function fillPolicies() {
   // The program's own rules when this browser can reach it, and an
   // unattended worker here when it cannot: either way, something that runs
   // to the end rather than something that stops and waits for a watcher.
-  pick.value = chosen || (ONE.paired ? 'one' : 'yolo');
+  pick.value = chosen || (ONE.paired ? 'one' : 'auto');
   policyHint();
 }
 

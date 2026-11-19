@@ -58,10 +58,23 @@ STATE_STATUS: dict[str, str] = {"open": "in-progress", "waiting": "waiting", "do
 CHAT_STATES: tuple[str, ...] = ("live", "idle", "archived")
 RUN_STATES: tuple[str, ...] = ("running", "waiting", "done", "failed", "conflict")
 AGENTS: tuple[str, ...] = ("claude", "codex")
-#: Under what rules a run works. The first six are the words `crew.py` offers
-#: for a delegated job; the seventh is the one program's.
-POLICIES: tuple[str, ...] = ("yolo", "auto", "safe", "self", "local-only",
-                             "direct-pr", "one")
+#: Under what rules a run works: the one program's own ("one"), or one of the
+#: two modes a worker of `crew.py` runs under ("auto", "self"). Petar, 19
+#: November 2026: "Delete the ones we don't use".
+POLICIES: tuple[str, ...] = ("one", "auto", "self")
+#: The policies taken out that day, and what a row that carried one became
+#: (migration 0262): a job with every check off was a server job, which is a run
+#: of the one program now; the three that did not push are "auto".
+RETIRED_POLICIES: dict[str, str] = {"yolo": "one", "safe": "auto",
+                                     "local-only": "auto", "direct-pr": "auto"}
+
+
+def policy_now(policy: str | None) -> str:
+    """A policy as a run is written down with today: its own, or what a retired one became."""
+    name = str(policy or "").strip().lower()
+    if name in POLICIES:
+        return name
+    return RETIRED_POLICIES.get(name, "auto")
 #: Which of the two halves of Metabolism, the page of runs, a run is on (Petar, 14
 #: October 2026): a mutation changes Rouh itself, everyday work is everything else.
 #: Empty is a run nothing has been able to say yet, which is drawn as everyday work
@@ -454,7 +467,7 @@ class Run(models.Model):
     actual_model = models.TextField(blank=True, default="", db_default="")
     agent = models.TextField(default="claude")
     workspace = models.TextField(blank=True, default="")
-    policy = models.TextField(default="safe")
+    policy = models.TextField(default="auto")
     state = models.TextField(default="running")
     phase = models.TextField(blank=True, default="")
     detail = models.TextField(blank=True, default="")

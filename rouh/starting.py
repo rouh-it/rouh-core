@@ -200,17 +200,12 @@ class Preset:
     #: The one program's space for this preset, when it may be a run of the
     #: program at all.
     space: str = ""
-    #: The policy a worker of the crew runs under. Overridden by `mode` for
-    #: `delegate_task`, which is the one preset that lets the model choose.
-    policy: str = "safe"
+    #: The policy it runs under: "one" for a run that can only be the one
+    #: program's, else the mode a worker of the crew runs under if the program
+    #: does not take it.
+    policy: str = "auto"
     #: The crew's worker profile, when this preset has one of its own.
     profile: str = ""
-    #: When the one program is asked first: the policies for which it is the
-    #: right home. Empty means always, which is what three of the four are.
-    #: `delegate_task` is the one exception: a job the person wants to approve
-    #: step by step stays with the crew, because a run of the program never
-    #: stops to ask.
-    one_if_policy: tuple[str, ...] = ()
     #: The line the card shows while it starts.
     detail: str = "started"
     #: What the model is told when the program took it, and when the crew did.
@@ -234,7 +229,7 @@ PRESETS: dict[str, Preset] = {
         name="assistant_job",
         repo_from="assistant_repo",
         space="assistant",
-        # Auto, not yolo: Claude Code's own reviewer approves each step, so the
+        # Auto: Claude Code's own reviewer approves each step, so the
         # job runs unattended and the riskiest steps stop and ask, which Rouh
         # reads out. It cannot push either; landing does that.
         policy="auto",
@@ -247,10 +242,11 @@ PRESETS: dict[str, Preset] = {
         name="delegate_task",
         repo_from="",
         space="assistant",
-        # Unattended by default. A prompt nobody can answer is not a safety
-        # feature, it is a hang.
-        policy="yolo",
-        one_if_policy=("yolo",),
+        # A run of the one program, from the start: unattended, on this server,
+        # and it may use sudo. A prompt nobody can answer is not a safety
+        # feature, it is a hang (Petar, 19 November 2026: the job modes nobody
+        # used went, and this one was only ever a way to become a run of it).
+        policy="one",
         note_one=("Started as a run of the one program: your assistant, working on this "
                   "server, which may use sudo."),
         note_crew="",
@@ -323,7 +319,7 @@ def workspaces() -> list[dict]:
 
 
 def resolve(preset: str = "", *, workspace: str = "", policy: str = "",
-            mode: str = "", repo: str = "") -> dict:
+            repo: str = "") -> dict:
     """The two fields, worked out once, whoever asked.
 
     A preset supplies them; an explicit workspace or policy - which is what the
@@ -334,8 +330,6 @@ def resolve(preset: str = "", *, workspace: str = "", policy: str = "",
 
     spec = PRESETS.get(preset)
     chosen = str(policy or "").strip().lower()
-    if not chosen:
-        chosen = str(mode or "").strip().lower() if preset == "delegate_task" else ""
     if not chosen and spec is not None:
         chosen = spec.policy
     if not chosen:
@@ -366,7 +360,7 @@ def resolve(preset: str = "", *, workspace: str = "", policy: str = "",
 
 
 async def start(*, brief: str, title: str = "", preset: str = "",
-                workspace: str = "", policy: str = "", mode: str = "",
+                workspace: str = "", policy: str = "",
                 repo: str = "", agent: str = "", billing: str = "",
                 expects: Sequence[str] = (),
                 chat: str = "", owner: tuple[str, str] | None = None,
@@ -472,7 +466,7 @@ async def start(*, brief: str, title: str = "", preset: str = "",
     # main. Waiting for it here is what puts the task in that checkout.
     await asyncio.to_thread(saving.wait, SAVE_WAIT)
     spec = PRESETS.get(preset)
-    where = resolve(preset, workspace=workspace, policy=policy, mode=mode, repo=repo)
+    where = resolve(preset, workspace=workspace, policy=policy, repo=repo)
     said = (str(title or "").strip() or brief.splitlines()[0])[:80]
     asked = brief
     # The task this run is for, when it is one task's: its record follows the
@@ -597,14 +591,11 @@ def _the_program_first(spec: Preset | None, policy: str) -> bool:
     """Whether the one program is asked before a worker here is.
 
     Always when the policy asked for is the program's own rules, because there
-    is nowhere else those rules exist. Otherwise when the preset says this is
-    work that belongs there, for the policy it ended up with.
+    is nowhere else those rules exist, and always for a preset: every one of
+    them is work that belongs there first. Only the Start box, naming a mode
+    of the crew's, goes straight to a worker here.
     """
-    if policy == ONE:
-        return True
-    if spec is None:
-        return False
-    return not spec.one_if_policy or policy in spec.one_if_policy
+    return policy == ONE or spec is not None
 
 
 async def _ask_the_program(one: Any, brief: str, title: str, where: dict,
@@ -735,7 +726,7 @@ def _write_it_down(run_id: str, *, brief: str, title: str, policy: str,
     """
     workspace = where["space"] if policy == ONE else (where["path"] or "")
     runs.record(run_id, title=title, brief=brief[:4000], workspace=workspace, model=model,
-                policy=policy if policy in objects.POLICIES else "safe",
+                policy=objects.policy_now(policy),
                 agent=agent if agent in objects.AGENTS else "claude",
                 state="running", phase="starting", first=True,
                 **({"kind": kind} if kind in objects.RUN_KINDS and kind else {}))
@@ -863,11 +854,13 @@ async def restart(run_id: str, *, crew: Any, emit: Callable | None = None) -> di
             # The person's own work starts again with their rules as they are
             # now, not as they were when it first started.
             task = await asyncio.to_thread(_with_rules, task, runs.chat_of(run_id), "")
+        from .crew import mode_now as crew_mode_now
+
         try:
             fresh = await crew.spawn(
                 task=task,
                 repo=mate.repo or None,
-                mode=mate.mode,
+                mode=crew_mode_now(mate.mode),
                 title=mate.title,
                 profile=meta.get("profile") or None,
                 expects=meta.get("expects") or None,
@@ -877,7 +870,7 @@ async def restart(run_id: str, *, crew: Any, emit: Callable | None = None) -> di
             raise CannotStart(f"It could not be started again: {exc}") from exc
         new_id = str(fresh.id)
         owner = owning.owner_of("run", run_id)
-        _write_it_down(new_id, brief=runs.request_of(mate.task), title=mate.title, policy=mate.mode,
+        _write_it_down(new_id, brief=runs.request_of(mate.task), title=mate.title, policy=fresh.mode,
                        where={"space": "", "path": mate.repo or ""}, agent="claude",
                        chat=runs.chat_of(run_id),
                        owner=(owner["type"], owner["id"]) if owner else None)
@@ -892,8 +885,8 @@ async def restart(run_id: str, *, crew: Any, emit: Callable | None = None) -> di
         _restarting.discard(run_id)
     if emit is not None:
         await emit({"type": "task", "id": new_id, "status": "starting", "title": mate.title,
-                    "detail": "started again", "mode": mate.mode})
-    return {"id": new_id, "status": "starting", "title": mate.title, "mode": mate.mode,
+                    "detail": "started again", "mode": fresh.mode})
+    return {"id": new_id, "status": "starting", "title": mate.title, "mode": fresh.mode,
             "kind": kind_of(mate), "restarted": run_id}
 
 

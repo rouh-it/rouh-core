@@ -19,8 +19,8 @@ than by being three separate models:
 
     workspace   where the work belongs: the checkout the job works in, or the
                 space a run of the one program works in
-    policy      under what rules it works: yolo, auto, safe, self, local-only,
-                direct-pr, or "one" for the one program's own rules
+    policy      under what rules it works: "one" for the one program's own
+                rules, or "auto" or "self" for a worker of the crew
 
 and `state` is one of five words - running, waiting, done, failed, conflict -
 with `question` set while it is waiting. A sub-agent is a run with
@@ -219,9 +219,10 @@ def kind_of(*, preset: str = "", space: str = "", policy: str = "",
         return MUTATION
     if _ROUH_PATH.search(str(workspace or "")):
         return MUTATION
-    # A job of the crew with no preset to say: `auto` is the assistant's, and
-    # every other mode of the crew's was a delegate_task (`starting.KIND_WORDS`).
-    if policy and policy not in ("auto", ONE_POLICY):
+    # A job of the crew with no preset to say is `auto`, the assistant's. The
+    # other modes of the crew's were delegate_task's, and went on 19 November
+    # 2026 (`crew.RETIRED_MODES`).
+    if policy in objects.RETIRED_POLICIES:
         return MUTATION
     return EVERYDAY
 
@@ -461,13 +462,13 @@ def crew_run(mate: Any) -> None:
         return
     status = str(mate.get("status") or "running").strip().lower()
     state = CREW_STATE.get(status, "running")
-    mode = str(mate.get("mode") or "safe").strip().lower()
+    mode = str(mate.get("mode") or "auto").strip().lower()
     meta = mate.get("meta") or {}
     closing = meta.get("closing") if isinstance(meta, Mapping) else None
     fields: dict[str, Any] = {
         "title": str(mate.get("title") or "")[:200] or "A job",
         "brief": request_of(str(mate.get("task") or ""))[:4000],
-        "policy": mode if mode in objects.POLICIES else "safe",
+        "policy": objects.policy_now(mode),
         "workspace": str(mate.get("repo") or ""),
         "worktree": str(mate.get("workdir") or "") or None,
         "branch": mate.get("branch"),

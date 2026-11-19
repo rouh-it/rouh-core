@@ -236,7 +236,7 @@ from .models import objects as tables
 # that has always said `objects.KINDS` or `objects.OWNS` still can.
 from .models.objects import (AGENTS, ARTIFACT_KINDS, CHAT_STATES, KINDS, NESTS, OWNS,
                              POLICIES, RANK, RELS, RUN_KINDS, RUN_STATES, STATE_STATUS,
-                             STATUS_STATE,
+                             RETIRED_POLICIES, STATUS_STATE, policy_now,
                              TASK_STATES, TASK_STATUSES, WORD_BREAKS)
 
 log = logging.getLogger("rouh.objects")
@@ -1054,7 +1054,7 @@ class ObjectStore:
 
     def create_run(self, title: str, *, id: str | None = None, brief: str = "",
                    agent: str = "claude", model: str = "", actual_model: str = "",
-                   workspace: str = "", policy: str = "safe", state: str = "running",
+                   workspace: str = "", policy: str = "auto", state: str = "running",
                    phase: str = "", detail: str = "", archived: bool = False,
                    pinned: bool = False,
                    parent_run_id: str | None = None, question: str | None = None,

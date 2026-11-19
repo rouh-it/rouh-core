@@ -1059,7 +1059,6 @@ class Config:
     crew_home: str = field(
         default_factory=lambda: _env("ROUH_CREW_HOME", "/var/www/rouh/home")
     )
-    allow_yolo: bool = field(default_factory=lambda: _flag("ROUH_ALLOW_YOLO", True))
     # Where Rouh's own code lives on this machine, as a git checkout. Being a
     # checkout rather than a copy is what lets it change and redeploy itself.
     app_dir: str = field(default_factory=lambda: _env("ROUH_APP_DIR", "/var/www/rouh/app"))

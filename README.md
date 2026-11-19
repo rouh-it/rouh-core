@@ -925,9 +925,16 @@ told them apart is two columns rather than three models:
 
 * **`workspace`** - where the work belongs: the checkout a job works in, or
   the space a run of the one program works in.
-* **`policy`** - under what rules it works: `yolo`, `auto`, `safe`, `self`,
-  `local-only`, `direct-pr`, or `one` for the one program's own rules, where
-  every tool call is decided by `one/rules.py` rather than by a permission mode.
+* **`policy`** - under what rules it works: `one` for the one program's own
+  rules, where every tool call is decided by `one/rules.py` rather than by a
+  permission mode, or `auto` (an `assistant_job` run by a worker here, which
+  Claude Code's own reviewer approves step by step and which cannot push) or
+  `self` (`improve_myself` run by a worker here, landed with `land.sh`).
+  Those three are all there are since 19 November 2026, when Petar said of the
+  rest "Delete the ones we don't use": `safe`, `local-only`, `direct-pr` and
+  `yolo` went, a server job (`delegate_task`) starts as a run of the one
+  program, and old rows were moved over by migration 0262 (`yolo` to `one`,
+  the other three to `auto`).
 
 `state` is one of five words - `running`, `waiting`, `done`, `failed`,
 `conflict` - with `question` set while it is waiting, and a sub-agent is a run

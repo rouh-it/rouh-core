@@ -50,7 +50,7 @@ from typing import Any, Awaitable, Callable
 from . import (artifacts, browser_handoff, citing, conflicts, conversations, follow_through, job_phone, mail_flow,
                notices, outbox, pages, run_report, runs, task_origin, thought_enrich)
 from . import steps as steps_module
-from .crew import WorkerProfile, _run, _running_as_root
+from .crew import WorkerProfile, _run, _running_as_root, mode_now as crew_mode_now
 from .memory import ANSWERING, answering_in
 
 log = logging.getLogger("rouh.assistant_job")
@@ -742,7 +742,8 @@ class Lander:
             self.crew.set_meta(crew_id, redo_tries=tries + 1)
             fresh = await self.crew.spawn(
                 task=brief, repo=getattr(mate, "repo", None) or None,
-                mode=getattr(mate, "mode", "local-only"),
+                # The job's own mode, or "auto" for one whose mode was taken out.
+                mode=crew_mode_now(getattr(mate, "mode", "")),
                 title=f"Again: {title}"[:120],
                 profile=(getattr(mate, "meta", None) or {}).get("profile") or None,
                 in_play=(getattr(mate, "meta", None) or {}).get("in_play") or None,
