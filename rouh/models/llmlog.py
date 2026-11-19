@@ -93,6 +93,13 @@ class LLMRequest(models.Model):
     #: and thinking signatures removed: content blocks, tools, web results
     #: and usage.
     response = models.JSONField(null=True, blank=True)
+    #: What was asked and what came back, short, for the cost page's "What was asked and what came
+    #: back" (`llmlog.asked_of`, `llmlog.answered_of`, since 19 November 2026): the request as a
+    #: person put it (words, who, what they pointed at) and the answer's words and the tools it
+    #: called, capped and masked. Kept with the cost rather than the words; `{"quiet": true}` for an
+    #: incognito chat's call. NULL for a call made before.
+    asked = models.JSONField(null=True, blank=True)
+    answered = models.JSONField(null=True, blank=True)
 
     # --- what it took -----------------------------------------------------
     input_tokens = models.BigIntegerField(default=0)

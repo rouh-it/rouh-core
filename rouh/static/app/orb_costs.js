@@ -991,6 +991,7 @@ function ouPaintCall(c) {
   h.textContent = c.why;
   body.appendChild(h);
   body.appendChild(el('p', 'ou-sub', c.when + ' – ' + c.use + ' – ' + c.company + ', ' + c.model));
+  ouPaintExchange(body, c.exchange);
 
   var parts = c.parts || [];
   if (parts.length) {
@@ -1096,6 +1097,85 @@ function ouPaintCall(c) {
   if (c.same_request > 0) fact('Sent again word for word', c.same_request + (c.same_request === 1 ? ' more time' : ' more times'));
   fs.appendChild(dl);
   body.appendChild(fs);
+}
+
+/* What the call was asked, by whom, and what came back (`usage_drill.exchange`): the owner's
+   first question on this page, so it comes before what the cost is made of. Each text is a block
+   that wraps at any width, cut to a few lines with Show all when it is longer. */
+function ouPaintExchange(body, x) {
+  if (!x) return;
+  var sec = el('section', 'ou-part ou-qa');
+  sec.appendChild(el('h3', 'ou-h', 'What was asked and what came back'));
+  var shown = false;
+  if (x.who) {
+    var w = el('p', 'ou-qa-who');
+    w.appendChild(el('span', 'ou-qa-k', (x.who_said || 'Asked by') + ' '));
+    w.appendChild(el('span', '', x.who));
+    sec.appendChild(w);
+  }
+  if (x.request && x.request.words) {
+    shown = true;
+    var rq = ouQaBlock(sec, 'The request', x.request.words, x.request.truncated, 'the first 4,000 characters');
+    if (x.request.pointed_at) {
+      var pt = el('p', 'ou-qa-point');
+      pt.appendChild(el('span', 'ou-qa-k', 'Pointing at: '));
+      pt.appendChild(el('span', '', x.request.pointed_at));
+      rq.insertBefore(pt, rq.children[1]);
+    }
+  }
+  if (x.response && (x.response.words || (x.response.tools || []).length)) {
+    shown = true;
+    var label = x.response.whole_question ? 'Ask AI\'s answer' : 'The response';
+    var rs = ouQaBlock(sec, label, x.response.words, x.response.truncated, 'the first 8,000 characters');
+    var tools = x.response.tools || [];
+    if (tools.length) {
+      var tl = el('p', 'ou-qa-tools');
+      tl.appendChild(el('span', 'ou-qa-k', tools.length === 1 ? 'Tool it called: ' : 'Tools it called: '));
+      var counted = {};
+      tools.forEach(function (t) { counted[t] = (counted[t] || 0) + 1; });
+      Object.keys(counted).forEach(function (t) {
+        tl.appendChild(el('code', 'ou-qa-tool', t + (counted[t] > 1 ? ' \u00d7' + counted[t] : '')));
+      });
+      rs.appendChild(tl);
+    }
+  }
+  var changed = x.changed || [];
+  if (changed.length) {
+    shown = true;
+    var cb = el('div', 'ou-qa-block');
+    cb.appendChild(el('h4', 'ou-qa-label', 'What it changed on the page'));
+    var ul = el('ul', 'ou-qa-changed');
+    changed.forEach(function (t) { ul.appendChild(el('li', '', t)); });
+    cb.appendChild(ul);
+    sec.appendChild(cb);
+  }
+  if (x.note) sec.appendChild(el('p', shown ? 'ou-note' : 'ou-qa-none', x.note));
+  body.appendChild(sec);
+}
+
+function ouQaBlock(sec, label, words, cut, kept) {
+  var b = el('div', 'ou-qa-block');
+  b.appendChild(el('h4', 'ou-qa-label', label));
+  var t = el('div', 'ou-qa-text ou-qa-clamp', words || '');
+  if (!words) {
+    t.classList.add('ou-qa-empty');
+    t.textContent = 'No words: only the tool call below.';
+  }
+  b.appendChild(t);
+  if (cut) b.appendChild(el('p', 'ou-hint', 'Cut here: the log keeps ' + kept + '.'));
+  sec.appendChild(b);
+  var more = /** @type {HTMLButtonElement} */ (el('button', 'ou-qa-more', 'Show all'));
+  more.type = 'button';
+  more.setAttribute('aria-expanded', 'false');
+  more.hidden = true;
+  more.addEventListener('click', function () {
+    var open = t.classList.toggle('ou-qa-clamp') === false;
+    more.textContent = open ? 'Show less' : 'Show all';
+    more.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  b.insertBefore(more, t.nextSibling);
+  requestAnimationFrame(function () { more.hidden = !(t.scrollHeight > t.clientHeight + 2); });
+  return b;
 }
 
 function ouTrailNow() {

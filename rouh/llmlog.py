@@ -122,7 +122,13 @@ _ABOUT: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
     "rouh_llm_about", default=None)
 
 #: What `about` may say.
-FIELDS = ("purpose", "subject", "session_id", "turn_id", "user_id", "org_id", "attempt")
+FIELDS = ("purpose", "subject", "session_id", "turn_id", "user_id", "org_id", "attempt", "asked")
+
+#: How much of what was asked and of what came back each row keeps for the cost page's "What was asked
+#: and what came back" (`asked_of`, `answered_of`), kept whatever the words' own setting says, as the
+#: cost is: the request as a person put it, never the page or the conversation it came with.
+ASKED_MAX = 4000
+ANSWER_MAX = 8000
 
 #: This package's folder, for naming the code that sent a request.
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -699,11 +705,14 @@ class Entry:
 
         self.words = lean.keeps("model_words", org_id or None)
         # An incognito chat's requests keep their tokens, cost and time, and never their words.
-        if self.words:
-            from . import incognito
+        from . import incognito
 
-            if incognito.quiet(str(self.about.get("session_id") or "")):
-                self.words = False
+        self.quiet = incognito.quiet(str(self.about.get("session_id") or ""))
+        if self.quiet:
+            self.words = False
+        # What was asked, short, for the cost page (`asked_of`): kept with the cost, not with the
+        # words, so a Rouh that keeps no words still says what each call was. Never an incognito chat's.
+        asked = {"quiet": True} if self.quiet else asked_of(messages, self.about.get("asked"))
         if not self.words:
             pieces.clear()
             system = tools = ""
@@ -738,6 +747,7 @@ class Entry:
             request_hash=hashlib.sha256(self.body).hexdigest(),
             request_bytes=len(self.body),
             attempt=_number(self.about.get("attempt"), 1) + self.sdk_retry,
+            asked=asked,
         )
         if not self.words:
             self.fields["settings"] = {}
@@ -818,6 +828,8 @@ class Entry:
             first_token_ms=self.first_ms,
             duration_ms=self.duration_ms,
         )
+        done["answered"] = ({"quiet": True} if getattr(self, "quiet", False)
+                            else answered_of(done["text"], blocks))
         if not getattr(self, "words", True):
             done.update(text="", reasoning="", response=None)
         if self.trace_lane:
@@ -1081,6 +1093,78 @@ def _number(value, default: int) -> int:
 # --------------------------------------------------------------------------
 # What was asked, kept once
 # --------------------------------------------------------------------------
+
+
+def _capped(text, most: int) -> tuple[str, bool]:
+    """The text with anything credential-shaped masked (`rouh_log.redact`), and cut at `most`."""
+    from .rouh_log import redact
+
+    text = redact(str(text or "")).strip()
+    if len(text) > most:
+        return text[:most].rstrip(), True
+    return text, False
+
+
+def _words_in(content) -> str:
+    """The words a person wrote in one message, in any provider's shape, without tool results,
+    pictures or documents."""
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    out = []
+    for block in content:
+        if isinstance(block, str):
+            out.append(block)
+        elif isinstance(block, dict) and block.get("type") in ("text", "input_text", "output_text"):
+            out.append(str(block.get("text") or ""))
+    return "\n\n".join(w for w in out if w.strip())
+
+
+def asked_of(messages, said=None) -> dict:
+    """What a call was asked, as a person would put it, for the cost page.
+
+    Where the code making the call said it (`about(asked={...})`: Ask AI says the asker's own words,
+    who they are and what they pointed at), that; else the last message of the conversation sent
+    that a person wrote words in, never the instructions or the page sent with it."""
+    if isinstance(said, dict) and str(said.get("words") or "").strip():
+        words, cut = _capped(said.get("words"), ASKED_MAX)
+        out = {"words": words, "truncated": cut, "from": "asker"}
+        for key in ("who", "pointed_at"):
+            value = " ".join(str(said.get(key) or "").split())
+            if value:
+                out[key] = _capped(value, 600)[0]
+        return out
+    for message in reversed(messages if isinstance(messages, list) else []):
+        if isinstance(message, str):
+            words = message
+        elif isinstance(message, dict) and message.get("role", "user") == "user":
+            words = _words_in(message.get("content"))
+        else:
+            continue
+        if words.strip():
+            words, cut = _capped(words, ASKED_MAX)
+            return {"words": words, "truncated": cut, "from": "conversation"}
+    return {}
+
+
+def answered_of(text: str, blocks) -> dict:
+    """What came back, for the cost page: the answer's words (never its thinking), and the names of
+    the tools it called."""
+    words, cut = _capped(text, ANSWER_MAX)
+    tools = []
+    for block in blocks or []:
+        if not isinstance(block, dict):
+            continue
+        kind = block.get("type")
+        if kind in ("tool_use", "server_tool_use", "function_call") and block.get("name"):
+            tools.append(str(block["name"])[:80])
+        elif kind == "web_search_call":
+            tools.append("web_search")
+    out: dict = {"words": words, "truncated": cut}
+    if tools:
+        out["tools"] = tools
+    return out
 
 
 def _dump(value) -> str:

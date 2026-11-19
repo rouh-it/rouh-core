@@ -1030,7 +1030,174 @@ def one_call(who, call_id: int) -> dict:
         "same_turn": same_turn,
         "same_request": retries,
         "price": {"input": price[0], "output": price[1]} if price else None,
+        "exchange": exchange(r, zone),
     }
+
+
+# --- what was asked and what came back ------------------------------------------------------
+#
+# The owner, 19 November 2026: the page of one call should say what the call was, so it need not
+# be asked of Rouh. Every call since then keeps it, short (`llmlog.asked_of`, `answered_of`); a
+# call before is put together from what else was kept: an Ask AI question's own conversation and
+# the page's history (`askai_messages`, `askai_edits`), or the call's full words while the log
+# still keeps them (`rouh/lean.py`, "Model calls: their full words").
+
+_THREAD = re.compile(r"^(?P<doc>.+) \(thread (?P<thread>\d+)\)$")
+
+#: When the first call that kept what it was asked was made, once found: every call after it keeps it.
+_FIRST_KEPT: list[float] = []
+
+
+def _person(user_id: str) -> str:
+    """Who a call was made for, by name and address."""
+    from .models import User
+
+    user_id = str(user_id or "")
+    if user_id.startswith("link:"):
+        from .pagehistory import LINK_NAME
+
+        return LINK_NAME
+    if not user_id.isdigit():
+        return ""
+    user = User.objects.filter(pk=int(user_id)).first()
+    if user is None:
+        return ""
+    name = (user.get_full_name() or user.username or "").strip()
+    email = (user.email or "").strip()
+    return f"{name} <{email}>" if name and email and email != name else (name or email)
+
+
+def _first_kept(after_id: int, zone) -> str:
+    """The moment calls began to keep what they were asked, in the owner's words, or ""."""
+    if not _FIRST_KEPT:
+        rows = _rows("SELECT started_at FROM llm_requests WHERE id > %s AND asked IS NOT NULL "
+                     "ORDER BY id LIMIT 1", [after_id])
+        if not rows:
+            return ""
+        _FIRST_KEPT.append(float(rows[0][0]))
+    return datetime.fromtimestamp(_FIRST_KEPT[0], zone).strftime("%-d %b %Y, %H:%M")
+
+
+def _askai_turn(r: dict) -> dict | None:
+    """The Ask AI question a call was part of, from the page's own records: the asker's words, what
+    they selected, the answer the thread kept, and what it changed on the page."""
+    from .models import AskEdit, AskMessage
+
+    found = _THREAD.match(r.get("subject") or "")
+    if not found:
+        return None
+    doc, thread = found["doc"], int(found["thread"])
+    at = float(r["started_at"])
+    mine = AskMessage.objects.filter(thread_id=thread, thread__doc=doc, user_id=r["user_id"])
+    asked = mine.filter(role="user", created_at__lte=at + 1).order_by("-created_at").first()
+    if asked is None:
+        return None
+    later = mine.filter(role="user", created_at__gt=asked.created_at).order_by("created_at").first()
+    until = later.created_at if later else at + 3600
+    reply = (AskMessage.objects.filter(thread_id=thread, role="assistant", created_at__gte=asked.created_at,
+                                       created_at__lt=until).order_by("created_at").first())
+    edits = list(AskEdit.objects.filter(page_org_id=r["org_id"], doc=doc, thread_id=thread, kind="",
+                                        created_at__gte=asked.created_at, created_at__lt=until)
+                 .order_by("id").values_list("summary", flat=True))
+    return {"doc": doc, "words": asked.content, "selected": asked.selected_text,
+            "reply": reply.content if reply else "",
+            "changed": [" ".join((e or "Changed the page").split()) for e in edits]}
+
+
+def _words_kept(r: dict) -> tuple[dict, dict]:
+    """What a call before 19 November 2026 was asked and answered, from its full words, while kept."""
+    from . import llmlog
+    from .models import LLMPiece
+
+    import json
+
+    asked: dict = {}
+    hashes = [h for h in (r.get("message_pieces") or []) if h][-8:]
+    if hashes:
+        bodies = dict(LLMPiece.objects.filter(hash__in=hashes).values_list("hash", "body"))
+        said = []
+        for h in hashes:
+            try:
+                said.append(json.loads(bodies[h]))
+            except (KeyError, ValueError):
+                continue
+        asked = llmlog.asked_of(said)
+    response = r.get("response") if isinstance(r.get("response"), dict) else {}
+    blocks = [b for b in response.get("content") or [] if isinstance(b, dict)]
+    answered = llmlog.answered_of(r.get("text") or "", blocks) if (r.get("text") or blocks) else {}
+    return asked, answered
+
+
+def _cut(text: str, most: int) -> dict:
+    from .rouh_log import redact
+
+    text = redact(str(text or "")).strip()
+    return {"words": text[:most].rstrip(), "truncated": len(text) > most}
+
+
+def exchange(r: dict, zone) -> dict:
+    """What the call was asked, by whom, and what came back, as the page of one call shows it.
+
+    `kept` says where it came from: "log" (kept with the call), "history" (put together from the
+    page's history for an Ask AI call before), "words" (from the call's full words, still kept),
+    "quiet" (an incognito chat: never kept) or "none"."""
+    from .llmlog import ANSWER_MAX, ASKED_MAX
+
+    asked, answered = r.get("asked"), r.get("answered")
+    if (isinstance(asked, dict) and asked.get("quiet")) or (isinstance(answered, dict) and answered.get("quiet")):
+        return {"kept": "quiet", "note": "Not kept: this call was part of an incognito chat."}
+    askai = r.get("purpose") == "askai"
+    turn = None
+    if askai:
+        try:
+            turn = _askai_turn(r)
+        except Exception:  # noqa: BLE001 - the rest of the page is still worth having
+            turn = None
+    out: dict = {"kept": "log", "who": "", "request": None, "response": None, "changed": [], "note": ""}
+    if asked is not None or answered is not None:
+        asked = asked if isinstance(asked, dict) else {}
+        answered = answered if isinstance(answered, dict) else {}
+        out["who"] = asked.get("who") or _person(r.get("user_id"))
+        if asked.get("from") != "asker":
+            out["who_said"] = "Made for"
+        if asked.get("words"):
+            out["request"] = {"words": asked["words"], "truncated": bool(asked.get("truncated")),
+                              "pointed_at": asked.get("pointed_at") or ""}
+        if answered.get("words") or answered.get("tools"):
+            out["response"] = {"words": answered.get("words") or "", "truncated": bool(answered.get("truncated")),
+                               "tools": answered.get("tools") or []}
+        if turn:
+            out["changed"] = turn["changed"]
+        if not out["request"] and not out["response"]:
+            out["note"] = "This call sent no words a person wrote, and had none in its answer."
+        return out
+    if turn:
+        out.update(kept="history", who=_person(r.get("user_id")),
+                   request={**_cut(turn["words"], ASKED_MAX), "pointed_at": " ".join(turn["selected"].split())[:600]},
+                   changed=turn["changed"])
+        if r.get("text"):
+            out["response"] = {**_cut(r["text"], ANSWER_MAX), "tools": []}
+            out["note"] = "From the page's history; the reply is this call's own, from the log's full words."
+        elif turn["reply"]:
+            out["response"] = {**_cut(turn["reply"], ANSWER_MAX), "tools": [], "whole_question": True}
+            out["note"] = ("From the page's history; the model's full reply to this call was not kept then, "
+                           "so this is Ask AI's answer to the whole question, as its conversation kept it.")
+        else:
+            out["note"] = "From the page's history; the model's full reply was not kept then."
+        return out
+    words_asked, words_answered = _words_kept(r)
+    if words_asked or words_answered:
+        out.update(kept="words", who=_person(r.get("user_id")), who_said="Made for",
+                   note="Worked out from the call's full words, which the log still keeps.")
+        if words_asked:
+            out["request"] = {"words": words_asked["words"], "truncated": words_asked["truncated"], "pointed_at": ""}
+        if words_answered.get("words") or words_answered.get("tools"):
+            out["response"] = {"words": words_answered["words"], "truncated": words_answered["truncated"],
+                               "tools": words_answered.get("tools") or []}
+        return out
+    since = _first_kept(int(r["id"]), zone)
+    return {"kept": "none", "note": (f"Not recorded for calls before {since}." if since else
+                                     "Not recorded for calls before 19 Nov 2026.")}
 
 
 def _why(row: dict, split: dict, sent: int, parts: list[dict], logged: float | None) -> str:

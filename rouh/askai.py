@@ -1652,6 +1652,27 @@ def _edit(cfg, who, doc: str, thread_id: int, call,
         return None, "The page could not be written. Nothing was changed."
 
 
+def _asker(who) -> str:
+    """Who asked, as the cost page names them: their name and address where the identity has them."""
+    name = " ".join(str(getattr(who, "name", "") or "").split())
+    email = str(getattr(who, "email", "") or "").strip()
+    if name and email:
+        return f"{name} <{email}>"
+    return name or email
+
+
+def _pointed_at(selected: str, picked) -> str:
+    """What the asker pointed at, in a line: the passage they selected, else the element they picked."""
+    if selected:
+        return selected
+    if isinstance(picked, dict):
+        tag = str(picked.get("tag") or "").lower()[:40]
+        words = " ".join(str(picked.get("text") or "").split())[:400]
+        if tag or words:
+            return f"<{tag}> {words}".strip() if tag else words
+    return ""
+
+
 async def answer(cfg, threads: Threads, who, doc: str, asked: dict, *,
                  can_edit: bool = False, most_a_day: int = 0,
                  page_org: str = "", said_to=None) -> AsyncIterator[bytes]:
@@ -1777,6 +1798,9 @@ async def answer(cfg, threads: Threads, who, doc: str, asked: dict, *,
     # Rouh can ask answers the question as one plain question, without editing the page or
     # reading the web, and says so (`modeldefaults.Use.fallback`, 24 October 2026).
     plain = work.fallback or not asked_of
+    # What was asked, as the asker put it, for the cost page of each call this question makes
+    # (`llmlog.asked_of`): their words, who they are and what they pointed at, never the page.
+    asker = {"words": question, "who": _asker(who), "pointed_at": _pointed_at(selected, asked.get("picked"))}
     try:
         if plain:
             if not asked_of:
@@ -1785,7 +1809,7 @@ async def answer(cfg, threads: Threads, who, doc: str, asked: dict, *,
             system = system if isinstance(system, str) else "\n\n".join(
                 str(b.get("text") or "") for b in system or [] if isinstance(b, dict))
             with llmlog.about(who, purpose="askai", org_id=page_org or "",
-                              subject=f"{doc} (thread {thread_id})"):
+                              subject=f"{doc} (thread {thread_id})", asked=asker):
                 got = await llm.ask_model(
                     asked_of, work.effort, max_tokens=ready["max_tokens"], cfg=cfg,
                     org_id=page_org or None, messages=messages,
@@ -1817,7 +1841,7 @@ async def answer(cfg, threads: Threads, who, doc: str, asked: dict, *,
             # usage screen has to count it (`rouh/usage.py`).
             async with llmlog.said(client_for(cfg).messages.stream(**request), who,
                                    purpose="askai", org_id=page_org or None,
-                                   subject=f"{doc} (thread {thread_id})") as stream:
+                                   subject=f"{doc} (thread {thread_id})", asked=asker) as stream:
                 calls: dict[int, list[str]] = {}
                 async for event in stream:
                     kind = getattr(event, "type", "")

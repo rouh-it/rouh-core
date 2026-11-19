@@ -1108,6 +1108,31 @@ button { font: inherit; color: inherit; }
 .ou-callfacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 12px 24px; margin-top: 8px; }
 .ou-callfacts dd { overflow-wrap: anywhere; }
 .ou-link { color: var(--accent); }
+/* One call: what was asked and what came back. Readable blocks that wrap at any width; a long one
+   is cut to about ten lines until Show all is pressed. */
+.ou-qa { margin-top: 20px; }
+.ou-qa-who, .ou-qa-point, .ou-qa-tools { margin: 6px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+.ou-qa-k { color: var(--dim); }
+.ou-qa-block { margin-top: 14px; }
+.ou-qa-label { margin: 0 0 6px; font: 600 13px/1.3 var(--sans); color: var(--text); }
+.ou-qa-text {
+  padding: 10px 12px; border-radius: var(--radius-s); background: var(--panel); border: 1px solid var(--line-soft);
+  font-size: 14px; line-height: 1.5; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; max-width: 80ch;
+}
+.ou-qa-clamp { max-height: calc(1.5em * 10 + 20px); overflow: hidden; }
+.ou-qa-empty { color: var(--dim); font-style: italic; }
+.ou-qa-more {
+  min-height: 44px; padding: 0 2px; border: 0; background: none; color: var(--accent);
+  font: 500 13.5px/1 var(--sans); cursor: pointer;
+}
+.ou-qa-more:hover { text-decoration: underline; }
+.ou-qa-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.ou-qa-point { margin: 0 0 6px; font-size: 13px; color: var(--dim); }
+.ou-qa-point span:last-child { color: var(--text); }
+.ou-qa-tool { display: inline-block; margin: 2px 6px 2px 0; padding: 1px 6px; border-radius: 4px; background: var(--panel); border: 1px solid var(--line-soft); font: 12.5px/1.5 var(--mono); }
+.ou-qa-changed { margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
+.ou-qa-changed li + li { margin-top: 4px; }
+.ou-qa-none { margin: 6px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--dim); }
 @media (max-width: 599px) {
   .ou-inner { padding: 50px 16px 32px; }
   .ou-total { font-size: 28px; }
