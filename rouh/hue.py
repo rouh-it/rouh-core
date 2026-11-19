@@ -438,8 +438,27 @@ class Hue:
             self.conn = refresh(self.conn, force=True)
             r = _request(method, API + path, self._headers(with_key), body, self._sleep, **how)
             if r.status_code == 401:
-                lapse(self.conn)
-                raise Lapsed(lapsed_line())
+                # Refused although the token was just renewed: kept with its evidence, and believed
+                # only once it goes on across 15 minutes (19 November 2026, `connection_incidents`).
+                from . import connection_incidents as incidents
+
+                c = self.conn
+                trouble = incidents.failed("hue", c.user_id, c.org_id, incidents.CALL)
+                incidents.record("hue", c.user_id, c.org_id, part=incidents.CALL,
+                                 what=incidents.of_response(r),
+                                 outcome="lapsed" if trouble.persistent else
+                                 "not lapsed: the token was just renewed")
+                if trouble.persistent:
+                    lapse(self.conn)
+                    raise Lapsed(lapsed_line())
+                raise HueError(f"The Hue cloud refused this call at {incidents.said_at(trouble.last_at)} "
+                               "although its token was just renewed. Rouh kept what it said and will "
+                               "try again; the sign-in is not treated as lost unless it goes on.")
+        if r.status_code < 400:
+            from . import connection_incidents as incidents
+
+            if incidents.troubled("hue", self.conn.user_id, self.conn.org_id):
+                incidents.ok("hue", self.conn.user_id, self.conn.org_id)
         if r.status_code < 500 and time.time() - (self.conn.reached_at or 0) > REACHED_EVERY:
             _set(self.conn, reached_at=time.time())
         return r

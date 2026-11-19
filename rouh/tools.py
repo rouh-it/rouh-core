@@ -2953,6 +2953,64 @@ class ToolRegistry:
             self._server_health,
         )
 
+        # Why a connection stopped working, answered from the core itself (19 November 2026):
+        # Rouh's own log, and each connection's state with the evidence of its last refusal.
+        self._own(
+            "read_rouh_log",
+            "Read Rouh's own log - the core's, which run_command cannot see from the worker - by "
+            "words, time range and level, with every password, token, Authorization header, "
+            "cookie and API key masked. Use it to find out why something failed: a connection "
+            "that stopped working, a sync, a job, an error the person saw. words: every one must "
+            "be in the entry (case does not matter), e.g. 'icloud 401' or 'rouh.contacts'. "
+            "since/until: '2h', '30m', '1d', or a time like 2026-11-19T14:00 on the person's "
+            "clock. level: the lowest level wanted (INFO, WARNING, ERROR). logger: a logger's "
+            "name or its start, e.g. rouh.contacts. limit: how many entries, newest kept, "
+            "said oldest first (40 unless said, at most 300). Say what you found in plain words; "
+            "never read a whole log line out loud.",
+            {
+                "type": "object",
+                "properties": {
+                    "words": {"type": "string", "description": "Words every entry must have."},
+                    "since": {"type": "string", "description": "From: '2h', '1d', or an ISO time."},
+                    "until": {"type": "string", "description": "To: same forms; now when empty."},
+                    "level": {"type": "string", "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]},
+                    "logger": {"type": "string", "description": "A logger's name or its start."},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 300},
+                },
+            },
+            self._read_rouh_log,
+            area="self", brief="Reads Rouh's own log, with secrets masked.",
+        )
+        self._own(
+            "connection_status",
+            "Every one of the person's connections - iCloud contacts, Google and the mailboxes "
+            "read with it, Slack, Hue, the Dreame robot, Telegram, Cloudflare - with its state "
+            "(connected, needs_new_password, needs_reconnect, lapsed, suspected), when it was last "
+            "tried and last synced or reached, its last error, when it last failed and what the "
+            "service answered then (method, host, path, status, the WWW-Authenticate, Retry-After "
+            "and x-apple-* headers, the start of the body, and which part of Rouh asked), and "
+            "the addresses it was found at. Never a credential. Use it whenever the person asks "
+            "why a connection stopped working, or whether one works. action list (the default): "
+            "the connections; connection narrows it to one (apple_contacts, google, slack, hue, "
+            "dreame, telegram, cloudflare); incidents: how many of each one's recent refusals to "
+            "include (0 to 50). action test (connection): ask the service once now with the "
+            "kept credential - for iCloud one PROPFIND on the principal - and say the status and "
+            "those headers; it changes nothing. Only when the person asked to reconnect, add "
+            "reconnect true: if the test is accepted, a connection marked as needing a new "
+            "password is cleared and synced again.",
+            {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["list", "test"]},
+                    "connection": {"type": "string"},
+                    "incidents": {"type": "integer", "minimum": 0, "maximum": 50},
+                    "reconnect": {"type": "boolean"},
+                },
+            },
+            self._connection_status,
+            area="self", brief="Each connection's state and why it last failed; tests one.",
+        )
+
         # Cloudflare's zones (`rouh/cloudflare.py`). The owner types each zone's token into
         # Settings themself, so it never passes through a model; this says only whether one
         # is set, opens that page, and reads a zone by its name with the token kept for it.
@@ -16569,6 +16627,46 @@ class ToolRegistry:
 
     def _server_health(self, args, emit):
         return json.dumps(server_health())
+
+    async def _read_rouh_log(self, args, emit):
+        """Rouh's own log, read here in the core (`rouh/rouh_log.py`), masked."""
+        from . import rouh_log
+
+        args = dict(args or {})
+        words = str(args.get("words") or "").split()
+        try:
+            got = await asyncio.to_thread(
+                rouh_log.read, words, args.get("since"), args.get("until"),
+                str(args.get("level") or ""), int(args.get("limit") or 40),
+                str(args.get("logger") or ""))
+        except (TypeError, ValueError) as exc:
+            return untrusted.ours(str(exc))
+        return rouh_log.said(got, words=" ".join(words))
+
+    async def _connection_status(self, args, emit):
+        """Each connection of the person whose turn it is (`rouh/connection_status.py`)."""
+        from . import connection_status
+
+        args = dict(args or {})
+        who = await self._whose_turn()
+        if who is None:
+            return untrusted.ours("Whose connections? Nobody is signed in.")
+        action = str(args.get("action") or "list").strip().lower()
+        if action == "test":
+            reconnect = args.get("reconnect") is True or \
+                str(args.get("reconnect") or "").strip().lower() == "true"
+            got = await connection_status.test(who, str(args.get("connection") or ""),
+                                               reconnect=reconnect, contacts=self.contacts)
+            return json.dumps(got, ensure_ascii=False)
+        if action != "list":
+            return untrusted.ours("action is list or test.")
+        try:
+            many = int(args.get("incidents") or 0)
+        except (TypeError, ValueError):
+            many = 0
+        found = await asyncio.to_thread(connection_status.connections, who,
+                                        incidents_each=many, only=str(args.get("connection") or ""))
+        return connection_status.said(found)
 
     async def _run_command(self, args, emit):
         """Read something off this machine, right now, in the spoken turn.

@@ -32,7 +32,9 @@ without an ETag, so Rouh has to read back what was really kept.
 A few addresses beginning with an underscore stand in for the rest of the
 world and are not CardDAV: ``/_phone`` edits or deletes a card as the iPhone
 would, which is how a conflict is made; ``/_password`` changes the password
-that is accepted, which is how one is revoked; ``/_expire`` makes every sync
+that is accepted, which is how one is revoked; ``/_refuse`` answers the next
+few requests with iCloud's 401 although the password is right, which is how a
+passing refusal is made (``{"count": 1}``); ``/_expire`` makes every sync
 token stale; ``/_options`` makes sync-collection page its answers, or not
 exist at all; ``/_state`` and ``/_seen`` say what it holds and what it was
 asked.
@@ -244,7 +246,7 @@ class Book:
 def build(apple_id: str = APPLE_ID, password: str = APP_PASSWORD) -> FastAPI:
     app = FastAPI()
     book = Book()
-    state = {"apple_id": apple_id, "password": password}
+    state = {"apple_id": apple_id, "password": password, "refuse": 0}
     seen: list[dict] = []
 
     def home_url(request: Request) -> str:
@@ -319,6 +321,13 @@ def build(apple_id: str = APPLE_ID, password: str = APP_PASSWORD) -> FastAPI:
         state["password"] = (await request.json()).get("password", "")
         return {"ok": True}
 
+    @app.post("/_refuse")
+    async def _refuse(request: Request):
+        """The next `count` CardDAV requests are refused with iCloud's 401, password or not."""
+        body = await request.json()
+        state["refuse"] = max(0, int(body.get("count") or 0))
+        return {"refusing": state["refuse"]}
+
     @app.post("/_expire")
     async def _expire():
         # Every token handed out so far, including the newest, is now stale.
@@ -369,6 +378,10 @@ def build(apple_id: str = APPLE_ID, password: str = APP_PASSWORD) -> FastAPI:
         if who is None and where == "/":
             return Response(status_code=404)
         if not who:
+            return Response(status_code=401, headers=REFUSAL_HEADERS)
+        if state["refuse"] > 0:
+            state["refuse"] -= 1
+            seen[-1]["refused"] = True
             return Response(status_code=401, headers=REFUSAL_HEADERS)
         if where == "/.well-known/carddav":
             return Response(status_code=301, headers={"Location": "/"})

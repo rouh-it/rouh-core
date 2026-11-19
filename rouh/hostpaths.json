@@ -97,6 +97,10 @@
       "lines": 2,
       "why": "words a brief is matched against to see it is about Rouh itself, not a path anything uses"
     },
+    "rouh/rouh_log.py": {
+      "lines": 1,
+      "why": "read only when the file is there: a server's systemd appends the core's output to /var/www/rouh/logs/rouh.log; in the containers the core's own core.log, in its logs folder, is what is read"
+    },
     "rouh/rouh_version.py": {
       "lines": 2,
       "why": "documentation of how it runs on a server; nothing runs it"

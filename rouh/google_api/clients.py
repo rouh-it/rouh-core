@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import httpx
 
 from ..google_oauth import GoogleAuth, NeedsMoreAccess, NeedsReconnect, NotConnected, why_missing
+from .. import connection_incidents as incidents
 from ..tenancy import Identity
 from .common import (ATTEMPTS, BACKOFF_CEILING_SECONDS, BACKOFF_SECONDS, CONNECT_SECONDS,
                      GoogleSaidNo, READ_SECONDS, REAL_BASES, SCOPE_TOO_NARROW, _first_of, _pause,
@@ -127,6 +128,8 @@ class GoogleClients:
                     timeout=patience,
                 )
                 if answer.status_code < 400:
+                    if incidents.troubled("google", who.user_id, who.org_id):
+                        await asyncio.to_thread(incidents.ok, "google", who.user_id, who.org_id)
                     if want_location:
                         where = answer.headers.get("Location", "")
                         if not where:
@@ -146,14 +149,33 @@ class GoogleClients:
                     except ValueError:
                         return {}
                 if answer.status_code == 401:
-                    # The token went stale early, or the grant is gone. One
-                    # forced renewal, then believe it.
+                    # The token went stale early, or the grant is gone. One forced renewal. If
+                    # Google renewed it and still refuses the call, the grant is not gone (the
+                    # token endpoint is what says that, `GoogleAuth._refresh`): it is kept as an
+                    # incident and believed only once it goes on across 15 minutes (19 November
+                    # 2026, `connection_incidents`).
                     if attempt == 1:
                         token = await self._renew(who)
                         continue
+                    trouble = await asyncio.to_thread(
+                        incidents.failed, "google", who.user_id, who.org_id, incidents.CALL)
+                    dead = trouble.persistent
+                    await asyncio.to_thread(
+                        incidents.record, "google", who.user_id, who.org_id,
+                        part=incidents.CALL, what=incidents.of_response(answer),
+                        outcome=("marked needs_reconnect: refused for 15 minutes or more"
+                                 if dead else "not marked: the token was just renewed"))
+                    if not dead:
+                        raise GoogleSaidNo(
+                            f"Google refused this call at {incidents.said_at(trouble.last_at)} "
+                            "although it had just renewed the token. Rouh has kept what it "
+                            "said and will try again; it is not treated as a lost connection "
+                            "unless it goes on.", status=401, reason="unauthorized")
                     self._auth.store.needs_reconnect(
                         who.user_id, who.org_id,
-                        "Google refused this connection's token.")
+                        "Google kept refusing this connection's token from "
+                        f"{incidents.said_at(trouble.first_at)} to "
+                        f"{incidents.said_at(trouble.last_at)}, each time just after renewing it.")
                     raise NeedsReconnect(
                         "Google no longer accepts this connection. Open Settings and "
                         "connect the account again.")

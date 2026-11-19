@@ -21,6 +21,13 @@ card has a picture Rouh has not kept yet, or a different one from the one it kep
   photo research kept for them, then their initials. Nothing here is ever written to iCloud.
 
 A picture that cannot be fetched is tried again on a later sync, at most `TRIES` times for the same one.
+
+**A picture never costs the password** (19 November 2026). The Apple ID's password goes only to the
+hosts the contacts themselves come from (`CardDAV.trusts_photo`); a picture on any other host, iCloud's
+own included, is read as a public one. Those with the password are asked one at a time
+(`SIGNED_AT_ONCE`), never again on a 401 (`CardDAV.picture`), and a 401 is never what marks the
+password dead: it is kept as one incident (`connection_incidents`, part "photo fetch"), and the
+rest of this sync's pictures that would need the password wait for the next sync.
 """
 from __future__ import annotations
 
@@ -37,7 +44,9 @@ log = logging.getLogger("rouh.contacts.photos")
 SIDE = 512
 #: How many faces one sync fetches at most, and how many at once.
 PER_SYNC = 150
-AT_ONCE = 4
+AT_ONCE = 3
+#: How many of them are asked for with the Apple ID's password at once.
+SIGNED_AT_ONCE = 1
 #: How many times the same picture is tried before it is left alone until the card changes.
 TRIES = 3
 #: The largest picture taken in, as it arrives.
@@ -199,7 +208,16 @@ async def keep_faces(dav, who, *, most: int = PER_SYNC) -> int:
         log.exception("contact photos: the waiting faces could not be read")
         return 0
     gate = asyncio.Semaphore(AT_ONCE)
+    signed = asyncio.Semaphore(SIGNED_AT_ONCE)
     kept = 0
+    #: The first 401 of this sync for a picture asked with the password: after it, none is asked.
+    refused: list = []
+
+    def needs_password(photo: dict) -> bool:
+        if dav is None or photo.get("kind") == "inline":
+            return False
+        trusts = getattr(dav, "trusts_photo", None) or dav.trusts
+        return bool(trusts(photo.get("uri") or ""))
 
     async def one(pid: str, photo: dict, meta: dict) -> None:
         nonlocal kept
@@ -208,8 +226,16 @@ async def keep_faces(dav, who, *, most: int = PER_SYNC) -> int:
             try:
                 if photo.get("kind") == "inline":
                     body = _inline_bytes(meta)
-                elif dav is not None and dav.trusts(photo.get("uri") or ""):
-                    body = await dav.picture(photo["uri"], most=MOST_BYTES)
+                elif needs_password(photo):
+                    async with signed:
+                        if refused:
+                            return          # not counted as a try: asked again on the next sync
+                        try:
+                            body = await dav.picture(photo["uri"], most=MOST_BYTES)
+                        except Exception as exc:
+                            if getattr(exc, "status", 0) == 401:
+                                refused.append(exc)
+                            raise
                 else:
                     body, _media = await picture.fetch(photo.get("uri") or "")
             except Exception as exc:  # noqa: BLE001 - tried again on a later sync
@@ -222,6 +248,17 @@ async def keep_faces(dav, who, *, most: int = PER_SYNC) -> int:
             log.exception("contact photos: the picture for %s could not be kept", pid)
 
     await asyncio.gather(*(one(*w) for w in waiting[:most]))
+    if refused:
+        from . import connection_incidents as incidents
+
+        try:
+            await asyncio.to_thread(
+                incidents.record, "apple_contacts", who.user_id, who.org_id,
+                part=incidents.PHOTO, what=getattr(refused[0], "evidence", None),
+                outcome="not counted against the password; the rest of this sync's pictures wait",
+                note="a contact's picture, asked with the Apple ID's password, answered 401")
+        except Exception:  # noqa: BLE001
+            log.exception("contact photos: the refusal could not be kept")
     if waiting:
         log.info("contact photos for user %s: %d of %d waiting kept", who.user_id, kept, len(waiting))
     return kept

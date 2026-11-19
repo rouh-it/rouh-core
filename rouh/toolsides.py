@@ -146,6 +146,7 @@ WORDS: dict[str, str] = {
     "delegate": "a contact's authority", "delegate_act": "acts for a contact", "read_capability": "what a contact may do",
     # Server and self
     "run_command": "runs a command", "server_health": "server health", "improve_myself": "changes Rouh's code",
+    "read_rouh_log": "reads Rouh's log", "connection_status": "connection status",
     "deploy_myself": "deploys Rouh", "show_the_gaps": "what Rouh cannot do", "model_defaults": "which model answers",
     "mcp_servers": "MCP servers", "update_rouh": "updates Rouh", "cloudflare": "Cloudflare",
     "gene_offer": "offers a gene", "gene_draft": "drafts a gene", "incubator_list": "lists ideas",

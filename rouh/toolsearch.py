@@ -192,6 +192,7 @@ AREA_OF: dict[str, str] = {
     "goals": "reminders", "goal_control": "reminders",
     # Server and self
     "run_command": "self", "server_health": "self", "improve_myself": "self",
+    "read_rouh_log": "self", "connection_status": "self",
     "deploy_myself": "self", "show_the_gaps": "self", "code_execution": "self",
     "model_defaults": "self", "mcp_servers": "self", "update_rouh": "self", "cloudflare": "self", "gene_offer": "self", "gene_draft": "self",
     "incubator_list": "self", "incubator_read": "self", "incubator_add": "self", "incubator_edit": "self",

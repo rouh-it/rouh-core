@@ -3472,6 +3472,16 @@
    "files": [
     "rouh/mail_code.py"
    ]
+  },
+  "connection-diagnosis": {
+   "name": "Why a connection stopped working",
+   "what": "Rouh answers why one of its own connections failed from its own turn: it reads its own log in the core with every secret masked (read_rouh_log), says each connection's state with the evidence of its last refusal (connection_status), tests one with a single read-only request, keeps every refusal as it happened, and never marks a connection dead on one refusal.",
+   "files": [
+    "rouh/connection_incidents.py",
+    "rouh/connection_status.py",
+    "rouh/rouh_log.py",
+    "rouh/models/connections.py"
+   ]
   }
  }
 }

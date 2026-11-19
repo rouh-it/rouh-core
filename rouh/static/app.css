@@ -3863,6 +3863,8 @@ input[type="range"]::-moz-range-thumb { width: 15px; height: 15px; border: 0; bo
 }
 .settings-note { margin: 0; font-size: 13px; color: var(--text); }
 .settings-note.bad, .settings-help.bad { color: var(--bad); }
+/* What a service answered when it refused (an address, headers): broken anywhere, so it never widens the page. */
+.settings-help.evidence { margin: 0; overflow-wrap: anywhere; }
 .settings-say {
   margin: 0; padding: 9px 12px; border-radius: var(--radius-s);
   border: 1px solid var(--line); background: var(--panel-2);

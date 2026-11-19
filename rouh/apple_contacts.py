@@ -15,6 +15,18 @@ password that does not work is never saved, and one that stops working later
 (revoked, or every app-specific password revoked by an Apple ID password
 change) marks the connection `needs_new_password` and Settings says so.
 
+**One refusal is not a verdict** (Petar, 19 November 2026, after one 401 marked
+a password dead that was still valid). A 401 is asked again with backoff
+(`carddav.AUTH_WAITS`); one that still comes back is kept as an incident, with
+its evidence (`connection_incidents`), and the connection is only suspected:
+the contacts are read from Rouh's copy and said as "iCloud refused us at
+14:05, retrying". Only a sync refused again at least 15 minutes after the
+first refusal - two sync cycles apart - marks it `needs_new_password`, and the
+words then say what happened, when and during what, never a guess. A save or a
+delete refused is kept and said, and never marks it by itself; a contact's
+picture never counts at all. `test` asks iCloud once, changes nothing, and
+clears `needs_new_password` only when asked to and iCloud accepts.
+
 **The sync.** `ContactDesk.sync` finds the address book once, then asks iCloud
 what changed since last time with the sync-collection REPORT and the token it
 was given, fetches only the cards whose ETag moved, and keeps each one as a row
@@ -73,6 +85,7 @@ import uuid
 from dataclasses import dataclass, field
 
 from . import carddav, clock, vcard
+from . import connection_incidents as incidents
 from .carddav import (CardDAV, CardDAVError, Changed, Found, Gone, NotAccepted, Place,
                       Refused, TokenExpired, Unreachable)
 from .encryption import CannotOpen, SecretBox
@@ -102,11 +115,46 @@ NOT_ACCEPTED = (
     "exactly. If it was revoked, or you are not sure, make a new one at "
     "account.apple.com. Nothing was saved.")
 
+#: The key of this connection among Rouh's connections (`connection_incidents`, `connection_status`).
+CONNECTION = "apple_contacts"
+
+#: Said only when nothing better is known: a row marked before 19 November 2026 kept no evidence.
 REVOKED = (
-    "iCloud stopped accepting the app-specific password. It was probably revoked at "
-    "account.apple.com, or the Apple ID's own password was changed, which revokes every "
-    "app-specific password. Make a new one there and enter it in Settings, under Apple "
-    "Contacts.")
+    "iCloud refused the app-specific password on more than one try. Ask Rouh to test the "
+    "connection now; if iCloud still refuses it, make a new one at account.apple.com and enter "
+    "it in Settings, under Apple Contacts.")
+
+
+#: The parts of a sync, whose refusals alone can mark the password dead.
+SYNC_PARTS = ("sync", "discover")
+
+
+def _during(part: str) -> str:
+    return {"sync": "a sync", "save": "saving a contact", "delete": "deleting a contact",
+            "discover": "finding the address book", "photo fetch": "fetching a contact's picture",
+            "test": "a test"}.get(part or "", part or "a request")
+
+
+def refused_said(first_at: float, first_part: str, again_at: float = 0, again_part: str = "",
+                 failures: int = 0) -> str:
+    """What happened, said as it happened: when iCloud refused, during what, and that it kept on."""
+    out = (f"iCloud refused the app-specific password at {incidents.said_at(first_at)}, during "
+           f"{_during(first_part)}")
+    if again_at and again_at != first_at:
+        out += (f", and was still refusing it at {incidents.said_at(again_at)}, during "
+                f"{_during(again_part)}")
+        if failures > 2:
+            out += f" ({failures} refusals in all)"
+    return out + (". That happens when the password is revoked at account.apple.com or the Apple "
+                  "ID's own password is changed; if neither happened, ask Rouh to test the "
+                  "connection now, which asks iCloud once and reconnects if it is accepted. "
+                  "Otherwise make a new app-specific password and enter it in Settings, under "
+                  "Apple Contacts.")
+
+
+def suspected_said(at: float, part: str) -> str:
+    return (f"iCloud refused us at {incidents.said_at(at)}, during {_during(part)}, and Rouh is "
+            "retrying. Until it accepts again, contacts are read from Rouh's own copy.")
 
 UNREADABLE = (
     "The stored app-specific password cannot be opened with this server's encryption "
@@ -173,6 +221,9 @@ class Outcome:
     total: int = 0
     error: str = ""
     skipped: bool = False
+    #: iCloud refused the password this time; `dead` when that marked it needs_new_password.
+    refused: bool = False
+    dead: bool = False
 
 
 @dataclass
@@ -278,7 +329,10 @@ class AppleStore:
             return {"connected": False, "apple_id": "", "connected_at": 0,
                     "needs_new_password": False, "last_sync_at": 0, "last_sync_changed": 0,
                     "last_attempt_at": 0, "last_error": "", "unreadable": False,
-                    "contacts": 0}
+                    "contacts": 0, "suspected": False, "refused_at": 0, "refused_first_at": 0,
+                    "last_incident": None}
+        trouble = incidents.trouble(CONNECTION, user_id, org_id)
+        latest = incidents.latest(CONNECTION, user_id, org_id)
         return {
             "connected": True,
             "apple_id": row.apple_id,
@@ -291,13 +345,38 @@ class AppleStore:
             # Not revoked: sealed under a key this server does not have.
             "unreadable": bool(row.needs_new_password) and row.last_error == UNREADABLE,
             "contacts": _count(user_id, org_id),
+            # Refused and not yet believed: reads go on from Rouh's copy.
+            "suspected": trouble is not None and not row.needs_new_password,
+            "refused_at": trouble.last_at if trouble else 0,
+            "refused_first_at": trouble.first_at if trouble else 0,
+            # The newest refusal's evidence, without its body: what Settings shows.
+            "last_incident": ({k: latest[k] for k in ("at", "part", "method", "host", "path",
+                                                      "status", "headers", "outcome")}
+                              if latest else None),
         }
 
-    def rejected(self, user_id: str, org_id: str) -> None:
+    def rejected(self, user_id: str, org_id: str, said: str = "") -> None:
+        """iCloud kept refusing the password across sync cycles: it needs a new one."""
         from .models import AppleConnection
 
         AppleConnection.objects.filter(user_id=user_id, org_id=org_id).update(
-            needs_new_password=True, last_attempt_at=time.time(), last_error=REVOKED)
+            needs_new_password=True, last_attempt_at=time.time(),
+            last_error=(said or REVOKED)[:1000])
+
+    def suspected(self, user_id: str, org_id: str, said: str) -> None:
+        """iCloud refused the password, once or for less than two sync cycles: said, not believed."""
+        from .models import AppleConnection
+
+        AppleConnection.objects.filter(user_id=user_id, org_id=org_id).update(
+            last_attempt_at=time.time(), last_error=(said or "")[:1000])
+
+    def reconnected(self, user_id: str, org_id: str) -> None:
+        """iCloud accepted the kept password again when tested: it works, and syncs again."""
+        from .models import AppleConnection
+
+        AppleConnection.objects.filter(user_id=user_id, org_id=org_id).update(
+            needs_new_password=False, last_attempt_at=time.time(), last_error="")
+        incidents.ok(CONNECTION, user_id, org_id)
 
     def attempted(self, user_id: str, org_id: str, error: str) -> None:
         from .models import AppleConnection
@@ -312,6 +391,7 @@ class AppleStore:
         AppleConnection.objects.filter(user_id=user_id, org_id=org_id).update(
             sync_token=token or "", last_sync_at=now, last_sync_changed=int(changed),
             last_attempt_at=now, last_error="", needs_new_password=False)
+        incidents.ok(CONNECTION, user_id, org_id)
 
     def forget(self, user_id: str, org_id: str) -> bool:
         """The connection; the people its cards were stay in Synapse, no longer contacts. Nothing in iCloud."""
@@ -387,6 +467,9 @@ class ContactDesk:
         self.audit = audit
         #: For a check of one's own: httpx's MockTransport in place of iCloud.
         self._transport = transport
+        #: How long each 401 is waited out before iCloud is asked again (`carddav.AUTH_WAITS`).
+        self.auth_waits = carddav.AUTH_WAITS
+        self.quick_auth_waits = carddav.QUICK_AUTH_WAITS
         #: What Rouh knows about each contact beyond the card: who they are to
         #: the person, and the research (`rouh/people.py`).
         from .people import People
@@ -406,8 +489,43 @@ class ContactDesk:
             self._locks[user_id] = asyncio.Lock()
         return self._locks[user_id]
 
-    def _dav(self, held: Held) -> CardDAV:
-        return CardDAV(self.url, held.apple_id, held.password, transport=self._transport)
+    def _dav(self, held: Held, *, quick: bool = False) -> CardDAV:
+        """A sync waits each 401 out for about two minutes in all; a save the person is waiting on
+        only seconds (`carddav.AUTH_WAITS`)."""
+        waits = self.quick_auth_waits if quick else self.auth_waits
+        return CardDAV(self.url, held.apple_id, held.password, transport=self._transport,
+                       auth_waits=waits)
+
+    async def _refused(self, who: Identity, exc: NotAccepted, part: str, *,
+                       may_mark: bool) -> tuple[str, bool]:
+        """A refusal kept with its evidence, and counted. Only a sync (`may_mark`) marks the
+        password dead, and only once the refusals have gone on across two sync cycles. The words
+        to say, and whether it is dead now."""
+        part = exc.part or part
+        trouble = await self._db(incidents.failed, CONNECTION, who.user_id, who.org_id, part)
+        # Two sync cycles: a sync refused now, and a sync of this same run of refusals refused at
+        # least PERSIST before it. A save or a delete refused in between does not count.
+        first = None
+        if may_mark:
+            first = await self._db(incidents.first_since, CONNECTION, who.user_id, who.org_id,
+                                   trouble.first_at, SYNC_PARTS)
+        dead = first is not None and trouble.last_at - first["at"] >= incidents.PERSIST
+        if dead:
+            said = refused_said(first["at"], first["part"], trouble.last_at, part,
+                                trouble.failures)
+            await self._db(self.store.rejected, who.user_id, who.org_id, said)
+            outcome = "marked needs_new_password: refused across two sync cycles"
+        else:
+            said = suspected_said(trouble.last_at, part)
+            await self._db(self.store.suspected, who.user_id, who.org_id, said)
+            outcome = (f"suspected, not marked: refusal {trouble.failures} since "
+                       f"{incidents.said_at(trouble.first_at)}")
+        await self._db(incidents.record, CONNECTION, who.user_id, who.org_id, part=part,
+                       what=exc.evidence, outcome=outcome,
+                       note=f"refused on {exc.attempts} attempt(s) of this request")
+        log.warning("icloud refused the app-specific password of user %s during %s: %s",
+                    who.user_id, part, outcome)
+        return said, dead
 
     async def _db(self, fn, *args, **kwargs):
         return await asyncio.to_thread(fn, *args, **kwargs)
@@ -423,7 +541,9 @@ class ContactDesk:
         apple_id = check_apple_id(apple_id)
         password = check_password(password)
         try:
-            async with CardDAV(self.url, apple_id, password, transport=self._transport) as dav:
+            async with CardDAV(self.url, apple_id, password, transport=self._transport,
+                               auth_waits=carddav.NO_AUTH_WAITS) as dav:
+                dav.part = "discover"
                 place = await dav.discover()
         except NotAccepted as exc:
             log.info("icloud did not accept the app-specific password for user %s",
@@ -434,6 +554,7 @@ class ContactDesk:
         except CardDAVError as exc:
             raise ValueError(f"{exc} Nothing was saved.") from exc
         await self._db(self.store.save, who.user_id, who.org_id, apple_id, password, place)
+        await self._db(incidents.ok, CONNECTION, who.user_id, who.org_id)
         log.info("apple contacts connected for user %s in org %s", who.user_id, who.org_id)
         self.sync_soon(who)
         return (f"iCloud accepted {apple_id}. Rouh is fetching the contacts now; "
@@ -444,6 +565,53 @@ class ContactDesk:
             gone = await self._db(self.store.forget, who.user_id, who.org_id)
         log.info("apple contacts disconnected for user %s in org %s", who.user_id, who.org_id)
         return gone
+
+    async def test(self, who: Identity, *, reconnect: bool = False) -> dict:
+        """Ask iCloud once, with the kept password: one PROPFIND on the principal, nothing more.
+
+        Changes nothing, except that with `reconnect`, when iCloud accepts (207), a connection
+        marked needs_new_password is cleared and synced again. A refusal is kept as an incident
+        (part "test"), and is never counted towards marking the password dead.
+        """
+        held = await self._db(self.store.held, who.user_id, who.org_id)
+        if held is None:
+            return {"connection": CONNECTION, "tested": False,
+                    "said": "Apple Contacts are not connected, so there is nothing to test."}
+        if not held.password:
+            return {"connection": CONNECTION, "tested": False, "said": UNREADABLE}
+        url = held.place.principal if held.place is not None else ""
+        try:
+            async with CardDAV(self.url, held.apple_id, held.password, transport=self._transport,
+                               auth_waits=carddav.NO_AUTH_WAITS) as dav:
+                dav.part = "test"
+                seen = await dav.probe(url)
+        except CardDAVError as exc:
+            return {"connection": CONNECTION, "tested": False, "said": str(exc)}
+        accepted = seen.status == 207
+        out = {"connection": CONNECTION, "tested": True, "at": time.time(),
+               "request": f"PROPFIND {seen.host}{seen.path}", "status": seen.status,
+               "headers": seen.headers, "accepted": accepted,
+               "needs_new_password_before": held.needs_new_password, "cleared": False}
+        if not accepted:
+            await self._db(incidents.record, CONNECTION, who.user_id, who.org_id,
+                           part="test", what=seen, outcome="test only: nothing changed")
+            out["said"] = (f"iCloud answered {seen.status} to one PROPFIND on "
+                           f"{seen.host}{seen.path}. Nothing was changed.")
+            return out
+        if reconnect and held.needs_new_password:
+            await self._db(self.store.reconnected, who.user_id, who.org_id)
+            log.info("apple contacts: iCloud accepted the kept password of user %s when tested; "
+                     "needs_new_password cleared", who.user_id)
+            out["cleared"] = True
+            self.sync_soon(who)
+            out["said"] = ("iCloud accepted the kept password (207), so needs_new_password is "
+                           "cleared and a sync has started.")
+        else:
+            out["said"] = ("iCloud accepted the kept password (207)."
+                           + (" The connection is still marked as needing a new password; test "
+                              "again with reconnect to clear it." if held.needs_new_password
+                              else " Nothing was changed."))
+        return out
 
     # --- syncing ------------------------------------------------------------------------
 
@@ -481,6 +649,7 @@ class ContactDesk:
             async with self._dav(held) as dav:
                 place = held.place
                 if place is None:
+                    dav.part = "discover"
                     place = await dav.discover()
                     await self._db(self.store.place_found, who.user_id, who.org_id, place)
                     held = Held(held.user_id, held.org_id, held.apple_id, held.password,
@@ -491,20 +660,21 @@ class ContactDesk:
                     if exc.status not in (403, 404):
                         raise
                     # The address book moved. Find it again, once.
+                    dav.part = "discover"
                     place = await dav.discover()
                     await self._db(self.store.place_found, who.user_id, who.org_id, place)
                     held = Held(held.user_id, held.org_id, held.apple_id, held.password,
                                 place, "", False)
                     token, changed = await self._pull(dav, held, place)
                 # Each contact's picture, kept here while the sign-in is open (`contact_photos`).
+                # A picture's 401 is never NotAccepted, so it cannot mark the password dead.
                 from . import contact_photos
 
+                dav.part, dav.place = "photo fetch", place
                 await contact_photos.keep_faces(dav, who)
-        except NotAccepted:
-            await self._db(self.store.rejected, who.user_id, who.org_id)
-            log.warning("icloud stopped accepting the app-specific password of user %s",
-                        who.user_id)
-            return Outcome(error=REVOKED)
+        except NotAccepted as exc:
+            said, dead = await self._refused(who, exc, "sync", may_mark=True)
+            return Outcome(error=said, refused=True, dead=dead)
         except CardDAVError as exc:
             await self._db(self.store.attempted, who.user_id, who.org_id, str(exc))
             log.warning("apple contacts sync for user %s did not finish: %s", who.user_id, exc)
@@ -517,6 +687,7 @@ class ContactDesk:
 
     async def _pull(self, dav: CardDAV, held: Held, place: Place) -> tuple[str, int]:
         """Read what changed into the table. Nothing is written to iCloud here."""
+        dav.part = "sync"
         local = await self._db(self.store.etags, held.user_id, held.org_id)
         changes = None
         if held.sync_token:
@@ -586,8 +757,8 @@ class ContactDesk:
                         "Contacts, and enter the Apple ID with an app-specific password "
                         "made at account.apple.com.")
         if summary["needs_new_password"]:
-            return ours((UNREADABLE if summary["unreadable"] else REVOKED)
-                        + " Until then the contacts cannot be read or changed.")
+            return ours((UNREADABLE if summary["unreadable"] else (summary["last_error"] or REVOKED))
+                        + " Until then the contacts cannot be synced or changed.")
         return ""
 
     async def search(self, query: str, limit: int = 8, refresh_first: bool = False) -> str:
@@ -604,10 +775,13 @@ class ContactDesk:
         # deserves the number, with a word that it may be out of date.
         stale = ""
         if summary["connected"] and summary["needs_new_password"]:
-            stale = ("iCloud stopped accepting the app-specific password, so this is Rouh's "
-                     "copy from the last sync and may be out of date. Enter a new password "
-                     "in Settings, under Apple Contacts.\n\n")
-        else:
+            stale = ((summary["last_error"] or REVOKED) + " So this is Rouh's copy from the last "
+                     "sync and may be out of date.\n\n")
+        elif summary["connected"] and summary["suspected"]:
+            stale = (suspected_said(summary["refused_at"], (summary["last_incident"] or {})
+                                    .get("part", "")) + " This is that copy, from the last "
+                     "sync.\n\n")
+        if not (summary["connected"] and summary["needs_new_password"]):
             blocked = await self._db(self.not_ready_because, who)
             if blocked:
                 # iCloud is not there, and the contacts Rouh keeps of its own
@@ -621,9 +795,8 @@ class ContactDesk:
         if refresh_first and not stale:
             with contextlib.suppress(TimeoutError):
                 outcome = await asyncio.wait_for(asyncio.shield(self.sync(who)), REFRESH_WAIT)
-                if outcome.error == REVOKED:
-                    stale = ("iCloud stopped accepting the app-specific password just now, "
-                             "so this is Rouh's copy from the last sync.\n\n")
+                if outcome.refused:
+                    stale = (outcome.error + " This is Rouh's copy from the last sync.\n\n")
             summary = await self._db(self.store.summary, who.user_id, who.org_id)
         if not summary["last_sync_at"]:
             if self.syncing(who):
@@ -871,7 +1044,8 @@ class ContactDesk:
                 held = await self._db(self.store.held, who.user_id, who.org_id)
                 if held is None or held.needs_new_password:
                     return Said(await self._db(self.not_ready_because, who))
-                async with self._dav(held) as dav:
+                async with self._dav(held, quick=True) as dav:
+                    dav.part = "save"
                     place = await self._place(dav, held)
                     if not contact_id:
                         done = await self._create(dav, held, place, changes)
@@ -890,9 +1064,9 @@ class ContactDesk:
                     return done
         except vcard.BadField as exc:
             return Said(ours(str(exc)))
-        except NotAccepted:
-            await self._db(self.store.rejected, who.user_id, who.org_id)
-            return Said(ours(REVOKED + " Nothing was changed."))
+        except NotAccepted as exc:
+            said, _dead = await self._refused(who, exc, "save", may_mark=False)
+            return Said(ours(said + " Nothing was changed."))
         except CardDAVError as exc:
             return Said(ours(f"{exc} Nothing was changed."))
 
@@ -913,7 +1087,8 @@ class ContactDesk:
                 held = await self._db(self.store.held, who.user_id, who.org_id)
                 if held is None or held.needs_new_password:
                     return await self._db(self.not_ready_because, who)
-                async with self._dav(held) as dav:
+                async with self._dav(held, quick=True) as dav:
+                    dav.part = "delete"
                     place = await self._place(dav, held)
                     try:
                         await dav.delete(row["href"], row["etag"])
@@ -928,9 +1103,9 @@ class ContactDesk:
                                     "last read it, so I did not delete it. Ask again if it "
                                     "should still go.")
                 await self._db(self.store.gone, who.user_id, who.org_id, [row["href"]])
-        except NotAccepted:
-            await self._db(self.store.rejected, who.user_id, who.org_id)
-            return ours(REVOKED + " Nothing was deleted.")
+        except NotAccepted as exc:
+            said, _dead = await self._refused(who, exc, "delete", may_mark=False)
+            return ours(said + " Nothing was deleted.")
         except CardDAVError as exc:
             return ours(f"{exc} Nothing was deleted.")
         said = f"Deleted {row['name']} from the iCloud contacts."
@@ -949,7 +1124,8 @@ class ContactDesk:
                 held = await self._db(self.store.held, who.user_id, who.org_id)
                 if held is None or held.needs_new_password:
                     return ours("iCloud is not connected, so nothing was deleted.")
-                async with self._dav(held) as dav:
+                async with self._dav(held, quick=True) as dav:
+                    dav.part = "delete"
                     await self._place(dav, held)
                     try:
                         await dav.delete(href, etag)
@@ -958,9 +1134,9 @@ class ContactDesk:
                     except Changed:
                         return ours(f"{name} was changed on another device since, so the card was kept in "
                                     "iCloud.")
-        except NotAccepted:
-            await self._db(self.store.rejected, who.user_id, who.org_id)
-            return ours(REVOKED + " Nothing was deleted.")
+        except NotAccepted as exc:
+            said, _dead = await self._refused(who, exc, "delete", may_mark=False)
+            return ours(said + " Nothing was deleted.")
         except CardDAVError as exc:
             return ours(f"{exc} Nothing was deleted.")
         self._wrote("delete_contact", name, f"Deleted {name} from the iCloud contacts, deleted in Synapse", held)

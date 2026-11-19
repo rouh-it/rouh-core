@@ -845,6 +845,20 @@ def _health(a):
     return "Checking the server", ""
 
 
+@_step("read_rouh_log")
+def _rouh_log(a):
+    words = _arg(a, "words")
+    return (f'Reading Rouh\'s log for "{words}"' if words else "Reading Rouh's log", _arg(a, "since"))
+
+
+@_step("connection_status")
+def _connections(a):
+    which = _arg(a, "connection")
+    if (_arg(a, "action") or "").lower() == "test":
+        return (f"Testing the {which} connection" if which else "Testing a connection", "")
+    return (f"Checking the {which} connection" if which else "Checking the connections", "")
+
+
 @_step("read_workspace")
 def _workspace(a):
     search = _arg(a, "search")

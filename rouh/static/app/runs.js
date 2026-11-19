@@ -12909,16 +12909,31 @@ function appleDraw() {
   if (connected && revoked && c.unreadable) {
     trouble = unreadable;
   } else if (connected && revoked) {
-    trouble = 'iCloud stopped accepting the app-specific password'
-      + (c.last_attempt_at ? ' on ' + whenWords(c.last_attempt_at) : '') + '. It was probably '
-      + 'revoked at account.apple.com, or the Apple ID\'s own password was changed, which '
-      + 'revokes every app-specific password. Make a new one there and enter it below. '
-      + 'Until then Rouh can still look people up in its copy, but not change them.';
+    // What happened, as it was kept: when iCloud refused and during what. Never a guess
+    // about why (`apple_contacts.refused_said`).
+    trouble = (c.last_error || ('iCloud refused the app-specific password'
+      + (c.last_attempt_at ? ' on ' + whenWords(c.last_attempt_at) : '') + '.'))
+      + ' Until then Rouh can still look people up in its copy, but not change them.';
+  } else if (connected && c.suspected) {
+    // Refused once, or not yet across two syncs: retrying, and reads go on from the copy.
+    trouble = c.last_error || 'iCloud refused Rouh just now, and Rouh is retrying.';
   } else if (connected && c.last_error && c.last_attempt_at >= c.last_sync_at) {
     trouble = 'The last sync did not finish: ' + c.last_error;
   }
   $('appleTrouble').textContent = trouble;
   $('appleTrouble').hidden = !trouble;
+  // The request iCloud refused last, while the refusals are what the page is about.
+  var seen = (connected && (revoked || c.suspected) && !c.unreadable) ? c.last_incident : null;
+  var incident = '';
+  if (seen) {
+    var heads = Object.keys(seen.headers || {}).map(function (k) { return k + ': ' + seen.headers[k]; });
+    incident = 'Last refusal, ' + whenWords(seen.at) + (seen.part ? ', during ' + seen.part : '') + ': '
+      + (seen.method || 'a request') + ' ' + (seen.host || '') + (seen.path || '')
+      + (seen.status ? ' answered ' + seen.status : '')
+      + (heads.length ? ' (' + heads.join('; ') + ')' : '') + '.';
+  }
+  $('appleIncident').textContent = incident;
+  $('appleIncident').hidden = !incident;
   $('appleSync').disabled = !!d.syncing || revoked;
   $('appleSync').textContent = d.syncing ? 'Syncing…' : 'Sync now';
   $('appleReplace').hidden = revoked;

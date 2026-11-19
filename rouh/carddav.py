@@ -33,6 +33,18 @@ Basic realm="Newcastle"``, from the root and from ``/.well-known/carddav``
 alike. That is `NotAccepted`. (Without credentials at all the root answers
 404, which is why nothing here ever asks without them.)
 
+One 401 is not believed (Petar, 19 November 2026: contacts were marked as
+needing a new password after a single 401 while the password was still valid).
+A 401 is asked again after each of `auth_waits` - about two minutes in all
+for a sync, a few seconds for a save the person is waiting on - and only then
+is it `NotAccepted`, which carries the evidence of the last refusal (the
+method, host, path, status, the headers that say why and the first of the
+body, `connection_incidents.Evidence`) and which part of Rouh asked
+(`CardDAV.part`). Whether that makes the password dead is the caller's to
+decide, across sync cycles (`apple_contacts`). A contact's picture is never
+asked again and never `NotAccepted` (`picture`), and `probe` is one request
+and nothing else.
+
 Credentials only ever go to the host this was pointed at, a host under the
 same domain (the partition hosts are ``*.icloud.com``), or loopback when the
 host itself is loopback, which is what a test's stand-in is. An address in a
@@ -52,6 +64,8 @@ from dataclasses import dataclass, field
 from typing import Self
 
 import httpx
+
+from .connection_incidents import Evidence, of_response
 
 log = logging.getLogger("rouh.contacts")
 
@@ -77,13 +91,29 @@ ATTEMPTS = 3
 
 TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 
+#: How long a 401 is waited out before it is asked again: three attempts over about two minutes,
+#: for a sync nobody is waiting on. A save the person is waiting on asks faster (`QUICK_AUTH_WAITS`),
+#: and checking a new password does not ask again at all (`NO_AUTH_WAITS`).
+AUTH_WAITS = (20.0, 90.0)
+QUICK_AUTH_WAITS = (2.0, 5.0)
+NO_AUTH_WAITS: tuple = ()
+
 
 class CardDAVError(RuntimeError):
     """Something about iCloud, said in a sentence a person can act on."""
 
 
 class NotAccepted(CardDAVError):
-    """401: the Apple ID and app-specific password were not accepted."""
+    """401, every time it was asked: the Apple ID and app-specific password were not accepted.
+
+    `evidence` is the last refusal as it came back, and `part` the part of Rouh that asked."""
+
+    def __init__(self, message: str, evidence: Evidence | None = None, part: str = "",
+                 attempts: int = 1) -> None:
+        super().__init__(message)
+        self.evidence = evidence or Evidence()
+        self.part = part
+        self.attempts = attempts
 
 
 class Unreachable(CardDAVError):
@@ -93,10 +123,12 @@ class Unreachable(CardDAVError):
 class Refused(CardDAVError):
     """iCloud answered, and the answer was no."""
 
-    def __init__(self, message: str, status: int = 0, body: str = "") -> None:
+    def __init__(self, message: str, status: int = 0, body: str = "",
+                 evidence: Evidence | None = None) -> None:
         super().__init__(message)
         self.status = status
         self.body = body
+        self.evidence = evidence
 
 
 class Changed(CardDAVError):
@@ -211,8 +243,17 @@ class CardDAV:
     """
 
     def __init__(self, base_url: str, apple_id: str, password: str, *,
-                 transport: httpx.AsyncBaseTransport | None = None) -> None:
+                 transport: httpx.AsyncBaseTransport | None = None,
+                 auth_waits: tuple = AUTH_WAITS, sleep=None) -> None:
         self.base = (base_url or ICLOUD).rstrip("/") + "/"
+        #: How long each 401 is waited out before it is asked again (`AUTH_WAITS`).
+        self.auth_waits = tuple(auth_waits)
+        #: Which part of Rouh is asking now, for the evidence of a refusal: the caller sets it.
+        self.part = "sync"
+        #: Where the address book is, once the caller knows: its home's host is where a contact's
+        #: picture may be asked for with the password (`trusts_photo`).
+        self.place: Place | None = None
+        self._sleep = sleep or asyncio.sleep
         parts = urllib.parse.urlsplit(self.base)
         self._scheme = parts.scheme
         self._host = (parts.hostname or "").lower()
@@ -253,12 +294,32 @@ class CardDAV:
         """Whether an address is iCloud's own, so it may be asked with the Apple ID's password."""
         return bool(url) and self._trusted(url)
 
+    def trusts_photo(self, url: str) -> bool:
+        """Whether a contact's picture should be asked for with the password: only on the hosts
+        the contacts themselves come from (the address given, and the address book's own partition
+        host), never on any other host of the domain. Anywhere else it is read as a public picture."""
+        if not self.trusts(url):
+            return False
+        host = (urllib.parse.urlsplit(url).hostname or "").lower()
+        hosts = {self._host}
+        if self.place is not None:
+            for where in (self.place.home, self.place.book):
+                hosts.add((urllib.parse.urlsplit(where).hostname or "").lower())
+        return host in hosts
+
     async def picture(self, url: str, *, most: int) -> bytes:
-        """A contact's picture kept on iCloud's own photo server, read with the same sign-in."""
-        response = await self._send("GET", url)
+        """A contact's picture kept on iCloud's own photo server, read with the same sign-in.
+
+        Asked once: a 401 here is a `Refused` with its evidence, never `NotAccepted`, so a
+        picture can never be what marks the password dead."""
+        try:
+            response = await self._send("GET", url, auth_waits=NO_AUTH_WAITS)
+        except NotAccepted as exc:
+            raise Refused("iCloud answered 401 for a contact's picture.", 401,
+                          evidence=exc.evidence) from None
         if response.status_code != 200:
             raise Refused(f"iCloud answered {response.status_code} for a contact's picture.",
-                          response.status_code)
+                          response.status_code, evidence=of_response(response))
         if len(response.content) > most:
             raise Refused("That contact's picture is too large to keep.")
         return response.content
@@ -267,33 +328,64 @@ class CardDAV:
         return urllib.parse.urljoin(base, href)
 
     async def _send(self, method: str, url: str, *, body: bytes | None = None,
-                    headers: dict | None = None) -> httpx.Response:
+                    headers: dict | None = None, auth_waits: tuple | None = None) -> httpx.Response:
         if not self._trusted(url):
             raise Refused(f"iCloud pointed at {urllib.parse.urlsplit(url).hostname}, "
                           "which is not iCloud, so nothing was sent there.")
+        waits = list(self.auth_waits if auth_waits is None else auth_waits)
+        refusals = 0
         last = ""
-        for attempt in range(ATTEMPTS):
+        attempt = 0
+        while attempt < ATTEMPTS:
             try:
                 response = await self._client.request(method, url, content=body,
                                                        headers=headers or {})
             except httpx.TransportError as exc:
                 last = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
-                await asyncio.sleep(0.5 * (2 ** attempt) + random.random() * 0.2)
+                await self._sleep(0.5 * (2 ** attempt) + random.random() * 0.2)
+                attempt += 1
                 continue
             if response.status_code == 401:
+                refusals += 1
+                seen = of_response(response)
+                if waits:
+                    wait = waits.pop(0)
+                    log.warning("icloud answered 401 to %s %s%s (%s); asking again in %.0f s",
+                                method, seen.host, seen.path, self.part, wait)
+                    await self._sleep(wait)
+                    continue
                 raise NotAccepted(
-                    "iCloud did not accept that Apple ID and app-specific password.")
+                    "iCloud did not accept that Apple ID and app-specific password.",
+                    seen, self.part, refusals)
             if response.status_code in (429, 500, 502, 503, 504) and attempt + 1 < ATTEMPTS:
                 last = f"iCloud answered {response.status_code}"
                 wait = response.headers.get("retry-after", "")
-                await asyncio.sleep(min(float(wait), 10.0) if wait.isdigit()
-                                    else 0.5 * (2 ** attempt) + random.random() * 0.2)
+                await self._sleep(min(float(wait), 10.0) if wait.isdigit()
+                                  else 0.5 * (2 ** attempt) + random.random() * 0.2)
+                attempt += 1
                 continue
             if response.status_code >= 500:
                 raise Unreachable(f"iCloud is not answering properly right now "
                                   f"({response.status_code}).")
             return response
         raise Unreachable(f"iCloud could not be reached ({last}).")
+
+    async def probe(self, url: str = "") -> Evidence:
+        """One PROPFIND for ``current-user-principal`` on `url` (the principal, or the base), and
+        nothing more: no second attempt, no redirect followed. What came back, as evidence. For
+        "test it now", which must not itself become a run of refusals."""
+        url = url or self.base
+        if not self._trusted(url):
+            raise Refused(f"{urllib.parse.urlsplit(url).hostname} is not iCloud, so nothing was "
+                          "sent there.")
+        body = _xml('<d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop>'
+                    '</d:propfind>')
+        try:
+            response = await self._client.request("PROPFIND", url, content=body, headers={
+                "Depth": "0", "Content-Type": "application/xml; charset=utf-8"})
+        except httpx.TransportError as exc:
+            raise Unreachable(f"iCloud could not be reached ({type(exc).__name__}).") from exc
+        return of_response(response)
 
     async def _propfind(self, url: str, props: str, depth: str, *,
                         redirects: int = 0) -> tuple[str, list[_Response]]:

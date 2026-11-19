@@ -356,8 +356,27 @@ class Cloud:
             self.conn = refresh(self.conn, force=True, sleep=self._sleep)
             r = self._call(path, body)
             if r.status_code == 401:
-                lapse(self.conn)
-                raise Lapsed(lapsed_line())
+                # Refused although the token was just renewed: kept with its evidence, and believed
+                # only once it goes on across 15 minutes (19 November 2026, `connection_incidents`).
+                from . import connection_incidents as incidents
+
+                c = self.conn
+                trouble = incidents.failed("dreame", c.user_id, c.org_id, incidents.CALL)
+                incidents.record("dreame", c.user_id, c.org_id, part=incidents.CALL,
+                                 what=incidents.of_response(r),
+                                 outcome="lapsed" if trouble.persistent else
+                                 "not lapsed: the token was just renewed")
+                if trouble.persistent:
+                    lapse(self.conn)
+                    raise Lapsed(lapsed_line())
+                raise DreameError(f"The Dreamehome cloud refused this call at "
+                                  f"{incidents.said_at(trouble.last_at)} although its token was just "
+                                  "renewed. Rouh kept what it said and will try again.")
+        if r.status_code == 200:
+            from . import connection_incidents as incidents
+
+            if incidents.troubled("dreame", self.conn.user_id, self.conn.org_id):
+                incidents.ok("dreame", self.conn.user_id, self.conn.org_id)
         if r.status_code != 200:
             raise DreameError(f"The Dreamehome cloud answered HTTP {r.status_code}.")
         try:

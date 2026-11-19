@@ -112,6 +112,12 @@ log = logging.getLogger("rouh")
 # line written by a library that has never heard of any of this.
 redaction.guard_logging()
 
+# The core's own copy of everything it logs, masked, which read_rouh_log reads: in the containers
+# its output goes only to Docker's log, which nothing inside the machine can read (`rouh/rouh_log.py`).
+from . import rouh_log  # noqa: E402
+
+rouh_log.install(config.logs_path)
+
 #: The front end's stamp, which the page is told on `hello` so an open tab
 #: knows when it is older than the server (`rouh/web/assets.py`).
 from .web.assets import ASSETS  # noqa: E402

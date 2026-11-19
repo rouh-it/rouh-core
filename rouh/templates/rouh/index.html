@@ -2954,6 +2954,9 @@ with {% asset %}, which gives it its hashed address.
                   <div><dt>Last synced</dt><dd class="mono wrap" id="appleSynced">-</dd></div>
                 </dl>
                 <p id="appleTrouble" class="settings-note bad" hidden></p>
+                {% comment %} The request iCloud refused last, as it was kept at that moment
+                     (`rouh/connection_incidents.py`): never a password or a header that carries one. {% endcomment %}
+                <p id="appleIncident" class="settings-help evidence" hidden></p>
                 <div class="setting-actions" id="appleActions" hidden>
                   <button type="button" id="appleSync" class="ctl small">Sync now</button>
                   <button type="button" id="appleReplace" class="ctl small">Enter a new password</button>

@@ -72,6 +72,11 @@ SOURCES = {
     "edit_sheet": "what a Google Sheet held before it was written, written by whoever wrote it",
     "edit_slides": "what a Google Slides deck said before it was changed, written by whoever wrote it",
     "read_workspace": "a file from the workspace, which may quote anything",
+    # Rouh's own log and its connections' last refusals quote what services and people sent
+    # (`rouh/rouh_log.py`, `rouh/connection_status.py`); what the tool says itself is `ours`.
+    "read_rouh_log": "Rouh's own log, whose lines quote what services, pages and people sent",
+    "connection_status": ("the state of the person's connections, quoting what each service "
+                          "answered"),
     "search_drive": "file names and owners from Drive, written by whoever made them",
     "list_drive_folder": "file names and owners from Drive, written by whoever made them",
     "list_shared_drives": "shared drive names, written by whoever made them",

@@ -105,6 +105,9 @@ READS = frozenset({
     "read_workspace", "read_card", "read_rouh_link", "check_tasks", "look_at_task",
     "read_task_log", "what_task_changed", "one_runs", "what_is_running", "check_task_sharing",
     "list_memory", "upcoming", "server_health",
+    # Why something of Rouh's own failed, read by the core with every secret masked (19 November
+    # 2026): its own log, which a job's worker cannot see.
+    "read_rouh_log",
     # What has become of new mail: it takes no arguments and changes nothing. Until 2 November
     # 2026 it was listed as risky, "how new mail is told", which it never was.
     "mail_alerts",
@@ -133,7 +136,10 @@ READ_ACTIONS = {
 #: Tools that only read unless one of these arguments is said, which spends or writes:
 #: meeting_people's research_now looks the guests up, at a cost, and keeps what it found on
 #: their contacts. Until 2 November 2026 meeting_people was risky whatever it was asked.
-READ_UNLESS = {"meeting_people": ("research_now",)}
+READ_UNLESS = {"meeting_people": ("research_now",),
+               # Each connection's state, and a test that asks the service once and changes
+               # nothing; reconnect clears a connection's needs_new_password when the test passes.
+               "connection_status": ("reconnect",)}
 #: The action a tool takes when none is given, where it has one.
 DEFAULT_ACTION = {"stripe": "status", "page_comments": "list"}
 

@@ -53,6 +53,7 @@ from .servicekeys import ServiceCheck, ServiceKey
 from .lean import LeanApplied, LeanChoice, LeanState
 from .gates import PermissionGate
 from .hue import HueApp, HueConnection
+from .connections import ConnectionIncident, ConnectionTrouble
 from .mcp import McpServer
 from .youtube import YouTubeTranscript
 from .slack import (SlackConnection, SlackConversation, SlackMessage, SlackPerson, SlackPromise,
@@ -110,4 +111,5 @@ __all__ = [
     "ContactGrant", "ContactGroup", "DelegateAct", "Grant", "GrantVersion",
     "InboxRead", "MailApproval", "MailAsk", "MailCase", "MailCaseAttempt", "MailCaseDryRun", "MailCaseEvent", "MailCaseFix", "MailCaseNote", "MailCaseTrace", "MailOutbox", "TelegramLink", "TrustedAddress",
     "TrustedContact",
+    "ConnectionIncident", "ConnectionTrouble",
 ]
