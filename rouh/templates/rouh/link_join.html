@@ -1,18 +1,132 @@
 {% extends "rouh/signin_base.html" %}
 {% comment %}A Rouh connect link opened in a browser (`rouh/web/link.py`, `join_page`). It holds
-   nothing: it says what the link is and sends the person to their own Rouh with it.{% endcomment %}
-{% block title %}Connect to {{ name|default:"a Rouh" }}{% endblock %}
+   nothing: it says what the link is and sends the person to their own Rouh with it.
+   Opened by this Rouh's own person, signed in here, it is their own link: who it is for, until when,
+   whether it was used, Copy link and Withdraw, and never a box asking for their own address
+   (Petar, 19 November 2026: "why do I have to type in my own name there").
+   Anybody else is offered rouh.land, which knows which Rouh is theirs (rouh-land `birth/connect.py`),
+   and the address box only as the way when that is not for them.{% endcomment %}
+{% block title %}{% if own.state == "unknown" %}Not one of your connect links{% elif own %}Your connect link{% else %}Connect to {{ name|default:"a Rouh" }}{% endif %}{% endblock %}
 {% block body %}
- {% if name %}
+<style>
+ dl.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:2px 0 0;font-size:14px}
+ dl.facts dt{color:#8b95a3}
+ dl.facts dd{margin:0;color:#e8ecf1;overflow-wrap:anywhere}
+ .state{display:inline-flex;align-items:center;gap:6px}
+ .state::before{content:"";width:8px;height:8px;border-radius:50%;background:#8b95a3;flex:none}
+ .state.open::before{background:#8fe0aa}
+ .state.used::before,.state.withdrawn::before,.state.expired::before{background:transparent;border:1.5px solid #8b95a3;width:5px;height:5px}
+ .actions{display:grid;gap:10px}
+ .actions button,.actions .button{margin-top:0;min-height:44px}
+ a.button.second{background:#11151a;color:#e8ecf1;border:1px solid #2b333d}
+ a.button.second:hover{background:#171c22}
+ .said{font-size:13px;color:#8fe0aa;min-height:1.5em}
+ .said.bad{color:#ff8b8b;background:none;border:0;padding:0}
+ .hint,.small{font-size:13px}
+</style>
+ {% if own %}
+  {% if own.state == "unknown" %}
+ <h2>Not one of your connect links</h2>
+ <p>You are signed in to {{ name }}, and this address is not a connect link it made. It may be cut short or mistyped.</p>
+ <a class="button" href="/link">Open Connections</a>
+  {% else %}
+ <h2>Your connect link</h2>
+ {% if own.state == "open" %}<p>This is a connect link from {{ name }}, your own Rouh. Send it to the person whose Rouh you want to connect with: their Rouh brings it here, and the two are connected.</p>
+ {% else %}<p>This is a connect link from {{ name }}, your own Rouh.</p>{% endif %}
+ <dl class="facts">
+  <dt>For</dt><dd>{% if own.for_label %}{{ own.for_label }} only{% else %}Whoever you send it to{% endif %}</dd>
+  <dt>Trust</dt><dd>{{ own.trust_word }}</dd>
+  <dt>Status</dt><dd><span class="state {{ own.state }}" id="state">{% if own.state == "open" %}Not used yet. It works once.{% elif own.state == "used" %}Used{% if own.used_by %} by {{ own.used_by }}{% endif %} on {{ own.used_day }}{% elif own.state == "withdrawn" %}Withdrawn on {{ own.withdrawn_day }}{% else %}Ran out on {{ own.expires_day }}{% endif %}</span></dd>
+  {% if own.state == "open" %}<dt>Good until</dt><dd>{{ own.expires_day }} ({{ own.days }} days from when it was made)</dd>{% endif %}
+ </dl>
+  {% if own.state == "open" %}
+ <div class="actions">
+  <button type="button" id="copy" data-link="{{ link }}">Copy link</button>
+  <button type="button" class="second" id="withdraw" data-id="{{ own.id }}">Withdraw this link</button>
+  <p class="said" id="said" role="status" aria-live="polite"></p>
+ </div>
+  {% else %}
+ <p>It cannot be used any more. Make a new one on Connections.</p>
+  {% endif %}
+ <p class="small"><a href="/link">All your connections and links</a></p>
+  {% endif %}
+<script>
+(function () {
+  var said = document.getElementById('said');
+  function say(text, bad) { if (said) { said.textContent = text; said.className = 'said' + (bad ? ' bad' : ''); } }
+  var copy = document.getElementById('copy');
+  if (copy) {
+    copy.addEventListener('click', function () {
+      var link = copy.getAttribute('data-link');
+      var done = function () { say('Copied. Paste it in a message to the person.'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(done, function () { window.prompt('Copy this link', link); });
+      } else { window.prompt('Copy this link', link); }
+    });
+  }
+  var withdraw = document.getElementById('withdraw');
+  if (withdraw) {
+    withdraw.addEventListener('click', function () {
+      if (!window.confirm('Withdraw this connect link? Nobody can connect with it after this.')) { return; }
+      var m = /(?:^|;\s*)rouh_csrftoken=([^;]+)/.exec(document.cookie || '');
+      withdraw.disabled = true;
+      fetch('/api/link/invite/withdraw', {method: 'POST', credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': m ? decodeURIComponent(m[1]) : ''},
+        body: JSON.stringify({id: Number(withdraw.getAttribute('data-id'))})})
+        .then(function (r) { if (!r.ok) { throw new Error(); } location.reload(); })
+        .catch(function () { withdraw.disabled = false; say('That did not work. Try again, or withdraw it on Connections.', true); });
+    });
+  }
+}());
+</script>
+ {% elif name %}
  <h2>Connect to {{ name }}</h2>
  <p>This is a connect link from {{ name }}, a Rouh: an AI assistant that works for its person. Bring it to your own Rouh to connect the two: they can then work together with you in live shared spaces, and you decide anything that binds you.</p>
- <form method="get" onsubmit="var a=this.querySelector('input').value.trim().replace(/^https?:\/\//,'').replace(/\/.*$/,'');if(!a){return false;}location.href='https://'+a+'/link/accept?link='+encodeURIComponent(location.href);return false;">
-  <label for="mine">Your Rouh's address</label>
-  <input id="mine" type="text" placeholder="your-rouh.rouh.page" autocomplete="off">
-  <button type="submit">Open in my Rouh</button>
+ <div class="actions">
+  <a class="button" id="land" href="{{ land }}">Connect with my Rouh</a>
+  <p class="hint">rouh.land knows which Rouh is yours and opens it, signed in. You see who this is there and confirm. It tells {{ name }} nothing about you.</p>
+ </div>
+ <p class="or">or type its address</p>
+ <form id="typed" novalidate>
+  <div class="field">
+   <label for="mine">Your Rouh's address. You confirm the connection there.</label>
+   <input id="mine" type="text" inputmode="url" placeholder="yourname.rouh.page" autocomplete="off" autocapitalize="off" spellcheck="false">
+  </div>
+  <p class="missing" id="missing" role="alert" hidden></p>
+  <button type="submit" class="second" id="open">Open in my Rouh</button>
  </form>
  <p class="small">Or copy this page's address and paste it on your Rouh's Connections page, under Bring a link.</p>
  <p class="small">How Rouhs reach each other and what the relay keeps: <a href="https://rouh.land/terms/link/">Rouh Link and Relay Terms</a>.</p>
+<script>
+(function () {
+  var KEY = 'rouh.link.mine';
+  var form = document.getElementById('typed'), input = document.getElementById('mine');
+  var open = document.getElementById('open'), land = document.getElementById('land');
+  var missing = document.getElementById('missing');
+  function clean(v) { return String(v || '').trim().replace(/^https?:\/\//i, '').replace(/[\/?#].*$/, '').toLowerCase(); }
+  var kept = '';
+  try { kept = clean(localStorage.getItem(KEY)); } catch (e) { kept = ''; }
+  if (kept) {
+    // Typed here once before: that address is the press, and rouh.land the other way.
+    input.value = kept;
+    open.textContent = 'Open in ' + kept;
+    open.classList.remove('second');
+    land.classList.add('second');
+  }
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var a = clean(input.value);
+    var bad = !a ? "Type your Rouh's address, such as yourname.rouh.page."
+      : a === location.host.toLowerCase() ? 'That is the address of this Rouh, the one the link is from. Type your own.'
+      : !/^[a-z0-9.-]+\.[a-z]{2,}(:\d+)?$/.test(a) ? 'That does not look like an address. It is like yourname.rouh.page.' : '';
+    missing.hidden = !bad; missing.textContent = bad;
+    input.setAttribute('aria-invalid', bad ? 'true' : 'false');
+    if (bad) { input.focus(); return; }
+    try { localStorage.setItem(KEY, a); } catch (e) { /* not kept: it works anyway */ }
+    location.href = 'https://' + a + '/link/accept?link=' + encodeURIComponent(location.origin + location.pathname);
+  });
+}());
+</script>
  {% else %}
  <h2>Not a connect link</h2>
  <p>There is no Rouh here to connect to.</p>

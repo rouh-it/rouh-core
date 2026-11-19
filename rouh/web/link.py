@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 
 from asgiref.sync import sync_to_async
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
@@ -128,7 +129,49 @@ async def join_page(request: HttpRequest, token: str):
         # the secret is the same on every name, so it opens on the address the Rouh has now.
         return HttpResponseRedirect(moved + request.path)
     link = request.build_absolute_uri(request.path)
-    return render(request, "rouh/link_join.html", {"name": name, "link": link}, status=200 if name else 404)
+    if not name:
+        return render(request, "rouh/link_join.html", {"name": "", "link": link}, status=404)
+    own = await _own_link(request, org, token)
+    if own is not None:
+        # Its own person, signed in here: never a box asking for their own address, and never a way
+        # to connect this Rouh to itself. What the link is, and what they can do with it.
+        response = render(request, "rouh/link_join.html", {"name": name, "link": link, "own": own})
+        response["Cache-Control"] = "no-store, private"
+        return response
+    from urllib.parse import urlencode
+
+    from rouh import birth
+
+    # Somebody else's browser. rouh.land knows which Rouh is theirs when they are signed in there, and
+    # sends them on to it (rouh-land `birth/connect.py`); it tells this page nothing about them.
+    land = birth.defaults()[0].rstrip("/") + "/connect/?" + urlencode({"link": link})
+    return render(request, "rouh/link_join.html", {"name": name, "link": link, "land": land})
+
+
+async def _own_link(request: HttpRequest, org: str | None, token: str) -> dict | None:
+    """The connect link as this Rouh's own person sees it, when they are the one signed in here;
+    None for anybody else (nobody signed in, a guest, or somebody of another organisation)."""
+    from rouh.link import peers
+
+    if org is None:
+        return None
+    try:
+        user = await request.auser()
+    except Exception:  # noqa: BLE001 - no session to read: not its person
+        return None
+    if getattr(user, "is_guest", False):
+        return None
+    me = await sync_to_async(who)(request)
+    if me is None or str(me.org_id) != str(org):
+        return None
+    found = await sync_to_async(peers.invite_for_token)(str(org), token)
+    if found is None:
+        return {"state": "unknown"}
+    day = lambda t: time.strftime("%-d %B %Y", time.gmtime(t)) if t else ""  # noqa: E731
+    found.update(expires_day=day(found["expires_at"]), used_day=day(found["used_at"]),
+                 withdrawn_day=day(found["withdrawn_at"]),
+                 days=max(1, round((found["expires_at"] - found["created_at"]) / 86400)))
+    return found
 
 
 @csrf_exempt

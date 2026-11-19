@@ -166,6 +166,24 @@ def invites(org: str) -> list[dict]:
             for r in LinkInvite.objects.filter(org_id=org).order_by("-created_at")[:50]]
 
 
+def invite_for_token(org: str, token: str) -> dict | None:
+    """One of this Rouh's own connect links, found by the secret in it, as its owner sees it on the
+    link's own page (`web/link.join_page`); None when the secret is not one of this Rouh's."""
+    from rouh.models import LinkInvite
+
+    if not token or len(token) > 120:
+        return None
+    r = LinkInvite.objects.filter(org_id=org, token_hash=_hash(token)).first()
+    if r is None:
+        return None
+    now = _now()
+    state = ("withdrawn" if r.withdrawn_at is not None else "used" if r.used_at is not None
+             else "expired" if r.expires_at <= now else "open")
+    return {"id": r.id, "trust": r.trust, "trust_word": trust.WORDS.get(r.trust, r.trust), "for_label": r.for_label,
+            "note": r.note, "created_at": r.created_at, "expires_at": r.expires_at, "used_at": r.used_at,
+            "used_by": r.used_by, "withdrawn_at": r.withdrawn_at, "state": state}
+
+
 def withdraw_invite(org: str, invite_id: int) -> None:
     from rouh.models import LinkInvite
 
