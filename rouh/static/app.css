@@ -11907,3 +11907,71 @@ body.cot-open { overflow: hidden; }
     #composerTools:has(.voice-menu-btn.mic-live) .attach-btn { color: var(--accent); }
   }
 }
+
+/* ---------- a phone's head has no ground of its own (Petar, 19 November 2026) ----------
+
+   "I still see black background when it had to be transparent", with a screenshot of a fork on his
+   iPhone: a solid band across the chat from the top of the screen to under the "Parent included" chip,
+   the conversation cut off square at its bottom edge.
+
+   What painted it was no colour at all. Since 968a4f0b the chip (`.reading-strip`) was a row of the
+   conversation's own flow, pushed down under the head by its `margin-top`, and the transcript, which
+   scrolls, started under it with 4 pixels of padding instead of the head's whole height. So nothing
+   could ever scroll up under the head: the column above the transcript was empty `.panel-transcript`,
+   and 7392a0cc's fade on the transcript's top edge only softened the cut. The head's circles and pills
+   were always floating with their own translucent ground; the room around them was the gap.
+
+   Now the chip floats too, over the conversation and placed where its row was, and the transcript keeps
+   the room under the head and the chip as padding inside its own scroller, so at rest nothing is hidden
+   and scrolled the words pass behind and between the circles and the pill. No mask, no band. */
+@media (max-width: 899px) {
+  .col-chat:has(#chatTabs[hidden]) .reading-strip,
+  .col-chat:has(#chatTabs[hidden]):has(.fork-x) .reading-strip {
+    position: absolute; z-index: 7; left: 0; margin-top: 0; background: none;
+    top: calc(var(--top-air) + var(--top-chip) - 2px);
+  }
+  .col-chat:has(#chatTabs[hidden]):has(.fork-x) .reading-strip {
+    top: calc(var(--top-air) + var(--top-chip) + var(--top-gap, 6px) + (var(--top-chip) - 44px) / 2);
+  }
+  /* The pill keeps its own ground, translucent with a light blur, as the head's circles have. */
+  .col-chat:has(#chatTabs[hidden]) .reading-strip-pill {
+    background: color-mix(in srgb, var(--panel-2) 86%, transparent);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  }
+  .col-chat:has(#chatTabs[hidden]):has(#readingStrip:not([hidden])) .transcript {
+    -webkit-mask-image: none; mask-image: none;
+    padding-top: calc(var(--top-air) + var(--top-chip) - 2px + 44px + 4px);
+  }
+  .col-chat:has(#chatTabs[hidden]):has(.fork-x):has(#readingStrip:not([hidden])) .transcript {
+    padding-top: calc(var(--top-air) + var(--top-chip) + var(--top-gap, 6px) + (var(--top-chip) - 44px) / 2 + 44px + 4px);
+  }
+}
+
+/* A fork's cross on a phone is in the top row, between the dots and the canvas glyph, where the brief of
+   19 November 2026 put it: the second row is the chip's alone. It is fixed to the window as the head is,
+   and the head's row ends one circle sooner to make room for it. Only the chat being talked in has one up
+   there; a copy beside it is closed from its own chat once slid in. */
+@media (max-width: 640px) {
+  .col-chat.stripped:has(#chatTabs[hidden]) .chat-self > .fork-x {
+    position: fixed; z-index: 9;
+    top: calc(env(safe-area-inset-top, 0px) + var(--top-air));
+    right: calc(var(--sb-pad) + var(--top-chip) + var(--top-gap));
+    box-shadow: none;
+    background: color-mix(in srgb, var(--panel-2) 86%, transparent);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  }
+  .col-chat.stripped:has(#chatTabs[hidden]) .fork-pane > .fork-x { display: none; }
+  .col-chat.stripped:has(#chatTabs[hidden]):has(.chat-self > .fork-x) .crumb,
+  .col-chat.stripped:has(#chatTabs[hidden]):has(.chat-self > .fork-x) .crumb:has(#chatMenuBtn[hidden]) {
+    right: calc(var(--sb-pad) + (var(--top-chip) + var(--top-gap)) * 2);
+  }
+  /* With the cross gone from the second row, the chip's button reaches to the card's edge. */
+  .col-chat.stripped .chat-self:has(> .fork-x) .reading-strip { max-width: calc(100% - 16px); }
+}
+
+/* The orb in the corner of a phone has no disc behind it: its picture is drawn on nothing
+   (app/orb3d.js clears to transparent when `--orb-disc` is), and its edge is the load ring alone. */
+@media (max-width: 899px) {
+  :root { --orb-disc: transparent; }
+  .orb-layer[data-orb="corner"] .orb-box { background: transparent; box-shadow: none; }
+}

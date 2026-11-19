@@ -592,6 +592,9 @@ function paintCore(mode, waiting) {
 }
 
 function render(mode) {
+  // Nothing behind the picture when the scene has no background (the corner on a phone), whatever
+  // clear colour a pass before this one left set.
+  if (!scene.background) renderer.setClearColor(0x000000, 0);
   if (mode !== 'open' || !composer || !(prefs.glow > 0)) {
     renderer.setRenderTarget(null);
     renderer.render(scene, camera);
@@ -852,10 +855,12 @@ function makeCore() {
 }
 
 /** The colour behind the orb's picture: the canvas's black, or in the corner `--orb-disc`, which on a phone
-    is the floating circles' colour rather than a black disc (Petar, 19 November 2026: "I didn't want the
-    background to be black"). @param {string} [name] */
+    is transparent (Petar, 19 November 2026: "I still see black background when it had to be transparent"),
+    and then null, so the scene is cleared to nothing and only the picture is drawn.
+    @param {string} [name] @returns {any} */
 function voidColour(name) {
   var v = getComputedStyle(document.documentElement).getPropertyValue(name || '--void').trim() || '#000000';
+  if (v === 'transparent' || /^rgba\(.*,\s*0\)$/.test(v)) return null;
   var c = new T.Color();
   try { c.setStyle(v, T.LinearSRGBColorSpace); } catch (e) { c.setRGB(0, 0, 0); }
   return c;
@@ -887,7 +892,8 @@ async function orb3dStart(cv, hooks) {
     O3.kindOf = hooks.kindOf;
     slowMo = !!hooks.slowMo;
     canvas = cv; host = hooks.host;
-    renderer = new T.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'low-power' });
+    // `alpha`, so the corner's picture can be drawn on nothing where `--orb-disc` is transparent (a phone).
+    renderer = new T.WebGLRenderer({ canvas: cv, antialias: true, alpha: true, powerPreference: 'low-power' });
     // Lighting stays physical; every surface maps itself to display
     // brightness in its own shader, so nothing is tone-mapped twice.
     renderer.toneMapping = T.NoToneMapping;
