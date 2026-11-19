@@ -410,6 +410,9 @@ def tool_ok(name: str, args: dict, *, has: str = "", refused=("Traceback", "not 
 CHECKS["tool.show-on-screen"] = tool_ok("show_on_screen", {"title": "Stack test card", "blocks": [{"block": "text", "text": "A card from the stack test"}]})
 CHECKS["tool.memory"] = tool_ok("remember", {"text": "The stack test likes plain words"})
 CHECKS["tool.server-health"] = tool_ok("server_health", {}, has="memory")
+# The core reads its own log, which it writes as core.log since 19 November 2026 (`rouh/rouh_log.py`).
+CHECKS["tool.rouh-log"] = tool_ok("read_rouh_log", {"since": "1d", "limit": 5}, has="core.log")
+CHECKS["tool.connection-status"] = tool_ok("connection_status", {}, refused=("Traceback", "could not be read"))
 CHECKS["tool.what-is-running"] = tool_ok("what_is_running", {})
 
 

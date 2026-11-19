@@ -88,6 +88,8 @@ A run has no Docker socket and cannot build or replace the containers. The Creat
 | `tool.show-on-screen` | Cards on the canvas | untested | works | `show_on_screen` | not checked |
 | `tool.memory` | Remembering and the Rules page | untested | works | `remember` | not checked |
 | `tool.server-health` | How the machine is | untested | works | `server_health` | not checked |
+| `tool.rouh-log` | Rouh reads its own log, in the core, with secrets masked | untested | works | `read_rouh_log` names core.log, which the core writes in its logs folder | not checked |
+| `tool.connection-status` | Each connection's state and the evidence of its last refusal | untested | works | `connection_status` answers for every kind of connection without one that cannot be read | not checked |
 | `tool.what-is-running` | What is running (the orb's tree) | untested | works | `what_is_running` | not checked |
 | `tool.tasks` | Tasks: make, find, read | untested | works | `make_a_task`, then `read_workspace` finds it | not checked |
 | `tool.clockwork` | Reminders and scheduled work | untested | works | `schedule`, then `upcoming` lists it | not checked |
