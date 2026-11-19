@@ -39,6 +39,8 @@ var modelPop = $('modelPop');
 var modelWord = $('modelWord');
 var modelOpts = $('modelOpts');
 var modelFoot = $('modelFoot');
+var attachBtn = /** @type {HTMLButtonElement | null} */ ($('attachBtn'));
+var attachPop = $('attachPop');
 
 /* --------------------------------------------------------------- the panels */
 
@@ -65,10 +67,40 @@ function keepInside(pop) {
 function closeAll() {
   showPop(voiceBtn, voicePop, false);
   showPop(modelBtn, modelPop, false);
+  if (attachPop && !attachPop.hidden) showPop(attachBtn, attachPop, false);
 }
 
 function anyOpen() {
-  return !!((voicePop && !voicePop.hidden) || (modelPop && !modelPop.hidden));
+  return !!((voicePop && !voicePop.hidden) || (modelPop && !modelPop.hidden)
+    || (attachPop && !attachPop.hidden));
+}
+
+/** Whether the voice and the picture buttons are folded into the paperclip: a phone's box too narrow
+    for the whole line on one row (Petar, 19 November 2026: "the buttons are a mess"). The style sheet
+    decides it, by the box's own width; this only reads what it decided. */
+function attachFolded() {
+  var pic = $('pictureBtn');
+  return !!pic && getComputedStyle(pic).display === 'none';
+}
+
+/** The paperclip says what it does now: the file picker, or the menu of three. */
+function attachSays() {
+  if (!attachBtn) return;
+  var folded = attachFolded();
+  var words = folded ? 'Attach files, make a picture, or the voice controls'
+    : 'Attach files. You can also drop them on the conversation, or paste a screenshot.';
+  attachBtn.title = words;
+  attachBtn.setAttribute('aria-label', folded ? words : 'Attach files');
+  if (folded) {
+    attachBtn.setAttribute('aria-haspopup', 'true');
+    attachBtn.setAttribute('aria-controls', 'attachPop');
+    attachBtn.setAttribute('aria-expanded', attachPop && !attachPop.hidden ? 'true' : 'false');
+  } else {
+    attachBtn.removeAttribute('aria-haspopup');
+    attachBtn.removeAttribute('aria-controls');
+    attachBtn.removeAttribute('aria-expanded');
+    if (attachPop && !attachPop.hidden) attachPop.hidden = true;
+  }
 }
 
 if (voiceBtn && voicePop) {
@@ -96,13 +128,69 @@ if (modelBtn && modelPop) {
   });
 }
 
+// The paperclip, folded: its menu. Unfolded, app/attachments.js opens the file picker and this does nothing.
+if (attachBtn && attachPop) {
+  attachBtn.addEventListener('click', function (e) {
+    if (!attachFolded()) return;
+    e.stopPropagation();
+    var on = attachPop.hidden;
+    closeAll();
+    showPop(attachBtn, attachPop, on);
+    if (on && e.detail === 0) {
+      var first = /** @type {HTMLElement | null} */ (attachPop.querySelector('button:not(:disabled)'));
+      if (first) first.focus();
+    }
+  });
+  var files = $('attachFilesItem'), pic = $('attachPictureItem'), voice = $('attachVoiceItem');
+  if (files) files.addEventListener('click', function () {
+    closeAll();
+    var input = $('fileInput');
+    if (input) input.click();
+  });
+  if (pic) pic.addEventListener('click', function () {
+    closeAll();
+    var b = $('pictureBtn');
+    if (b && !(/** @type {HTMLButtonElement} */ (b)).disabled) b.click();
+  });
+  if (voice && voiceBtn && voicePop) voice.addEventListener('click', function (e) {
+    e.stopPropagation();
+    closeAll();
+    showPop(voiceBtn, voicePop, true);
+    var first = /** @type {HTMLElement | null} */ (voicePop.querySelector('button:not(:disabled)'));
+    if (first && e.detail === 0) first.focus();
+  });
+  // The picture item says what the picture button would: on, off, or why it cannot.
+  var picBtn = $('pictureBtn');
+  var picSays = function () {
+    if (!picBtn || !pic) return;
+    var b = /** @type {HTMLButtonElement} */ (picBtn);
+    var on = b.getAttribute('aria-pressed') === 'true';
+    pic.setAttribute('aria-pressed', on ? 'true' : 'false');
+    (/** @type {HTMLButtonElement} */ (pic)).disabled = b.disabled;
+    // Its words are in `data-tip` once app/tips.js has adopted its title.
+    var words = b.dataset.tip || b.title || 'Make a picture: describe it, then send';
+    if (pic.dataset.tip !== undefined) pic.dataset.tip = words; else pic.title = words;
+    var state = $('attachPictureState');
+    if (state) state.textContent = on ? 'on' : '';
+  };
+  if (picBtn) {
+    new MutationObserver(picSays).observe(picBtn, { attributes: true, attributeFilter: ['aria-pressed', 'disabled', 'title', 'data-tip'] });
+    picSays();
+  }
+  // Folded or not is the box's width, which a turned phone, a fork opening beside the chat or the
+  // keyboard can change.
+  var box = attachBtn.closest('.composer-box');
+  if (box && window.ResizeObserver) new ResizeObserver(attachSays).observe(box);
+  attachSays();
+}
+
 // A press anywhere outside an open panel and its button closes it. A press inside it does not:
 // the voice controls stay on screen with their new state, and the model panel closes itself
 // once a choice is made.
 document.addEventListener('pointerdown', function (e) {
   if (!anyOpen()) return;
   var t = /** @type {Node} */ (e.target);
-  var wraps = [$('voiceWrap'), $('modelWrap')];
+  var wraps = [$('voiceWrap'), $('modelWrap'), $('attachWrap')];
   for (var i = 0; i < wraps.length; i++) if (wraps[i] && wraps[i].contains(t)) return;
   closeAll();
 }, true);
@@ -110,12 +198,14 @@ document.addEventListener('pointerdown', function (e) {
 // Escape closes the panel first, and only the press after it stops a turn (app/cards.js).
 window.addEventListener('keydown', function (e) {
   if (e.key !== 'Escape' || !anyOpen()) return;
-  var back = modelPop && !modelPop.hidden ? modelBtn : voiceBtn;
+  var back = modelPop && !modelPop.hidden ? modelBtn
+    : attachFolded() ? attachBtn : voiceBtn;
   e.preventDefault();
   e.stopPropagation();
   closeAll();
   if (back && document.activeElement && (voicePop && voicePop.contains(document.activeElement)
-      || modelPop && modelPop.contains(document.activeElement))) back.focus();
+      || modelPop && modelPop.contains(document.activeElement)
+      || attachPop && attachPop.contains(document.activeElement))) back.focus();
 }, true);
 
 /* ------------------------------------------------- the voice button's state */
@@ -135,6 +225,10 @@ function voiceSays() {
     + ', voice replies ' + (repliesOff ? 'off' : 'on') + (dictating ? ', dictating' : '');
   voiceBtn.title = words;
   voiceBtn.setAttribute('aria-label', words);
+  // And the same on the voice row of the folded paperclip's menu.
+  var item = $('attachVoiceItem'), state = $('attachVoiceState');
+  if (item) item.title = words;
+  if (state) state.textContent = press ? 'press' : dictating ? 'dictating' : live ? 'on' : 'off';
 }
 
 if (voiceBtn) {

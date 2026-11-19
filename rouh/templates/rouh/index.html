@@ -1226,13 +1226,47 @@ with {% asset %}, which gives it its hashed address.
               <circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="1.5"/>
             </svg>
           </button>
-          <button id="attachBtn" class="tog" type="button"
+          {% comment %} The paperclip. On a phone whose box is too narrow for the whole line on one row
+               (Petar, 19 November 2026: "the buttons are a mess, nothing is aligned to anything"), the
+               voice and the picture buttons fold into it, and it opens a small menu of the three
+               instead (app/composer_extras.js `attachFolded`); its dot then says the microphone is
+               live, as the voice button's does. Anywhere else it opens the file picker, as it always
+               did. {% endcomment %}
+          <div class="attach-wrap" id="attachWrap">
+          <button id="attachBtn" class="tog attach-btn" type="button"
                   title="Attach files. You can also drop them on the conversation, or paste a screenshot."
                   aria-label="Attach files">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 11.5l-8.4 8.4a5 5 0 0 1-7.1-7.1l8.5-8.5a3.5 3.5 0 0 1 5 5l-8.5 8.4a2 2 0 0 1-2.8-2.8l7.8-7.8"/>
             </svg>
+            <span class="voice-dot" aria-hidden="true"></span>
           </button>
+            <div class="attach-pop" id="attachPop" role="group" aria-label="Attach, picture and voice" hidden>
+              <button id="attachFilesItem" class="attach-item" type="button"
+                      title="Attach files. You can also drop them on the conversation, or paste a screenshot.">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 11.5l-8.4 8.4a5 5 0 0 1-7.1-7.1l8.5-8.5a3.5 3.5 0 0 1 5 5l-8.5 8.4a2 2 0 0 1-2.8-2.8l7.8-7.8"/>
+                </svg>
+                <span class="attach-item-name">Attach files</span>
+              </button>
+              <button id="attachPictureItem" class="attach-item" type="button" aria-pressed="false"
+                      title="Make a picture: describe it, then send">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="5" width="15" height="14" rx="2.5"/><circle cx="8.5" cy="10" r="1.6"/><path d="M18 15l-4.5-4.5L5 19"/><path d="M20.5 2.5v4M18.5 4.5h4"/>
+                </svg>
+                <span class="attach-item-name">Make a picture</span>
+                <span class="attach-item-state" id="attachPictureState"></span>
+              </button>
+              <button id="attachVoiceItem" class="attach-item" type="button" aria-haspopup="true"
+                      title="Voice: microphone, voice replies and dictation">
+                <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="9" cy="8" r="3.4"/><path d="M2.8 20.5c.4-3.6 3-6 6.2-6s5.8 2.4 6.2 6"/><path d="M15.6 5.4a4 4 0 0 1 0 5.2M18.4 3a7.6 7.6 0 0 1 0 10"/>
+                </svg>
+                <span class="attach-item-name">Voice</span>
+                <span class="attach-item-state" id="attachVoiceState"></span>
+              </button>
+            </div>
+          </div>
           {% comment %} Make a picture: the box asks for a picture rather than a reply
                until it is pressed again, with the settings above the text
                (`#pictureBar`). Asking out loud or in words works as well: the

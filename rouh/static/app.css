@@ -11784,3 +11784,126 @@ body.cot-open { overflow: hidden; }
 }
 @keyframes partnerRing { 50% { box-shadow: 0 0 0 2px #ffb547, 0 0 8px 1px rgba(255, 181, 71, .3); } }
 @media (prefers-reduced-motion: reduce) { .partner-at-work canvas.orb { animation: none; } }
+
+/* ---------- a chat on a phone, on one grid (Petar, 19 November 2026) ----------
+
+   His screenshot of a fork on his iPhone, and his words: "1. I didn't want the background to be black.
+   2. the title of the chat fades too early, we should be able to see more text. 3. the buttons are a
+   mess, nothing is aligned to anything."
+
+   The head is one row: the fork glyph (in a fork), the title, and the round acts, every circle
+   `--top-chip` across with `--top-gap` between them and one middle line. The acts are the row's last
+   item, in its flow, and the row runs to the canvas glyph in the corner. They used to be placed out of
+   the flow while room was kept for three circles where there are two, and a later rule for incognito's
+   close button put them back in the flow with the absolute placing's 8 pixels of `top` still on them: the
+   title faded out 50 pixels before the dots, and the dots sat 8 pixels below the canvas glyph. */
+@media (max-width: 640px) {
+  .crumb, .crumb:has(#chatMenuBtn[hidden]) { right: calc(var(--sb-pad) + var(--top-chip) + var(--top-gap)); }
+  .crumb-acts, .crumb:has(#chatMenuBtn[hidden]) .crumb-acts {
+    position: relative; top: auto; right: auto; margin: 0 0 0 auto; gap: var(--top-gap);
+  }
+  .crumb-menu, .crumb:has(#chatMenuBtn[hidden]) .crumb-menu { right: 0; }
+  /* The title runs to the dots, and only its last few letters fade, to say there is more to drag to. */
+  .crumb-line {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 12px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 12px), transparent);
+  }
+  .crumb-end { min-width: 12px; }
+
+  /* A fork's row starts inside its own card, never over the parent chat peeking at the left: its glyph
+     is 8 pixels in from the card's edge, as the cross is from the other. */
+  .col-chat.stripped .crumb:has(.crumb-fork:not([hidden])) { left: calc(var(--strip-peek) + var(--strip-gap)); }
+  .col-chat.stripped .crumb:has(.crumb-fork:not([hidden])) .crumb-line { padding-left: 8px; }
+  /* The fork's second row: the chip starts where the title starts, under it, and its middle is the
+     cross's, which is under the canvas glyph. The chip is a pill 32 tall, a step below the circles. */
+  .col-chat.stripped .chat-self:has(> .fork-x) .reading-strip {
+    padding-left: calc(7px + var(--top-chip) + var(--top-gap));
+  }
+  .reading-strip-pill { height: 32px; padding: 0 11px 0 10px; gap: 6px; font-size: 12.5px; }
+}
+
+/* The background is the conversation's own, with no black under anything: the orb's disc in the
+   corner was the canvas's black (`--void`), and the band the text box sits in was the page's darker
+   `--bg-2`. On a phone the disc is the floating circles' colour and the band is the conversation's.
+   The orb draws its own picture over the disc in that colour (`--orb-disc`, app/orb3d.js). And where
+   the conversation starts under the head's chip, its words fade out over the last few pixels rather
+   than being cut off square under it. */
+:root { --orb-disc: var(--void); }
+@media (max-width: 899px) {
+  :root { --orb-disc: var(--panel-2); }
+  .orb-layer[data-orb="corner"] .orb-box { background: var(--orb-disc); box-shadow: inset 0 0 0 1px var(--line); }
+  .composer { background: var(--panel); }
+  .col-chat:has(#chatTabs[hidden]):has(#readingStrip:not([hidden])) .transcript {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 14px);
+  }
+}
+
+/* The composer's line on a phone: one row, every control 32 pixels tall, in three groups with a wider
+   gap between them - what goes into the message (voice, attach, picture), how this chat answers (the
+   model, the mode, incognito), and the two ways to send it (fork, send) at the right. Where the box is
+   too narrow for all of it on one row (under 380 pixels: a fork's card on any phone, General up to 390),
+   the voice and the picture fold into the paperclip, which then opens a menu of the three
+   (app/composer_extras.js); nothing ever wraps to a second line. */
+@media (max-width: 899px) {
+  #composerControls { --ctl-h: 32px; gap: 4px; align-items: center; }
+  #composerControls .composer-tools { flex-wrap: nowrap; align-items: center; }
+  #composerControls .tog:not(.voice-pop .tog) { width: var(--ctl-h); height: var(--ctl-h); }
+  #composerControls .model-btn,
+  #composerControls:has(.fork-btn:not([hidden])) .reading-btn { height: var(--ctl-h); padding: 0 9px; font-size: 13.5px; }
+  /* The model's word, whole: its chevron goes, as the mode's button beside it has none. */
+  #composerControls .model-btn-chev { display: none; }
+  #composerControls .composer-end > :is(.send-btn, .stop-btn) { width: 40px; height: var(--ctl-h); padding: 0; }
+  #composerControls .model-wrap { margin-left: 4px; }
+  #composerControls .composer-end { padding-left: 4px; }
+  #composerControls .incog-btn { flex: 0 0 auto; }
+  /* Fork with nothing typed yet cannot be pressed, and says so the way the tools beside it are drawn,
+     quiet but whole, rather than faded as if it were broken. Typed, it is in the accent. */
+  .tog.fork-btn:disabled { opacity: 1; color: var(--dim); }
+  .tog.fork-btn:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+}
+/* A panel opened from the line is drawn over the orb's circle and its notice dot in the corner just above
+   the box, not under them: on a phone they sit where the voice, model and paperclip panels open. */
+@media (max-width: 899px) {
+  .composer:has(:is(#voicePop, #modelPop, #attachPop):not([hidden])) { position: relative; z-index: 50; }
+}
+.attach-wrap { position: relative; flex: 0 0 auto; display: flex; }
+.attach-pop {
+  position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 40;
+  display: grid; gap: 4px; width: 240px; max-width: calc(100vw - 16px); box-sizing: border-box; padding: 6px;
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: var(--radius-s); box-shadow: var(--shadow); cursor: default;
+}
+.attach-pop[hidden] { display: none; }
+.attach-item {
+  appearance: none; cursor: pointer; font: inherit; font-size: 15px; text-align: left;
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px;
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius-s);
+}
+.attach-item svg { flex: 0 0 auto; color: var(--dim); }
+.attach-item:hover:not(:disabled) { border-color: var(--dim); }
+.attach-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.attach-item:disabled { color: var(--dim); cursor: not-allowed; }
+.attach-item[aria-pressed="true"] svg { color: var(--accent); }
+.attach-item-state { margin-left: auto; font-size: 12px; color: var(--dim); }
+.attach-item-state:empty { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .attach-pop:not([hidden]) { animation: pop-up 0.16s ease-out; }
+}
+@media (max-width: 899px) {
+  @container composer (max-width: 379px) {
+    #composerControls .composer-tools { position: relative; }
+    #composerControls #pictureBtn { display: none; }
+    /* The voice's panel still opens from the left of the line, from the menu. */
+    #composerControls .voice-wrap { position: absolute; left: 0; top: 0; width: 0; height: var(--ctl-h); }
+    #composerControls .voice-menu-btn { display: none; }
+    /* What the folded buttons would have said, on the paperclip: the microphone live, dictation on, the
+       speaker waiting for a press, or the box asking for a picture. */
+    #composerTools:has(.voice-menu-btn:is(.mic-live, .dictating, .needs-press)) .attach-btn .voice-dot { display: block; }
+    #composerTools:has(.voice-menu-btn.dictating) .attach-btn,
+    #composerTools:has(#pictureBtn[aria-pressed="true"]) .attach-btn {
+      color: var(--accent); border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); background: var(--accent-soft);
+    }
+    #composerTools:has(.voice-menu-btn.mic-live) .attach-btn { color: var(--accent); }
+  }
+}

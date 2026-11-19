@@ -665,6 +665,7 @@ function orb3dFrame(v) {
       controls.update();
     }
     lastMode = mode;
+    scene.background = voidColour(mode === 'corner' ? '--orb-disc' : '--void');
   }
   resize(v.w, v.h, mode);
   var moving = sync(v);
@@ -850,8 +851,11 @@ function makeCore() {
   coreMask = new T.MeshBasicMaterial({ color: 0, depthWrite: true });
 }
 
-function voidColour() {
-  var v = getComputedStyle(document.documentElement).getPropertyValue('--void').trim() || '#000000';
+/** The colour behind the orb's picture: the canvas's black, or in the corner `--orb-disc`, which on a phone
+    is the floating circles' colour rather than a black disc (Petar, 19 November 2026: "I didn't want the
+    background to be black"). @param {string} [name] */
+function voidColour(name) {
+  var v = getComputedStyle(document.documentElement).getPropertyValue(name || '--void').trim() || '#000000';
   var c = new T.Color();
   try { c.setStyle(v, T.LinearSRGBColorSpace); } catch (e) { c.setRGB(0, 0, 0); }
   return c;

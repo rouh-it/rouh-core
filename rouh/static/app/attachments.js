@@ -366,7 +366,12 @@ function uploadFile(a, file) {
 /* --- the paperclip --- */
 
 if ($('attachBtn') && $('fileInput')) {
-  $('attachBtn').addEventListener('click', function () { $('fileInput').click(); });
+  $('attachBtn').addEventListener('click', function () {
+    // Folded on a narrow phone box, the paperclip opens its menu instead (app/composer_extras.js).
+    var pic = $('pictureBtn');
+    if (pic && getComputedStyle(pic).display === 'none') return;
+    $('fileInput').click();
+  });
   $('fileInput').addEventListener('change', /** @this {HTMLInputElement} */ function () {
     addFiles(this.files);
     // Cleared so choosing the same file twice in a row is still a change.
