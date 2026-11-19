@@ -377,6 +377,72 @@ def put_trial_defaults(who, sent: dict) -> dict:
     return trial_defaults(who)
 
 
+# --- The guiding prompt ----------------------------------------------------------------------------
+#
+# Petar, 19 November 2026: "the evolution/parameters should have a prompt to guide the AI what to pick
+# or invent for development". One text per person, kept on their Parameters row and saved at once like
+# New trials. Every place a model picks, scores, ranks or invents ideas for development reads it
+# through `guide_block`: the Incubator's scoring (`incubator_score`), the nightly feature run's ideas
+# (`nightly_ideas.brief_block`), Genes on the fly's offer (`genedraft.prompt_line`) and the Gene Pool's
+# picks for this person (`genepool.match`). Empty, each of them says exactly what it said before.
+
+#: What a Rouh starts with until the person changes it (Petar, 19 November 2026).
+GUIDE_START = ("Half the features need to help on building faster rouh. The other half should be features "
+               "that make it more usable for first time users - technical or not")
+GUIDE_MOST = 4000
+
+
+def guide(who) -> dict:
+    """The guiding prompt: {"text", "start", "updated_at", "by"}. `start` is true while it is still
+    the one every Rouh starts with, never saved by anybody."""
+    row = _models().EvolutionSetting.objects.filter(**_whose(who)).first() if who is not None else None
+    if row is None or row.guide is None:
+        return {"text": GUIDE_START, "start": True, "updated_at": None, "by": ""}
+    return {"text": row.guide, "start": False, "updated_at": row.guide_at, "by": row.guide_by}
+
+
+def guide_text(who) -> str:
+    """The guiding prompt's words, "" when the person cleared it or nobody can be asked."""
+    try:
+        return str(guide(who)["text"] or "").strip()
+    except Exception:  # noqa: BLE001 - a missing guidance never stops a pick
+        log.exception("the guiding prompt could not be read")
+        return ""
+
+
+def put_guide(who, text, *, by: str = "") -> dict:
+    """Keep a new guiding prompt, saved at once. An empty one is kept as empty: no guidance."""
+    if not isinstance(text, str):
+        raise Refused("The guiding prompt is text.")
+    text = text.replace("\r\n", "\n").strip()
+    if len(text) > GUIDE_MOST:
+        raise Refused(f"The guiding prompt is {len(text):,} characters; it can be at most {GUIDE_MOST:,}.")
+    m = _models()
+    fields = {"guide": text, "guide_at": _now(), "guide_by": _cut(by, 120)}
+    row = m.EvolutionSetting.objects.filter(**_whose(who)).first()
+    if row is None:
+        # Made only for this, like New trials': its numbers are still the proposal's.
+        m.EvolutionSetting.objects.create(**_whose(who), **{k: DEFAULTS[k] for k in DEFAULTS},
+                                          updated_at=_now(), by="", history=[], **fields)
+    else:
+        m.EvolutionSetting.objects.filter(id=row.id, **_whose(who)).update(**fields)
+    log.info("guiding prompt for %s/%s: %d characters", who.org_id, who.user_id, len(text))
+    return guide(who)
+
+
+def guide_block(who, task: str) -> str:
+    """The guiding prompt as a model is told it, for `task` (what that model is doing, such as "score
+    these ideas"), or "" when there is none, so a prompt without it is exactly what it was."""
+    text = guide_text(who)
+    if not text:
+        return ""
+    return ("## The person's guidance on what to pick or invent (Evolution, Parameters)\n\n"
+            "The person wrote this to guide what Rouh picks from the Incubator or invents for development. "
+            f"It ranks above every default heuristic you are given when you {task}: where they disagree, "
+            "follow the guidance.\n\n"
+            "<guidance>\n" + text + "\n</guidance>\n")
+
+
 def schedule(who) -> dict:
     """When the next night reads Parameters: the nightly run's row on Clockwork, as it stands."""
     from . import clock, nightly_feature, reminders

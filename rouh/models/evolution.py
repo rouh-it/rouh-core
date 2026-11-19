@@ -38,6 +38,12 @@ class EvolutionSetting(models.Model):
     #: counts is the gene's own use signals, all of them (`rouh/genes/signals.py`).
     trial_days = models.IntegerField(default=7)
     trial_needed = models.IntegerField(default=1)
+    #: The guiding prompt (Petar, 19 November 2026): what kinds of features the AI picks from the
+    #: Incubator or invents for development, in the person's words. Null is never set, which reads
+    #: as `evolution.GUIDE_START`; "" is cleared, which reads as no guidance at all.
+    guide = models.TextField(null=True, blank=True)
+    guide_at = models.FloatField(null=True, blank=True)
+    guide_by = models.TextField(blank=True, default="")
 
     class Meta:
         db_table = "evolution_settings"

@@ -434,3 +434,12 @@ a.evo-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px
 .evo-answers:not(:has(*)) { display: none; }
 .evo-open-hint { color: var(--accent); }
 .evo-building .evo-row-btn:hover .evo-open-hint { text-decoration: underline; }
+
+/* ---- The guiding prompt (Parameters) ---- */
+.evo-guide legend label { cursor: text; }
+.evo-guide-text { width: 100%; box-sizing: border-box; min-height: 96px; resize: vertical; padding: 10px 12px;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+  font: inherit; font-size: 14px; line-height: 1.5; }
+.evo-guide-text::placeholder { color: var(--dim); }
+.evo-guide-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.evo-guide .evo-acts .ctl.small { min-height: 44px; }

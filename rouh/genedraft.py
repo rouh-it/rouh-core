@@ -89,10 +89,16 @@ def prompt_line(who) -> str:
     """For a turn the person started: Rouh may offer to draft a gene, when their setting says so."""
     if who is None or not on(str(who.org_id)) or propose(who) != "offer":
         return ""
+    from . import evolution
+
+    guided = evolution.guide_text(who)
     return ("Genes on the fly: the person has said you may offer to draft a gene when you see them do "
             "something by hand that Rouh could do for them every time, or when an idea of theirs is an "
             "ability Rouh lacks. Offer in one short sentence at the end of your answer, at most once a "
-            "conversation, and draft it with gene_draft only when they say yes.")
+            "conversation, and draft it with gene_draft only when they say yes."
+            + (" Their guidance on what to pick or invent (Evolution, Parameters), which ranks above your "
+               "own sense of what is worth a gene: <guidance>" + " ".join(guided.split()) + "</guidance>. "
+               "Offer the genes that serve it." if guided else ""))
 
 
 # --- drafts ----------------------------------------------------------------------------------------

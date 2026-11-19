@@ -6,7 +6,9 @@ so an id of anybody else's is "not found".
 
     GET  /api/evolution/parameters              Parameters, and when the next night reads them
     POST /api/evolution/parameters              {total, invisible, shows_up, ask_for, changes_work},
-                                                or {trial: {days?, needed?, counts?}}: a new trial's defaults
+                                                or {trial: {days?, needed?, counts?}}: a new trial's defaults,
+                                                or {guide: "..."}: the guiding prompt, saved at once, and
+                                                the Incubator scored again with it when it changed
     GET  /api/evolution/mutations               every gene in its view, the questions
     GET  /api/evolution/month                   the month view: the last thirty days
     GET  /api/evolution/genes/<id>              one gene, all five tabs
@@ -47,11 +49,17 @@ async def parameters(request: HttpRequest):
     me = await _me(request)
     if me is None:
         return refuse("Sign in to Rouh first.", 401)
+    rescored = None
     if request.method == "POST":
         body = body_of(request)
         try:
             if isinstance(body, dict) and "trial" in body:
                 await sync_to_async(evolution.put_trial_defaults)(me, body["trial"])
+            elif isinstance(body, dict) and "guide" in body:
+                before = await sync_to_async(evolution.guide_text)(me)
+                await sync_to_async(evolution.put_guide)(me, body["guide"], by=_said_by(me))
+                if (await sync_to_async(evolution.guide_text)(me)) != before:
+                    rescored = await _rescore(me)
             else:
                 await sync_to_async(evolution.put_parameters)(me, body, by=_said_by(me))
         except evolution.Refused as exc:
@@ -65,11 +73,26 @@ async def parameters(request: HttpRequest):
               "on": await sync_to_async(genedraft.on)(str(me.org_id))}
     return answer({"parameters": got, "schedule": when, "most": evolution.MOST, "drafts": drafts,
                    "defaults": evolution.DEFAULTS,
+                   "guide": await sync_to_async(evolution.guide)(me), "guide_start": evolution.GUIDE_START,
+                   "guide_most": evolution.GUIDE_MOST, "rescored": rescored,
                    "trial": await sync_to_async(evolution.trial_defaults)(me),
                    "trial_defaults": evolution.TRIAL_DEFAULTS,
                    "trial_most_days": evolution.TRIAL_MOST_DAYS, "needed_most": evolution.NEEDED_MOST,
                    "kinds": [{"id": k, "name": evolution.KIND_NAMES[k], "said": evolution.KIND_SAID[k]}
                              for k in evolution.KINDS]}, headers=NO_STORE)
+
+
+async def _rescore(me) -> int | None:
+    """The Incubator's ideas scored again, in the background, so a new guiding prompt reaches every
+    idea's score and not only the next one's. How many are being scored; None when it could not start."""
+    from rouh import incubator_score
+
+    try:
+        state = await incubator_score.start_all(me, force=True)
+        return int(state.get("total") or 0)
+    except Exception:  # noqa: BLE001 - the guidance is kept; the scores catch up on the next pass
+        log.exception("the Incubator could not be scored again after a new guiding prompt")
+        return None
 
 
 async def mutations(request: HttpRequest):

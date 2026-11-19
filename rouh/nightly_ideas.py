@@ -110,10 +110,17 @@ def _line(row) -> str:
 
 def brief_block(who) -> str:
     """The brief's "Where the ideas are": the rule, the tool, and tonight's pickable ideas."""
+    from . import evolution
+
     rows = pickable(who)
+    guided = evolution.guide_block(who, "pick an idea of the Incubator, add one your research finds, or "
+                                        "invent a gene or mutation tonight")
     lines = [
         "## Where the ideas are",
         "",
+        *([guided, "Pick and invent tonight's genes as that guidance says, before the score's order: of "
+                   "two ideas you could build, take the one that serves it. Ideas you add with `add` follow "
+                   "it too.", ""] if guided else []),
         "The ideas are the Incubator's (Evolution), the one list of ideas for new genes and mutations. "
         "Pick only from it: never from the task's ideas.md or ledger.md, which stay as they were for their "
         "history and are not written to. Where run.md says ideas.md, it means the Incubator. "
@@ -136,7 +143,8 @@ def brief_block(who) -> str:
         lines.append(f"The {len(rows)} pickable ideas as tonight started"
                      + (f", the first {IN_BRIEF} listed (`nightly_idea list` has the rest)" if len(rows) > IN_BRIEF else "")
                      + ", highest score first (the Incubator's score: impact, confidence, frequency, pain, the "
-                     "person's stars, clarity and risk). Prefer the highest you can build well tonight:")
+                     "person's stars, clarity and risk). Prefer the highest you can build well tonight"
+                     + (", within the guidance above:" if guided else ":"))
         lines.append("")
         lines += [_line(r) for r in rows[:IN_BRIEF]]
     return "\n".join(lines)

@@ -1355,7 +1355,11 @@ async def match(who, words: str = "") -> dict:
         model = ""
     else:
         text = await asyncio.to_thread(_match_text, who, families, words)
-        said, model = await genelog.ask_model(MATCH, who, MATCH_SYSTEM, text, max_tokens=12000, effort="medium")
+        from . import evolution
+
+        guided = await asyncio.to_thread(evolution.guide_block, who, "pick genes from the Pool for this person")
+        system = MATCH_SYSTEM + ("\n\n" + guided + "\nPick the genes that serve it first." if guided else "")
+        said, model = await genelog.ask_model(MATCH, who, system, text, max_tokens=12000, effort="medium")
         got = genelog.parse_json(said) if said else None
         if not isinstance(got, list):
             raise Refused("No model is set for matching genes." if not model

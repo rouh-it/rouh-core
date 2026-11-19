@@ -372,10 +372,11 @@
     if (!j) { wrap.appendChild(el('p', 'evo-loading', 'Reading your Parameters…')); return; }
     var most = j.most || 20, d = R.draft;
     var ui = R.ui = { kinds: {} };
-    wrap.appendChild(el('p', 'evo-lede', 'How many genes the nightly run builds each night, and of which ' +
-      'kinds. The four kinds always add up to the genes a night.'));
+    wrap.appendChild(el('p', 'evo-lede', 'What Rouh builds for itself: your guidance on what to pick or invent, ' +
+      'and how many genes the nightly run builds each night, of which kinds. The four kinds always add up to the genes a night.'));
     ui.when = el('p', 'evo-when' + (j.schedule && j.schedule.paused ? ' paused' : ''), j.schedule ? j.schedule.line : '');
     wrap.appendChild(ui.when);
+    drawGuide(wrap, j);
     var form = el('div', 'evo-params');
     ui.total = slider('Genes a night', d.total, most,
       '0 pauses the night’s building. Moving this spreads the total over the kinds in the proportions you last set.',
@@ -436,6 +437,80 @@
         return { said: 'Saved.', trial: got.trial };
       });
     }));
+    wrap.appendChild(box);
+  }
+
+  /* The guiding prompt (`evolution.guide`, Petar, 19 November 2026): what the AI picks from the
+     Incubator or invents for development, in the person's words. Saved on its own, like New trials;
+     every scorer and picker reads what is saved, and an empty one is no guidance at all. */
+  function drawGuide(wrap, j) {
+    if (!j.guide) { return; }
+    var box = el('fieldset', 'evo-params evo-drafts evo-guide');
+    var leg = el('legend', 'evo-slide-name');
+    var lab = el('label', null, 'Guiding prompt');
+    lab.htmlFor = 'evoGuide';
+    leg.appendChild(lab);
+    box.appendChild(leg);
+    var hint = el('p', 'evo-hint', 'Tells the AI what kinds of features to pick from the Incubator or invent for development. ' +
+      'It ranks above the usual scoring when ideas are scored, when the nightly run picks and invents, when Rouh offers a gene, ' +
+      'and when the Gene Pool picks genes for you. Leave it empty for no guidance.');
+    hint.id = 'evoGuideHint';
+    box.appendChild(hint);
+    var ta = el('textarea', 'evo-guide-text');
+    ta.id = 'evoGuide';
+    ta.rows = 4;
+    ta.maxLength = j.guide_most || 4000;
+    ta.setAttribute('aria-describedby', 'evoGuideHint');
+    ta.placeholder = 'No guidance: the AI picks by the Incubator’s score alone.';
+    ta.value = j.guide.text || '';
+    box.appendChild(ta);
+    var said = el('p', 'evo-said');
+    said.setAttribute('role', 'status');
+    said.hidden = true;
+    var acts = el('div', 'evo-acts');
+    var save = button('ctl small primary', 'Save guidance');
+    var undo = button('ctl small', 'Undo changes');
+    var state = el('span', 'evo-state');
+    acts.appendChild(save);
+    acts.appendChild(undo);
+    acts.appendChild(state);
+    box.appendChild(acts);
+    box.appendChild(said);
+    var busy = false;
+    function saved() { return (R.params.guide && R.params.guide.text) || ''; }
+    function refresh() {
+      var changed = ta.value.trim() !== saved().trim();
+      var g = R.params.guide || {};
+      save.textContent = busy ? 'Saving…' : 'Save guidance';
+      save.disabled = busy || !changed;
+      undo.disabled = busy || !changed;
+      state.textContent = changed ? 'Not saved yet: the AI reads what is saved.'
+        : !saved().trim() ? 'No guidance: picking is as it was before it.'
+        : g.start ? 'The starting guidance: you have not changed it yet.'
+        : 'Saved' + (g.by ? ' by ' + g.by : '') + '.';
+    }
+    ta.addEventListener('input', function () { said.hidden = true; refresh(); });
+    undo.addEventListener('click', function () { ta.value = saved(); said.hidden = true; refresh(); ta.focus(); });
+    save.addEventListener('click', function () {
+      busy = true; refresh();
+      call('/parameters', { guide: ta.value }).then(function (got) {
+        busy = false;
+        if (!got) { refresh(); return; }
+        R.params.guide = got.guide;
+        ta.value = got.guide.text || '';
+        var n = got.rescored;
+        said.textContent = (got.guide.text ? 'Saved.' : 'Saved: no guidance now.') +
+          (n ? ' Rouh is scoring the Incubator’s ' + n + (n === 1 ? ' idea' : ' ideas') + (got.guide.text ? ' again with it.' : ' again without it.') : '');
+        said.hidden = false;
+        refresh();
+      }, function (err) {
+        busy = false;
+        said.textContent = String((err && err.message) || err);
+        said.hidden = false;
+        refresh();
+      });
+    });
+    refresh();
     wrap.appendChild(box);
   }
 

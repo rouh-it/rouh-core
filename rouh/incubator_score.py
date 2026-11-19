@@ -310,6 +310,19 @@ Answer with JSON alone, no other words:
 Every idea you were given must be in the answer, once, by its id."""
 
 
+def guide_for_scoring(who) -> str:
+    """The person's guiding prompt from Evolution's Parameters, put after SYSTEM, or "" when there is none
+    (then the scorer is told exactly what it was told before)."""
+    from . import evolution
+
+    block = evolution.guide_block(who, "score these ideas")
+    if not block:
+        return ""
+    return ("\n\n" + block + "\nLet it move impact, confidence and the suggested stars: raise them for an idea "
+            "that serves what the guidance asks for, lower them for one that does not, and say so in the why. "
+            "The guidance never changes the JSON you answer with.")
+
+
 def _idea_block(row, back: dict) -> str:
     from . import incubator
 
@@ -414,6 +427,7 @@ async def score(who, ids, *, progress: dict | None = None) -> dict:
     if not ids:
         return {"scored": 0, "failed": 0}
     whole = await asyncio.to_thread(_whole_list, who)
+    guided = await asyncio.to_thread(guide_for_scoring, who)
     gate = asyncio.Semaphore(AT_ONCE)
     tally = {"scored": 0, "failed": 0, "errors": []}
 
@@ -430,7 +444,7 @@ async def score(who, ids, *, progress: dict | None = None) -> dict:
             ask = ("The whole list, for what each idea unblocks or repeats (number, status, title):\n\n" + whole
                    + f"\n\n---\n\nScore these {len(rows)} ideas:\n\n" + blocks)
             try:
-                got = await llm.ask(USE, system=SYSTEM, messages=ask, max_tokens=900 * len(rows) + 1500, who=who,
+                got = await llm.ask(USE, system=SYSTEM + guided, messages=ask, max_tokens=900 * len(rows) + 1500, who=who,
                                     subject=", ".join(incubator.code(r.number) for r in rows)[:200], timeout=600)
             except Exception as exc:  # noqa: BLE001 - the rest go on; these are tried again later
                 log.warning("the Incubator could not score %d ideas: %s", len(rows), exc)
