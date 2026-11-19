@@ -9,10 +9,10 @@
                                                      Rouh with Rouh's whole history: the Creator)
 
 Task 140, step 140-18, and Petar on 12 November 2026: "There's nothing to update to." The release
-is normally chosen and published by itself, once a day, after a checked change has run 12 hours
-here (`rouh/code_release.py`, ``once``), from this Rouh's own undo points. A release by hand
+is normally chosen and published by itself, at most every 10 minutes, after a checked change has
+run 10 minutes here (`rouh/code_release.py`, ``once``), from this Rouh's own undo points. A release by hand
 (``publish_by_hand``) takes the commits of rouh-core's main itself: the newest that passed master's
-Tests on main, has run here 12 hours (rouh.land refuses one under 11) and contains the release
+Tests on main, has run here 10 minutes (``code_release.LIVE_FOR``) and contains the release
 before it. It is signed with this Rouh's daily key, so it runs only on the Creator Rouh,
 the one rouh.land lists as a release maker.
 

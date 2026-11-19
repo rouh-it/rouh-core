@@ -18,7 +18,7 @@ A Rouh on its own (Independent, 140-13) asks nobody anything by itself, so it ne
 never looks for a release until its person presses a button here.
 
 **A release** is a checked boundary on the shared main branch of rouh-core (rouh/github_org.py), after its
-changes have run for 12 hours on the early-test Rouhs. Collaborators publish on that branch too.
+changes have run for 10 minutes (``code_release.LIVE_FOR``) on the early-test Rouhs. Collaborators publish on that branch too.
 
 **An update** takes each released change in order (``code_evolution.py``), file by file. A file
 this Rouh has as the change found it is copied exactly by git, its hash checked against the release
@@ -900,4 +900,9 @@ class Watch:
                 raise
             except Exception:  # noqa: BLE001 - one bad look never stops the next
                 log.exception("the look for a newer Rouh stumbled; continuing")
-            await asyncio.sleep(min(self.every, 30) if state().get("pending") or state().get("continue_update") else self.every)
+            every = self.every
+            if makes_releases():
+                from . import code_release
+
+                every = min(every, code_release.LOOK_EVERY)
+            await asyncio.sleep(min(every, 30) if state().get("pending") or state().get("continue_update") else every)
