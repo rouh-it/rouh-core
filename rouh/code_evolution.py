@@ -18,14 +18,19 @@ An exact change spends nothing. The protected core executes the proposed proof a
 database rehearsal and real migration; from core 1.1 it checks every exact copy against the
 release commit itself, and then a security change copied exactly needs no model's proof.
 
-A waiting change holds back only what really needs it: a later change that touches the same file
-and does not fit beside this Rouh's version, one that uses a name or file the waiting change adds,
-or one that says ``Depends-on:`` it. The reason names what it waits for.
+**In order, never around a waiting change** (19 November 2026). The walk stops at the first change
+it cannot take, says why, and every later change waits for it (``hold_after``). Until then a waiting
+change held back only the later changes guessed to need it (the same file, a name it adds,
+``Depends-on:``), and the rest came in around it: installed Rouhs ended up on mixes of code that
+never ran anywhere - a page using a table whose migration waited - and broke instead of holding
+back. Now this Rouh's code is always shared main as it was at one commit, plus its own changes.
+
+**Observable.** A walk is driven by a run (``code_update.start_run``), one call of its
+``update_step`` tool at a time, so its every step is on the run's record as it goes.
 """
 from __future__ import annotations
 
 import asyncio
-import ast
 import contextlib
 import hashlib
 import json
@@ -379,73 +384,6 @@ def _blob_id(repo: Path, revision: str, file: str) -> str:
     return got[2] if len(got) == 3 else ""
 
 
-def _module(path: str) -> str:
-    p = Path(path)
-    name = str(p.with_suffix(""))
-    if p.stem == "__init__":
-        name = str(p.parent)
-    return name.replace("/", ".")
-
-
-_DEFINED = re.compile(r"^(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:function\*?|class|const|let|var)\s+([A-Za-z_$][\w$]*)", re.M)
-
-
-def _names(repo: Path, revision: str, file: str) -> set[str]:
-    """The top-level names a Python or JavaScript file defines at a revision."""
-    if not _blob(repo, revision, file) or Path(file).suffix not in (".py", ".js", ".mjs", ".ts"):
-        return set()
-    text = u._git("show", f"{revision}:{file}", cwd=repo).stdout
-    if file.endswith(".py"):
-        try:
-            tree = ast.parse(text)
-        except SyntaxError:
-            return set()
-        out: set[str] = set()
-        for node in tree.body:
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                out.add(node.name)
-            elif isinstance(node, (ast.Assign, ast.AnnAssign)):
-                for t in (node.targets if isinstance(node, ast.Assign) else [node.target]):
-                    if isinstance(t, ast.Name):
-                        out.add(t.id)
-        return out
-    return set(_DEFINED.findall(text))
-
-
-_ADDS: dict[str, set[str]] = {}
-
-
-def adds(row: dict) -> set[str]:
-    """What a change brings that a later change could need: the names it defines that were not there
-    before, the modules and files it adds (as a later change would write them). Docs are left out."""
-    if row["master"] in _ADDS:
-        return _ADDS[row["master"]]
-    repo, out = master_repo(), set()
-    for f in row["files"]:
-        if f in (row.get("opaque") or []) and _blob(repo, row["parent"], f):
-            continue
-        out |= _names(repo, row["master"], f) - _names(repo, row["parent"], f)
-        if not _blob(repo, row["parent"], f) and _blob(repo, row["master"], f) and \
-                Path(f).suffix not in (".md", ".txt", ".rst"):
-            out.add(f)
-            out.add(f.removeprefix("rouh/static/"))
-            if len(Path(f).stem) >= 6:
-                out.add(Path(f).name)
-            if f.endswith(".py"):
-                out.add(_module(f))
-    out = {n for n in out if len(n) >= 4}
-    _ADDS[row["master"]] = out
-    return out
-
-
-def _added_lines(row: dict) -> str:
-    readable = [f for f in row["files"] if f not in (row.get("opaque") or [])]
-    if not readable:
-        return ""
-    diff = _git("diff", "--no-ext-diff", "-U0", row["parent"], row["master"], "--", *readable)
-    return "\n".join(l[1:] for l in diff.splitlines() if l.startswith("+") and not l.startswith("+++"))
-
-
 def _merge(work: Path, here: str, base: str, theirs: str) -> bytes | None:
     """A three-way merge of one file's blobs: this Rouh's, the change's start and its end. The
     merged bytes, or None when the lines clash."""
@@ -726,68 +664,6 @@ def adapt(row: dict, work: Path, feedback: str = "") -> dict:
     return plan
 
 
-def blockers(row: dict, previous: list[dict], work: Path | None = None) -> list[tuple[dict, str]]:
-    """The earlier changes not taken that this one really needs, each with why in a few words: it
-    says Depends-on: it; both change a file and this one's lines do not fit beside this Rouh's
-    version of it on their own; or this one uses a name or file that one adds."""
-    waiting = [p for p in previous if p.get("status") not in TAKEN]
-    if not waiting:
-        return []
-    added = None
-    out = []
-    for p in waiting:
-        why = ""
-        if any(p["master"].startswith(d) for d in row.get("depends_on") or []):
-            why = "it says it depends on it"
-        for f in sorted(set(row["files"]) & set(p["files"])) if not why else []:
-            if work is None or not _fits_alone(row, f, work):
-                why = f"both change {f}"
-                break
-        if not why:
-            added = _added_lines(row) if added is None else added
-            hit = next((n for n in sorted(adds(p)) if (n in added if "/" in n or "." in n else
-                        re.search(r"(?<![\w$])" + re.escape(n) + r"(?![\w$])", added))), "")
-            if hit:
-                why = f"it uses {hit}, which that change adds"
-        if why:
-            out.append((p, why))
-    return out
-
-
-def _fits_alone(row: dict, f: str, work: Path) -> bool:
-    """Whether this change's own lines of f go into this Rouh's version of it without an earlier one."""
-    master = master_repo()
-    base, here, theirs = (_blob(master, row["parent"], f), _blob(work, "HEAD", f), _blob(master, row["master"], f))
-    if here == base or here == theirs or (here and _END and here == _blob(master, _END[0], f)):
-        return True
-    if f in (row.get("opaque") or []) or not (base and here and theirs):
-        return False
-    return _merge(work, here.split()[2], base.split()[2], theirs.split()[2]) is not None
-
-
-def dependencies(row: dict, previous: list[dict], work: Path | None = None) -> list[dict]:
-    return [p for p, _ in blockers(row, previous, work)]
-
-
-def _waits_for(row: dict, found: list[tuple[dict, str]], doc: dict) -> str:
-    """The reason a change waits, naming what holds it and, when that waits too, what holds that."""
-    p, why = found[0]
-    text = f"Waits for “{p['purpose']}” ({p['master'][:8]}): {why}."
-    by = {r["master"]: r for r in doc["changes"]}
-    root, seen = p, set()
-    while root.get("blocked_by") in by and root["master"] not in seen:
-        seen.add(root["master"])
-        root = by[root["blocked_by"]]
-    if root is not p:
-        text += f" That waits for “{root['purpose']}” ({root['master'][:8]})"
-        text += f", which is not taken yet: {root.get('reason') or 'waiting for its turn'}" if root.get("reason") else "."
-    elif p.get("reason") and p.get("status") == "waiting":
-        text += f" It is not taken yet: {p['reason']}"
-    if len(found) > 1:
-        text += f" (and {len(found) - 1} more earlier change{'s' if len(found) > 2 else ''})"
-    return text[:900]
-
-
 def _taken_said(row: dict, copied: dict, sort: dict) -> str:
     """What git took of a change, as a sentence for the record."""
     if not row["files"]:
@@ -807,6 +683,39 @@ def _taken_said(row: dict, copied: dict, sort: dict) -> str:
 
 def _waiting(doc: dict, row: dict, reason: str, status: str = "waiting", blocked_by: str | None = None) -> None:
     row.update(status=status, reason=reason, at=time.time(), blocked_by=blocked_by)
+    save(doc)
+
+
+def _through(doc: dict) -> str:
+    """The newest change of shared main this Rouh has, with every change before it."""
+    through = doc["installed"]
+    for row in doc["changes"]:
+        if row.get("status") not in TAKEN:
+            break
+        through = row["master"]
+    return through
+
+
+def hold_after(doc: dict, stopped: dict) -> None:
+    """Every change after one that waits waits for it (19 November 2026).
+
+    Released changes come in strictly in order, so this Rouh's code is always shared main as it
+    was at one commit, with this Rouh's own changes on top: code that ran on the Creator Rouh
+    before it was released. Taking a later change past one that waits made a mix no Rouh had ever
+    run - a page using a table whose migration waited, a module calling a function an earlier
+    change gave new arguments - and guessing which later changes are safe without it (by names
+    and files) missed exactly those, so updated Rouhs broke instead of holding back."""
+    after = False
+    for row in doc["changes"]:
+        if row is stopped:
+            after = True
+            continue
+        if not after or row.get("status") in TAKEN or was_put_back(row):
+            continue
+        row.update(status="depends", blocked_by=stopped["master"], at=time.time(),
+                   reason=f"Waits for “{stopped['purpose']}” ({stopped['master'][:8]}), which is not taken yet. "
+                          "Released changes come in in order, so nothing after a change that waits is taken: "
+                          "this Rouh stays on code that ran as released.")
     save(doc)
 
 
@@ -907,12 +816,22 @@ def advance(rel: dict, by: str, work: Path) -> None:
     # Every release commit's objects beside this Rouh's code, so each file is taken by git, never as text.
     u._git("fetch", "-q", str(master_repo()), rel["commit"], cwd=work, check=True)
     _END[:] = [rel["commit"]]
+    stopped: dict | None = None
     for i, row in enumerate(doc["changes"]):
-        if row.get("status") in TAKEN or was_put_back(row):
+        if row.get("status") in TAKEN:
             continue
-        found = blockers(row, doc["changes"][:i], work)
-        if found:
-            _waiting(doc, row, _waits_for(row, found, doc), "depends", found[0][0]["master"])
+        if was_put_back(row):
+            stopped = row
+            break
+        if not row["files"]:
+            # Release tooling only (the protected core, the base's versions): an install has none of
+            # those files, so nothing of this Rouh's code changes and there is nothing to prove. Until
+            # 19 November 2026 such a change, read as security because it touched guard/, waited for a
+            # model's proof of a change that changes nothing here.
+            row.update(status="copied", local=u._git("rev-parse", "HEAD", cwd=u.code_dir()).stdout.strip(),
+                       point=None, at=time.time(), reason=_taken_said(row, {}, {}))
+            doc["through"] = _through(doc)
+            save(doc)
             continue
         sort = sort_files(row, work)
         if sort["whole"]:
@@ -920,7 +839,8 @@ def advance(rel: dict, by: str, work: Path) -> None:
                      + (", a file" if len(sort["whole"]) == 1 else ", files")
                      + " that can only be copied whole (a library, a picture or a minified file, not text to"
                        " edit), so the release's version waits rather than replace this Rouh's own.")
-            continue
+            stopped = row
+            break
         exact_only = not sort["merged"] and not sort["clash"]
         no_proof = exact_only and bool(row["files"]) and not row.get("outside_own_code") \
             and core_features().get("exact_copies") == 1
@@ -955,21 +875,25 @@ def advance(rel: dict, by: str, work: Path) -> None:
                 return
             except (u.Refused, ValueError) as exc:
                 feedback = str(exc)
+                if feedback == "needs a frontier model":
+                    feedback += (" (it changes the database, so a Smart-tier model must fit and prove it)" if row["database"]
+                                 else " (its lines clash with this Rouh's own, so a Smart-tier model must adapt them)"
+                                 if sort["clash"] else " (a security change, so a Smart-tier model must prove it)")
                 if attempt == 0:
                     row["tries"] = int(row.get("tries") or 0) + 1
-                found = blockers(row, doc["changes"][:i], work)
-                if found:
-                    _waiting(doc, row, feedback + " " + _waits_for(row, found, doc), "depends", found[0][0]["master"])
-                else:
-                    _waiting(doc, row, feedback)
-                if "frontier model" in feedback or found or not needs_model:
+                _waiting(doc, row, feedback)
+                if "frontier model" in feedback or not needs_model:
                     break
-            except Exception as exc:  # A failed model call never blocks an unrelated exact change.
+            except Exception as exc:  # noqa: BLE001 - said on the row, and the walk stops at it
                 feedback = f"The adapting job could not finish ({type(exc).__name__})."
                 _waiting(doc, row, feedback)
                 break
         u._git("reset", "--hard", start, cwd=work, check=True)
         u._git("clean", "-fdq", cwd=work, check=True)
+        stopped = row
+        break
+    if stopped is not None:
+        hold_after(doc, stopped)
     out = shown()
     earlier = set((doc.get("session") or {}).get("before", []))
     came_in = [r for r in doc["changes"] if r["master"] not in earlier and r.get("status") in TAKEN]
@@ -981,6 +905,9 @@ def advance(rel: dict, by: str, work: Path) -> None:
     previous = u.state().get("last") or {}
     last = {"ok": not waiting, "partial": bool(waiting), "at": time.time(), "release": rel["commit"],
             "label": u.label(rel["commit"], rel), "said": summary, "by": by, "id": fingerprint,
+            "stopped_at": {"master": stopped["master"], "purpose": stopped["purpose"],
+                           "reason": stopped.get("reason") or ""} if stopped is not None else None,
+            "through": doc.get("through"),
             "told": previous.get("id") == fingerprint and previous.get("told", False),
             "came_in": [{"purpose": r["purpose"], "status": r["status"]} for r in came_in],
             "waiting": [{"purpose": r["purpose"], "reason": r["reason"], "urgent": r["urgent"]} for r in waiting]}

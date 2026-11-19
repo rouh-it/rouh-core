@@ -188,7 +188,7 @@ EVERYDAY = "everyday"
 #: `improve_myself`, which the nightly feature run and every case fix start too,
 #: and `delegate_task`, the job on this server. `assistant_job` and `one_start`
 #: are the person's own work unless they were pointed at Rouh's code.
-MUTATING_PRESETS = frozenset({"improve_myself", "delegate_task"})
+MUTATING_PRESETS = frozenset({"improve_myself", "delegate_task", "code_update"})
 
 #: The one program's spaces that are Rouh's own repository: `rouh`, and `jarvis`,
 #: which it was called until 22 September 2026.

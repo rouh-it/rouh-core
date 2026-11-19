@@ -1588,6 +1588,12 @@ Rouhs installed before 11 November 2026 come over once with step 140-08's script
 **The starting version of a Rouh with Rouh's whole history** (the Creator Rouh) is written in `ledger.json` the first time the card or the tool looks (`code_evolution.record_start`): the protected core's first undo point as shared main has it, or, when that point is on the history before rouh-core went public, the newest commit of shared main the Rouh's code contains (`refs/upstream/heads/main`, which the protected core keeps fetched). A Rouh whose code already contains the release says so and fetches nothing.
 A Rouh brought over once by step 140-08's updater names its release in a `Rouh-release:` trailer, and its updates start from that release rather than from the commit its first install recorded.
 
+**Every update is a run of its own** (Petar, 19 November 2026: "updating should be started as a Claude code or codex run so you can observe it"), whether the button, `update_rouh` or Ride along started it (`code_update.start_run`, the preset `code_update`, the Models page use **Updating Rouh**, `code_update_run`: Claude Code on a Claude model, Codex on an OpenAI one).
+The run changes no file itself: Rouh does each step inside its core, and the run drives it through three tools of the `rouh` MCP server, listed for that run alone (`rouh/worker_mcp.py`, `/internal/codeupdate`, `code_update.act`): `update_status` (where it is, what came in, what waits and why, and a "Next:" line), `update_step` (take the next change) and `update_done` (how it ended, in plain words).
+So every step, tool call and result is on the run's record as it goes, on the orb and on Metabolism, and check_tasks and look_at_task say where it got to and why it stopped; the card shows the run with "Follow the update's run", and General's note ends with a link to it (`/run/<id>`).
+Nothing updates out of sight: when no run can be started, the update does not start, and says why.
+A run that ends, or sits at its prompt ten minutes without calling its tools, before it says the update is over is written down as stopped, with where it got to (`code_update.check_run`), and the walk is tried again later by a new run.
+
 **An update** takes the changes up to that boundary in order, grouped by the purpose in each commit and its diff (`rouh/code_evolution.py`).
 It fetches shared main and verifies that the installed version and the released boundary belong to that history.
 The durable record, `code-update/ledger.json`, keeps every change since installation, its purpose, result, plain reason and protected undo point.
@@ -1602,9 +1608,10 @@ The record makes drift visible; a waiting change never makes this Rouh appear up
   Tests may be fitted to local code, never weakened.
   Large files are supplied as marked excerpts; the job can inspect additional local or master lines and diffs, and must use exact edits rather than replacing an incompletely read file.
 - Every accepted change goes through the protected core as its own undo point, with code backups; a restart resumes the remaining changes from the durable ledger.
-- A change that truly cannot be fitted stays not taken yet with its reason.
-  Later changes touching its files, directly importing its modules, or naming it with a `Depends-on:` commit trailer wait for it.
-  Unrelated changes can continue.
+- A change that truly cannot be fitted stays not taken yet with its reason, and **the update stops there** (19 November 2026, `code_evolution.hold_after`): every later change waits for it, in order, and says so.
+  Until then only the later changes guessed to need it (the same file, a name it adds, a `Depends-on:` trailer) waited and the rest came in around it, so installed Rouhs ran mixes of code that never ran anywhere - a page using a table whose migration waited - and broke instead of holding back.
+  Now a Rouh's code is always shared main as it was at one commit, with its own changes on top: code that ran on the Creator Rouh as released.
+  A change that touches only release tooling an install does not have (`guard/`, `deploy/container/`) is recorded as taken with nothing to apply, rather than waiting for a model's proof of a change that changes nothing here.
   Waiting changes are retried on the next update; urgent security work is retried in half an hour, using the already downloaded release. My own path still prevents automatic retries.
   General gives one plain note per outcome, including what was copied, adapted and waiting, without asking a person to solve implementation details.
 

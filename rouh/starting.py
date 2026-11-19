@@ -277,6 +277,18 @@ PRESETS: dict[str, Preset] = {
         note_one="",
         note_crew="",
     ),
+    # An update of this Rouh's own code to the newest release (`rouh/code_update.py`, Petar,
+    # 19 November 2026: "updating should be started as a Claude code or codex run so you can observe
+    # it"). The run changes no file itself: it drives the update through its own tools, one step a
+    # call, so every step and its result is on the run's record as it goes.
+    "code_update": Preset(
+        name="code_update",
+        space="assistant",
+        policy="one",
+        detail="updating Rouh to the newest release",
+        note_one="",
+        note_crew="",
+    ),
     "one_start": Preset(
         name="one_start",
         # The program's own workspace: the space it starts a run in when

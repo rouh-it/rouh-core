@@ -906,6 +906,24 @@
         ]
       }
     },
+    "code_update_run": {
+      "tier": "smart",
+      "why": "The run an update is: it follows the update's steps and reads what each said, the Smart model and its level like Rouh's other background jobs.",
+      "order": {
+        "cheaper": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ],
+        "smart": [
+          "anthropic",
+          "openai",
+          "google",
+          "xai"
+        ]
+      }
+    },
     "case_fix_run": {
       "tier": "smart",
       "why": "A code run that fixes a check and lands it.",

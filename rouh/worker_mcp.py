@@ -27,7 +27,9 @@ tools listed; each is answered by Rouh, which checks the same again, so a tool
 named by any other job does nothing. A run fixing the check behind a step the owner marked a
 false alarm (`rouh/case_fixes.py`) is listed ``case_fix_status`` and ``case_fix_done`` the
 same way, asked of ``/internal/casefix``. The nightly code refactoring run (`rouh/nightly_refactor.py`) is
-listed ``refactor_done`` the same way, asked of ``/internal/refactoring``.
+listed ``refactor_done`` the same way, asked of ``/internal/refactoring``. The run that updates this
+Rouh to the newest release (`rouh/code_update.py`) is listed ``update_status``, ``update_step`` and
+``update_done`` the same way, asked of ``/internal/codeupdate``.
 
 Every job is also listed Rouh's own tools, as Rouh's gateway gives them to it
 (`rouh/job_gateway.py`, ``/internal/jobtools``): asked for once, with the job's
@@ -432,6 +434,68 @@ def refactor(name: str, arguments) -> tuple[str, bool]:
     return text, not (status == 200 and answer.get("ok"))
 
 
+#: The tools of the run that updates this Rouh to the newest release (`rouh/code_update.py`): the
+#: update is done by Rouh, inside its core, one step a call, so each step is on the run's record.
+UPDATE = [
+    ("update_status", "status",
+     "Where this Rouh's update is now: the release it goes to, what came in, what waits and why, "
+     "and a line Next: saying exactly what to do next. While Rouh starts again on a change it took, "
+     "this answers that Rouh is not answering: wait with sleep 30 and ask again.",
+     {}, []),
+    ("update_step", "step",
+     "Take the next released change, in order: Rouh copies, merges or adapts it, its protected core "
+     "checks it, and if it passes it becomes the code that runs and Rouh starts again on it. Only "
+     "when update_status says Next: Call update_step.",
+     {}, []),
+    ("update_done", "done",
+     "Say once, last, how the update ended: updated (it reached the release), stopped (it stopped "
+     "at a change it could not take; say which and why, in Rouh's words) or failed (say what you "
+     "saw). Rouh says it in General with a link to this run.",
+     {"outcome": {"type": "string", "enum": ["updated", "stopped", "failed"]},
+      "said": {"type": "string", "description": "How it ended, in two or three plain sentences: the "
+                                                "release reached, how many changes came in, and where "
+                                                "and why it stopped."}},
+     ["outcome", "said"]),
+]
+UPDATE_ACTIONS = {name: action for name, action, *_ in UPDATE}
+
+
+def update_url() -> str:
+    return outbox_url().rsplit("/internal/", 1)[0] + "/internal/codeupdate"
+
+
+def update_tools() -> list[dict]:
+    """The update's tools, for the update's own run only, as Rouh says. Never raises."""
+    job = job_id()
+    if not job:
+        return []
+    try:
+        status, answer = _post(update_url(), {"job": job, "action": "whoami"}, timeout=5.0)
+    except OSError:
+        return []
+    if status != 200 or not answer.get("update"):
+        return []
+    allowed = {str(a) for a in answer.get("actions") or []}
+    return [{"name": name, "description": said,
+             "inputSchema": {"type": "object", "properties": props, "required": required}}
+            for name, action, said, props, required in UPDATE if action in allowed]
+
+
+def update(name: str, arguments) -> tuple[str, bool]:
+    job = job_id()
+    if not job:
+        return "This session is not a run Rouh started.", True
+    try:
+        status, answer = _post(update_url(), {"job": job, "action": UPDATE_ACTIONS[name],
+                                              "args": arguments if isinstance(arguments, dict)
+                                              else {}}, timeout=120.0)
+    except OSError as error:
+        return (f"Rouh is not answering on this machine ({error}). If it is starting again on a change "
+                "it just took, that is expected: wait with sleep 30 and call update_status again."), True
+    text = str(answer.get("text") or answer.get("reason") or f"Rouh answered {status}")
+    return text, not (status == 200 and answer.get("ok"))
+
+
 def job_id() -> str:
     """This worker's job, as the program that started it named it, or ""."""
     return (os.environ.get("ROUH_JOB") or os.environ.get("ONE_RUN") or "").strip()
@@ -645,6 +709,8 @@ def _dispatch_tool(params) -> tuple[str, bool]:
         return case_fix(params["name"], params.get("arguments"))
     if params.get("name") in REFACTOR_ACTIONS:
         return refactor(params["name"], params.get("arguments"))
+    if params.get("name") in UPDATE_ACTIONS:
+        return update(params["name"], params.get("arguments"))
     if params.get("name") not in (NAME, *OLD_NAMES):
         return gateway_call(str(params.get("name") or ""), params.get("arguments"))
     return notify(params.get("arguments"))
@@ -668,7 +734,7 @@ def _dispatch_method(method, params) -> tuple:
         return _result, {}, None
     if method == "tools/list":
         return _result, {"tools": [TOOL] + nightly_tools(nightly_allowed())
-                                  + case_fix_tools(case_fix_allowed()) + refactor_tools()
+                                  + case_fix_tools(case_fix_allowed()) + refactor_tools() + update_tools()
                                   + gateway_tools()}, None
     if method == "tools/call":
         text, failed = _dispatch_tool(params)

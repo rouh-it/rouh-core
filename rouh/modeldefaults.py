@@ -243,6 +243,15 @@ USES: tuple[Use, ...] = (
     Use("code_adapt", "Runs and helpers", "Adapting master updates",
         "Rebuilds a released change for this Rouh and proves database and security updates. "
         "Only frontier models from the model standard's Smart tier may do this work."),
+    # Petar, 19 November 2026: "updating should be started as a Claude code or codex run so you can
+    # observe it". Every update of this Rouh's own code is a run of its own (`rouh/code_update.py`),
+    # which drives it step by step through its tools: Claude Code on a Claude model, Codex on an
+    # OpenAI one, on the subscription.
+    Use("code_update_run", "Runs and helpers", "Updating Rouh",
+        "The run every update to the newest release is: it takes the released changes one at a "
+        "time through Rouh's own steps and says where it got to and why it stopped. Claude Code on "
+        "a Claude model, Codex on an OpenAI one.",
+        needs_key=False, subscription=True, can_ask=(ANTHROPIC, OPENAI)),
     # The chats themselves, which had a pair of their own each, a model and a level, until
     # 18 October 2026 (`default` and `general`), and before that a box beside the composer.
     Use("general", "Chats", "Rouh",

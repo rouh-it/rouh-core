@@ -829,6 +829,7 @@ urlpatterns = [
     path("internal/nightly", views.nightly_tool),
     path("internal/casefix", views.case_fix_tool),
     path("internal/refactoring", views.refactor_tool),
+    path("internal/codeupdate", views.code_update_tool),
     path("internal/jobtools", views.job_tools_tool),
     path("internal/task", taskapi.internal_task),
     # The list of files, for a job, a run or a terminal (`rouh/web/filesapi.py`, `bin/rouh-files`).

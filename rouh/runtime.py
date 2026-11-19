@@ -1174,6 +1174,17 @@ def _case_fix_hooks() -> None:
 _case_fix_hooks()
 
 
+def _code_update_hooks() -> None:
+    """What the run updating this Rouh borrows from here (`rouh/code_update.py`)."""
+    from . import starting
+
+    code_update.hooks.start = lambda **fields: starting.start(
+        cfg=config, crew=crew, one=one, emit=Hub.broadcast, **fields)
+
+
+_code_update_hooks()
+
+
 def _meeting_next_hooks() -> None:
     """What the work after a meeting borrows from here to start its runs (`rouh/meeting_next.py`)."""
     from . import starting

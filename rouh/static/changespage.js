@@ -48,7 +48,7 @@
   var RESTARTING = 'Rouh is starting again on a change it just took. This page comes back by itself in a minute or two.';
   function updating() {
     var d = U.data;
-    return !!(d && (d.busy || d.pending)) || !!(C.data && C.data.busy);
+    return !!(d && (d.busy || d.pending || (d.run && d.run.going))) || !!(C.data && C.data.busy);
   }
   function unreachable() { return updating() ? RESTARTING : 'Rouh could not be reached.'; }
 
@@ -157,6 +157,7 @@
 
   function updatesHeadline(d) {
     if (d.makes_releases) return 'This Rouh makes Rouh’s releases.';
+    if (d.run && d.run.going) return 'Updating Rouh, in a run you can follow…';
     if (d.busy) return 'Updating Rouh…';
     if (d.pending) return 'Checking the update before it goes live…';
     if (d.ledger && d.ledger.waiting) return d.ledger.waiting + ' change' + (d.ledger.waiting === 1 ? ' is' : 's are') + ' waiting.';
@@ -190,7 +191,8 @@
     if (d.makes_releases && d.publishing) rows.push(['Releases', d.publishing.said || 'None published from here yet.']);
     rows.forEach(function (row) { dl.appendChild(el('dt', '', row[0])); dl.appendChild(el('dd', '', row[1])); });
     if (rows.length) s.appendChild(dl);
-    s.appendChild(el('p', 'ch-sub', 'Changes come from Rouh’s shared main branch, after checks and a day on the early-test Rouhs.'));
+    s.appendChild(el('p', 'ch-sub', 'Changes come from Rouh’s shared main branch, in order, after checks on the early-test Rouhs.'));
+    if (d.run && d.run.going) s.appendChild(runLine(d.run));
 
     var ledger = d.ledger;
     if (ledger && ledger.changes && ledger.changes.length) {
@@ -226,7 +228,7 @@
     }
 
     var say = U.busy ? 'Working…' : (U.error || U.said);
-    if (d.busy && d.busy.step) say = 'Updating: ' + d.busy.step + '…';
+    if (d.busy && d.busy.step && !(d.run && d.run.going)) say = 'Updating: ' + d.busy.step + '…';
     if (say) s.appendChild(el('p', 'hb-say' + (U.error && U.error !== RESTARTING ? ' bad' : ''), say));
 
     var acts = el('div', 'hb-actions cu-actions');
@@ -282,15 +284,41 @@
       var lp = el('p', 'cu-last' + (last.ok ? '' : ' bad'));
       lp.appendChild(el('span', 'cu-last-h', 'Last update, ' + when(last.at) + ': '));
       lp.appendChild(document.createTextNode(lastLine(last)));
+      if (last.run && !(d.run && d.run.going)) {
+        lp.appendChild(document.createTextNode(' '));
+        lp.appendChild(runLink(last.run, 'The update’s run, step by step'));
+      }
       s.appendChild(lp);
     }
-    s.appendChild(el('p', 'settings-help', 'Each change is fitted to this Rouh and checked before it becomes an ' +
-      'undo point. Database changes are rehearsed on a copy first, with a full backup and checks that existing memory is kept.'));
+    s.appendChild(el('p', 'settings-help', 'Every update is a run of its own that you can follow. Each change is ' +
+      'fitted to this Rouh and checked before it becomes an undo point, and the update stops at the first change that ' +
+      'cannot be taken. Database changes are rehearsed on a copy first, with a full backup and checks that existing memory is kept.'));
     page.appendChild(s);
   }
 
+  /* The update's run: every update is one (`code_update.start_run`), and its own page shows each
+     step, tool call and result as it goes. */
+  function runLink(id, text) {
+    var a = el('a', 'cu-run-link', text);
+    a.href = '/run/' + encodeURIComponent(id);
+    return a;
+  }
+  function runLine(run) {
+    var p = el('p', 'hb-say cu-run');
+    p.setAttribute('role', 'status');
+    p.appendChild(document.createTextNode('In the run ' + run.id + (run.progress ? ': ' + run.progress : '.') + ' '));
+    p.appendChild(runLink(run.id, 'Follow the update’s run'));
+    return p;
+  }
+
   function lastLine(last) {
-    if (Object.prototype.hasOwnProperty.call(last, 'waiting')) return last.said || 'The record above shows what came in and what is waiting.';
+    if (Object.prototype.hasOwnProperty.call(last, 'waiting')) {
+      var stop = last.stopped_at;
+      var t0 = last.said || 'The record above shows what came in and what is waiting.';
+      if (stop && stop.purpose) t0 += ' Stopped at “' + stop.purpose + '”: ' + String(stop.reason || 'it could not be taken').replace(/\.$/, '') +
+        '. Nothing after it was taken, so this Rouh runs the code it had before it.';
+      return t0;
+    }
     if (!last.ok) return 'did not update to ' + (last.label || 'the newest release') + ': ' + (last.said || '');
     var t = 'updated to ' + (last.label || 'the newest release') + '.';
     (last.kept || []).forEach(function (k) {

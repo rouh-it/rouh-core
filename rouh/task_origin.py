@@ -84,6 +84,7 @@ PROCESSES = {
     "nightly-refactor": "Nightly refactoring run",
     "meeting-next": "After a meeting",
     "case-fixes": "Mail case fixes",
+    "code-update": "Rouh's updates",
     "mail": "Mail cases",
     "dreaming": "Dreaming",
     "rouh": "Rouh",

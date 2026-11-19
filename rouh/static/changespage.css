@@ -55,3 +55,13 @@
 .cu-last.bad { color: var(--bad); }
 .cu-last-h { color: var(--dim); }
 .cu-last.bad .cu-last-h { color: inherit; }
+/* The update's run (19 November 2026): every update is a run of its own, followed from here. The
+   link keeps the text's own colour family so a stopped update's line stays readable, and its press
+   area is a whole line high on a phone. */
+.cu-run { margin: 10px 0 0; overflow-wrap: anywhere; }
+.cu-run-link {
+  color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px;
+  display: inline-flex; align-items: center; min-height: 44px; border-radius: var(--radius-s);
+}
+.cu-run-link:hover { text-decoration-thickness: 2px; }
+.cu-run-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

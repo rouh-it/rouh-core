@@ -1909,6 +1909,23 @@ async def refactor_tool(request: HttpRequest):
 
 @csrf_exempt
 @only("POST")
+async def code_update_tool(request: HttpRequest):
+    """One of the tools of the run updating this Rouh (`rouh/code_update.py`, `act`).
+
+    Posted by the `update_*` tools of `rouh/worker_mcp.py`, on the outbox's terms: only this
+    machine, never through the proxy, and the run's own id, answered only when it is the update's.
+    """
+    if not from_this_machine(request):
+        return answer({"ok": False}, status=403)
+    from rouh import code_update
+
+    body = body_of(request)
+    return answer(await code_update.act(str(body.get("job") or ""), str(body.get("action") or ""),
+                                        body.get("args") or {}))
+
+
+@csrf_exempt
+@only("POST")
 async def job_tools_tool(request: HttpRequest):
     """A background job listing or calling Rouh's own tools (`rouh/job_gateway.py`).
 

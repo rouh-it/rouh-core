@@ -27,8 +27,17 @@ lines this Rouh changed takes the change's own lines by a git merge; only a clas
 model, which adapts it and proves its purpose against this Rouh. Database and security changes need
 frontier checks, a protected rehearsal or a failing-before/passing-after security proof,
 respectively, unless (core 1.1) a security change is nothing but exact copies. Each accepted change
-is a protected undo point. A waiting change holds back only the changes that really need it, and
-each says what it waits for.
+is a protected undo point. Changes come in strictly in order: the update stops at the first change it
+cannot take, says why, and every later change waits for it (19 November 2026), so a Rouh is never
+left on a mix of code that never ran anywhere.
+
+**Every update is a run** (Petar, 19 November 2026: "updating should be started as a Claude code or
+codex run so you can observe it"). The button, ``update_rouh`` and Ride along all start one
+(``start_run``); it drives the walk one step a call through its tools ``update_status``,
+``update_step`` and ``update_done`` (``act``, rouh/worker_mcp.py), so each step and its result is on
+its record as it goes, and General's note at the end links to it. Nothing updates out of sight: a
+run that cannot start means no update, with the reason, and a run that ends before it says the
+update is over is written down as stopped, with where it got to (``check_run``).
 
 **After the restart.** A change that goes live starts Rouh again, which cuts off whatever started it,
 so the update is written down first (``state.json``, ``pending``) and the next start reads what the
@@ -300,11 +309,13 @@ def label(commit: str, release: dict | None = None) -> str:
     return f"Rouh {commit[:8]}"
 
 
-def whats_new(release: dict, since: str, most: int = 12) -> list[str]:
-    """The notes of every release newer than `since`, newest first, at most `most` lines."""
+def whats_new(release: dict, since: str, most: int = 12, have: set | frozenset = frozenset()) -> list[str]:
+    """The notes of every release newer than `since`, newest first, at most `most` lines. A release
+    this Rouh already has (`have`: the changes it took) ends the list too, so a Rouh that stopped
+    between two releases is not told again what came in."""
     lines: list[str] = []
     for r in release.get("recent") or [release]:
-        if r.get("commit") == since:
+        if r.get("commit") == since or r.get("commit") in have:
             break
         for n in r.get("notes") or []:
             if n not in lines:
@@ -337,6 +348,9 @@ def public(who, *, look: bool = False) -> dict:
     whether it can be taken now and why not, and how the last update went."""
     if who is None:
         raise Refused("Sign in first.")
+    if (state().get("run") or {}).get("id"):
+        with contextlib.suppress(Exception):
+            check_run()
     s = state()
     b = base()
     from . import code_evolution
@@ -348,7 +362,8 @@ def public(who, *, look: bool = False) -> dict:
     own = on_its_own()
     out = {"mode": mode(), "modes": MODES, "admin": bool(getattr(who, "is_admin", False)), "on_its_own": own,
            "guard": _guard(), "how": b.get("how"),
-           "busy": s.get("busy") or ({"step": "working through the released changes"} if s.get("continue_update") else None),
+           "busy": s.get("busy") or ({"step": "working through the released changes"} if run_going(s) else None),
+           "run": _run_public(s),
            "pending": s.get("pending") or None,
            "last": s.get("last") or None, "checked_at": s.get("checked_at"), "check_error": s.get("check_error") or "",
            "makes_releases": False, "ride": s.get("ride") or None, "ledger": evolution}
@@ -387,8 +402,24 @@ def public(who, *, look: bool = False) -> dict:
                 out["up_to_date"] = here == rel["commit"] and not evolution["waiting"]
         else:
             out["up_to_date"] = here == rel["commit"] and not evolution["waiting"]
-        out["whats_new"] = [] if out["up_to_date"] else whats_new(rel, here)
+        have = {r.get("master") for r in evolution.get("changes") or []
+                if r.get("status") in code_evolution.TAKEN} | {evolution.get("installed"), b.get("release")}
+        out["whats_new"] = [] if out["up_to_date"] else whats_new(rel, here, have=have)
     out["why_not"] = why_not(b, rel, s)
+    return out
+
+
+def _run_public(s: dict) -> dict | None:
+    """The update's run, for the page: its id, where it is, and whether it is going."""
+    run = s.get("run") or {}
+    if not run.get("id"):
+        return None
+    going = run_going(s) is not None
+    out = {"id": run["id"], "going": going, "label": label((run.get("release") or {}).get("commit", ""), run.get("release")),
+           "at": run.get("at"), "state": run_word(run["id"]) or ""}
+    if going:
+        with contextlib.suppress(Exception):
+            out["progress"] = progress(s)["said"]
     return out
 
 
@@ -413,7 +444,10 @@ def said(got: dict) -> str:
                 parts.append("What is new: " + "; ".join(got["whats_new"]) + ".")
     elif got.get("check_error"):
         parts.append(f"The newest release is not known: {got['check_error']}")
-    if got.get("busy"):
+    run = got.get("run") or {}
+    if run.get("going"):
+        parts.append(f"An update is on its way, in the run {run['id']}: {run.get('progress') or 'starting'}")
+    elif got.get("busy"):
         parts.append(f"An update is on its way: {got['busy'].get('step') or 'starting'}.")
     elif got.get("why_not") and not got.get("up_to_date"):
         parts.append(f"An update cannot start now: {got['why_not']}")
@@ -426,12 +460,13 @@ def said(got: dict) -> str:
 def why_not(b: dict, rel: dict, s: dict | None = None) -> str:
     """Why an update cannot start now, as a sentence, or "" when it can."""
     s = s if s is not None else state()
+    going = run_going(s)
+    if going:
+        return f"An update is already on its way, in the run {going['id']}."
     if s.get("busy") and _busy_alive(s["busy"]):
-        return "An update is already on its way."
+        return "An update step is already going."
     if s.get("pending"):
         return "The last update is still with the protected core."
-    if s.get("continue_update"):
-        return "The update is working through the released changes."
     if not _guard():
         return ("This Rouh has no protected core beside it: it runs on a server, where its code is "
                 "updated by land.sh.")
@@ -464,8 +499,31 @@ def _busy_alive(busy: dict) -> bool:
 _run_lock = threading.Lock()
 
 
+class Hooks:
+    """What the runtime lends this module (`runtime._code_update_hooks`). None until it sets them."""
+
+    #: async (**starting.start kwargs) -> {"id", ...}: one run started.
+    start = None
+
+
+hooks = Hooks()
+
+#: The Models page pick an update run is started on (`modeldefaults.USES`).
+RUN_USE = "code_update_run"
+#: A run's states that mean it is over.
+RUN_ENDED = ("done", "failed", "lost", "reaped", "killed")
+#: A run sitting at its prompt this long, with its update not done, has stopped working on it.
+RUN_IDLE_MOST = float(os.environ.get("ROUH_CODE_UPDATE_RUN_IDLE", "600"))
+#: A run the register does not know, this long after it was started, is not going.
+RUN_UNKNOWN_MOST = 600.0
+
+
 async def update(who, *, by: str = "a press") -> dict:
-    """Start an update to the newest release, now, in the background. Raises Refused with why not."""
+    """Start an update to the newest release, as a run of its own (Petar, 19 November 2026:
+    "updating should be started as a Claude code or codex run so you can observe it"). The run
+    drives the walk one step at a time through its own tools, so every step, tool call and result
+    is on its record as it goes, and Rouh's check_tasks and look_at_task can say where it got to.
+    Raises Refused with why not, and never updates out of sight instead."""
     if who is not None:
         _admin(who)
     rel = await asyncio.to_thread(newest, fresh=True)
@@ -473,27 +531,307 @@ async def update(who, *, by: str = "a press") -> dict:
     reason = why_not(b, rel)
     if reason:
         raise Refused(reason)
-    if not _run_lock.acquire(blocking=False):
-        raise Refused("An update is already on its way.")
-    _change(busy={"step": "starting", "since": time.time(), "start": THIS_START, "by": by})
+    run = await start_run(rel, by, who=who)
+    return {"said": f"Updating to {label(rel['commit'], rel)}, in the run {run}. It takes a few minutes; "
+                    "Rouh starts again on each change it takes, and says in General how it went.",
+            "release": rel["commit"], "run": run}
 
-    def go() -> None:
-        try:
-            _apply(rel, by)
-        finally:
-            _run_lock.release()
 
-    loop = asyncio.get_running_loop()
-    fut = loop.run_in_executor(None, go)
-    fut.add_done_callback(lambda f: asyncio.ensure_future(_after(f)))
-    return {"said": f"Updating to {label(rel['commit'], rel)}. It takes a few minutes; Rouh starts again on it, "
-                    "and says in General how it went.", "release": rel["commit"]}
+def run_url(run_id: str) -> str:
+    """The run's own page, as a whole address: a chat's words link only http and https."""
+    from .config import config
+
+    base = str(getattr(config, "public_url", "") or "").rstrip("/")
+    return f"{base}/run/{run_id}" if base.startswith(("http://", "https://")) else f"/run/{run_id}"
+
+
+def _run_row(run_id: str):
+    from . import runs
+
+    with contextlib.suppress(Exception):
+        return runs.get(run_id) if run_id else None
+    return None
+
+
+def run_word(run_id: str) -> str:
+    """The run's state in the task list's words ("running", "idle", "done" ...), or "" unknown."""
+    from . import runs
+
+    row = _run_row(run_id)
+    if row is None:
+        return ""
+    with contextlib.suppress(Exception):
+        return runs.status_of(row)
+    return ""
+
+
+def run_going(s: dict | None = None) -> dict | None:
+    """The update run that is going, or None. A run that is over, or sits at its prompt with its
+    update not done (RUN_IDLE_MOST), is not going."""
+    s = s if s is not None else state()
+    run = s.get("run") or {}
+    if not run.get("id") or run.get("done"):
+        return None
+    word = run_word(run["id"])
+    if word in RUN_ENDED:
+        return None
+    if word == "idle":
+        # At its prompt: still at work on the update while it called its tools lately.
+        row = _run_row(run["id"])
+        since = max(float(getattr(row, "updated_at", 0) or 0) if row is not None else 0,
+                    float(run.get("tool_at") or 0))
+        if since and time.time() - since > RUN_IDLE_MOST:
+            return None
+    if not word and time.time() - float(run.get("at") or 0) > RUN_UNKNOWN_MOST:
+        # A run is in the register from its start (`starting.start`): one it does not know is gone.
+        return None
+    return run
+
+
+def run_brief(rel: dict, by: str, continuing: bool) -> str:
+    """What the update run is told: drive the walk with its tools, and say plainly how it went."""
+    target = label(rel["commit"], rel)
+    return f"""Update this Rouh's own code to the newest release of Rouh, {target} (commit {rel['commit']}).
+{'This continues an update that was already under way.' if continuing else 'It was started by ' + by + '.'}
+
+You change no file yourself and run no git, deploy or land command: Rouh does every step of the
+update itself, inside its own core, and you drive it and watch it, so that every step, its result
+and where the update stopped are on your record. Your three tools, on the `rouh` MCP server:
+
+- `update_status`: where the update is now, what came in, what waits and why, and what to do next.
+- `update_step`: take the next released change. Rouh copies it exactly (or merges it, or has it
+  adapted), its protected core checks it, and, if it passes, makes it the code that runs and Rouh
+  starts again on it. Changes come in strictly in order, and the update stops at the first change
+  it cannot take, so this Rouh is never left on a mix of code that never ran anywhere.
+- `update_done`: say, once and last, how the update ended, in plain words.
+
+Do this:
+1. Call `update_status`, then `update_step`.
+2. Then call `update_status` again and follow its "Next:" line exactly. While Rouh starts again on
+   a change it just took, its tools answer that Rouh is not answering: that is expected. Wait with
+   `sleep 30` in the shell and ask `update_status` again; a start can take up to fifteen minutes,
+   so keep waiting while it says so. Never call `update_step` while a step is still going.
+3. Repeat until `update_status` says the update has finished, or has stopped. Then call
+   `update_done` with the outcome (updated, stopped or failed), the release it reached, how many
+   changes came in, and, if it stopped, the change it stopped at and why, in Rouh's own words.
+4. End with a short message saying the same: where it got to and why it stopped, if it did.
+
+If something goes wrong that the tools do not explain, call `update_done` with outcome failed and
+what you saw. Never work round a refusal, and never ask the person anything: an update that cannot
+go on stops on the last code that ran, which is the right outcome, and Rouh tells them.
+"""
+
+
+async def start_run(rel: dict, by: str, *, who=None, continuing: bool = False) -> str:
+    """The update's run, started; its id. Raises Refused with why it could not start."""
+    s = state()
+    going = run_going(s)
+    if going:
+        raise Refused(f"An update is already on its way, in the run {going['id']}.")
+    if hooks.start is None:
+        raise Refused("This Rouh cannot start runs here, and an update is always a run of its own, "
+                      "so it cannot update now.")
+    org_id = str(getattr(who, "org_id", "") or "")
+    if not org_id:
+        from . import relay
+
+        with contextlib.suppress(Exception):
+            org_id = str(getattr(relay.owner(), "org_id", "") or "")
+    try:
+        got = await hooks.start(brief=run_brief(rel, by, continuing), title=f"Update Rouh to {label(rel['commit'], rel)}",
+                                preset="code_update", use=RUN_USE, org_id=org_id, standing_rules=False,
+                                made_by="" if who is not None else "process:code-update")
+    except Exception as exc:  # noqa: BLE001 - said as the reason, nothing updated out of sight
+        raise Refused(f"its run could not be started: {str(exc) or type(exc).__name__}") from None
+    run_id = str((got or {}).get("id") or "")
+    if not run_id:
+        raise Refused("its run could not be started: nothing took it.")
+    _change(run={"id": run_id, "release": rel, "by": by, "at": time.time(), "passes": 0,
+                 "continuing": continuing}, retry_release=None if continuing else s.get("retry_release"))
+    log.info("update: run %s is updating this Rouh to %s (%s)", run_id, rel["commit"][:12], by)
+    return run_id
+
+
+# --- the run's tools (`rouh/worker_mcp.py`, /internal/codeupdate) --------------------------------
+
+
+def _pass(rel: dict, by: str) -> None:
+    """One pass of the walk, for the run's update_step, off Rouh's event loop."""
+    try:
+        _apply(rel, by)
+    finally:
+        _run_lock.release()
 
 
 async def _after(fut) -> None:
     with contextlib.suppress(Exception):
         fut.result()
     await tell()
+
+
+def _short(text: str, most: int = 70) -> str:
+    """A change's purpose cut at a word, for a line that names several."""
+    text = str(text or "").strip()
+    if len(text) <= most:
+        return text
+    return text[:most].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…"
+
+
+def progress(s: dict | None = None) -> dict:
+    """Where the update is, for the run and the page: {"phase", "said", "next"}."""
+    from . import code_evolution
+
+    s = s if s is not None else state()
+    run = s.get("run") or {}
+    rel = run.get("release") or {}
+    doc = code_evolution.ledger()
+    rows = doc.get("changes", [])
+    before = set((doc.get("session") or {}).get("before", []))
+    came = [r for r in rows if r.get("status") in code_evolution.TAKEN and r["master"] not in before]
+    waiting = [r for r in rows if r.get("status") not in code_evolution.TAKEN]
+    first = next((r for r in waiting if r.get("status") != "depends"), waiting[0] if waiting else None)
+    here = doc.get("through") or ""
+    head = [f"Target: {label(rel.get('commit', ''), rel)}." if rel else "",
+            f"This Rouh now has shared main through {here[:12]}." if here else "",
+            f"Came in with this update: {len(came)}"
+            + (" (" + "; ".join(_short(r["purpose"]) for r in came[-3:]) + ("; and more" if len(came) > 3 else "") + ")"
+               if came else "") + ".",
+            f"Not taken yet: {len(waiting)}." if waiting else ""]
+    said = " ".join(x for x in head if x)
+    busy = s.get("busy") if s.get("busy") and _busy_alive(s["busy"]) else None
+    last = s.get("last") or {}
+    if busy:
+        return {"phase": "working", "said": f"Working: {busy.get('step') or 'starting'}. {said}",
+                "next": "Wait with sleep 30, then call update_status again."}
+    if s.get("pending"):
+        p = s["pending"]
+        named = next((r["purpose"] for r in rows if r["master"] == p.get("master_change")), "") or str(p.get("master_change", ""))[:12]
+        return {"phase": "restarting",
+                "said": f"The protected core has the change “{_short(named, 80)}” "
+                        f"(commit {str(p.get('commit'))[:12]}): it is checking it, or Rouh is starting again on it. {said}",
+                "next": "Wait with sleep 30, then call update_status again. Do not call update_step yet."}
+    if s.get("continue_update"):
+        return {"phase": "ready", "said": f"The last change is in place and Rouh runs it. {said}",
+                "next": "Call update_step for the next change."}
+    if run.get("passes") and last and float(last.get("at") or 0) >= float(run.get("at") or 0):
+        stop = last.get("stopped_at") or {}
+        if last.get("ok"):
+            phase = "finished"
+        else:
+            phase = "stopped"
+        text = note(last)
+        if stop and not last.get("evolution_failure"):
+            text += f" It stopped at “{stop.get('purpose')}” ({str(stop.get('master'))[:8]}): {stop.get('reason')}"
+        return {"phase": phase, "said": text + " " + said,
+                "next": "The update is over. Call update_done with outcome "
+                        + ("updated" if phase == "finished" else "stopped") + ", then end."}
+    if not run.get("passes"):
+        return {"phase": "ready", "said": "Nothing has been taken yet in this run. " + said,
+                "next": "Call update_step to take the first change."}
+    if first is not None and first.get("reason"):
+        said += f" The first change not taken: “{first['purpose']}”: {first['reason']}"
+    return {"phase": "ready", "said": said, "next": "Call update_step."}
+
+
+def _step_now(s: dict) -> str:
+    """update_step: one pass started, or why not now."""
+    run = s.get("run") or {}
+    rel = run.get("release") or {}
+    if not rel.get("commit"):
+        raise Refused("This run has no release to update to.")
+    if s.get("pending"):
+        reconcile()
+        s = state()
+        if s.get("pending"):
+            raise Refused("The protected core still has the last change (checking it, or Rouh is starting again on "
+                          "it). Wait, and call update_status.")
+    if run.get("passes") and not s.get("continue_update"):
+        got = progress(s)
+        if got["phase"] in ("finished", "stopped"):
+            raise Refused("The update is over: " + got["said"])
+    if not _run_lock.acquire(blocking=False):
+        raise Refused("A step is already going. Wait, and call update_status.")
+    _change(busy={"step": "starting", "since": time.time(), "start": THIS_START, "by": run.get("by") or ""},
+            run={**run, "passes": int(run.get("passes") or 0) + 1, "step_at": time.time()})
+    return "Started the next step. Wait with sleep 30, then call update_status."
+
+
+async def finish_run(s: dict, args: dict) -> str:
+    """update_done: the run's own account kept, and the result said in General with its link."""
+    run = s.get("run") or {}
+    outcome = str(args.get("outcome") or "").strip().lower()
+    if outcome not in ("updated", "stopped", "failed"):
+        raise Refused("Say the outcome: updated, stopped or failed.")
+    said = str(args.get("said") or "").strip()[:1500]
+    got = progress(s)
+    _change(run={**run, "done": {"outcome": outcome, "said": said, "at": time.time(), "phase": got["phase"]}})
+    last = s.get("last") or {}
+    if float(last.get("at") or 0) < float(run.get("at") or 0):
+        # The run ended before the walk said anything: what it saw is the outcome.
+        last = {"ok": outcome == "updated", "at": time.time(), "release": (run.get("release") or {}).get("commit"),
+                "label": label((run.get("release") or {}).get("commit", ""), run.get("release")),
+                "said": said or got["said"], "by": run.get("by") or "", "id": f"run-{run['id']}",
+                "evolution_failure": outcome != "updated"}
+    _change(last={**last, "run": run["id"], "told": False})
+    await tell()
+    return "Kept. Rouh says it in General, with a link to this run. You can end now."
+
+
+async def act(job: str, action: str, args: dict) -> dict:
+    """One tool call from a run, answered {"ok", "text"}. Never raises."""
+    s = state()
+    run = s.get("run") or {}
+    if not job or run.get("id") != job:
+        return {"ok": False, "update": False, "text": "This run is not updating Rouh, so these tools do nothing for it."}
+    if action == "whoami":
+        return {"ok": True, "update": True, "actions": ["status", "step", "done"],
+                "text": f"The run updating this Rouh to {label((run.get('release') or {}).get('commit', ''), run.get('release'))}."}
+    if run.get("done") and action != "status":
+        return {"ok": False, "text": "This update has already been said to be over."}
+    if not run.get("done"):
+        _change(run={**run, "tool_at": time.time()})
+    args = args if isinstance(args, dict) else {}
+    try:
+        if action == "status":
+            await asyncio.to_thread(reconcile)
+            got = await asyncio.to_thread(progress)
+            return {"ok": True, "text": got["said"] + " Next: " + got["next"], "phase": got["phase"]}
+        if action == "step":
+            text = await asyncio.to_thread(_step_now, state())
+            run = state().get("run") or {}
+            fut = asyncio.get_running_loop().run_in_executor(None, _pass, run["release"], run.get("by") or "a run")
+            fut.add_done_callback(lambda f: asyncio.ensure_future(_after(f)))
+            return {"ok": True, "text": text}
+        if action == "done":
+            return {"ok": True, "text": await finish_run(state(), args)}
+    except Refused as exc:
+        return {"ok": False, "text": str(exc)}
+    except Exception as exc:  # noqa: BLE001 - said to the run, never raised into Rouh
+        log.exception("update %s for run %s failed", action, job)
+        return {"ok": False, "text": f"That did not work: {type(exc).__name__}: {str(exc)[:200]}"}
+    return {"ok": False, "text": f"There is no action {action!r}."}
+
+
+def check_run() -> str:
+    """An update whose run is over without saying so is written down as stopped, with where it got to."""
+    s = state()
+    run = s.get("run") or {}
+    if not run.get("id") or run.get("done") or run_going(s):
+        return ""
+    if s.get("busy") and _busy_alive(s["busy"]):
+        return ""
+    got = progress(s)
+    word = run_word(run["id"]) or "gone"
+    said = (f"its run {run['id']} ended ({word}) before it finished. Where it got to: {got['said']}")
+    rel = run.get("release") or {}
+    _change(run={**run, "done": {"outcome": "failed", "said": said, "at": time.time(), "phase": got["phase"],
+                                 "by_rouh": True}},
+            continue_update=None, retry_release=rel or None, retry_at=time.time() + 1800,
+            last={"ok": False, "at": time.time(), "release": rel.get("commit"), "label": label(rel.get("commit", ""), rel),
+                  "said": said, "by": run.get("by") or "", "kept": [], "id": f"run-ended-{run['id']}",
+                  "evolution_failure": True, "run": run["id"], "told": False})
+    log.warning("update: %s", said)
+    return said
 
 
 def _step(text: str) -> None:
@@ -725,8 +1063,8 @@ def reconcile() -> None:
 def note(last: dict) -> str:
     """The line said in General about the last update."""
     if last.get("evolution_failure"):
-        return ("Rouh could not finish this update: " + str(last.get("said") or "the check could not finish")
-                + ". Settings, Changes shows what came in and what is waiting. It will be tried again.")
+        return ("Rouh could not finish this update: " + str(last.get("said") or "the check could not finish").rstrip(". ")
+                + ". Anatomy, Meta, Changes shows what came in and what is waiting. It will be tried again.")
     if "waiting" in last:
         text = "Rouh's update: " + last["said"]
         for status, label in (("copied", "Copied exactly"), ("adapted", "Adapted for this Rouh")):
@@ -736,9 +1074,18 @@ def note(last: dict) -> str:
                 if len(purposes) > 5:
                     text += f"; and {len(purposes) - 5} more"
                 text += "."
-        for row in last["waiting"]:
-            text += (" Urgent security update" if row.get("urgent") else " Waiting") + ": " + row["purpose"] + ": " + row["reason"] + "."
-        return text + " Settings, Changes has the full record. Waiting changes are tried again."
+        stop = last.get("stopped_at") or {}
+        if stop:
+            later = max(0, len(last["waiting"]) - 1)
+            text += f" It stopped at “{stop.get('purpose')}”: {str(stop.get('reason') or 'it could not be taken').rstrip('.')}."
+            if later:
+                text += (f" The {later} change{'s' if later != 1 else ''} after it wait{'' if later != 1 else 's'} for it,"
+                         " because changes come in in order.")
+            text += " This Rouh runs the code it had before that change, as released."
+        else:
+            for row in last["waiting"]:
+                text += (" Urgent security update" if row.get("urgent") else " Waiting") + ": " + row["purpose"] + ": " + row["reason"] + "."
+        return text + " Anatomy, Meta, Changes has the full record. Waiting changes are tried again."
     if last.get("ok"):
         text = f"Rouh updated itself to {last.get('label') or 'the newest release'}"
         if last.get("from_label"):
@@ -769,18 +1116,28 @@ def wire(say) -> None:
 
 async def tell() -> None:
     """Say the last update's outcome in General once, and as a notice when it did not happen."""
-    last = state().get("last") or {}
+    s = state()
+    last = s.get("last") or {}
     if not last or last.get("told"):
+        return
+    run = s.get("run") or {}
+    if run.get("id") and not run.get("done") and float(last.get("at") or 0) >= float(run.get("at") or 0):
+        # The walk ended inside a run: the run says how it went (update_done), and the note follows
+        # it once, with its link; a run that never says is written down by check_run.
         return
     from . import conversations, notices
 
     text = note(last)
+    if last.get("run"):
+        text += f" [The update's run, step by step]({run_url(last['run'])})."
     if _say is not None:
         with contextlib.suppress(Exception):
             await _say(conversations.GENERAL, text)
     if not last.get("ok"):
         with contextlib.suppress(Exception):
-            await notices.notify(title="Rouh did not update itself", body=text[:900], link=ROUTE, link_label="Changes",
+            await notices.notify(title="Rouh did not update itself", body=text[:900],
+                                 link=f"/run/{last['run']}" if last.get("run") else ROUTE,
+                                 link_label="The update's run" if last.get("run") else "Changes",
                                  kind="rouh", key=f"code-update-{last.get('id')}")
     _change(last={**last, "told": True})
 
@@ -821,22 +1178,26 @@ async def ride_once() -> str:
 
 async def _ride_once() -> str:
     await asyncio.to_thread(reconcile)
+    await asyncio.to_thread(check_run)
     await tell()
     s = state()
+    if run_going(s):
+        # The run drives the walk, one step a call; nothing here takes a change out of its sight.
+        return "a run is updating"
     continuation = s.get("continue_update")
     retry = s.get("retry_release") if time.time() >= float(s.get("retry_at") or 0) else None
     if continuation or retry:
         urgent = any(r.get("urgent") for r in (s.get("last") or {}).get("waiting", []))
         if continuation or (urgent and mode() != "own" and not on_its_own()) or (mode() == "ride" and not on_its_own()):
-            if not s.get("pending") and not quiet() and _run_lock.acquire(blocking=False):
+            if not s.get("pending") and not quiet():
                 rel = continuation["release"] if continuation else retry
                 by = continuation.get("by", "riding along") if continuation else "retrying a waiting change"
                 try:
-                    await asyncio.to_thread(_apply, rel, by)
-                finally:
-                    _run_lock.release()
-                await tell()
-                return "continued the update"
+                    await start_run(rel, by, continuing=bool(continuation))
+                except Refused as exc:
+                    _change(retry_at=time.time() + 1800)
+                    return f"refused: {exc}"
+                return "started a run to continue the update"
     if mode() != "ride" or on_its_own() or not _guard():
         return "not riding"
     s = state()
@@ -905,4 +1266,7 @@ class Watch:
                 from . import code_release
 
                 every = min(every, code_release.LOOK_EVERY)
-            await asyncio.sleep(min(every, 30) if state().get("pending") or state().get("continue_update") else every)
+            s = state()
+            out = s.get("pending") or s.get("continue_update") or ((s.get("run") or {}).get("id") and not s["run"].get("done"))
+            # While an update's run is out, a minute at most: a run that died is written down as stopped soon.
+            await asyncio.sleep(min(every, 60) if out else every)

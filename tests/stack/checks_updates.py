@@ -11,6 +11,11 @@ built from that same code, as GitHub's tarball of a commit is (`git archive`, wh
                     protected core makes it an undo point, Rouh starts again, and General says so
     updates.ride    Ride along, for a Connected Rouh: a second release is taken by itself at a quiet
                     moment, with no press
+
+Every update is a run of its own (19 November 2026, `code_update.start_run`), which drives the walk
+with its tools `update_status`, `update_step` and `update_done` (rouh/worker_mcp.py). The stack's
+Claude Code is the stand-in (tests/stack/fake-claude), which cannot follow a brief, so `_drive`
+does what the run's model would: it calls those very tools in the worker, as the run, by its id.
 """
 from __future__ import annotations
 
@@ -200,6 +205,46 @@ def _until_updated(s: Stack, want: str, limit: float, why: str) -> dict:
                  f"the guard said: {s.logs('guard', 40)[-900:]}")
 
 
+def _tool(s: Stack, run: str, name: str, args: dict | None = None) -> str:
+    """One of the update run's tools, called in the worker as that run (ONE_RUN), through
+    rouh/worker_mcp.py itself."""
+    program = ("import json, sys\nsys.path.insert(0, '/code/rouh')\nimport worker_mcp as w\n"
+               f"text, failed = w.update({name!r}, json.loads({json.dumps(args or {})!r}))\n"
+               "print(json.dumps({'text': text, 'failed': failed}))\n")
+    r = s.run("worker", "python3 -I - <<'PY'\n" + program + "PY", user="10001", env={"ONE_RUN": run}, timeout=180)
+    try:
+        return json.loads(r.stdout.strip().splitlines()[-1])["text"]
+    except (ValueError, IndexError, KeyError):
+        return f"the tool could not be called: {(r.stderr or r.stdout)[-400:]}"
+
+
+def _drive(s: Stack, why: str, limit: float = 1800) -> str:
+    """The update's run, driven as its model would: update_status, and update_step whenever it says
+    Next: Call update_step, until it says the update is over, then update_done. The run's id."""
+    end = time.time() + limit
+    run = ""
+    while time.time() < end and not run:
+        try:
+            run = str((_updates(s).get("run") or {}).get("id") or "")
+        except Failed:
+            pass
+        if not run:
+            time.sleep(5)
+    expect(run, f"{why}: no run was started for the update")
+    said = ""
+    while time.time() < end:
+        said = _tool(s, run, "update_status")
+        if "Next: Call update_step" in said:
+            _tool(s, run, "update_step")
+        elif "The update is over" in said:
+            outcome = "updated" if "outcome updated" in said else "stopped"
+            done = _tool(s, run, "update_done", {"outcome": outcome, "said": said[:600]})
+            expect("Kept" in done, f"{why}: update_done was not kept: {done}")
+            return run
+        time.sleep(10)
+    raise Failed(f"{why}: the run {run} was still going: {said[-600:]}")
+
+
 def _general_says(s: Stack, words: str, limit: float = 180) -> str:
     end = time.time() + limit
     while time.time() < end:
@@ -270,6 +315,7 @@ def _press(s: Stack) -> None:
     expect((seen.get("ledger") or {}).get("waiting") == 3,
            f"released changes are missing before the press: {seen.get('ledger')}")
     _browser(s, "press")
+    _drive(s, "the pressed update")
     after = _until_updated(s, r1, 1800, "the pressed update")
     time.sleep(20)
     _healthy(s)
@@ -322,6 +368,7 @@ firstrun._save(relay.owner(), connected=True)
     try:
         r2 = _release(s, 2, "printf 'New in release 2.\\n' > docs/stack-release-2.md")
         _post_again(s, "/api/settings/updates/mode", {"mode": "ride"})
+        _drive(s, "riding along")
         after = _until_updated(s, r2, 1800, "riding along")
         expect((after.get("last") or {}).get("by") == "riding along", f"it was not the ride along: {after.get('last')}")
         _healthy(s)
@@ -387,7 +434,6 @@ def updates_sensitive(s: Stack) -> None:
     _local_sensitive(s)
     # Three independent purposes: an ordinary adapted change, security, and database work.
     # A cheaper model must be refused for all three before any request is sent.
-    from checks_nightly import _post
     s.manage("from rouh import modeldefaults,relay\no=relay.owner().org_id\n"
              "modeldefaults.put(o,'auto',on=False,box='uses',by='stack')\n"
              "modeldefaults.put(o,'code_adapt',tier='cheaper',by='stack')\n"
@@ -404,27 +450,28 @@ def updates_sensitive(s: Stack) -> None:
     r4 = _release(s, 4, "printf %s " + shlex.quote(migration) + " > rouh/migrations/9001_master_update.py")
     r5 = _release(s, 5, "printf 'Master improved naming again.\\n' >> README.md")
     _post_again(s, "/api/settings/updates/now", {})
-    end = time.time() + 180
-    while time.time() < end:
-        result = _updates(s)
-        if not result.get("busy") and not result.get("pending"):
-            break
-        time.sleep(3)
-    waiting = [r for r in result["ledger"]["changes"] if r["master"] in (r3, r4)]
-    expect(len(waiting) == 2 and all(r["status"] == "waiting" and "frontier model" in r["reason"] for r in waiting),
-           f"weaker model was not refused for the sensitive jobs: {waiting}")
-    # Release 5 only adds a line at the end of README.md, beside this Rouh's own title: git merges
-    # it with no model, and it does not wait behind the two that do (17 November 2026).
-    merged = next(r for r in result["ledger"]["changes"] if r["master"] == r5)
-    expect(merged["status"] == "adapted" and "merged by git" in (merged.get("reason") or ""),
-           f"the README line did not go in by git while the others waited: {merged}")
+    _drive(s, "the cheaper model's update")
+    result = _updates(s)
+    rows = {r["master"]: r for r in result["ledger"]["changes"]}
+    expect(rows[r3]["status"] == "waiting" and "frontier model" in rows[r3]["reason"],
+           f"weaker model was not refused for the security change: {rows[r3]}")
+    # Changes come in strictly in order (19 November 2026): the database change and the README line
+    # after it wait for the security change, rather than come in around it, so this Rouh never runs
+    # a mix of code that never ran anywhere. Until then release 5 went in by git around the two.
+    for later in (r4, r5):
+        expect(rows[later]["status"] == "depends" and "in order" in (rows[later].get("reason") or ""),
+               f"a change after the waiting one did not wait for it: {rows[later]}")
+    expect(((result.get("last") or {}).get("stopped_at") or {}).get("master") == r3,
+           f"the update does not say where it stopped: {result.get('last')}")
     _browser(s, "frontier-wait", ["Not taken yet", "needs a frontier model", "Urgent security update"])
     s.manage("from rouh import modeldefaults,relay\no=relay.owner().org_id\n"
              "modeldefaults.put(o,'code_adapt',tier='smart',by='stack')")
     _post_again(s, "/api/settings/updates/now", {})
+    _drive(s, "security and database adaptation", 2700)
     after = _until_updated(s, r5, 2700, "security and database adaptation")
     rows = {r["master"]: r for r in after["ledger"]["changes"]}
     expect(rows[r3]["status"] == rows[r4]["status"] == "adapted", f"the sensitive changes were not adapted: {rows}")
+    expect(rows[r5]["status"] in ("copied", "adapted"), f"the README line did not come in after them: {rows[r5]}")
     values = _again(lambda: s.manage("from django.db import connection\nwith connection.cursor() as c:\n"
                                     " c.execute('SELECT body,local_word,source FROM update_memory_local ORDER BY id')\n print(c.fetchall())"))
     expect("memory one" in values and "local one" in values and "memory two" in values, f"memory lost: {values}")
