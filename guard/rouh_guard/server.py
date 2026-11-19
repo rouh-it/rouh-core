@@ -72,7 +72,7 @@ class Server:
 
     def status(self) -> dict:
         out = {"ok": True, "version": VERSION, "contracts": CONTRACTS,
-               "features": {"master_changes": 1, "database_rehearsal": 1, "exact_copies": 1, "update_step": 1}}
+               "features": {"master_changes": 1, "database_rehearsal": 1, "exact_copies": 1, "update_step": 2}}
         if self.changes is not None:
             out.update(self.changes.status())
         if self.doctor is not None:

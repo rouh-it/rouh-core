@@ -62,7 +62,20 @@ PROSE = (".md", ".markdown", ".txt", ".rst")
 OPAQUE_PROSE_LINE = 50000
 #: The ledger's classification of a change; a waiting row from before is classified again.
 #: 3: a prose file's long paragraphs no longer make it opaque.
-CLASSIFIED = 3
+#: 4: a test's own files no longer make a change a database change, and a name in the message
+#:    (updates.security-database-frontier) no longer makes it a security change (125a033e, 19 November 2026).
+CLASSIFIED = 4
+#: A change's message is read for security words outside names: a check's id, a path or a variable.
+NAME_IN_MESSAGE = re.compile(r"[\w-]+(?:[./_][\w-]+)+")
+#: How often a waiting urgent security change is tried again before it waits a day like the rest.
+URGENT_TRIES = 3
+
+
+def test_file(f: str) -> bool:
+    """A test's own file, which never runs in a Rouh: tests/..., a tests/ folder, test_*.py.
+    Rouh's own committed checks (rouh/selfcheck/) and the protected core's frozen ones are not this."""
+    name = Path(f).name
+    return f.startswith("tests/") or "/tests/" in f or name.startswith("test_") or name.endswith("_test.py")
 
 
 #: Why a change that was put back with an earlier undo point waits.
@@ -271,11 +284,15 @@ def classify(sha: str, parent: str, all_files: list[str], message: str) -> dict:
     code = [f for f in all_files if f not in whole and (Path(f).name == ".env" or Path(f).suffix in (
         ".py", ".js", ".html", ".sh", ".toml", ".yml", ".yaml", ".json", ".ini", ".cfg", ".sql", ".env"))]
     # The code's own lines are read for security words; a library's licence ("Permission is hereby
-    # granted") or a page of prose is not a security change. Its message always counts.
+    # granted") or a page of prose is not a security change. A test's lines still count for security
+    # (a hardening's test may be the only place that says so), never for the database: a test's
+    # made-up migration is not one. Its message always counts, its words and not the names in it.
     diff = _git("diff", "--no-ext-diff", parent, sha, "--", *code) if code else ""
-    database = any(database_file(f) for f in all_files)
-    database = database or bool(re.search(r"\b(?:ALTER|CREATE|DROP)\s+(?:TABLE|INDEX|SCHEMA)\b", diff))
-    security = bool(SENSITIVE.search(message) or SENSITIVE.search(diff) or
+    runs = [f for f in code if not test_file(f)]
+    run_diff = _git("diff", "--no-ext-diff", parent, sha, "--", *runs) if runs else ""
+    database = any(database_file(f) for f in all_files if not test_file(f))
+    database = database or bool(re.search(r"\b(?:ALTER|CREATE|DROP)\s+(?:TABLE|INDEX|SCHEMA)\b", run_diff))
+    security = bool(SENSITIVE.search(NAME_IN_MESSAGE.sub(" ", message)) or SENSITIVE.search(diff) or
                     any(f.startswith(SECURITY_PATHS) for f in all_files))
     return {"database": database, "security": security, "urgent": security, "opaque": whole,
             "classified": CLASSIFIED}
@@ -938,6 +955,8 @@ def advance(rel: dict, by: str, work: Path) -> None:
                 return
             except (u.Refused, ValueError) as exc:
                 feedback = str(exc)
+                if attempt == 0:
+                    row["tries"] = int(row.get("tries") or 0) + 1
                 found = blockers(row, doc["changes"][:i], work)
                 if found:
                     _waiting(doc, row, feedback + " " + _waits_for(row, found, doc), "depends", found[0][0]["master"])
@@ -965,7 +984,9 @@ def advance(rel: dict, by: str, work: Path) -> None:
             "told": previous.get("id") == fingerprint and previous.get("told", False),
             "came_in": [{"purpose": r["purpose"], "status": r["status"]} for r in came_in],
             "waiting": [{"purpose": r["purpose"], "reason": r["reason"], "urgent": r["urgent"]} for r in waiting]}
-    urgent = any(r["urgent"] for r in waiting)
+    # An urgent change is tried again in half an hour, a few times; one that keeps failing waits a day
+    # like the rest, so a walk (and a restart for each change it takes) does not come every half hour.
+    urgent = any(r["urgent"] and int(r.get("tries") or 0) < URGENT_TRIES and not was_put_back(r) for r in waiting)
     u._change(busy=None, pending=None, continue_update=None, last=last,
               retry_at=time.time() + (1800 if urgent else 86400),
               retry_release=rel if waiting else None)

@@ -144,3 +144,12 @@ So core 1.1.0 adds two things, and contract 1 only grows:
 So a Rouh stuck on core 1.0.0 needs nothing but the signed release that carries core 1.1.0 (Rouh for Mac applies it by itself; on Linux `linux_stack.py update`) and a release of the code made after this change: the core then copies the update step, and the Rouh's next update (riding along, or one press of Update to the newest Rouh) takes the waiting changes.
 Proven on 17 November 2026 with real git and this core in a process of its own: a Rouh installed at 7a226c58 with a gene of its own was stuck exactly as described on core 1.0.0 (three.js waiting, 36 behind it); on core 1.1.0 the update step came in as an undo point and all 42 changes went in, three.js byte for byte (sha256 `08fd7545d13d...`), and the orb loaded it from the Rouh's own server in Chromium.
 
+## Core 1.1.1: the update step kept at the release's (19 November 2026)
+
+On Rouhs on core 1.1.0, 85 changes waited behind one: 125a033e, a mended stack test, which the update step read as an urgent security and database change because its message names the check `updates.security-database-frontier` and a test file holds a made-up `CREATE TABLE`.
+No model can prove a hole that change never closed, so the core refused it every half hour, and everything touching `rouh/tools.py` or a name it adds waited behind it.
+The fix is in the update step (`rouh/code_evolution.py`, classification 4), and it was itself a released change behind the same one.
+Core 1.0 and 1.1.0 brought the update step up to date only when it lacked `EXACT_COPIES = 1`; core 1.1.1 brings it to the release's whenever it is behind (`features.update_step` 2), under the same rule: only files this Rouh never changed itself, blob for blob, through the change step's checks and an undo point.
+No proof is skipped: a change that really touches security or the database still needs the same proofs and rehearsal.
+
+

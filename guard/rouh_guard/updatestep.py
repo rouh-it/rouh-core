@@ -1,5 +1,9 @@
 """The update step brought up to date by the protected core itself (core 1.1, 17 November 2026).
 
+Core 1.1.1 (19 November 2026): the update step is brought to the release's whenever it is behind,
+not only when it lacks exact copies, so a fix to how the update step reads a change reaches a Rouh
+whose update is stuck behind the very change it misreads.
+
 A Rouh takes released changes with its own update step, ``rouh/code_evolution.py``, which is part
 of its own code. Until 17 November 2026 that step handed any file it could not copy whole to a
 model as text, so a vendored three.js of 700 KB on one line never came in, and the 35 changes
@@ -141,9 +145,15 @@ class UpdateStep:
         here = _git(code, "show", f"{head}:{STEP}")
         if here.returncode:
             return {"what": "wait", "said": "this Rouh has no update step of its own yet (rouh-catch-up is its way)"}
-        if MARK.search(here.stdout):
-            return {"what": "done", "said": "this Rouh's update step copies released files exactly"}
+        # Core 1.1.1: not only an update step without exact copies. Any update step that is behind the
+        # release's, and that this Rouh never changed itself, is brought to the release's: on 19 November
+        # 2026 85 changes waited behind one the update step misread as a security and database change,
+        # and its fix was itself a released change that would have waited behind the same one.
         release = self._release()
+        if release == self.last.get("release") and self.last.get("what") in ("done", "taken") \
+                and _blob(code, head, STEP) == self.last.get("step_blob"):
+            return {"what": "done", "said": "the update step is already the release's", "release": release,
+                    "step_blob": self.last.get("step_blob")}
         if release == self.last.get("release") and self.last.get("what") == "own":
             return {"what": "wait", "said": self.last.get("said", ""), "release": release}
         why = ""
@@ -176,7 +186,8 @@ class UpdateStep:
                         "said": f"this Rouh changed its own {f}, so the protected core leaves its update step as it is"}
             change.append((f, want))
         if not change:
-            return {"what": "done", "said": "the update step is already the release's"}
+            return {"what": "done", "said": "the update step is already the release's", "release": release,
+                    "step_blob": _blob(code, head, STEP)}
         commit = self._commit(code, head, release, change)
         return {"what": "ready", "commit": commit, "on": head, "release": release, "files": [f for f, _ in change]}
 
@@ -239,6 +250,7 @@ class UpdateStep:
         if answer.get("ok"):
             log.info("the update step from %s is in place: %s", got["release"][:12], ", ".join(got["files"]))
             return self._keep(what="taken", release=got["release"], commit=got["commit"], files=got["files"],
+                              step_blob=_blob(Path(self.changes.code), got["commit"], STEP),
                               point=(answer.get("point") or {}).get("n"),
                               said="the release's update step was copied exactly and runs")
         return self._keep(what="refused", release=got["release"], commit=got["commit"],
