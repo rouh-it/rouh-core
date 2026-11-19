@@ -5267,9 +5267,20 @@ function taskPageAct(frame, m) {
   }
   if (m.act === 'live') {
     // Work on it live with another Rouh (Rouh Link, `rouh/web/link.py`): a live task page made
-    // from this task, opened in place of Rouh's page.
+    // from this task, or, from a page's own dots or the task's "This page, live", a live page
+    // made from that page (kind `html`, `rouh/link/pagein.py`), opened in place of Rouh's page.
+    var livePage = '';
+    if (m.item) {
+      livePage = String(m.item).replace(/^\/+/, '');
+      if (!/\.html?$/i.test(livePage)
+          || livePage.split('/').some(function (p) { return !p || p === '.' || p === '..'; })) {
+        projectSay(frame, m.id, { ok: false, error: 'Only a page can be worked on live from here.' });
+        return;
+      }
+    }
+    var liveAsk = livePage ? { kind: 'html', source: folder + '/' + livePage } : { source: folder, kind: 'task' };
     fetch('/api/link/spaces', { method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: folder, kind: 'task' }) })
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(liveAsk) })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (got) {
         projectSay(frame, m.id, got.ok ? { ok: true } : { ok: false, error: got.j.error || 'Rouh could not make a live page.' });
@@ -6555,6 +6566,48 @@ function cardVersions(spec) {
   return box;
 }
 
+/* Work on it live with another Rouh, in the quiet row under a card that holds a drawn page (an
+   `html` block). A card has no menu of its own, so it is one more button beside Copy. Rouh Link
+   (task 189): a live page made from the card's page (kind `html`, `rouh/link/pagein.py`), opened
+   where another connected Rouh is asked in. The card itself is never changed. */
+/** @param {import('./protocol').CardSpec} spec */
+function cardLiveBtn(spec) {
+  var drawn = (Array.isArray(spec.blocks) ? spec.blocks : []).some(function (b) {
+    return b && b.block === 'html' && String(b.html || b.text || '').trim();
+  });
+  if (!drawn || !spec.card_id) return null;
+  var said = 'Work on it live with another Rouh';
+  var b = el('button', 'act act-live');
+  b.type = 'button';
+  b.title = said;
+  b.setAttribute('aria-label', said);
+  var svg = svgEl('svg', { viewBox: '0 0 24 24', width: '14', height: '14', fill: 'none',
+    stroke: 'currentColor', 'stroke-width': '1.8', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  svg.setAttribute('aria-hidden', 'true');
+  svg.appendChild(svgEl('circle', { cx: '9', cy: '8', r: '3.2' }));
+  svg.appendChild(svgEl('path', { d: 'M3.5 19a5.5 5.5 0 0 1 11 0' }));
+  svg.appendChild(svgEl('circle', { cx: '17', cy: '9', r: '2.6' }));
+  svg.appendChild(svgEl('path', { d: 'M16 14.2a4.6 4.6 0 0 1 5 4.8' }));
+  b.appendChild(svg);
+  b.addEventListener('click', function () {
+    b.disabled = true;
+    fetch('/api/link/spaces', { method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'html', card: String(spec.card_id) }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (got) {
+        b.disabled = false;
+        if (got.ok && got.j.url) { location.href = got.j.url; return; }
+        notify(got.j.error || 'Rouh could not make a live page of this card.', { tone: 'error' });
+      })
+      .catch(function () {
+        b.disabled = false;
+        notify('Rouh could not be reached. Try again in a moment.', { tone: 'error' });
+      });
+  });
+  return b;
+}
+
 function renderCard(spec, older, stay) {
   var host = streamEl();
   if (!host) return;
@@ -6655,6 +6708,8 @@ function renderCard(spec, older, stay) {
     copyFrom(copyCard, cardWords(spec), 'Copied the card');
   });
   acts.appendChild(copyCard);
+  var liveCard = cardLiveBtn(spec);
+  if (liveCard) acts.appendChild(liveCard);
   card.appendChild(acts);
 
   // The place in the conversation this card has, whether or not the card is

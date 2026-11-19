@@ -108,7 +108,7 @@
     invited.forEach(function (s) {
       box.appendChild(el('div', { class: 'peer' }, [
         el('span', { class: 'av rouh c-1', 'aria-hidden': 'true', text: initials(s.holder) }),
-        el('div', {}, [el('div', { text: 'You are asked into a live ' + s.kind_word.toLowerCase() + ': “' + s.title + '”.' })]),
+        el('div', {}, [el('div', { text: 'You are asked into ' + (/^live /i.test(s.kind_word) ? 'a ' : 'a live ') + s.kind_word.toLowerCase() + ': “' + s.title + '”.' })]),
         el('div', { class: 'acts' }, [el('a', { href: '/link/space/' + s.space_id }, [el('button', { class: 'primary', text: 'Open' })])])
       ]));
     });
@@ -378,10 +378,31 @@
       ev.preventDefault();
       var a = $('contactAddress').value.trim(); if (a) connectAddress(a);
     });
+    /* A Live page (kind `html`, `rouh/link/pagein.py`) starts blank or from HTML pasted here; its
+       title may be left empty, and is then the pasted page's own, or "A new page". */
+    function pasting() { var p = document.querySelector('input[name="pageFrom"]:checked'); return !!p && p.value === 'paste'; }
+    function showPageFrom() {
+      var live = $('spaceKind').value === 'html';
+      $('pageFrom').hidden = !live;
+      $('pageHtml').hidden = !(live && pasting());
+      $('spaceTitle').placeholder = live ? 'What it is about (or leave it to the page)' : 'What it is about';
+    }
+    $('spaceKind').addEventListener('change', showPageFrom);
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="pageFrom"]'), function (r) {
+      r.addEventListener('change', function () { showPageFrom(); if (pasting()) $('pageHtml').focus(); });
+    });
     $('newSpace').addEventListener('submit', function (ev) {
       ev.preventDefault();
-      var t = $('spaceTitle').value.trim(); if (!t) return;
-      API.post('/api/link/spaces', { title: t, kind: $('spaceKind').value, silo: $('spaceSide').value }).then(function (got) { location.href = got.url; }).catch(fail);
+      var t = $('spaceTitle').value.trim();
+      var kind = $('spaceKind').value;
+      var body = { title: t, kind: kind, silo: $('spaceSide').value };
+      if (kind === 'html') {
+        if (pasting()) {
+          body.html = $('pageHtml').value;
+          if (!body.html.trim()) { toast('Paste the page’s HTML first, or pick Blank page.'); $('pageHtml').focus(); return; }
+        }
+      } else if (!t) return;
+      API.post('/api/link/spaces', body).then(function (got) { location.href = got.url; }).catch(fail);
     });
     ['strangers', 'openNet', 'findable'].forEach(function (id) {
       $(id).addEventListener('change', function () {

@@ -52,10 +52,19 @@
               <label class="hidden" for="spaceKind">Kind</label>
               <select id="spaceKind" class="grow"><option value="task">Task page</option><option value="doc">Document or draft</option>
                 <option value="page">Page or explainer</option><option value="trip">Trip</option><option value="research">Research</option>
-                <option value="calendar">Calendar proposal</option><option value="list">List</option></select>
+                <option value="calendar">Calendar proposal</option><option value="list">List</option>
+                <option value="html">Live page</option></select>
               <label class="hidden" for="spaceSide">Side</label>
               <select id="spaceSide" style="width:auto"><option value="">Either side</option><option value="work">Work</option><option value="personal">Personal</option></select>
               <button type="submit">Start</button>
+            </div>
+            <div id="pageFrom" class="stack" hidden>
+              <div class="row" role="radiogroup" aria-label="Start the live page from">
+                <label class="row" style="margin:0;gap:6px"><input type="radio" name="pageFrom" value="blank" checked style="width:auto">Blank page</label>
+                <label class="row" style="margin:0;gap:6px"><input type="radio" name="pageFrom" value="paste" style="width:auto">Paste HTML</label>
+              </div>
+              <label class="hidden" for="pageHtml">The page's HTML</label>
+              <textarea id="pageHtml" rows="6" maxlength="2000000" placeholder="Paste the whole page, from &lt;!doctype html&gt; to &lt;/html&gt;" hidden></textarea>
             </div>
           </form>
         </section>

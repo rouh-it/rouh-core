@@ -21,6 +21,9 @@ KINDS = {
     "calendar": {"word": "Calendar proposal", "fields": {}, "texts": ["notes"], "lists": [],
                  "names": {"notes": "Notes"}},
     "list": {"word": "List", "fields": {}, "texts": [], "lists": ["items"], "names": {"items": "Items"}},
+    # A Live page (step 189-08): one fully custom, self-contained HTML page, its source one shared text
+    # (`htmldoc.py`), drawn live in a sealed frame. Elements are its parts (``el:<id>``).
+    "html": {"word": "Live page", "fields": {}, "texts": [], "lists": [], "names": {"html": "Page", "text:html": "the page"}},
 }
 
 
@@ -30,3 +33,9 @@ def of(kind: str) -> dict:
 
 def word(kind: str) -> str:
     return of(kind)["word"]
+
+
+def a_live(kind: str) -> str:
+    """"a live task page", but "a live page" for a Live page, never "a live live page"."""
+    w = word(kind).lower()
+    return "a " + w if w.startswith("live ") else "a live " + w

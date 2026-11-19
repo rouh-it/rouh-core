@@ -235,6 +235,12 @@ async def space_page(request: HttpRequest, sid: str):
     me = await _me_or_none(request)
     if me is None:
         return HttpResponse(status=401)
+    from rouh.link import spaces
+
+    row = await sync_to_async(spaces._row)(str(me.org_id), sid[:40])
+    if row is not None and row.kind == "html":
+        # A Live page (step 189-08): the page drawn live in a sealed frame, beside its source.
+        return render(request, "rouh/link_livepage.html", {"space_id": sid[:40]})
     return render(request, "rouh/link_space.html", {"space_id": sid[:40]})
 
 
@@ -572,6 +578,16 @@ async def api_space_new(request):
         org = str(me.org_id)
         title = " ".join(str(b.get("title") or "").split())[:200]
         source = str(b.get("source") or "")[:300]
+        if str(b.get("kind") or "") == "html":
+            # A Live page: from a page in the workspace, a card's drawn page, pasted HTML or a blank page.
+            from rouh.link import pagein
+
+            made = await sync_to_async(pagein.start)(org, me, source=source, html=str(b.get("html") or ""),
+                                                     card=str(b.get("card") or "")[:80], title=title,
+                                                     silo=str(b.get("silo") or ""))
+            for label in (b.get("invite") or [])[:5]:
+                await sync_to_async(spaces.invite)(org, made["space_id"], str(label), str(b.get("role") or "editor"))
+            return made
         steps = [str(s)[:300] for s in (b.get("steps") or []) if str(s).strip()][:60]
         notes = str(b.get("notes") or "")[:4000]
         if source and not title:
@@ -589,6 +605,13 @@ async def api_space_new(request):
     return await _guard(request, go)
 
 
+def _int(value, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 @only("GET")
 async def api_space(request, sid: str):
     from rouh.link import spaces
@@ -599,7 +622,8 @@ async def api_space(request, sid: str):
         return await spaces.page_state(str(me.org_id), sid, since=since, wait=wait,
                                        part=str(request.GET.get("part") or "")[:120],
                                        follow=str(request.GET.get("follow") or "")[:120],
-                                       watching=request.GET.get("watching", "1") != "0")
+                                       watching=request.GET.get("watching", "1") != "0",
+                                       hv=_int(request.GET.get("hv"), -1))
     return await _guard(request, go)
 
 
@@ -661,6 +685,19 @@ async def api_space_act(request, sid: str):
             if task.done() and task.exception() is not None:
                 raise task.exception()
             return {"ok": True, "started": True}
+        if act == "source":
+            # A person's own edit of a live page's source (step 189-08), made as this Rouh's person.
+            return await spaces.source_edit(org, sid, str(b.get("html") or ""), _int(b.get("base"), -1))
+        if act in ("bring_back", "put_back"):
+            # Only the owner, only on their press: the live page into the task's page file, or back.
+            from rouh.link import pageout
+
+            fn = pageout.bring_back if act == "bring_back" else pageout.put_back
+            return await sync_to_async(fn)(org, sid, who=me)
+        if act == "ask_keep":
+            from rouh.link import pageout
+
+            return await sync_to_async(pageout.ask_keep)(org, sid, str(b.get("words") or "")[:300])
         if act == "skip":
             return {"ok": pacing.skip(org, sid)}
         if act == "stop":

@@ -33,7 +33,7 @@ SAYS = {
 #: Message kinds each level may send here. A kind not listed for a level is refused before it is read.
 _BASE = {"hello", "ping", "card", "bye", "log.ask", "log.share", "cut", "trust.told"}
 _STRANGER = _BASE | {"handoff.brief", "handoff.quote", "money.proposal", "space.join", "room.poll",
-                     "room.ops", "space.left", "a2a.note"}
+                     "room.ops", "space.left", "a2a.note", "space.keep_ask"}
 _KNOWN = _STRANGER | {"meeting.ask", "meeting.busy", "meeting.yes", "space.invite", "space.ended",
                       "room.presence", "grant.shown", "grant.withdrawn", "group.welcome", "standin.hold",
                       "standin.handback"}

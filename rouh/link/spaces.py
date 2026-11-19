@@ -35,6 +35,27 @@ FRESH = 30
 #: How long a member's long poll waits at the room.
 POLL_WAIT = 20.0
 MOST_BACK = 600
+#: The most changes one message carries, in characters of JSON: a live page's changes can be large, and
+#: an envelope holds at most 2 MB (`seal.MAX_BYTES`), so a poll's answer and a batch sent are cut here.
+MOST_CHARS = 900_000
+
+
+def _weight(op: dict) -> int:
+    import json
+
+    return len(json.dumps(op, default=str))
+
+
+def _cut(ops: list[dict], most: int = MOST_BACK) -> list[dict]:
+    """As many of these changes, from the start, as fit in one message (always at least one)."""
+    out, total = [], 0
+    for o in ops[:most]:
+        w = _weight(o)
+        if out and total + w > MOST_CHARS:
+            break
+        out.append(o)
+        total += w
+    return out
 
 POLL_REPLY = {"seq": ("int", 0, 10**9), "ops": ("list", MOST_BACK, ("op",)),
               "presence?": ("list", 12, forms.PRESENCE), "members?": ("list", 200, forms.MEMBER),
@@ -194,6 +215,8 @@ def _plain_change(ops: list[dict], names: dict, people: dict | None = None) -> s
     parts = []
     for o in ops:
         for p in _doc.parts_of(o):
+            if p.startswith("el:"):
+                continue
             n = p.split(":", 1)[1]
             parts.append(names.get(n, n))
     kinds_ = {o["kind"] for o in ops}
@@ -336,7 +359,8 @@ async def _send_pending(org: str, sid: str, live: Live, row) -> dict:
     holder = await asyncio.to_thread(peers.peer_row, org, target)
     if holder is None or holder.state != "connected":
         return {"seq": live.seq, "accepted": [], "refused": [], "waiting": True}
-    batch = list(live.pending)
+    batch = _cut(list(live.pending), 300)
+    waiting_before = len(live.pending)
     try:
         got = await wire.ask(org, holder, "room.ops", {"space_id": sid, "ops": [_wire_op(o) for o in batch]})
         reply = forms.read(got, OPS_REPLY, "room.ops reply")
@@ -371,6 +395,11 @@ async def _send_pending(org: str, sid: str, live: Live, row) -> dict:
         await live.changed()
     if target == row.holder_label:
         live.holder_off = False
+    # A live page's big change goes in several batches; what is left goes now, while the room answers.
+    if live.pending and len(live.pending) < waiting_before:
+        more = await _send_pending(org, sid, live, row)
+        reply = dict(reply, accepted=list(reply.get("accepted") or []) + list(more.get("accepted") or []),
+                     refused=list(reply.get("refused") or []) + list(more.get("refused") or []))
     return reply
 
 
@@ -606,11 +635,12 @@ async def _room_poll(ctx, form) -> dict:
                 await asyncio.wait_for(live.cond.wait_for(lambda: live.seq > since or live.version != v0), timeout=wait)
             except asyncio.TimeoutError:
                 pass
-    ops = [_wire_op(o) | {"seq": o["seq"]} for o in live.ops if o["seq"] > since]
-    more = len(ops) > MOST_BACK
+    every = [_wire_op(o) | {"seq": o["seq"]} for o in live.ops if o["seq"] > since]
+    ops = _cut(every)
+    more = len(ops) < len(every)
     from . import groups
 
-    return groups.lock_reply(ctx.org, sid, int(form.get("epoch") or 0), ctx.me, {"seq": live.seq if not more else ops[MOST_BACK - 1]["seq"], "ops": ops[:MOST_BACK],
+    return groups.lock_reply(ctx.org, sid, int(form.get("epoch") or 0), ctx.me, {"seq": live.seq if not more else ops[-1]["seq"], "ops": ops,
             "presence": [{k: v[k] for k in ("actor", "kind", "name", "part", "doing", "follow", "busy") if k in v}
                          for v in live.fresh_presence()][:12],
             "members": _member_view(row), "title": str(row.title or "")[:200], "state": row.state,
@@ -641,7 +671,7 @@ async def _room_presence(ctx, form) -> dict:
 
 
 def create(org: str, *, kind: str = "task", title: str, source: str = "", silo: str = "",
-           steps: list[str] | None = None, notes: str = "") -> str:
+           steps: list[str] | None = None, notes: str = "", html: str = "") -> str:
     """A new space held here, its first changes this Rouh's person's. Its id."""
     from rouh.models import LinkSpace
 
@@ -663,6 +693,10 @@ def create(org: str, *, kind: str = "task", title: str, source: str = "", silo: 
     for i, s in enumerate((steps or [])[:60]):
         first.append(new_op("add", actor, list=kinds.of(kind)["lists"][0] if kinds.of(kind)["lists"] else "items",
                             item=uuid.uuid4().hex[:12], pos=float(i + 1), fields={"text": str(s)[:300], "done": False}))
+    if kind == "html":
+        from . import htmldoc
+
+        first.extend(htmldoc.initial_ops(htmldoc.stamp(html), actor))
     texts = kinds.of(kind)["texts"]
     if notes and texts:
         first.append(new_op("ins", actor, t=texts[0], after="", id0=f"1~{actor}", text=notes[:_doc.TEXT_MOST]))
@@ -677,7 +711,7 @@ def create(org: str, *, kind: str = "task", title: str, source: str = "", silo: 
                               data=_op_fields(op), at=op["at"])
         _doc.apply(d, op)
     LinkSpace.objects.filter(org_id=org, space_id=sid).update(seq=seq, doc=d)
-    log.write(org, "space", f"Made a live {kinds.word(kind).lower()}: {title[:120]}.", space=sid)
+    log.write(org, "space", f"Made {kinds.a_live(kind)}: {title[:120]}.", space=sid)
     return sid
 
 
@@ -744,7 +778,7 @@ def _space_invite(ctx, form) -> dict:
     else:
         LinkSpace.objects.filter(id=row.id).update(title=str(form["title"])[:200], meta=dict(row.meta or {}, **meta),
                                                    state="invited" if row.state != "live" else row.state, updated_at=now)
-    log.write(ctx.org, "invited", f"{ctx.peer.name} asked this Rouh into a live {kinds.word(form['kind']).lower()}: "
+    log.write(ctx.org, "invited", f"{ctx.peer.name} asked this Rouh into {kinds.a_live(form['kind'])}: "
               f"“{str(form['title'])[:80]}”.", peer=ctx.peer.label, space=form["space_id"])
     push_owner(ctx.org, {"type": "link_notice", "said": f"{ctx.peer.name} asks you into “{str(form['title'])[:60]}”."})
     return {}
@@ -952,7 +986,7 @@ def seen(live: Live, actor: str, *, kind: str, name: str, part: str = "", follow
 
 
 async def page_state(org: str, sid: str, *, since: int = -1, wait: float = 0.0, part: str = "",
-                     follow: str = "", watching: bool = True) -> dict:
+                     follow: str = "", watching: bool = True, hv: int = -1) -> dict:
     """What a person's page shows, after waiting up to ``wait`` seconds for something new."""
     from . import me as _me
 
@@ -978,6 +1012,17 @@ async def page_state(org: str, sid: str, *, since: int = -1, wait: float = 0.0, 
     role = "owner" if row.mine else role_of(row, me.label) or (row.meta or {}).get("invited_role", "")
     from . import pacing
 
+    shown_doc = _doc.shown(live.doc)
+    page = {}
+    if row.kind == "html":
+        # A live page is not sent again on every poll: the page says which version it has drawn, and
+        # while the room has nothing newer (and nothing of this Rouh's own is waiting) the text is left out.
+        h = shown_doc["html"]
+        if hv >= 0 and hv == h["v"] and not any(o["kind"] in ("hins", "hdel") for o in live.pending):
+            shown_doc["html"] = dict(h, text="", by=[], same=True)
+        meta = row.meta or {}
+        page = {"brought": meta.get("brought") or None,
+                "keep_asks": list(meta.get("keep_asks") or [])[-20:] if row.mine else []}
     return {
         "space": {"space_id": sid, "kind": row.kind, "kind_word": kinds.word(row.kind), "names": kinds.of(row.kind)["names"],
                   "texts": kinds.of(row.kind)["texts"], "lists": kinds.of(row.kind)["lists"],
@@ -987,9 +1032,9 @@ async def page_state(org: str, sid: str, *, since: int = -1, wait: float = 0.0, 
                                "state": m.get("state", "joined")} for m in members_of(row)],
                   "standin": (row.meta or {}).get("standin", ""),
                   "standin_active": (row.meta or {}).get("standin_active", ""),
-                  "epoch": int((row.meta or {}).get("epoch") or 0)},
+                  "epoch": int((row.meta or {}).get("epoch") or 0), **page},
         "me": {"label": me.label, "name": me.tagged, "person": actor, "rouh": f"rouh:{me.label}", "role": role},
-        "doc": _doc.shown(live.doc), "version": live.version, "seq": live.seq,
+        "doc": shown_doc, "version": live.version, "seq": live.seq,
         "pending": len(live.pending), "holder_off": live.holder_off,
         "presence": live.fresh_presence(),
         "pacing": pacing.status(org, sid),
@@ -1019,6 +1064,33 @@ async def _tell_presence(org: str, sid: str) -> None:
                            timeout=6)
     except Exception:  # noqa: BLE001 - presence is best effort
         pass
+
+
+async def source_edit(org: str, sid: str, html: str, base: int = -1) -> dict:
+    """A person's own edit of a live page's source: the whole new source, from the version ``base`` they
+    started from. Only the units they changed are named, so what others changed since stays."""
+    from . import htmldoc
+    from . import me as _me
+
+    live = await get(org, sid)
+    row = await asyncio.to_thread(_row, org, sid)
+    if row is None or row.kind != "html":
+        raise limits.No("That space is not a live page.")
+    me = await asyncio.to_thread(_me.me, org)
+    actor = f"person:{me.label}"
+    new = await asyncio.to_thread(htmldoc.stamp, html)
+    if len(new) > htmldoc.MOST:
+        raise forms.Refused(htmldoc.TOO_BIG)
+    base_units = None
+    current_v = int((live.doc.get("html") or {}).get("v") or 0)
+    if 0 <= base < current_v:
+        then = await asyncio.to_thread(_doc.replay, live.ops, upto=base)
+        base_units = htmldoc.units(then)
+    ops = await asyncio.to_thread(htmldoc.edit_ops, live.doc, new, actor, base_units=base_units)
+    if not ops:
+        return {"accepted": [], "refused": [], "v": current_v}
+    got = await change(org, sid, ops)
+    return dict(got, v=int((live.doc.get("html") or {}).get("v") or 0))
 
 
 async def history(org: str, sid: str, upto: int) -> dict:

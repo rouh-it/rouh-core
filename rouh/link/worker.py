@@ -156,6 +156,17 @@ async def work(org: str, sid: str, words: str, *, who=None) -> dict:
     words = " ".join(str(words or "").split())[:1000]
     if not words:
         raise forms.Refused("Say what your Rouh should do here.")
+    kind_row = await asyncio.to_thread(spaces._row, org, sid)
+    if kind_row is not None and kind_row.kind == "html":
+        # A live page is changed by find-and-replace edits on its source (`pagework.py`), the same split.
+        from . import limits, pagework
+
+        if not kind_row.mine:
+            mine_label = (await asyncio.to_thread(_me.me, org)).label
+            if spaces.role_of(kind_row, mine_label) not in ("editor", "owner"):
+                # A viewer or a commenter only watches or comments; its Rouh changes nothing, so no model is asked.
+                raise limits.No("Only an editor's Rouh changes this page.")
+        return await pagework.work(org, sid, words, who=who)
     me = await asyncio.to_thread(_me.me, org)
     actor = f"rouh:{me.label}"
     live = await spaces.get(org, sid)

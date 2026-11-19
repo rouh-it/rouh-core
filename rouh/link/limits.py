@@ -74,9 +74,15 @@ def gate(org: str, peer, kind: str) -> str:
 
 
 def touched_claims(doc: dict, op: dict) -> list[str]:
+    """The claimed parts a change reaches. A live page's change reaches the elements the source says it
+    falls in or overlaps (`htmldoc.touched`), never only those the sender named."""
     from . import doc as _doc
+    from . import htmldoc
 
-    return [p for p in _doc.parts_of(op) if p in doc["claims"]]
+    parts = [p for p in _doc.parts_of(op) if p in doc["claims"]]
+    if op["kind"] in ("hins", "hdel") and any(c.startswith("el:") for c in doc["claims"]):
+        parts += [f"el:{e}" for e in htmldoc.touched(doc, op) if f"el:{e}" in doc["claims"]]
+    return list(dict.fromkeys(parts))
 
 
 def may_change(*, space_meta: dict, doc: dict, op: dict, sender_label: str, holder_label: str,
@@ -117,6 +123,11 @@ def may_change(*, space_meta: dict, doc: dict, op: dict, sender_label: str, hold
             raise No("Only the one who claimed it, or a person, releases a part.")
     if kind == "claim" and op["part"] in doc["claims"] and doc["claims"][op["part"]]["by"] != actor:
         raise No("Another got there first: that part is claimed.")
+    if kind == "hins":
+        from . import htmldoc
+
+        if htmldoc.page_size_after(doc, op) > htmldoc.MOST:
+            raise No(htmldoc.TOO_BIG)
     if kind in _doc.CONTENT and who == "rouh":
         for part in touched_claims(doc, op):
             if doc["claims"][part]["by"] != actor:

@@ -28,16 +28,17 @@ from __future__ import annotations
 import copy
 import re
 
-from . import forms
+from . import forms, htmldoc
 
 TEXT_MOST = 4000
 VALUE_MOST = 4000
 ACTIVITY_KEEP = 40
 
 KINDS = ("set", "ins", "del", "add", "remove", "move", "claim", "release", "comment", "resolve",
-         "intent", "intent.end", "propose", "yes", "settle", "doing", "undo", "restore", "pace")
+         "intent", "intent.end", "propose", "yes", "settle", "doing", "undo", "restore", "pace", "hins", "hdel")
 #: Changes to what the space says; the rest is talk about it (comments, claims, intents, ...).
-CONTENT = {"set", "ins", "del", "add", "remove", "move"}
+#: ``hins`` and ``hdel`` change a live page's source (`htmldoc.py`).
+CONTENT = {"set", "ins", "del", "add", "remove", "move", "hins", "hdel"}
 KEY = re.compile(r"^[A-Za-z0-9_.:-]{1,80}$")
 CHAR_ID = re.compile(r"^\d{1,12}~(person|rouh):[a-z0-9-]{1,80}$")
 
@@ -65,6 +66,11 @@ OP_FORMS = {
     "restore": {"to": ("int", 0, 10**9)},
     # A person asks a Rouh at work to skip to the end of its run (it then sends the rest at once).
     "pace": {"target": ("actor",), "how": ("enum", ("skip",))},
+    # A live page's source (`htmldoc.py`): units inserted after one, or units hidden. ``els`` is what
+    # the sender says it touches, for its marker only; claims are checked against the source itself.
+    "hins": {"after": ("str", 120), "id0": ("str", 120), "units": ("list", 2000, ("text", 4000)),
+             "els?": ("list", 200, ("str", 40))},
+    "hdel": {"ids": ("list", 20000, ("str", 120)), "els?": ("list", 200, ("str", 40))},
 }
 
 
@@ -92,8 +98,18 @@ def read_op(value, where: str = "op") -> dict:
             raise forms.Refused(f"{where}: not a character id")
         if body["id0"].split("~", 1)[1] != head["actor"]:
             raise forms.Refused(f"{where}: a character id names another writer")
-    if kind == "del" and any(not CHAR_ID.match(i) for i in body["ids"]):
+    if kind in ("del", "hdel") and any(not CHAR_ID.match(i) for i in body["ids"]):
         raise forms.Refused(f"{where}: not a character id")
+    if kind == "hins":
+        if not CHAR_ID.match(body["id0"]) or (body["after"] and not CHAR_ID.match(body["after"])):
+            raise forms.Refused(f"{where}: not a unit id")
+        if body["id0"].split("~", 1)[1] != head["actor"]:
+            raise forms.Refused(f"{where}: a unit id names another writer")
+        if sum(len(u) for u in body["units"]) > htmldoc.INS_CHARS:
+            raise forms.Refused(f"{where}: too much in one change")
+        body["units"] = [str(u) for u in body["units"]]
+    if "els" in body and any(not htmldoc.RID.match(e) for e in body["els"]):
+        raise forms.Refused(f"{where}.els: not an element id")
     return {**head, **body}
 
 
@@ -102,7 +118,7 @@ def read_op(value, where: str = "op") -> dict:
 
 def empty() -> dict:
     return {"fields": {}, "texts": {}, "lists": {}, "claims": {}, "comments": {}, "intents": {},
-            "proposals": {}, "activity": [], "runs": {}, "seq": 0}
+            "proposals": {}, "activity": [], "runs": {}, "seq": 0, "html": {"units": [], "top": 0, "v": 0}}
 
 
 def _cid(cid: str) -> tuple[int, str]:
@@ -174,6 +190,8 @@ def parts_of(op: dict) -> list[str]:
         return [f"text:{op['t']}"]
     if k in ("add", "remove", "move"):
         return [f"list:{op['list']}"] + ([f"item:{op['item']}"] if k != "add" else [])
+    if k in ("hins", "hdel"):
+        return [f"el:{e}" for e in op.get("els") or []] + ["text:html"]
     return []
 
 
@@ -186,6 +204,8 @@ def apply(doc: dict, op: dict, *, undone: bool = False) -> None:
     if undone:
         if k == "ins":
             _ins(doc, op, gone=True)
+        elif k == "hins":
+            htmldoc.apply_ins(doc, op, gone=True)
         return
     if k == "set":
         p = op["path"]
@@ -199,6 +219,10 @@ def apply(doc: dict, op: dict, *, undone: bool = False) -> None:
         _ins(doc, op, gone=False)
     elif k == "del":
         _del(doc, op)
+    elif k == "hins":
+        htmldoc.apply_ins(doc, op)
+    elif k == "hdel":
+        htmldoc.apply_del(doc, op)
     elif k == "add":
         lst = doc["lists"].setdefault(op["list"], {})
         if op["item"] not in lst:
@@ -273,9 +297,11 @@ def replay(ops: list[dict], *, upto: int | None = None, start: dict | None = Non
             break
         if op["kind"] == "restore":
             _restore(doc, ops, op["to"], s)
+            _page_moved(doc, s)
             continue
         if op["kind"] == "undo":
             doc["seq"] = max(doc.get("seq", 0), s)
+            _page_moved(doc, s)
             continue
         u = op.get("undone") or (op["kind"] in CONTENT and op["actor"] in undone_from
                                  and s >= undone_from[op["actor"]])
@@ -283,10 +309,18 @@ def replay(ops: list[dict], *, upto: int | None = None, start: dict | None = Non
     return doc
 
 
+def _page_moved(doc: dict, seq: int) -> None:
+    """An undo or a restore may change a live page's source: its version moves on with it."""
+    h = doc.get("html")
+    if h and h.get("units"):
+        h["v"] = max(int(h.get("v") or 0), seq)
+
+
 def _restore(doc: dict, ops: list[dict], to: int, seq: int) -> None:
     """Bring the content back to what it was at ``to``; comments, claims and decisions stay."""
     then = replay([o for o in ops if o.get("seq", 0) <= to])
     doc["fields"] = copy.deepcopy(then["fields"])
+    htmldoc.restore(doc, then)
     shown = {key: {c[0] for c in t.get("chars", []) if not c[2]} for key, t in then["texts"].items()}
     for key, t in doc["texts"].items():
         keep = shown.get(key, set())
@@ -333,6 +367,8 @@ def shown(doc: dict) -> dict:
         "intents": [dict(v, id=k) for k, v in sorted(doc["intents"].items(), key=lambda kv: kv[1]["seq"])],
         "proposals": [dict(v, id=k) for k, v in sorted(doc["proposals"].items(), key=lambda kv: kv[1]["seq"])],
         "activity": doc["activity"][-12:], "runs": doc.get("runs", {}), "seq": doc.get("seq", 0),
+        "html": {"text": htmldoc.text(doc), "size": htmldoc.size(doc), "v": int((doc.get("html") or {}).get("v") or 0),
+                 "by": htmldoc.by_runs(doc)},
     }
 
 

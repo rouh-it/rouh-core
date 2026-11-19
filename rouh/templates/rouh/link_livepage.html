@@ -1,0 +1,141 @@
+{% load rouh_assets %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live page</title>
+<link rel="stylesheet" href="{% asset "link/link.css" %}">
+<link rel="stylesheet" href="{% asset "link/livepage.css" %}">
+<!-- A Live page space (Rouh Link, task 189): one custom HTML page several Rouhs and their people
+     work on live. Drawn by `link/livepage.js`, which asks only this Rouh; the page itself is drawn
+     in a sealed frame (`sandbox="allow-scripts"`, no network) with `link/frame-bridge.js` in it. -->
+</head>
+<body data-space="{{ space_id }}" data-bridge="{% asset "link/frame-bridge.js" %}">
+<header class="bar">
+  <a class="home" href="/link" aria-label="Back to Connections"><span class="dot" aria-hidden="true"></span>Connections</a>
+  <div class="spacer"></div>
+  <span id="atWork" class="at-work" role="status" hidden></span>
+  <div id="who" class="who" aria-label="Who is here"></div>
+  <button id="themeSwitch" class="quiet" type="button" aria-label="Switch light and dark">Theme</button>
+</header>
+<main class="page lp-page" id="main">
+  <div class="lead">
+    <p class="dim small" id="kind">Live page</p>
+    <h1 id="title">Loading…</h1>
+    <p class="live-line" id="liveLine" aria-live="polite">Connecting to your Rouh…</p>
+  </div>
+  <div id="state"></div>
+  <div id="intent" hidden></div>
+  <div class="lp-layout" id="work">
+    <section class="lp-stage-col" aria-label="The page">
+      <div class="lp-tools">
+        <div class="seg" role="group" aria-label="Show">
+          <button type="button" id="viewPage" aria-pressed="true">Page</button>
+          <button type="button" id="viewBoth" class="wide-only" aria-pressed="false">Side by side</button>
+          <button type="button" id="viewSource" aria-pressed="false">Source</button>
+        </div>
+        <button type="button" id="commentMode" aria-pressed="false">Comment</button>
+        <span class="grow"></span>
+        <span id="size" class="small dim lp-size"></span>
+      </div>
+      <p id="modeSaid" class="small lp-mode-said" hidden>Click a spot on the page to pin a comment or claim that part. Press Comment again, or Escape, to stop.</p>
+      <div class="lp-stage" id="stage" data-view="page">
+        <div class="lp-frame-box" id="frameBox">
+          <div class="lp-frames" id="frames"></div>
+          <div class="lp-over" id="frameSaid" hidden></div>
+          <form id="pickBox" class="lp-pick" hidden aria-label="Comment on this spot">
+            <div class="row"><h3 class="grow" id="pickTitle">This spot</h3>
+              <button type="button" class="quiet" id="pickClose" aria-label="Close">Close</button></div>
+            <label for="pickWords">Your comment</label>
+            <textarea id="pickWords" rows="3" maxlength="2000" placeholder="What should change here?"></textarea>
+            <div class="row">
+              <button type="submit" class="primary" id="pickPin">Pin</button>
+              <button type="button" id="pickClaim">Claim this part</button>
+            </div>
+            <p class="small dim" id="pickClaimed" hidden></p>
+          </form>
+        </div>
+        <div class="lp-source" id="sourceBox">
+          <div class="lp-source-head">
+            <h2 class="grow">Source</h2>
+            <span id="writers" class="row lp-writers"></span>
+            <button type="button" id="editSource">Edit source</button>
+          </div>
+          <pre id="sourceView" class="lp-code" tabindex="0" aria-label="The page's source"></pre>
+          <form id="sourceEdit" class="lp-edit" hidden>
+            <label for="sourceText">The page's source. Others' changes made while you edit are kept when you save.</label>
+            <textarea id="sourceText" class="lp-code" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+            <p id="sourceSaid" class="small lp-said" role="status" hidden></p>
+            <div class="row">
+              <button type="submit" class="primary" id="sourceSave">Save</button>
+              <button type="button" id="sourceCancel">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+    <aside class="stack lp-side">
+      <section class="box rouh-box" id="rouhBox">
+        <header><h2>Your Rouh</h2></header>
+        <form id="rouhAsk" class="say-form">
+          <label for="rouhWords">What should your Rouh do here?</label>
+          <textarea id="rouhWords" rows="2" maxlength="1000" placeholder="Make the price table easier to read"></textarea>
+          <button id="rouhGo" class="primary" type="submit">Ask your Rouh</button>
+        </form>
+        <p id="rouhCannot" class="small dim" hidden></p>
+        <div id="rouhBusy" class="stack" hidden>
+          <p id="rouhProgress" aria-live="polite"></p>
+          <div class="row"><button id="skip" type="button">Skip to the end</button><button id="stopRouh" class="stop" type="button">Stop</button></div>
+        </div>
+        <h3 class="lp-sub">Live steps</h3>
+        <ul class="feed" id="feed" aria-live="polite"></ul>
+      </section>
+      <section class="box" id="commentsBox">
+        <header><h2>Comments</h2><span id="commentCount" class="small dim"></span></header>
+        <ol id="comments" class="lp-comments"></ol>
+      </section>
+      <section class="box history">
+        <header><h2>History</h2><button id="histToggle" type="button" aria-expanded="false" aria-controls="hist">Show</button></header>
+        <div id="hist" class="stack" hidden>
+          <label for="histRange">Slide back through every change; the page shows as it was</label>
+          <input id="histRange" type="range" min="0" max="0" step="1" value="0">
+          <p id="histSaid" class="small dim"></p>
+          <button id="restore" type="button" disabled>Bring back this version</button>
+        </div>
+      </section>
+      <section class="box" id="keepBox" hidden>
+        <header><h2 id="keepTitle">This page in the task</h2></header>
+        <div id="keep" class="stack"></div>
+      </section>
+      <section class="box">
+        <header><h2>Members</h2><span id="hereCount" class="small dim"></span></header>
+        <div id="members" class="stack"></div>
+        <div id="claimsBox" class="stack lp-claims" hidden>
+          <h3>Claimed parts</h3>
+          <ul id="claims" class="lp-list"></ul>
+        </div>
+        <form id="inviteBox" class="stack lp-invite" hidden>
+          <label for="inviteWho">Invite a connected Rouh</label><select id="inviteWho"></select>
+          <label for="inviteRole">As</label>
+          <select id="inviteRole"><option value="editor">Editor</option><option value="commenter">Commenter</option><option value="viewer">Viewer</option></select>
+          <button type="submit">Invite</button>
+        </form>
+      </section>
+      <section class="box">
+        <header><h2>The log</h2></header>
+        <p class="small dim">Every change and message here, signed, in plain words.</p>
+        <div class="row lp-log-row"><button id="logOpen" type="button">Read the log</button><button id="leave" class="quiet" type="button">Leave</button></div>
+      </section>
+    </aside>
+  </div>
+</main>
+<div id="scrim" class="scrim" hidden></div>
+<aside id="logDrawer" class="drawer" hidden aria-label="The log">
+  <div class="row"><h2 class="grow">The log</h2><button id="logClose" type="button">Close</button></div>
+  <ul id="logList" class="log"></ul>
+</aside>
+<div id="toast" class="toast" role="status" hidden></div>
+<script defer src="{% asset "csrf.js" %}"></script>
+<script defer src="{% asset "link/livepage.js" %}"></script>
+</body>
+</html>

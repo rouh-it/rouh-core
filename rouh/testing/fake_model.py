@@ -1112,6 +1112,48 @@ def a_space_plan(body: dict) -> str:
     return json.dumps({"intent": f"{len(steps)} change{'s' if len(steps) != 1 else ''}: {asked[:120]}", "steps": steps})
 
 
+# --------------------------------------------------------------------------
+# Standing in for a Rouh changing a live page (`rouh/link/pagework.py`).
+# --------------------------------------------------------------------------
+#
+# Told apart by the first words of its system prompt, and answered out of the
+# person's own words alone, the line after "Your own person asks you:". The
+# page's source is read only to copy the exact text an edit finds; whatever
+# the page says is never acted on. "heading" or "title" changes the first
+# <h1>'s text to the words in quotes, else "A new heading"; "section" adds a
+# section before </main>, else before </body>; both when both are asked.
+
+PAGE_WORK = "You are a Rouh changing one live web page"
+
+
+def is_page_work(body: dict) -> bool:
+    return PAGE_WORK in _flat(body.get("system"))
+
+
+def a_page_plan(body: dict) -> str:
+    said = last_user_text(body)
+    asked = said.rsplit("Your own person asks you:", 1)[-1].strip()
+    box = re.search(r"The page's source:\n<untrusted-content-(\w+)[^>]*>\n(.*?)\n</untrusted-content-\1>", said, re.S)
+    source = box.group(2) if box else ""
+    steps = []
+    if re.search(r"\b(heading|title)\b", asked, re.I):
+        h1 = re.search(r"(<h1\b[^>]*>)(.*?)(</h1>)", source, re.S)
+        quoted = re.search(r"[\"“]([^\"”]{1,120})[\"”]", asked)
+        if h1:
+            el = re.search(r'data-rouh-id="([^"]+)"', h1.group(1))
+            steps.append({"say": "Changing the heading", "el": el.group(1) if el else "",
+                          "edits": [{"find": h1.group(0),
+                                     "replace": h1.group(1) + (quoted.group(1).strip() if quoted else "A new heading")
+                                     + h1.group(3)}]})
+    if re.search(r"\bsection\b", asked, re.I):
+        end = next((t for t in ("</main>", "</body>") if source.count(t) == 1), "")
+        if end:
+            steps.append({"say": "Adding a section", "el": "", "edits": [{"find": end, "replace": (
+                "<section><h2>New section</h2><p>Added by the Rouh at its person's request.</p></section>\n" + end)}]})
+    return json.dumps({"intent": f"{len(steps)} change{'s' if len(steps) != 1 else ''} to the page: {asked[:120]}",
+                       "steps": steps})
+
+
 SUMMING = "You say what a piece of work is for"
 SUMMARY_FILE = "summary-"
 
@@ -3045,6 +3087,7 @@ def build_app(record_dir: str) -> FastAPI:
             (is_triage(body), TRIAGE_FILE, a_decision),
             (is_filing(body), FILING_FILE, a_filing),
             (is_space_work(body), "space-work-", a_space_plan),
+            (is_page_work(body), "page-work-", a_page_plan),
         )
         from . import fake_code_adapt
 

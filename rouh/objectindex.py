@@ -2367,6 +2367,8 @@ def _level(store: objects.ObjectStore, root, tree: _Tree, here: dict, rel: str,
                   "title": _md_title(base / rel / name, name) or here.get("title") or name,
                   "about": ""}]
     as_page = {one["rel"].rsplit("/", 1)[-1] for one in built}
+    # Its own `index.html`, which its menu offers to work on live as a page (`_live_items`).
+    main_page = next((n for n in held["pages"] if n.lower() == "index.html"), "") if person is not None else ""
 
     # A card that showed one of the pages on this page is recorded with that
     # page's path, and is that page: listing it again as well is the "same
@@ -2556,7 +2558,7 @@ def _level(store: objects.ObjectStore, root, tree: _Tree, here: dict, rel: str,
             f'<span id="tkName">{html.escape(here["title"] or here["slug"] or rel)}</span>'
             f'</span>{status}{ARCHIVED_PILL if shelved else ""}{_for_pill(made_for)}</h1>'
             f'{_was_line(store, ident, _changed_on(when, now))}'
-            f'{_task_dots(called, shelved, bool(here.get("pinned")), bool(ident), made_for)}</div>'
+            f'{_task_dots(called, shelved, bool(here.get("pinned")), bool(ident), made_for, main_page)}</div>'
             f'</header>')
     return head + ("".join(body) or
                    '<p class="none">Nothing in this yet. A subtask, a page, a .md, a chat, '

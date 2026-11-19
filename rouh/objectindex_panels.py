@@ -354,7 +354,7 @@ def _for_pill(made_for) -> str:
 
 
 def _task_dots(called: str, shelved: bool = False, pinned: bool = False,
-               uploads: bool = False, made_for=None) -> str:
+               uploads: bool = False, made_for=None, page: str = "") -> str:
     """The three dots at the right of a task's or a subtask's name, and their
     menu: Rename, Move, Archive (or Unarchive, when it is archived), whose task
     it is, and Delete.
@@ -403,8 +403,7 @@ def _task_dots(called: str, shelved: bool = False, pinned: bool = False,
             f'<button type="button" class="menu-item" id="tkMove" role="menuitem" '
             f'data-icon="move">Move</button>'
             # Rouh Link (task 189): this task as a live page, with another Rouh and its person.
-            f'<button type="button" class="menu-item" id="tkLive" role="menuitem" '
-            f'data-icon="people">Work on it live with another Rouh</button>'
+            f'{_live_items(page)}'
             f'{_move_out_items(called, "tk")}'
             f'<button type="button" class="menu-item" id="tkArchive" role="menuitem" '
             f'data-icon="{"unarchive" if shelved else "archive"}" '
@@ -415,6 +414,24 @@ def _task_dots(called: str, shelved: bool = False, pinned: bool = False,
             f'<button type="button" class="menu-item danger" id="tkDelete" role="menuitem" '
             f'data-icon="delete">Delete</button>'
             f'</div></div>')
+
+
+def _live_items(page: str = "") -> str:
+    """Work on it live with another Rouh (Rouh Link, task 189), in a task's or a subtask's menu.
+
+    With no page of its own it is one press: the task as a live task page (`tkLive`). With its
+    `index.html` (``page``) it is a choice of two under that heading: the task as a live task
+    page, as before, or this page itself, live (`tkLivePage`, kind `html`, `rouh/link/pagein.py`),
+    which another Rouh and its person change with this Rouh's."""
+    if not page:
+        return (f'<button type="button" class="menu-item" id="tkLive" role="menuitem" '
+                f'data-icon="people">Work on it live with another Rouh</button>')
+    return (f'<div class="menu-head">Work on it live with another Rouh</div>'
+            f'<button type="button" class="menu-item" id="tkLive" role="menuitem" '
+            f'data-icon="people">As a live task page</button>'
+            f'<button type="button" class="menu-item" id="tkLivePage" role="menuitem" '
+            f'data-icon="people" data-item="{html.escape(page, quote=True)}">This page, live</button>'
+            f'<hr class="menu-rule">')
 
 
 def _move_out_items(called: str, ids: str = "") -> str:
@@ -1063,6 +1080,11 @@ def _item_line(row: str, rel: str, item: str, person, called: str = "", rename: 
     if person is not None and rename in ("page", "step"):
         parts.insert(0, _menu_item("rename", "rename", "Rename"))
         attrs["data-names"] = rename
+    # Rouh Link (task 189): a page as a live page, which another Rouh and its person change with
+    # this one's (`rouh/link/pagein.py`); the file is only changed when its owner brings it back.
+    if person is not None and str(item).lower().endswith((".html", ".htm")):
+        parts.insert(1 if parts and rename in ("page", "step") else 0,
+                     _menu_item("live", "people", "Work on it live with another Rouh"))
     if not parts:
         return row
     shown = called or item.rsplit("/", 1)[-1]

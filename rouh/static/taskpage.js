@@ -280,6 +280,14 @@
     if (tkLive) {
       tkLive.addEventListener('click', function () { tell(TASK, { act: 'live' }); });
     }
+    /* Or, for a task with its own page, this page, live: the page itself, which another Rouh and
+       its person change with this one's (kind `html`, `rouh/link/pagein.py`). */
+    var tkLivePage = document.getElementById('tkLivePage');
+    if (tkLivePage) {
+      tkLivePage.addEventListener('click', function () {
+        tell(TASK, { act: 'live', item: tkLivePage.getAttribute('data-item') });
+      });
+    }
     document.getElementById('tkDelete').addEventListener('click', function () {
       tell(TASK, { act: 'delete' });
     });

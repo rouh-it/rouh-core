@@ -140,7 +140,7 @@ PRESENCE = ("obj", {"actor": ("actor",), "kind": ("enum", ("person", "rouh")), "
                     "part?": S(120), "doing?": T(200), "follow?": S(120), "busy?": ("bool",)})
 SPACE_ID = ("id",)
 ROLE = ("enum", ("viewer", "commenter", "editor", "owner"))
-KIND = ("enum", ("task", "page", "doc", "trip", "research", "calendar", "list"))
+KIND = ("enum", ("task", "page", "doc", "trip", "research", "calendar", "list", "html"))
 LOG_ENTRY = ("obj", {"seq": ("int", 0, 10**9), "at": ("num", 0, 10**11), "kind": S(40), "plain": T(600),
                      "space_id?": S(80), "hash": S(80), "prev?": S(80), "sig": S(200)})
 MEMBER = ("obj", {"label": ("label",), "name?": S(120), "role": ROLE, "address?": ("url",),
@@ -168,6 +168,8 @@ FORMS: dict[str, dict] = {
     "room.poll": {"space_id": SPACE_ID, "since": ("int", 0, 10**9), "wait?": ("num", 0, 25), "epoch?": ("int", 0, 10**6),
                   "presence?": ("list", 6, PRESENCE)},
     "room.presence": {"space_id": SPACE_ID, "presence": ("list", 6, PRESENCE)},
+    # A member asks the owner to keep the live page as it is now (`pageout.py`); the owner decides.
+    "space.keep_ask": {"space_id": SPACE_ID, "seq": ("int", 0, 10**9), "words?": T(300)},
     "group.welcome": {"space_id": SPACE_ID, "epoch": ("int", 0, 10**6), "secret": ("b64", 64),
                       "members": ("list", 200, MEMBER)},
     "standin.hold": {"space_id": SPACE_ID, "until?": ("num", 0, 10**11)},

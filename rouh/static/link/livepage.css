@@ -1,0 +1,114 @@
+/* A Live page space (Rouh Link, task 189): what the Live page adds to link.css, which it loads
+   first and keeps (tokens, bar, avatars, boxes, banners, buttons). The page itself is the work, so
+   it takes the room: a wide stage with the page in a sealed frame, its source beside it on a desk,
+   and the Rouh, comments, people and history in a column at the side. */
+
+.lp-page { max-width: 1680px; }
+.lp-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+.lp-stage-col { display: grid; gap: 10px; min-width: 0; }
+.lp-side { min-width: 0; }
+
+/* the toolbar over the page */
+.lp-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lp-tools .grow { flex: 1 1 0; min-width: 0; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--raised); }
+.seg button { border: 0; border-radius: 0; background: transparent; min-width: 64px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 20%, var(--panel)); color: var(--ink); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); }
+#commentMode[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 20%, var(--panel)); font-weight: 600; }
+.lp-size { font-variant-numeric: tabular-nums; }
+.lp-size.near { color: var(--warn); font-weight: 600; }
+.lp-mode-said { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+
+/* the stage: the page, and its source beside it or instead of it */
+.lp-stage { display: grid; gap: 12px; height: max(520px, calc(100vh - 150px)); min-height: 0; }
+/* On a desk the page stays in view while the column beside it scrolls. */
+@media (min-width: 961px) { .lp-stage-col { position: sticky; top: 76px; } }
+.lp-stage[data-view="page"] { grid-template-columns: minmax(0, 1fr); }
+.lp-stage[data-view="page"] .lp-source { display: none; }
+.lp-stage[data-view="source"] { grid-template-columns: minmax(0, 1fr); }
+.lp-stage[data-view="source"] .lp-frame-box { display: none; }
+.lp-stage[data-view="both"] { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+
+.lp-frame-box { position: relative; min-height: 0; border: 1px solid var(--line); border-radius: var(--r); background: #fff; overflow: hidden; }
+.lp-frames, .lp-frames iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+.lp-frames iframe { background: #fff; transition: opacity .15s; }
+.lp-frames iframe.waiting { opacity: 0; pointer-events: none; }
+.lp-stage.commenting .lp-frame-box { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.lp-stage.past .lp-frame-box { border: 2px dashed var(--dim); }
+.banner.lp-past { border-style: dashed; border-color: var(--dim); }
+
+/* what is said over the stage: a blank page, a page that did not draw */
+.lp-over { position: absolute; inset: 0; display: grid; place-content: center; gap: 12px; padding: 24px; text-align: left;
+  background: var(--panel); color: var(--ink); }
+.lp-over > div { max-width: 420px; display: grid; gap: 10px; justify-items: start; }
+.lp-over svg { width: 56px; height: 56px; color: var(--dim); }
+.lp-over.thin { inset: auto 12px 12px 12px; place-content: stretch; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.lp-over.thin > div { max-width: none; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+
+/* the box a pick opens, over the page */
+.lp-pick { position: absolute; z-index: 3; width: min(340px, calc(100% - 24px)); display: grid; gap: 8px; padding: 14px;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.35); }
+.lp-pick h3 { font-size: 15px; }
+.lp-pick textarea { background: var(--ground); }
+
+/* the source */
+.lp-source { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; min-height: 0; min-width: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; }
+.lp-source-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lp-source-head h2 { flex: 1 1 auto; }
+.lp-writers { gap: 4px; }
+.lp-code { margin: 0; font: 12.5px/1.6 var(--mono); tab-size: 2; white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto;
+  min-height: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--ground); color: var(--ink); }
+.lp-code span[class^="w-"] { border-radius: 2px; }
+.lp-code .w-1 { background: color-mix(in srgb, var(--partner) 16%, transparent); }
+.lp-code .w-2 { background: color-mix(in srgb, var(--third) 16%, transparent); }
+.lp-code .w-3 { background: color-mix(in srgb, var(--fourth) 16%, transparent); }
+.lp-code .w-4 { background: color-mix(in srgb, var(--dim) 14%, transparent); }
+.lp-edit { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 8px; min-height: 0; }
+.lp-edit textarea.lp-code { resize: none; width: 100%; height: 100%; min-height: 240px; }
+.lp-source.editing { grid-template-rows: auto minmax(0, 1fr); }
+.lp-said { color: var(--ink); padding: 8px 10px; border-radius: 8px; border: 1px solid var(--bad); background: color-mix(in srgb, var(--bad) 10%, var(--panel)); }
+.lp-said.info { border-color: var(--line); background: var(--raised); }
+
+/* the side */
+.lp-sub { margin-top: 14px; margin-bottom: 6px; }
+.lp-comments { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: 360px; overflow: auto; }
+.lp-comments li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; align-items: start; }
+.lp-comments .num { width: 26px; height: 26px; border-radius: 13px 13px 13px 2px; background: var(--c); color: var(--accent-ink);
+  font-weight: 700; font-size: 12px; display: grid; place-items: center; margin-top: 2px; }
+.lp-comments .body { display: grid; gap: 4px; min-width: 0; }
+.lp-comments .body p { overflow-wrap: anywhere; }
+.lp-comments .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.lp-comments .acts button { min-height: 36px; padding: 0 10px; font-size: 13px; }
+.lp-comments li.resolved { opacity: .65; }
+.lp-comments li.lp-none { display: block; }
+.lp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.lp-list li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+.lp-list li .what { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; }
+.lp-claims, .lp-invite { margin-top: 14px; }
+.lp-log-row { margin-top: 8px; }
+.lp-path { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; padding: 6px 8px; background: var(--ground); border: 1px solid var(--line); border-radius: 6px; }
+.lp-ask { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; display: grid; gap: 4px; }
+
+/* narrower: the source is a tab, never beside */
+@media (max-width: 1240px) {
+  .lp-stage[data-view="both"] { grid-template-columns: minmax(0, 1fr); }
+  .lp-stage[data-view="both"] .lp-source { display: none; }
+  .wide-only { display: none !important; }
+}
+@media (max-width: 960px) {
+  .lp-layout { grid-template-columns: minmax(0, 1fr); }
+  .lp-stage { height: max(420px, 70vh); }
+}
+@media (max-width: 520px) {
+  /* Every avatar shows, on as many rows as it takes: none is scrolled out of sight. */
+  .bar .who { flex-wrap: wrap; overflow: visible; max-width: none; }
+  /* With every avatar shown the bar can be tall, so on a phone it scrolls away with the page. */
+  .bar { position: static; }
+  .lp-stage { height: max(380px, 68vh); }
+  .lp-tools { gap: 6px; }
+  .seg button { min-width: 72px; padding: 0 12px; }
+  .lp-source { padding: 8px; }
+  .lp-pick { left: 12px !important; right: 12px; width: auto; }
+}
