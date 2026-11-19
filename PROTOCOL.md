@@ -253,6 +253,7 @@ Fields that do not apply are left out rather than sent as null: a tool call has
 no `effort`, and a node that is still running has no `closed_at` and no `ms`.
 
 A spike (a `worker` with no parent) also carries what the orb's hover and card call it: `run_name`, the run's own name from the register, and, when it belongs to one, `task_name` with `task_number` and, for a step, `step_number` (`"62-18"`), worked out most specific first (`runs.task_of_run`): a step it is filed under, whose chat it came from or that its request names; then such a task; then the task of the chat its own chat is a fork of.
+It carries the model it uses too, when that is known: `model`, the id the run is confirmed to be using (`actual_model`, which a Codex session reports) or else the one it was asked for, `model_name`, the same model as a person says it (`config.model_name`), `model_confirmed` when it is the confirmed one, and `model_asked` when the model asked for was a different one.
 While Rouh itself is answering, the root carries `self`, the same fields for the chat the newest turn is in, with the chat's name as `run_name` and its id as `chat`.
 
 Three things about the timing are worth knowing before drawing it.

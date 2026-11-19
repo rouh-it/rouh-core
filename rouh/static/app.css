@@ -8451,6 +8451,15 @@ a.att-name:hover { text-decoration: underline; }
 .node-card-facts dt { color: var(--orb-dim); }
 .node-card-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .node-card-facts code { font: inherit; }
+/* A job's name and its id are the way to its run's page: underlined, in the
+   card's own ink, so they read as a link without a colour of their own. */
+.node-card a.node-card-run {
+  color: inherit; text-decoration: underline; text-underline-offset: 2px;
+  text-decoration-color: var(--orb-dim); border-radius: 2px;
+}
+.node-card a.node-card-run:hover { text-decoration-color: currentColor; }
+.node-card a.node-card-run:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.node-card .node-card-dim { color: var(--orb-dim); }
 .node-card-sub {
   font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--orb-dim);
   margin: 8px 0 0; padding-top: 6px; border-top: 1px solid var(--orb-faint);

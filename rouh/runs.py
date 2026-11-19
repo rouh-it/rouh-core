@@ -1279,7 +1279,32 @@ def _node(row: objects.Run, twigs: Mapping[str, list], now: float, prune_after: 
     if not row.parent_run_id:
         node["run_name"] = row.title or row.id
         node.update({k: v for k, v in _task_of_cached(row, now).items() if k != "task_id"})
+        node.update(model_words(row))
     return node
+
+
+def model_words(row: objects.Run) -> dict:
+    """The model a run uses, the way the orb's card names it, or {} when unknown.
+
+    The model the run is confirmed to be using where that is known (a Codex
+    session says which model it got, `actual_model`), else the one it was
+    asked for (`model`): the same two fields check_tasks and one_runs report.
+    `model_name` is the model as a person says it ("Opus 5.5"), and
+    `model_confirmed` whether it is the one the run actually got.
+    """
+    actual = str(getattr(row, "actual_model", "") or "").strip()
+    asked = str(getattr(row, "model", "") or "").strip()
+    model = actual or asked
+    if not model:
+        return {}
+    from . import config
+
+    out: dict[str, Any] = {"model": model, "model_name": config.model_name(model)}
+    if actual:
+        out["model_confirmed"] = True
+        if asked and asked != actual:
+            out["model_asked"] = asked
+    return out
 
 
 # ---------------------------------------------------------------------------

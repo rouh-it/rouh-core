@@ -10,7 +10,7 @@ import { cfg, drop, load, panelRgb, store } from 'app/settings.js';
 import { S, send } from 'app/socket.js';
 import { A, debug, MIC, openThreshold } from 'app/voice.js';
 import { showStop, stillSpeaking } from 'app/transcript.js';
-import { CARDS, showConflictCard } from 'app/cards.js';
+import { CARDS, goToAddress, showConflictCard } from 'app/cards.js';
 import { taskRecs } from 'app/tasks.js';
 import 'app/attachments.js';
 import { sbSet } from 'app/controls.js';
@@ -1223,6 +1223,40 @@ function jobOf(n) {
   return null;
 }
 
+// What each mode a run is started under means, said plainly (`crew.MODES`,
+// `runs.ONE_POLICY`); the bare word is only in the line's hover.
+var MODE_WORDS = {
+  one: 'a run of the one program',
+  self: 'Rouh changing its own code, landed on main',
+  safe: 'a job that asks before every edit and command',
+  auto: 'a job that works on its own and never pushes',
+  'local-only': 'a job that edits only its own copy and never pushes',
+  'direct-pr': 'a job that may push its own branch and open a pull request',
+  yolo: 'a job with every permission check skipped'
+};
+
+// The model a job uses, as its card says it: "Opus 5.5 claude-opus-5-5", the
+// model the run is confirmed to have where that is known and the one it was
+// asked for otherwise (`runs.model_words`); which of the two it is, in the
+// line's hover. "" when nobody has said.
+function modelLineOf(raw) {
+  if (!raw || !raw.model) return '';
+  var id = String(raw.model), name = String(raw.model_name || '');
+  var hover = raw.model_confirmed
+    ? 'The model the run says it is using' +
+      (raw.model_asked && raw.model_asked !== id ? ', though ' + raw.model_asked + ' was asked for' : '')
+    : 'The model the run was asked to use';
+  var said = name && name !== id
+    ? escapeHtml(name) + ' <code class="node-card-dim">' + escapeHtml(id) + '</code>'
+    : '<code>' + escapeHtml(id) + '</code>';
+  return '<dt title="' + escapeHtml(hover) + '">Model</dt><dd title="' + escapeHtml(hover) + '">' + said + '</dd>';
+}
+
+// A run's own page, the same address the run list and a job's notice open.
+function runHref(id) {
+  return '/run/' + encodeURIComponent(String(id || ''));
+}
+
 function fact(dt, dd) {
   return '<dt>' + escapeHtml(dt) + '</dt><dd>' + dd + '</dd>';
 }
@@ -1232,7 +1266,7 @@ function openNodeCard(node) {
   if (!wrap) return;
   var kind = node.kind || 'tool';
   var raw = node.raw || {};
-  var title = '', facts = '', more = '';
+  var title = '', facts = '', more = '', titleHref = '';
 
   if (kind === 'root') {
     var m = machineSummary();
@@ -1282,9 +1316,20 @@ function openNodeCard(node) {
     facts += fact(node.closed ? 'Took' : 'Running for', escapeHtml(durationOf(node)));
     if (node.closed) facts += fact('Finished', escapeHtml(agoWords(node)));
     if (node.opened) facts += fact('Started', escapeHtml(clockOfMs(node.opened)));
-    if (rec.mode || raw.mode) facts += fact('Mode', escapeHtml(rec.mode || raw.mode));
+    var mode = rec.mode || raw.mode;
+    if (mode) {
+      // What the run is, in words; the register's own word for it ("one",
+      // "self") only in the hover, for whoever is looking for it.
+      facts += '<dt title="Mode: ' + escapeHtml(mode) + '">Runs as</dt><dd title="Mode: ' +
+        escapeHtml(mode) + '">' + escapeHtml(MODE_WORDS[mode] || 'a job, under its own rules (' + mode + ')') +
+        '</dd>';
+    }
+    var model = modelLineOf(raw);
+    if (model) facts += model;
     if (raw.effort) facts += fact('Effort', escapeHtml(raw.effort));
-    facts += fact('Job id', '<code>' + escapeHtml(node.id) + '</code>');
+    facts += fact('Job id', '<a class="node-card-run" data-inapp href="' + escapeHtml(runHref(node.id)) +
+      '" title="Open this run’s page"><code>' + escapeHtml(node.id) + '</code></a>');
+    titleHref = runHref(node.id);
     if (node.state === 'waiting') {
       // A job whose work will not go onto main carries its own question,
       // because there is no screen to read it off: land.sh wrote it down as
@@ -1376,7 +1421,20 @@ function openNodeCard(node) {
   }
 
   $('nodeCardKind').textContent = WHAT[kind] || kind;
-  $('nodeCardTitle').textContent = title;
+  var head = $('nodeCardTitle');
+  head.textContent = '';
+  if (titleHref) {
+    // A job's name is the way to its own page, the same page the run list and
+    // check_tasks link to (`/run/<id>`), opened in this window like every other
+    // place in Rouh; Cmd or a middle press opens it in a tab of its own.
+    var to = document.createElement('a');
+    to.className = 'node-card-run';
+    to.setAttribute('data-inapp', '');
+    to.href = titleHref;
+    to.title = 'Open this run’s page';
+    to.textContent = title;
+    head.appendChild(to);
+  } else head.textContent = title;
   $('nodeCardFacts').innerHTML = facts;
   $('nodeCardMore').innerHTML = more;
   NC.back = document.activeElement;
@@ -1404,6 +1462,19 @@ function closeNodeCard() {
     // card behind the node opens the decision card itself rather than only
     // describing it: it closes, the canvas comes forward, and the conflict
     // card is brought into view with its first button under the hand.
+    // A press on the job's name or its id opens its run's page here, with the
+    // card closed and the orb back in its corner so the page is what is seen.
+    // Cmd, Ctrl, Shift and the middle button are the browser's (`browserTakes`).
+    var run = e.target && e.target.closest && e.target.closest('a.node-card-run');
+    if (run) {
+      var href = run.getAttribute('href');
+      if (!href || e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+      e.preventDefault();
+      closeNodeCard();
+      orbExpand(false);
+      goToAddress(href);
+      return;
+    }
     var open = e.target && e.target.closest && e.target.closest('.node-card-open');
     if (open) {
       e.preventDefault();
