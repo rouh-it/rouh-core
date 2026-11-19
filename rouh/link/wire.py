@@ -139,6 +139,42 @@ async def post_envelope(address: str, env: dict, timeout: float = TIMEOUT) -> di
     raise Unreachable(f"answered {r.status_code}")
 
 
+async def post_to_peer(peer, env: dict, timeout: float = TIMEOUT) -> dict:
+    """`post_envelope` to a connection: its address, and when that does not answer, its born address.
+    A name a Rouh's owner chose stops working when they change it, and the other side only learns the
+    new one from the card; the born name keeps answering for good. When the born address answers,
+    the connection's address is brought up to the one its card shows now."""
+    from . import peers
+
+    try:
+        return await post_envelope(peer.address, env, timeout)
+    except Unreachable:
+        born = peers.born_address(peer.address, peer.label)
+        if not born or born == peer.address.rstrip("/"):
+            raise
+    got = await post_envelope(born, env, timeout)
+    await _follow_address(peer, born)
+    return got
+
+
+async def _follow_address(peer, reached: str) -> None:
+    """The connection's address, as the card at the address that answered gives it now."""
+    from rouh.models import LinkPeer
+
+    from . import card as _card
+    from . import peers
+
+    try:
+        _got, part = await _card.fetch(reached, label=peer.label)
+        now_at = peers.dialable(part.get("address") or "") or reached
+    except Exception:  # noqa: BLE001 - the born address answered: keep that
+        now_at = reached
+    if now_at and now_at != peer.address:
+        await asyncio.to_thread(lambda: LinkPeer.objects.filter(id=peer.id).update(address=now_at, updated_at=_now()))
+        log.info("link: %s moved from %s to %s", peer.label, peer.address, now_at)
+        peer.address = now_at
+
+
 # --- sending ---------------------------------------------------------------------------------------
 
 
@@ -169,7 +205,7 @@ async def ask(org: str, peer, kind: str, body: dict, *, timeout: float = TIMEOUT
 
     me = await asyncio.to_thread(_me.me, org)
     env = await asyncio.to_thread(lock_for, me, peer, kind, body, mid)
-    got = await post_envelope(peer.address, env, timeout)
+    got = await post_to_peer(peer, env, timeout)
     reply = await asyncio.to_thread(open_reply, me, peer, got)
     await asyncio.to_thread(_seen, org, peer.label)
     return reply
@@ -230,7 +266,7 @@ async def deliver_due() -> int:
             await asyncio.to_thread(_mark, row.id, "refused", "no such connection")
             continue
         try:
-            await post_envelope(peer.address, row.envelope)
+            await post_to_peer(peer, row.envelope)
             await asyncio.to_thread(_mark, row.id, "done", "delivered")
             await asyncio.to_thread(_seen, row.org_id, peer.label)
             went += 1
@@ -353,10 +389,15 @@ async def _key_holds(org: str, peer, head: dict) -> object:
         return peer
     from . import card as _card
 
+    from . import peers
+
     try:
         fetched, part = await _card.fetch(peer.address, label=peer.label)
-    except Exception:  # noqa: BLE001
-        raise limits.No("That key is not this Rouh's.") from None
+    except Exception:  # noqa: BLE001 - a name its owner changed: its born address
+        try:
+            fetched, part = await _card.fetch(peers.born_address(peer.address, peer.label), label=peer.label)
+        except Exception:  # noqa: BLE001
+            raise limits.No("That key is not this Rouh's.") from None
     if part["daily_key"] != head["from_key"] or part["birth_key"] != (peer.card or {}).get("birth_key", part["birth_key"]):
         raise limits.No("That key is not this Rouh's.")
     from rouh.models import LinkPeer

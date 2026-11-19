@@ -75,6 +75,28 @@ def dialable(address: str) -> str:
     return f"https://{p.netloc}"
 
 
+def born_address(address: str, label: str) -> str:
+    """The Rouh's born address, from its label and the relay domain of an address it was reached at:
+    ``https://mgpepe.rouh.page`` of ``dignified-cumulus`` is ``https://dignified-cumulus.rouh.page``.
+    A Rouh's label is its born name, which the relay keeps answering for good, while a name its owner
+    chose may be changed and then stops working (`relay.change_name`). "" when it cannot be told."""
+    p = urlsplit(str(address or ""))
+    host = (p.hostname or "").lower()
+    parts = host.split(".")
+    if p.scheme != "https" or len(parts) < 3 or not forms.LABEL.match(str(label or "")):
+        return ""
+    return f"https://{label}.{'.'.join(parts[1:])}" + (f":{p.port}" if p.port and p.port != 443 else "")
+
+
+async def label_at(address: str) -> str:
+    """The label (born name) of the Rouh answering at an address, read from its card; "" if none."""
+    try:
+        _card_got, part = await _card.fetch(address)
+    except Exception:  # noqa: BLE001 - not reachable now: the address's own first part is used
+        return ""
+    return str(part.get("label") or "")
+
+
 def peer_row(org: str, label: str):
     from rouh.models import LinkPeer
 
@@ -253,15 +275,17 @@ async def _say_hello(org, address, *, token, trust_level, silo, contact_id, via,
     return shown(await asyncio.to_thread(peer_row, org, row.label))
 
 
-def note_contact(org: str, contact_id: str, address: str) -> dict:
+def note_contact(org: str, contact_id: str, address: str, label: str = "") -> dict:
     """A contact's "their Rouh" line: this contact's Rouh is at that address. Kept as a connection
     that is only noted until one side says hello; a hello from it then connects at once (both people
-    said so: one by noting it here, the other by asking from their contact)."""
+    said so: one by noting it here, the other by asking from their contact). ``label`` is the label
+    its card gives (`label_at`): an address its owner chose is not its label, and the hello comes in
+    under the label."""
     from rouh.models import LinkPeer
 
     address = normal_address(address)
     host = urlsplit(address).hostname or ""
-    label = host.split(".")[0]
+    label = label if forms.LABEL.match(str(label or "")) else host.split(".")[0]
     if not forms.LABEL.match(label):
         raise Problem("That is not a Rouh's address.")
     now = _now()
@@ -298,6 +322,8 @@ def _hello(ctx, form) -> dict:
     existing = ctx.peer
     if existing is not None and existing.state == "blocked":
         raise limits.No("This Rouh does not connect to you.")
+    if existing is None:
+        existing = _noted_by_address(org, part)
     token = str(form.get("invite") or "")
     level, silo, via, state = "known", "", "contact", "asked"
     if token:
@@ -336,6 +362,20 @@ def _hello(ctx, form) -> dict:
               else f"{name} asked to connect.", peer=part["label"])
     _tell_owner(org, f"{name} " + ("is connected now." if state == "connected" else "asks to connect."))
     return {"state": state}
+
+
+def _noted_by_address(org: str, part: dict):
+    """A contact's Rouh noted under the first part of an address its owner chose (before its card was
+    read), found by that address now that its hello names its real label: moved to that label."""
+    from rouh.models import LinkPeer
+
+    label = str(part.get("label") or "")
+    ours = {a for a in (dialable(part.get("address") or ""), born_address(part.get("address") or "", label)) if a}
+    for row in LinkPeer.objects.filter(org_id=org, state="noted").exclude(label=label):
+        if dialable(row.address) in ours:
+            LinkPeer.objects.filter(id=row.id).update(label=label)
+            return peer_row(org, label)
+    return None
 
 
 def accept_request(org: str, label: str, trust_level: str = "known", silo: str = "") -> dict:

@@ -23,7 +23,7 @@ import json
 import logging
 
 from asgiref.sync import sync_to_async
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 
@@ -93,17 +93,40 @@ async def inbox(request: HttpRequest):
     return answer(got, headers=NO_STORE)
 
 
+def _moved_to(request: HttpRequest, address: str) -> str:
+    """The Rouh's current address, when this request came in on another of its own relay names."""
+    from urllib.parse import urlsplit
+
+    from rouh import relay
+
+    current = (urlsplit(address).hostname or "").lower()
+    asked = request.get_host().split(":")[0].lower()
+    try:
+        own = {n.lower() for n in relay.hostnames()}
+    except Exception:  # noqa: BLE001 - no relay state: nothing to move from
+        own = set()
+    if not current or asked == current or asked not in own or current not in own:
+        return ""
+    return address.rstrip("/")
+
+
 @only("GET")
 async def join_page(request: HttpRequest, token: str):
     from rouh.link import me as _me
 
     org = await sync_to_async(_org_for_request)(request)
-    name = ""
+    name, address = "", ""
     if org is not None:
         try:
-            name = (await sync_to_async(_me.me)(org)).tagged
+            mine = await sync_to_async(_me.me)(org)
+            name, address = mine.tagged, mine.address
         except Exception:  # noqa: BLE001
             name = ""
+    moved = await sync_to_async(_moved_to)(request, address)
+    if moved:
+        # A link made on another of this Rouh's names (its born one, before its owner chose one):
+        # the secret is the same on every name, so it opens on the address the Rouh has now.
+        return HttpResponseRedirect(moved + request.path)
     link = request.build_absolute_uri(request.path)
     return render(request, "rouh/link_join.html", {"name": name, "link": link}, status=200 if name else 404)
 
@@ -418,7 +441,12 @@ async def api_contact(request):
 
     async def go(me, b):
         org = str(me.org_id)
-        row = await sync_to_async(peers.note_contact)(org, str(b.get("contact_id") or ""), str(b.get("address") or ""))
+        address = str(b.get("address") or "")
+        try:
+            label = await peers.label_at(peers.normal_address(address))
+        except peers.Problem:
+            label = ""
+        row = await sync_to_async(peers.note_contact)(org, str(b.get("contact_id") or ""), address, label)
         if b.get("connect"):
             return await peers.connect_address(org, row["address"], contact_id=str(b.get("contact_id") or ""))
         return row
