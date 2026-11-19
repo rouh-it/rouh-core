@@ -3414,6 +3414,63 @@
     "rouh/their_files.py",
     "rouh/web/their_files.py"
    ]
+  },
+  "n48-weekday-check": {
+   "name": "A day and its date that disagree",
+   "what": "Before Rouh sends or drafts an email, a weekday written beside a date it does not fall on (\"Tuesday 25 November\" when the 25th is a Wednesday) holds it, and Rouh writes it again with the day that was meant.",
+   "switch": "weekday_check",
+   "signals": {
+    "events": {
+     "held": "You asked Rouh to send or draft an email that named a weekday its date is not, and it was held and put right before it went"
+    }
+   },
+   "files": [
+    "rouh/weekday_check.py"
+   ]
+  },
+  "n48-payment-failed": {
+   "name": "A payment that did not go through",
+   "what": "A service's email that it could not take a payment, passed over as machine mail, is told at once in a notice: what, how much, what happens next and by when, and where it came from, with Open the email.",
+   "switch": "payment_failed",
+   "signals": {
+    "events": {
+     "opened": "You pressed Open the email on a notice that a payment did not go through"
+    },
+    "runs": {
+     "told": "A service's email that a payment failed reached Rouh's inbox and was told in a notice"
+    }
+   },
+   "files": [
+    "rouh/payment_failed.py",
+    "rouh/web/payment_failed.py"
+   ]
+  },
+  "n48-file-lock": {
+   "name": "Lock a Drive file",
+   "what": "Asked to lock a file in Drive, Rouh locks it so nobody can change its content until it is unlocked, with the reason beside it in Drive; asked to unlock it, Rouh opens it for changes again.",
+   "switch": "file_lock",
+   "signals": {
+    "events": {
+     "locked": "You asked Rouh to lock a file in Drive, and it was locked",
+     "unlocked": "You asked Rouh to unlock a file in Drive, and it was unlocked"
+    }
+   },
+   "files": [
+    "rouh/file_lock.py"
+   ]
+  },
+  "n48-mail-code": {
+   "name": "The code in an email",
+   "what": "An email opened on the inbox card that carries a sign-in or confirmation code shows the code large at the top, with how long it lasts and Copy the code.",
+   "switch": "mail_code",
+   "signals": {
+    "events": {
+     "copied": "You pressed Copy the code on an email opened on the inbox card"
+    }
+   },
+   "files": [
+    "rouh/mail_code.py"
+   ]
   }
  }
 }

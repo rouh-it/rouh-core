@@ -268,6 +268,16 @@ def _drive_routes(app, world, seen, note, made_up, file_named, drive_named, hold
         if body.get("name"):
             found["name"] = body["name"]
             note("file renamed", {"id": file_id, "name": found["name"]})
+        if "contentRestrictions" in body:
+            # Lock a Drive file (night 48, `rouh/file_lock.py`): Drive keeps who locked it and when.
+            held = [dict(one) for one in body.get("contentRestrictions") or []]
+            for one in held:
+                if one.get("readOnly"):
+                    one.setdefault("restrictingUser", {"emailAddress": world.get("account_email")
+                                                       or "rouh@company.test"})
+            found["contentRestrictions"] = held
+            note("file locked" if any(o.get("readOnly") for o in held) else "file unlocked",
+                 {"id": file_id, "name": found.get("name")})
         if body.get("trashed"):
             found["trashed"] = True
             note("file binned", {"id": file_id, "name": found["name"]})

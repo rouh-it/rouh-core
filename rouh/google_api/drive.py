@@ -531,6 +531,33 @@ class Drive:
                 "type": _kind(answer.get("mimeType") or ""),
                 "mime_type": answer.get("mimeType") or ""}
 
+    async def lock(self, file_id: str, locked: bool, reason: str = "") -> dict:
+        """Lock a file so nobody can change it, or unlock it (Lock a Drive file, night 48,
+        `rouh/file_lock.py`): Drive's content restriction, read-only for everyone while it stands.
+
+        {"id", "name", "link", "mime_type", "type", "locked", "reason", "by"} as Drive says it now.
+        """
+        restriction = {"readOnly": bool(locked)}
+        if locked and reason:
+            restriction["reason"] = reason[:200]
+        answer = await self._clients.call(
+            self._who, "PATCH", self._url("/files/" + urllib.parse.quote(file_id)),
+            params={"fields": FILE_FIELDS + ",contentRestrictions", **self.SHARED},
+            json_body={"contentRestrictions": [restriction]})
+        return {"id": answer.get("id") or file_id, "name": answer.get("name") or "",
+                "link": answer.get("webViewLink") or "", "mime_type": answer.get("mimeType") or "",
+                "type": _kind(answer.get("mimeType") or ""), **locked_of(answer)}
+
+    async def lock_state(self, file_id: str) -> dict:
+        """{"name", "locked", "reason", "by", "can_lock"} for one file, as Drive says it now."""
+        found = await self._clients.call(
+            self._who, "GET", self._url("/files/" + urllib.parse.quote(file_id)),
+            params={"fields": "id,name,mimeType,webViewLink,contentRestrictions,capabilities/canModifyContentRestriction",
+                    **self.SHARED})
+        return {"name": found.get("name") or "", "link": found.get("webViewLink") or "",
+                "can_lock": (found.get("capabilities") or {}).get("canModifyContentRestriction") is not False,
+                **locked_of(found)}
+
     async def move(self, file_id: str, folder_id: str) -> dict:
         """Into another folder. Drive moves by changing parents, not by copying.
 
@@ -961,6 +988,16 @@ CANNOT_MAKE_A_SHARED_DRIVE = (
 
 class MemberRefused(RuntimeError):
     """One person could not be put in a shared drive. The words are said as they are."""
+
+
+def locked_of(found: dict) -> dict:
+    """Whether Drive's answer about a file says it is locked, why and by whom."""
+    for one in found.get("contentRestrictions") or []:
+        if one.get("readOnly"):
+            by = one.get("restrictingUser") or {}
+            return {"locked": True, "reason": str(one.get("reason") or ""),
+                    "by": str(by.get("emailAddress") or by.get("displayName") or "")}
+    return {"locked": False, "reason": "", "by": ""}
 
 
 def drive_role(role: str) -> str:

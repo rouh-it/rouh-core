@@ -3555,3 +3555,67 @@ print(json.dumps({"ids": [f["id"] for f in got], "can": got[0]["can"], "until": 
 """))
     expect('"ids": ["f1"]' in out and '"can": "can edit"' in out and "21 November" in out,
            f"the files a contact can open were not listed as they should be: {out[-500:]}")
+
+
+@check("gene.weekday-check")
+def weekday_check(s: Stack) -> None:
+    """A weekday beside a date it is not is found with both ways to put it right; a right one is not."""
+    out = core_py(s, _owner_py("""
+from datetime import date
+from rouh import weekday_check
+today = date(2026, 11, 19)
+print(json.dumps({"wrong": [one["is"] for one in weekday_check.found("Shall we say Tuesday 25 November at ten?", today)],
+                  "right": weekday_check.found("Wednesday 25 November works", today),
+                  "said": weekday_check.check("Call", "See you Tue, 25 Nov 2026.", today)}))
+"""))
+    expect('"wrong": ["Wednesday"]' in out and '"right": []' in out and "Tuesday 24 November" in out,
+           f"a weekday that is not its date's was not found as it should be: {out[-500:]}")
+
+
+@check("gene.payment-failed")
+def payment_failed(s: Stack) -> None:
+    """A service's email that a charge failed is read for what, how much and by when; a receipt is not."""
+    out = core_py(s, _owner_py("""
+from datetime import date
+from rouh import payment_failed
+today = date(2026, 11, 19)
+failed = {"from": "Stackcloud Billing <billing@stackcloud.test>", "subject": "Your payment failed", "at": 0,
+          "body": "We couldn't charge your card for $20.00. Your account will be suspended on 26 November 2026."}
+paid = dict(failed, subject="Receipt for your payment", body="Thank you for your payment of $20.00.")
+got = payment_failed.read(failed, today)
+print(json.dumps({"service": got["service"], "amount": got["amount"], "due": str(got["due"]), "then": got["then"],
+                  "paid": payment_failed.read(paid, today)}))
+"""))
+    expect('"service": "Stackcloud"' in out and '"amount": "$20.00"' in out and '"due": "2026-11-26"' in out
+           and "suspended" in out and '"paid": null' in out,
+           f"a failed payment was not read as it should be: {out[-500:]}")
+
+
+@check("gene.file-lock")
+def file_lock(s: Stack) -> None:
+    """Drive's content restriction is read as locked, by whom and why; none, or one lifted, as open."""
+    out = core_py(s, _owner_py("""
+from rouh import file_lock
+from rouh.google_api.drive import locked_of
+print(json.dumps({"locked": locked_of({"contentRestrictions": [{"readOnly": True, "reason": "Signed",
+                                       "restrictingUser": {"emailAddress": "bo@stack-lock.test"}}]}),
+                  "open": locked_of({"contentRestrictions": [{"readOnly": False}]}),
+                  "asked": [file_lock.wanted("on"), file_lock.wanted("off"), file_lock.wanted("")]}))
+"""))
+    expect('"locked": {"locked": true, "reason": "Signed", "by": "bo@stack-lock.test"}' in out
+           and '"open": {"locked": false' in out and '"asked": [true, false, null]' in out,
+           f"a file's lock was not read as it should be: {out[-500:]}")
+
+
+@check("gene.mail-code")
+def mail_code(s: Stack) -> None:
+    """The code an email carries is found with how long it lasts; an order number is not a code."""
+    out = core_py(s, _owner_py("""
+from rouh import mail_code
+print(json.dumps({"code": mail_code.code_of("Your Stack verification code", "Your verification code is 482913."),
+                  "alone": mail_code.code_of("Sign in", "Enter this code to sign in:\\n\\n  735 201\\n"),
+                  "order": mail_code.code_of("Your order", "Thanks for order 55512, total $20"),
+                  "lasts": mail_code.minutes_of("It expires in 10 minutes.")}))
+"""))
+    expect('"code": "482913"' in out and '"alone": "735 201"' in out and '"order": ""' in out
+           and '"lasts": 10' in out, f"the code in an email was not found as it should be: {out[-500:]}")

@@ -439,6 +439,10 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `gene.comment-asks` | Asked in a comment | untested | works | Google's email that a Docs comment names Rouh is read for the file and the comment; an email from anybody else is not | not checked |
 | `gene.share-until` | Shared until a day | untested | works | a day ends at its last minute on the owner's clock, in UTC for Google; a day passed and one more than a year away are refused | not checked |
 | `gene.their-files` | Files they can open | untested | works | a contact's own permissions on files are listed with what they can do and until when; the owner's, the link's and other people's are not | not checked |
+| `gene.weekday-check` | A day and its date that disagree | untested | works | a weekday beside a date it is not is found with the date's own weekday and the named day nearest it; a right one is not | not checked |
+| `gene.payment-failed` | A payment that did not go through | untested | works | a service's email that a charge failed is read for what, how much and by when; a receipt is not | not checked |
+| `gene.file-lock` | Lock a Drive file | untested | works | Drive's content restriction is read as locked, by whom and why; one lifted as open | not checked |
+| `gene.mail-code` | The code in an email | untested | works | the code an email carries is found, alone on its line or after the words that name it, with how long it lasts; an order number is not | not checked |
 | `core.commands-open-credentials` | A command run in the core beside Rouh (`docker compose exec core python manage.py ...`) opens what Rouh sealed | broken | works | with Google connected, Python in the core opens the sealed refresh token with the key from the keys volume (`ROUH_ENCRYPTION_KEY_FILE`), and Google is still connected after. It was broken: only the core's start put the key in Rouh's environment, so a command beside it made a key of its own in `/data`, could open no credential, and marked the owner's Google to be connected again | not checked |
 
 ## Rouh on Windows

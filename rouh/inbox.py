@@ -994,6 +994,16 @@ class Mailroom:
             newcomer = None
         if newcomer:
             shown = dict(shown, save_sender=newcomer)
+        # The code in an email (night 48, `rouh/mail_code.py`): a sign-in or confirmation code, one press to copy.
+        from . import mail_code
+
+        try:
+            code = await asyncio.to_thread(mail_code.shown, self._owner(sealed), found)
+        except Exception as exc:  # noqa: BLE001 - the message opens all the same
+            log.info("the code in the email could not be read: %s", exc)
+            code = None
+        if code:
+            shown = dict(shown, mail_code=code)
         # Call them from their email (night 41, `rouh/call_sender.py`): the sender's number, one press.
         from . import call_sender
 
@@ -1082,6 +1092,16 @@ class Mailroom:
         if not done:
             return Answer(False, why=said)
         return Answer(True, said={"said": said}, note=f"saved {about(found)} as a contact, pressed on the inbox card")
+
+    async def mail_code(self, service: str, sealed: dict | None) -> Answer:
+        """Copy the code pressed on an email's code row: only counted; the page copies it."""
+        from . import mail_code
+
+        who = self._owner(sealed)
+        if not await asyncio.to_thread(mail_code.on, who):
+            return Answer(False, why="The code in an email is switched off.")
+        await asyncio.to_thread(mail_code.copied, who, service)
+        return Answer(True, said={"counted": True})
 
     async def call_sender(self, how: str, sealed: dict | None) -> Answer:
         """A number pressed on an email's Call line: only counted; the phone rings it."""
@@ -1375,7 +1395,7 @@ def serve(room: Mailroom) -> None:
 #: What the page may ask of a card.
 ASKS = {"list", "open", "archive", "unarchive", "read", "unread", "compose", "send",
         "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch", "know_them",
-        "save_sender", "card_in_mail", "call_sender", "invite_answer"}
+        "save_sender", "card_in_mail", "call_sender", "invite_answer", "mail_code"}
 
 
 async def press(msg: dict, who) -> Answer:
@@ -1411,7 +1431,8 @@ async def press(msg: dict, who) -> Answer:
     if what != "list" and not message_id:
         return Answer(False, why="Say which message.")
     if theirs and what not in ("list", "open", "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch",
-                               "know_them", "save_sender", "card_in_mail", "call_sender", "invite_answer"):
+                               "know_them", "save_sender", "card_in_mail", "call_sender", "invite_answer",
+                               "mail_code"):
         # The person's own inbox is connected read-only (`rouh/inboxes.py`):
         # the card has no such button, and a page that asks anyway is told why.
         return Answer(False, why="This inbox is connected read-only, so it can be read "
@@ -1451,6 +1472,11 @@ async def press(msg: dict, who) -> Answer:
         if what == "save_sender":
             # Save them as a contact: written to iCloud, nothing in the mailbox changes.
             done = await ROOM.save_sender(message_id, sealed)
+            done.chat = chat
+            return done
+        if what == "mail_code":
+            # Counted only: the page puts the code on the clipboard, and nothing in the mailbox changes.
+            done = await ROOM.mail_code(str(msg.get("when") or ""), sealed)
             done.chat = chat
             return done
         if what == "call_sender":

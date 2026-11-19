@@ -19,7 +19,7 @@ import { ASK, askDelete, askFromPage, briefClose, briefViewing, BROWSE_ROOT, bro
   sourcesClose, sourcesViewing, evolutionClose, evolutionViewing,
   thoughtsClose, thoughtsViewing,
   boxClose, boxViewing,
-  browserZone, CANVAS, canvasLoad, canvasStep, clockPost, controlClose, controlViewing,
+  browserZone, CANVAS, canvasLoad, canvasStep, clockPost, controlClose, controlViewing, copyText,
   drawCrumb, goalsClose, goalsTake, goalsViewing, locFind, locPermission, memoryClose, memoryViewing,
   moveOpen, moveSend, askTaskName, oneClose, oneViewing, pageUrl, projectsClose, projectsViewing, remindersClose,
   remindersViewing, runsClose, runsViewing, settingsClose, settingsViewing, sharePanelOpen,
@@ -2955,6 +2955,10 @@ function inboxBlock(b) {
   // each a tel: link the phone rings in one press.
   var callRow = el('div', 'ib-remind ib-call');
   callRow.hidden = true;
+  // The code in an email (night 48, rouh/mail_code.py): a sign-in or confirmation code the email
+  // carries, set large at the top with Copy the code, so it is not hunted for in the service's words.
+  var codeRow = el('div', 'ib-code');
+  codeRow.hidden = true;
   // Answer the invitation from the email (night 45, rouh/invite_answer.py): the meeting, the answer
   // so far, and Yes, Maybe and No, each answering it in the calendar in one press.
   var inviteRow = el('div', 'ib-remind ib-invite');
@@ -2968,6 +2972,7 @@ function inboxBlock(b) {
   mail.appendChild(navTop);
   mail.appendChild(subject);
   mail.appendChild(heads);
+  mail.appendChild(codeRow);
   mail.appendChild(soonRow);
   mail.appendChild(tooRow);
   mail.appendChild(knowRow);
@@ -3162,6 +3167,7 @@ function inboxBlock(b) {
     drawSaveSender(msg);
     drawCardInMail(msg);
     drawCallSender(msg);
+    drawCode(msg);
     drawInvite(msg);
   }
 
@@ -3289,6 +3295,36 @@ function inboxBlock(b) {
         answerRow.appendChild(see);
       });
     });
+  }
+
+  /** @param {any} msg */
+  function drawCode(msg) {
+    codeRow.textContent = '';
+    var c = msg && msg.mail_code;
+    codeRow.hidden = !(c && c.code);
+    if (!c || !c.code) return;
+    codeRow.classList.toggle('is-expired', !!c.expired);
+    var said = el('span', 'ib-code-said', c.said || 'The code in this email');
+    var code = el('span', 'ib-code-value', String(c.code));
+    code.setAttribute('aria-label', 'The code: ' + String(c.code).split('').join(' '));
+    var copy = el('button', 'ib-btn ib-code-copy', 'Copy the code');
+    copy.type = 'button';
+    var done = el('span', 'ib-code-done');
+    done.setAttribute('role', 'status');
+    copy.addEventListener('click', function () {
+      copyText(String(c.copy || c.code)).then(function () {
+        done.textContent = 'Copied';
+        copy.textContent = 'Copy it again';
+      }, function () {
+        done.textContent = 'This browser would not copy it: select the code and copy it by hand.';
+      });
+      // Counted only; the code itself never leaves the page.
+      inboxAsk(token, 'mail_code', { id: msg.id, when: c.service || '' }, function () {});
+    });
+    codeRow.appendChild(said);
+    codeRow.appendChild(code);
+    codeRow.appendChild(copy);
+    codeRow.appendChild(done);
   }
 
   /** @param {any} msg */

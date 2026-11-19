@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 
 from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, calendar_away, clock, demo,
                composing, conversations, filing, imaging, inbox, inbox_grants, inboxes,
-               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, past_guard, open_files, share_twice, share_address, share_until, take_off, link_access, rouh_invited, no_company, sent_twice, same_contact, draft_twice, contact_card, pets, forward_twice, contact_changes, relationships, postal_address, related_people, meeting_hours, meet_link, no_place,
+               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, past_guard, open_files, share_twice, share_address, share_until, weekday_check, file_lock, take_off, link_access, rouh_invited, no_company, sent_twice, same_contact, draft_twice, contact_card, pets, forward_twice, contact_changes, relationships, postal_address, related_people, meeting_hours, meet_link, no_place,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer, reply_times,
                their_clock, their_hours, unread_lists, their_language, promised_to_you,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer,
@@ -6426,6 +6426,8 @@ class ToolRegistry:
                     "asks_checked": their_questions.FIELD,
                     # Not sent twice (night 39, `rouh/sent_twice.py`).
                     "even_if_sent": sent_twice.FIELD,
+                    # A day and its date that disagree (night 48, `rouh/weekday_check.py`).
+                    "days_checked": weekday_check.FIELD,
                 },
             },
             self._send_mail,
@@ -6548,6 +6550,8 @@ class ToolRegistry:
                     "inbox": inboxes.INBOX_WRITE_ARG,
                     # Not drafted twice (night 40, `rouh/draft_twice.py`).
                     "even_if_drafted": draft_twice.FIELD,
+                    # A day and its date that disagree (night 48, `rouh/weekday_check.py`).
+                    "days_checked": weekday_check.FIELD,
                 },
                 "required": ["body"],
             },
@@ -6949,7 +6953,7 @@ class ToolRegistry:
         )
         self._own(
             "manage_drive_file",
-            "Renames, moves or bins a real file or folder in the person's Google "
+            "Renames, moves, bins, locks or unlocks a real file or folder in the person's Google "
             "Drive. Binning is undoable: Drive keeps it for thirty days and nothing is "
             "deleted outright, but binning a folder bins everything inside it, so say "
             "that out loud first. Use it for 'rename that to X', 'move it into the "
@@ -6970,6 +6974,9 @@ class ToolRegistry:
                     "trash": {"type": "boolean",
                               "description": "Put it in the bin. A folder takes its "
                                              "contents with it."},
+                    # Lock a Drive file (night 48, `rouh/file_lock.py`).
+                    "lock": file_lock.FIELD,
+                    "lock_reason": file_lock.REASON,
                 },
                 "required": ["file_id"],
             },
@@ -8802,6 +8809,11 @@ class ToolRegistry:
             stop = await self._sent_twice(to, cc, bcc, subject, body)
             if stop:
                 return untrusted.ours(stop)
+        if (body or subject) and not args.get("days_checked"):
+            # A day and its date that disagree (night 48, `rouh/weekday_check.py`): held before it goes.
+            stop = await self._weekday_check(subject, body, verb)
+            if stop:
+                return untrusted.ours(stop)
         if not sending and not args.get("even_if_drafted"):
             # Not drafted twice (night 40, `rouh/draft_twice.py`): the same draft is already in Drafts.
             stop = await self._draft_twice(to, cc, bcc, subject, body)
@@ -8884,6 +8896,22 @@ class ToolRegistry:
                 said = str(result) + away
                 return untrusted.ours(said) if isinstance(result, untrusted.Ours) else said
         return result
+
+    async def _weekday_check(self, subject: str, body: str, verb: str) -> str:
+        """A day and its date that disagree (night 48, `rouh/weekday_check.py`): why it is held, when a
+        weekday in it is not its date's; "" when it is off or every day is right."""
+        who = self.google.person()
+        if not await asyncio.to_thread(weekday_check.on, who):
+            return ""
+        today = datetime.now(clock.zone_of(who)).date()
+        stop = weekday_check.check(subject, body, today, verb=verb)
+        if stop:
+            from . import evolution
+
+            first = weekday_check.found(f"{subject}\n{body}", today)[0]
+            await asyncio.to_thread(evolution.used, weekday_check.SWITCH, "held", who=who,
+                                    detail=f"{first['words']!r} is a {first['is']}"[:200])
+        return stop
 
     async def _sent_twice(self, to: str, cc: str, bcc: str, subject: str, body: str) -> str:
         """Not sent twice (night 39, `rouh/sent_twice.py`): why not, when the same email already went
@@ -10314,6 +10342,10 @@ class ToolRegistry:
 
         drive = self.google.services().drive
         did = []
+        lock = file_lock.wanted(args.get("lock"))
+        if lock is not None:
+            # Lock a Drive file (night 48, `rouh/file_lock.py`): alone, before anything else is asked of it.
+            return await self._file_lock(drive, file_id, lock, str(args.get("lock_reason") or "").strip())
         try:
             if args.get("trash"):
                 gone = await drive.trash(file_id)
@@ -10345,6 +10377,38 @@ class ToolRegistry:
             return "Nothing was asked for, so that file is unchanged."
         said = "In Drive: " + ", ".join(did) + f" - {kind} id {file_id}"
         self.google.wrote("manage_drive_file", file_id, said)
+        return said
+
+    async def _file_lock(self, drive, file_id: str, lock: bool, reason: str) -> str:
+        """Lock a Drive file (night 48, `rouh/file_lock.py`): lock or unlock one file, said as Drive says it."""
+        who = self.google.person()
+        if not await asyncio.to_thread(file_lock.on, who):
+            return untrusted.ours("Locking a file is switched off (Lock a Drive file, in Mutations), so "
+                                  "nothing was changed.")
+        try:
+            now = await drive.lock_state(file_id)
+            if now["locked"] == lock:
+                return file_lock.said(now["name"], file_id, locked=lock, was=lock, reason=now["reason"],
+                                      by=now["by"])
+            if not now["can_lock"]:
+                return untrusted.ours(f"{now['name'] or file_id!r} can only be locked or unlocked by somebody "
+                                      "who may edit it, and this account may not; nothing was changed.")
+            if lock and not reason:
+                reason = file_lock.default_reason(datetime.now(clock.zone_of(who)).date())
+            done = await drive.lock(file_id, lock, reason)
+        except Exception as exc:
+            return _google_trouble(exc)
+        said = file_lock.said(done["name"] or now["name"], file_id, locked=done["locked"], was=not lock,
+                              reason=done["reason"])
+        self.google.wrote("manage_drive_file", file_id, said)
+        from . import evolution
+
+        if lock:
+            await asyncio.to_thread(evolution.used, file_lock.SWITCH, "locked", who=who,
+                                    detail=(done["name"] or file_id)[:200])
+        else:
+            await asyncio.to_thread(evolution.used, file_lock.SWITCH, "unlocked", who=who,
+                                    detail=(done["name"] or file_id)[:200])
         return said
 
     async def _share(self, drive, file_id: str, args) -> tuple[list[str], str, str, str]:

@@ -1867,6 +1867,18 @@ class MailAlerts:
                                                  signed_up=signed_up or "")
                 if told:
                     log.info("mail alert %s: %s", message_id, told)
+            # A payment that did not go through (night 48, `rouh/payment_failed.py`): a service's email
+            # that a charge failed is told before it is passed over, as a machine's or the nightly run's mail.
+            from . import nightly_feature, payment_failed
+
+            if await asyncio.to_thread(payment_failed.on, who):
+                alert = await self._db(self.store.alert, user_id, org_id)
+                signed_up = await self._db(nightly_feature.signup_address_in, user_id, org_id,
+                                           message.get("to", ""), message.get("cc", ""))
+                failed = await payment_failed.seen(who, message, mailbox=str(alert.get("mailbox") or ""),
+                                                   signed_up=signed_up or "")
+                if failed:
+                    log.info("mail alert %s: %s", message_id, failed)
             # Away, after Rouh wrote (night 38, `rouh/away_after.py`): an out-of-office reply to
             # Rouh's own email is told to the person, then passed over as junk all the same.
             from . import away_after
