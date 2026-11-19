@@ -612,6 +612,177 @@ def address_letter(user=None) -> dict:
     return {"sent_to": str(answer.get("sent_to") or "")}
 
 
+# --- 1c. Change, on Your Rouh's URL card (19 November 2026) ---------------------------------------
+#
+# Petar: "make sure people can change their rouh.page link through their rouh settings ... there
+# should be a "Change/update" link next to my current link." The address shown is the chosen one
+# once it works, else the born one; Change takes a new chosen name the way `choose_name` does
+# (rouh.land checks it, keeps it for this Rouh only, at most five changes a day, and lets the old
+# chosen name rest for 30 days before anyone else may take it), then watches the relay route, the
+# certificate and the check from outside. When the new name is not working after `NAME_PATIENCE`,
+# the old name is taken back, so the person is never left without the address they had. The born
+# name is rouh.land's for good and keeps answering throughout: it is the floor under all of this.
+
+#: How often the change is looked at while it is on its way.
+RENAME_LOOK = 3.0
+#: How long the result of a change stays on the card unless the person closes it.
+RENAME_SHOWN = 15 * 60.0
+
+
+def current_host(held: dict | None = None) -> str:
+    """The name the card shows: the chosen one once its certificate covers it, else the born one."""
+    held = read() if held is None else held
+    return urlsplit(preferred_address(held)).hostname or ""
+
+
+def change_name(text: str, user=None) -> dict:
+    """Change the address to ``text`` (the part before the relay's domain). The born name typed
+    back gives up the chosen one. Answers at once; `rename_status` says how it goes."""
+    name = plain_name(text)
+    bad = _shape_problem(name) if name else NAME_SHAPE
+    if bad:
+        raise Refused(bad)
+    with _LOCK:  # one change at a time: a second press is not a second claim
+        held = read()
+        host = str(held.get("hostname") or "")
+        if not host:
+            raise Refused("This Rouh has no address yet.")
+        if not held.get("on"):
+            raise Refused("Turn the URL on first: a new address is set up through it.")
+        if (held.get("rename") or {}).get("state") == "working":
+            raise Busy("Your address is already being changed.")
+        old_chosen = str(held.get("chosen") or "")
+        new_host = f"{name}.{domain()}"
+        to_born = new_host == host
+        if (to_born and not old_chosen) or (not to_born and new_host == old_chosen):
+            raise Refused("That is already your address.")
+        _change(rename={"from": current_host(held) or host, "to": new_host, "back_to": old_chosen,
+                        "at": time.time(), "state": "working", "said": ""})
+    try:
+        choose_name("" if to_born else name, user)
+    except Refused as exc:
+        _change(rename=None)
+        raise Refused(str(exc)) from None
+    if to_born:
+        _rename_end("done", f"{host} is your address again.")
+    else:
+        _watch_rename_soon()
+    return rename_status()
+
+
+def _rename_end(state: str, said: str) -> None:
+    with _LOCK:
+        r = dict(read().get("rename") or {})
+        if r:
+            _change(rename={**r, "state": state, "said": said, "ended_at": time.time()})
+
+
+def rename_seen() -> None:
+    """Close the result of a change on the card; one still on its way is left alone."""
+    with _LOCK:
+        if (read().get("rename") or {}).get("state") != "working":
+            _change(rename=None)
+
+
+def _roll_back(r: dict, why: str) -> None:
+    """The new name did not come up: take the old chosen name back (or none, for the born one).
+    rouh.land lets a Rouh take back a name it gave up, at once. If even that is refused, the
+    chosen name is given up, which leaves the born name, which always answers."""
+    back = str(r.get("back_to") or "")
+    label = back[: -len(domain()) - 1] if back.endswith("." + domain()) else ""
+    born = str(read().get("hostname") or "")
+    log.warning("relay: %s did not come up (%s); going back to %s", r.get("to"), why, back or born)
+    try:
+        choose_name(label)
+        _rename_end("rolled_back", f"{r.get('to')} did not start working, so {back or born} is your address "
+                                   f"again." + (f" What Rouh saw: {why}" if why else ""))
+        return
+    except Refused as exc:
+        first = str(exc)
+    try:
+        choose_name("")
+        _rename_end("rolled_back", f"{r.get('to')} did not start working, and rouh.land would not give "
+                                   f"{back} back ({first}), so {born} is your address again."
+                                   + (f" What Rouh saw: {why}" if why else ""))
+    except Refused as exc:
+        _rename_end("failed", f"{r.get('to')} did not start working and could not be undone ({exc}). "
+                              f"{born} still works." + (f" What Rouh saw: {why}" if why else ""))
+
+
+def _watch_rename() -> None:
+    """Follows a change until the new name answers from outside, or puts the old one back."""
+    while True:
+        try:
+            held = read()
+            r = held.get("rename") or {}
+            if r.get("state") != "working":
+                return
+            to = str(r.get("to") or "")
+            if str(held.get("chosen") or "") != to:
+                # Chosen again somewhere else (Rouh for Mac's address page): that one is followed there.
+                _rename_end("done", f"Your address was changed again, to {held.get('chosen') or held.get('hostname')}.")
+                return
+            progress = name_progress(held)
+            if progress["state"] == "ready":
+                _rename_end("done", f"{to} is your address now.")
+                return
+            if progress["state"] == "failed" or not held.get("on"):
+                why = _name_detail(held) if held.get("on") else "The URL was turned off while it was being set up."
+                _roll_back(r, why)
+                return
+        except Exception:  # noqa: BLE001 - looked at again; the supervisor goes on either way
+            log.exception("relay: following the address change tripped")
+        time.sleep(RENAME_LOOK)
+
+
+_RENAME_THREAD: threading.Thread | None = None
+
+
+def _watch_rename_soon() -> None:
+    global _RENAME_THREAD
+    with _LOCK:
+        if _RENAME_THREAD is not None and _RENAME_THREAD.is_alive():
+            return
+        _RENAME_THREAD = threading.Thread(target=_watch_rename, name="relay-rename", daemon=True)
+        _RENAME_THREAD.start()
+
+
+def rename_status(held: dict | None = None, now: float | None = None) -> dict | None:
+    """The change on its way, or its result for a while after: what the card draws under the
+    address. Its steps: rouh.land, the relay's route, the certificate, the check from outside."""
+    held = read() if held is None else held
+    now = time.time() if now is None else now
+    r = held.get("rename") or {}
+    if not r:
+        return None
+    state = str(r.get("state") or "")
+    if state != "working" and now - float(r.get("ended_at") or 0) > RENAME_SHOWN:
+        return None
+    to = str(r.get("to") or "")
+    since = float(r.get("at") or 0)
+    certified = to in _cert_names(held)
+    routed = certified or float(held.get("name_routed_at") or 0) >= since
+    checked = certified and float(held.get("chosen_ok_at") or 0) >= since and held.get("chosen") == to
+    steps = [("land", "Kept for you on rouh.land", True),
+             ("route", "The relay routes it here", routed),
+             ("cert", "Its own certificate, from Let's Encrypt", certified),
+             ("check", "It answers from outside", checked or state == "done")]
+    out, current = [], True
+    for key, words, done in steps:
+        step = "done" if done or state == "done" else ("working" if current and state == "working" else "waiting")
+        if step != "done":
+            current = False
+        out.append({"key": key, "words": words, "state": step})
+    if state in ("rolled_back", "failed"):
+        for s in out:
+            if s["state"] != "done":
+                s["state"] = "failed"
+                break
+    return {"state": state, "from": str(r.get("from") or ""), "to": to, "back_to": str(r.get("back_to") or ""),
+            "since": since, "until": since + NAME_PATIENCE, "said": str(r.get("said") or ""), "steps": out,
+            "detail": _name_detail(held) if state == "working" else ""}
+
+
 def open_by_itself(user=None) -> bool:
     """A Connected Rouh's address is on from birth, unless its owner turned it off: on, and frpc
     started (the supervisor claims again by itself if the claim at birth did not get through).
@@ -1185,6 +1356,9 @@ class Supervisor:
                             unrouted = await asyncio.to_thread(answers_on_port_80, n)
                             if unrouted:
                                 break
+                        if new and not unrouted:
+                            # The relay routes the new name here: the card's second step (Change).
+                            _change(name_routed_at=now)
                         if unrouted and probe_misses < PROBE_MISSES:
                             # Asked again in 5 s; after a minute of that Let's Encrypt is asked
                             # anyway, in case only this computer cannot see its own address.
@@ -1264,6 +1438,10 @@ async def start() -> None:
         log.exception("relay: the address could not be opened by itself")
     if (await asyncio.to_thread(read)).get("on"):
         SUPERVISOR.start()
+    # A change of address that was on its way when Rouh stopped is followed again (and put back
+    # if its new name never comes up).
+    if ((await asyncio.to_thread(read)).get("rename") or {}).get("state") == "working":
+        _watch_rename_soon()
 
 
 async def stop() -> None:
@@ -1327,6 +1505,8 @@ def status() -> dict:
         "chosen": held.get("chosen") or "",
         "addresses": hostnames(held),
         "preferred": preferred_address(held),
+        "current": current_host(held),
+        "rename": rename_status(held),
         "domain": domain(),
         "service": urlsplit(service_url()).hostname or "",
         # Where the owner of a Rouh never asked signs in to link it (Rouh profile's own link).

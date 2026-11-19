@@ -8,6 +8,10 @@
     POST /api/settings/phone/claim      ask the relay for the address again (when the claim at
                                         birth did not get through)
     POST /api/settings/phone/signin     a one-time sign-in link for the phone, with its QR code
+    GET  /api/settings/phone/name?name= whether that name is free on rouh.page, as rouh.land says
+    POST /api/settings/phone/name       {"name"}: Change, the address moves to that name (and back
+                                        to the old one if the new one never comes up);
+                                        {"do": "seen"}: the result of a change is closed
 
     GET  /.well-known/acme-challenge/<token>   Let's Encrypt's HTTP-01 check, open to everybody
     GET  /phone/in?code=...                    the QR code's link: signs the owner in, once
@@ -25,7 +29,7 @@ from django.http import Http404, HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
 
 from .clock import _signed_in
-from .common import answer, client_ip, only, refuse
+from .common import answer, body_of, client_ip, only, refuse
 
 log = logging.getLogger("rouh.web.relay")
 NO_STORE = {"Cache-Control": "no-store"}
@@ -104,6 +108,36 @@ async def signin(request: HttpRequest) -> HttpResponse:
     async def work(me):
         user = await asyncio.to_thread(User.objects.get, pk=me.user_id)
         return await asyncio.to_thread(relay.signin_link, user)
+
+    return await _admin_do(request, work)
+
+
+@only("GET", "POST")
+async def name(request: HttpRequest) -> HttpResponse:
+    """Change, on Your Rouh's URL card: GET looks a name up, POST changes to it."""
+    from rouh import relay
+
+    if request.method == "GET":
+        me = await _me(request)
+        if me is None:
+            return refuse("Sign in first.", 401)
+        if not getattr(me, "is_admin", False):
+            return refuse("Only an administrator of this Rouh does that.", 403)
+        if await asyncio.to_thread(relay.chose_connected) is not True:
+            return refuse("Only a Connected Rouh has an address to change.", 409)
+        try:
+            got = await asyncio.to_thread(relay.name_free, request.GET.get("name", ""))
+        except relay.Refused as exc:
+            return refuse(str(exc), 502)
+        return answer(got, headers=NO_STORE)
+    body = body_of(request)
+
+    async def work(me):
+        if body.get("do") == "seen":
+            await asyncio.to_thread(relay.rename_seen)
+        else:
+            await asyncio.to_thread(relay.change_name, str(body.get("name") or ""))
+        return await asyncio.to_thread(relay.status)
 
     return await _admin_do(request, work)
 

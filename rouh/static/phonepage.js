@@ -7,6 +7,13 @@
    relay (Connected, Reconnecting, Connecting, Off), this month's traffic beside the fair limit when
    the relay says it, the QR code that signs the owner in on the phone once, and Turn off.
 
+   Change (19 November 2026, Petar: "there should be a "Change/update" link next to my current
+   link"): a link beside the address opens an editor in place, the name before the relay's domain
+   checked as it is typed (its shape here, whether it is free by rouh.land), Save and Cancel. Saved,
+   the card follows the move step by step (rouh.land, the relay's route, the certificate, the check
+   from outside) and says when it is done, or that the old address was put back
+   (`relay.change_name`).
+
    Drawn into `#phoneBody` from `/api/settings/phone`, read again every few seconds while it shows
    and the URL is on; Your Rouh (`birthpage.js`) tells it how the Rouh stands with rouh.land
    (`land`), and it tells Your Rouh's headline and tiles what it found. Anatomy tells it when it
@@ -15,7 +22,9 @@
   'use strict';
 
   var P = { open: false, data: null, busy: false, error: '', link: null, timer: 0, seq: 0, seen: '', info: false,
-            land: /** @type {{kind: string, admin: boolean, owner: string} | null} */ (null) };
+            land: /** @type {{kind: string, admin: boolean, owner: string} | null} */ (null),
+            /* Change: the editor, while it is open. */
+            edit: /** @type {{value: string, verdict: string, why: string, seq: number, timer: number} | null} */ (null) };
   var EVERY = 3000;
 
   function $(id) { return document.getElementById(id); }
@@ -51,12 +60,13 @@
     } catch (err) { return ''; }
   }
 
-  function call(method, url) {
+  /** @param {string} method @param {string} url @param {Object} [sent] */
+  function call(method, url, sent) {
     var seq = ++P.seq;
     if (method === 'POST') { P.busy = true; draw(); }
     return fetch(url, { method: method, credentials: 'same-origin', cache: 'no-store',
                         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
-                        body: method === 'POST' ? '{}' : undefined })
+                        body: method === 'POST' ? JSON.stringify(sent || {}) : undefined })
       .then(function (r) {
         if (r.status === 401) { location.href = '/login'; return null; }
         return r.json().catch(function () { return {}; }).then(function (j) {
@@ -69,7 +79,11 @@
           P.seen = seen;
           if (j && j.link) P.link = j;
           else if (j && 'state' in j) P.data = j;
+          // A sign-in code for an address the card no longer shows is put away.
+          if (P.link && P.data && P.data.preferred && P.link.address !== P.data.preferred) P.link = null;
           P.error = error;
+          // The editor is never drawn over while the person types in it.
+          if (method === 'GET' && P.edit) return j;
           draw();
           return j;
         });
@@ -141,13 +155,30 @@
         page.appendChild(help('Nothing is open to the internet until you then turn it on.'));
       }
     } else {
-      var addr = el('p', 'ph-address');
-      var a = el('a', '', d.address.replace(/^https:\/\//, ''));
-      a.href = d.address;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      addr.appendChild(a);
-      page.appendChild(addr);
+      var shown = d.preferred || d.address;
+      var mv = d.rename && d.rename.state === 'working';
+      if (P.edit && (!admin || !d.on || mv)) P.edit = null;
+      if (P.edit) {
+        page.appendChild(editor(d));
+      } else {
+        var addr = el('p', 'ph-address');
+        var a = el('a', '', shown.replace(/^https:\/\//, ''));
+        a.href = shown;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        addr.appendChild(a);
+        if (admin && d.on && !mv && L.kind !== 'stopped') {
+          var ch = el('button', 'ph-change', 'Change');
+          ch.type = 'button';
+          ch.id = 'phChange';
+          ch.setAttribute('aria-label', 'Change your Rouh’s URL');
+          ch.disabled = P.busy;
+          ch.addEventListener('click', openEditor);
+          addr.appendChild(ch);
+        }
+        page.appendChild(addr);
+      }
+      if (d.rename && !(P.edit && d.rename.state !== 'working')) page.appendChild(moving(d));
       if (L.kind === 'stopped') {
         var off = el('p', 'hb-state ph-state off');
         off.appendChild(el('span', 'hb-pulse'));
@@ -186,7 +217,7 @@
             });
           }));
         } else {
-          if (d.state === 'connected') {
+          if (d.state === 'connected' && !P.edit) {
             acts.appendChild(button(P.link ? 'New sign-in code' : 'Show sign-in code', 'primary', function () {
               call('POST', '/api/settings/phone/signin');
             }));
@@ -198,7 +229,7 @@
             });
           }));
         }
-        page.appendChild(acts);
+        if (!P.edit) page.appendChild(acts);
         if (!d.on) page.appendChild(help('Turning it on lets your phone open this Rouh from anywhere. Only people who sign in can use it. Nothing is open to the internet until then.'));
       }
       if (d.on && P.link && d.state === 'connected') page.appendChild(qrCard(P.link));
@@ -217,6 +248,216 @@
     }
     body.replaceChildren(page);
     tell();
+  }
+
+  /* --- Change --------------------------------------------------------------------------------- */
+
+  /** The part before the relay's domain, as rouh.land reads what was typed. @param {string} v */
+  function plain(v) {
+    v = String(v || '').trim().toLowerCase();
+    var dom = '.' + ((P.data && P.data.domain) || 'rouh.page');
+    if (v.slice(-dom.length) === dom) v = v.slice(0, -dom.length);
+    return v.replace(/[\s_]+/g, '-').replace(/[^a-z0-9-]/g, '');
+  }
+  function label(host) { return String(host || '').split('.')[0]; }
+  /** What is wrong with a name's shape, or ''. rouh.land holds names to 3 to 30 characters. */
+  function shape(n) {
+    if (!n) return '';
+    if (n.length < 3 || n.length > 30) return 'Use 3 to 30 letters, digits or dashes.';
+    if (/^-|-$/.test(n) || n.indexOf('--') >= 0) return 'A name cannot start or end with a dash, or have two dashes together.';
+    if (!/[a-z]/.test(n)) return 'A name needs at least one letter.';
+    return '';
+  }
+
+  function openEditor() {
+    var d = P.data;
+    if (!d) return;
+    P.edit = { value: label(d.current || d.hostname), verdict: 'same', why: 'That is your address now.', seq: 0, timer: 0 };
+    draw();
+    var input = /** @type {HTMLInputElement | null} */ ($('phNewName'));
+    if (input) { input.focus(); input.select(); }
+  }
+  function closeEditor() {
+    if (!P.edit) return;
+    clearTimeout(P.edit.timer);
+    P.edit = null;
+    draw();
+    var ch = $('phChange');
+    if (ch) ch.focus();
+  }
+
+  /** Looks the name up: its shape here, at once; whether it is free by rouh.land, after a pause. */
+  function judge() {
+    var E = P.edit, d = P.data;
+    if (!E || !d) return;
+    clearTimeout(E.timer);
+    var n = plain(E.value);
+    var seq = ++E.seq;
+    if (!n) { E.verdict = 'empty'; E.why = 'Type the name you want before .' + d.domain + '.'; return verdict(); }
+    if (n === label(d.current || d.hostname)) { E.verdict = 'same'; E.why = 'That is your address now.'; return verdict(); }
+    var bad = shape(n);
+    if (bad) { E.verdict = 'bad'; E.why = bad; return verdict(); }
+    if (n === label(d.hostname)) {
+      E.verdict = 'ok'; E.why = 'The address it was born with. Save to go back to it.';
+      return verdict();
+    }
+    E.verdict = 'checking'; E.why = 'Checking ' + n + '.' + d.domain + '…';
+    verdict();
+    E.timer = setTimeout(function () {
+      fetch('/api/settings/phone/name?name=' + encodeURIComponent(n), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return [r.ok, j]; }); })
+        .then(function (got) {
+          if (!P.edit || seq !== P.edit.seq) return;
+          var j = got[1] || {};
+          if (!got[0]) { P.edit.verdict = 'error'; P.edit.why = 'Could not check it: ' + (j.error || 'rouh.land did not answer') ; }
+          else if (j.available) { P.edit.verdict = 'ok'; P.edit.why = (j.name || n) + '.' + d.domain + ' is available.'; }
+          else { P.edit.verdict = 'bad'; P.edit.why = j.why || 'That name is not available.'; }
+          verdict();
+        })
+        .catch(function () {
+          if (!P.edit || seq !== P.edit.seq) return;
+          P.edit.verdict = 'error'; P.edit.why = 'Could not check it: Rouh could not be reached.';
+          verdict();
+        });
+    }, 350);
+  }
+
+  var MARKS = {
+    ok: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg>',
+    bad: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+    wait: '<span class="ph-spin" aria-hidden="true"></span>',
+    dot: '<span class="ph-hollow" aria-hidden="true"></span>'
+  };
+
+  /** The line under the field, and Save on or off, changed in place so typing is never interrupted. */
+  function verdict() {
+    var E = P.edit, line = $('phVerdict'), save = /** @type {HTMLButtonElement | null} */ ($('phSave'));
+    if (!E || !line) return;
+    var v = E.verdict;
+    line.className = 'ph-verdict ' + (v === 'ok' ? 'ok' : v === 'bad' || v === 'error' ? 'bad' : 'wait');
+    line.innerHTML = v === 'ok' ? MARKS.ok : v === 'bad' || v === 'error' ? MARKS.bad : v === 'checking' ? MARKS.wait : '';
+    line.appendChild(el('span', '', E.why));
+    if (save) save.disabled = P.busy || v !== 'ok';
+  }
+
+  /** @param {any} d */
+  function editor(d) {
+    var E = /** @type {{value: string, verdict: string, why: string, seq: number, timer: number}} */ (P.edit);
+    var f = el('form', 'ph-edit');
+    f.setAttribute('novalidate', '');
+    f.appendChild(el('label', 'ph-edit-l', 'New address')).setAttribute('for', 'phNewName');
+    var field = el('div', 'ph-field');
+    var input = /** @type {HTMLInputElement} */ (el('input'));
+    input.id = 'phNewName';
+    input.type = 'text';
+    input.value = E.value;
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.setAttribute('autocapitalize', 'none');
+    input.setAttribute('maxlength', '40');
+    input.setAttribute('aria-describedby', 'phVerdict phOld');
+    input.addEventListener('input', function () {
+      var at = input.selectionStart, before = input.value;
+      var low = before.toLowerCase().replace(/[\s_]/g, '-');
+      if (low !== before) { input.value = low; try { input.setSelectionRange(at, at); } catch (err) { /* */ } }
+      E.value = input.value;
+      judge();
+    });
+    field.appendChild(input);
+    field.appendChild(el('span', 'ph-suffix', '.' + d.domain));
+    f.appendChild(field);
+    var line = el('p', 'ph-verdict wait');
+    line.id = 'phVerdict';
+    line.setAttribute('aria-live', 'polite');
+    f.appendChild(line);
+    var cur = d.current || d.hostname;
+    var old = el('p', 'ph-old');
+    old.id = 'phOld';
+    if (d.chosen && cur === d.chosen) {
+      old.appendChild(el('b', '', cur));
+      old.appendChild(document.createTextNode(' stops working when you save. Phones and bookmarks that use it will need the new address. '
+        + d.hostname + ', the address it was born with, keeps working.'));
+    } else {
+      old.appendChild(el('b', '', cur));
+      old.appendChild(document.createTextNode(' is the address it was born with and keeps working, so phones signed in on it go on working. '
+        + 'Your Rouh opens on the new one from then on.'));
+    }
+    f.appendChild(old);
+    var acts = el('div', 'hb-actions');
+    var save = /** @type {HTMLButtonElement} */ (el('button', 'ctl small primary', 'Save'));
+    save.type = 'submit';
+    save.id = 'phSave';
+    acts.appendChild(save);
+    acts.appendChild(button('Cancel', 'yr-quiet', closeEditor));
+    f.appendChild(acts);
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!P.edit || P.edit.verdict !== 'ok' || P.busy) return;
+      var n = plain(P.edit.value);
+      clearTimeout(P.edit.timer);
+      P.edit = null;
+      call('POST', '/api/settings/phone/name', { name: n }).then(function (j) {
+        if (j && j.error) {
+          // Refused before anything moved: the editor comes back with the reason.
+          P.edit = { value: n, verdict: 'bad', why: j.error, seq: 0, timer: 0 };
+          P.error = '';
+          draw();
+          verdict();
+          var again = /** @type {HTMLInputElement | null} */ ($('phNewName'));
+          if (again) again.focus();
+        }
+      });
+    });
+    f.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeEditor(); }
+    });
+    setTimeout(verdict, 0);
+    return f;
+  }
+
+  /** The move on its way, or how it ended: under the address. @param {any} d */
+  function moving(d) {
+    var R = d.rename;
+    var box = el('div', 'ph-move ' + R.state);
+    box.setAttribute('role', 'status');
+    if (R.state === 'working') {
+      var head = el('p', 'ph-move-h');
+      head.appendChild(document.createTextNode('Moving to '));
+      head.appendChild(el('b', '', R.to));
+      box.appendChild(head);
+      var list = el('ol', 'ph-steps');
+      R.steps.forEach(function (/** @type {{words: string, state: string}} */ s) {
+        var li = el('li', 'ph-step ' + s.state);
+        var mark = el('span', 'ph-mark');
+        mark.innerHTML = s.state === 'done' ? MARKS.ok : s.state === 'failed' ? MARKS.bad : s.state === 'working' ? MARKS.wait : MARKS.dot;
+        li.appendChild(mark);
+        li.appendChild(el('span', '', s.words));
+        li.appendChild(el('span', 'ph-sr', s.state === 'done' ? ', done' : s.state === 'working' ? ', on its way' : ', waiting'));
+        list.appendChild(li);
+      });
+      box.appendChild(list);
+      box.appendChild(el('p', 'hb-note', 'Usually under a minute. If it is not working by ' + clock(R.until) + ', '
+        + (R.back_to || d.hostname) + ' is put back by itself, so you always have an address that works.'));
+      if (R.detail) {
+        var more = el('details', 'info ph-info');
+        more.appendChild(el('summary', '', 'Show details'));
+        more.appendChild(el('p', 'hb-note', R.detail));
+        box.appendChild(more);
+      }
+      return box;
+    }
+    var said = el('p', 'hb-say' + (R.state === 'done' ? ' ph-done' : ' bad'));
+    said.appendChild(el('span', 'ph-mark', '')).innerHTML = R.state === 'done' ? MARKS.ok : MARKS.bad;
+    said.appendChild(el('span', '', R.said));
+    box.appendChild(said);
+    if (R.state === 'done' && R.from && (d.addresses || []).indexOf(R.from) < 0) {
+      box.appendChild(el('p', 'hb-note', R.from + ' no longer works. Phones and bookmarks that used it need the new address: '
+        + 'Show sign-in code signs a phone in on it.'));
+    }
+    var acts = el('div', 'hb-actions');
+    acts.appendChild(button('OK', 'yr-quiet', function () { call('POST', '/api/settings/phone/name', { do: 'seen' }); }));
+    box.appendChild(acts);
+    return box;
   }
 
   /* Your Rouh's headline and URL tile follow this card. */

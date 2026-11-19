@@ -867,11 +867,12 @@ def _orb_cornfield(request: HttpRequest) -> bool:
 
 
 def _phone_address() -> str:
-    """The phone address on the relay, for the chat's "Reach me from my phone" step; "" for none."""
+    """The phone address on the relay, for the chat's "Reach me from my phone" step: the one the
+    owner changed it to once that works, else the born one; "" for none."""
     from rouh import relay
 
     try:
-        return relay.hostname() if relay.enabled() and relay.chose_connected() else ""
+        return (relay.current_host() or relay.hostname()) if relay.enabled() and relay.chose_connected() else ""
     except Exception:
         return ""
 

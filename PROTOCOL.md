@@ -742,6 +742,12 @@ Since 12 November 2026 (task 176, step 176-29) the setting up of a chosen name i
 - Once the certificate covers it, the Rouh asks `https://<chosen>/healthz` from outside every 5 s until it answers as this Rouh.
 - Rouh's setup API (`/setup/api/state`, Rouh for Mac's) carries `name_progress`: `{"state": "none"|"working"|"ready"|"failed", "name", "address", "since", "until", "said", "detail"}`. `ready` is the certificate covering it and the check from outside passing; `failed` is not ready 180 s after it was chosen (the Rouh goes on trying); `said` is one plain sentence and `detail` the technical part, for Show details only.
 - `POST /setup/api/name` answers at once. The name it already has, or `{"do": "again"}`, is Try again: the setting up and its 180 s start over, and rouh.land is not asked again. A press while a name is being taken answers the state with a `notice`, never a second claim.
+Since 19 November 2026 the same name can be changed from Your Rouh's URL card (Change beside the address, `rouh/static/phonepage.js`), signed in, by an administrator, from the computer or a phone:
+
+- `GET /api/settings/phone/name?name=<n>`: rouh.land's answer, as `relay.name_free` gives it: `{"name", "address", "available", "why", "yours"?}`.
+- `POST /api/settings/phone/name` `{"name": "<n>"}`: the change starts (`relay.change_name`) and the answer is the state of `GET /api/settings/phone`, which now carries `current` (the name shown: the chosen one once its certificate covers it, else the born one) and `rename`: `{"state": "working"|"done"|"rolled_back"|"failed", "from", "to", "back_to", "since", "until", "said", "detail", "steps": [{"key": "land"|"route"|"cert"|"check", "words", "state": "done"|"working"|"waiting"|"failed"}]}`, kept 15 minutes after it ends. The born name typed back gives up the chosen one. A change refused by rouh.land (taken, kept, five a day) answers 400 with its sentence and moves nothing.
+- `POST /api/settings/phone/name` `{"do": "seen"}`: the result is closed.
+- When the new name is not ready `NAME_PATIENCE` (180 s) after the change, the Rouh takes the old chosen name back from rouh.land (`POST <relay URL>name` again; a Rouh may take back a name it gave up at once), or gives the chosen name up when the old one was the born one, so the address it had answers again. A change on its way when Rouh stops is followed again at its start.
 
 ### frpc
 

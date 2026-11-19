@@ -720,6 +720,7 @@ urlpatterns = [
     path("api/settings/phone/off", relay_web.turn_off),
     path("api/settings/phone/claim", relay_web.claim),
     path("api/settings/phone/signin", relay_web.signin),
+    path("api/settings/phone/name", relay_web.name),
     path("api/settings/cloudflare", cloudflare.page),
     path("api/settings/cloudflare/token", cloudflare.token),
     path("api/settings/cloudflare/check", cloudflare.check),

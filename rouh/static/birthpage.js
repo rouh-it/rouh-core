@@ -374,7 +374,7 @@
       : !ph ? ['…', 'Reading', 'st-none']
       : ph.relay === false ? ['None', 'No relay here', 'st-none']
       : !ph.hostname ? ['None yet', 'On its way from rouh.land', 'st-none']
-      : ph.on ? ['On', host(ph.address), ph.state === 'connected' ? 'st-good' : 'st-warn']
+      : ph.on ? ['On', host(ph.preferred || ph.address), ph.state === 'connected' ? 'st-good' : 'st-warn']
       : ['Off', 'Nothing open to the internet', 'st-none'];
     ul.appendChild(tile('URL', url[0], url[1], url[2], 'yrUrl'));
     return ul;
@@ -721,9 +721,9 @@
 
   /** What the URL card read (`phonepage.js`): the headline and the URL tile follow it. */
   function phoneNow(data) {
-    var before = JSON.stringify(G.phone && [G.phone.on, G.phone.hostname, G.phone.state, G.phone.relay]);
+    var before = JSON.stringify(G.phone && [G.phone.on, G.phone.hostname, G.phone.preferred, G.phone.state, G.phone.relay]);
     G.phone = data;
-    if (before !== JSON.stringify(data && [data.on, data.hostname, data.state, data.relay])) draw();
+    if (before !== JSON.stringify(data && [data.on, data.hostname, data.preferred, data.state, data.relay])) draw();
   }
 
   window.RouhBirth = { shown: shownNow, hidden: hiddenNow, reload: load, phone: phoneNow, toast: toast };
