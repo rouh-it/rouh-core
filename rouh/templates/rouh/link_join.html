@@ -86,44 +86,65 @@
   <a class="button" id="land" href="{{ land }}">Connect with my Rouh</a>
   <p class="hint">rouh.land knows which Rouh is yours and opens it, signed in. You see who this is there and confirm. It tells {{ name }} nothing about you.</p>
  </div>
- <p class="or">or type its address</p>
+ <p class="or">or type its name or address</p>
  <form id="typed" novalidate>
   <div class="field">
-   <label for="mine">Your Rouh's address. You confirm the connection there.</label>
-   <input id="mine" type="text" inputmode="url" placeholder="yourname.rouh.page" autocomplete="off" autocapitalize="off" spellcheck="false">
+   <label for="mine">Your Rouh's name or address. You confirm the connection there.</label>
+   <input id="mine" type="text" inputmode="url" placeholder="yourname or yourname.{{ domain }}" autocomplete="off" autocapitalize="off" spellcheck="false">
   </div>
   <p class="missing" id="missing" role="alert" hidden></p>
+  <p class="missing" id="ownsaid" role="alert" hidden>That is this Rouh's own address, so this connect link is yours, and a Rouh does not connect to itself. Send the link to the person you want to connect with.{% if owner_home %} <a href="{{ owner_home }}">See it as your own link</a>.{% endif %}</p>
   <button type="submit" class="second" id="open">Open in my Rouh</button>
  </form>
  <p class="small">Or copy this page's address and paste it on your Rouh's Connections page, under Bring a link.</p>
  <p class="small">How Rouhs reach each other and what the relay keeps: <a href="https://rouh.land/terms/link/">Rouh Link and Relay Terms</a>.</p>
+ {% if owner_home %}<p class="small">Is this your own link? <a href="{{ owner_home }}">Open it where you are signed in</a>.</p>{% endif %}
+{{ js|json_script:"join-data" }}
 <script>
 (function () {
   var KEY = 'rouh.link.mine';
+  var D = {};
+  try { D = JSON.parse(document.getElementById('join-data').textContent) || {}; } catch (e) { D = {}; }
+  var DOMAIN = D.domain || 'rouh.page', OWN = D.own || [], LINK = D.link || (location.origin + location.pathname);
   var form = document.getElementById('typed'), input = document.getElementById('mine');
   var open = document.getElementById('open'), land = document.getElementById('land');
-  var missing = document.getElementById('missing');
-  function clean(v) { return String(v || '').trim().replace(/^https?:\/\//i, '').replace(/[\/?#].*$/, '').toLowerCase(); }
+  var missing = document.getElementById('missing'), ownsaid = document.getElementById('ownsaid');
+  // What a person types for their Rouh, made an address: spaces trimmed, http(s):// and any path
+  // dropped, lower case, and a bare name with no dot (such as "mgpepe") put on the relay's domain.
+  function clean(v) {
+    var a = String(v || '').trim().replace(/^https?:\/\//i, '').replace(/[\/?#].*$/, '').replace(/\.+$/, '').toLowerCase();
+    if (a && a.indexOf('.') < 0 && a.indexOf(':') < 0 && a !== 'localhost') { a = a + '.' + DOMAIN; }
+    return a;
+  }
+  function ours(a) { return OWN.indexOf(a) >= 0 || OWN.indexOf(a.split(':')[0]) >= 0 || a === location.host.toLowerCase(); }
+  var HOST = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9](?::\d{1,5})?$/;
   var kept = '';
   try { kept = clean(localStorage.getItem(KEY)); } catch (e) { kept = ''; }
-  if (kept) {
+  if (kept && !ours(kept) && HOST.test(kept)) {
     // Typed here once before: that address is the press, and rouh.land the other way.
     input.value = kept;
     open.textContent = 'Open in ' + kept;
     open.classList.remove('second');
     land.classList.add('second');
   }
+  // The press says where it goes, as typed: a bare name shows the whole address before it is pressed.
+  input.addEventListener('input', function () {
+    var a = clean(input.value);
+    open.textContent = a && HOST.test(a) && !ours(a) ? 'Open in ' + a : 'Open in my Rouh';
+    ownsaid.hidden = true; missing.hidden = true; input.setAttribute('aria-invalid', 'false');
+  });
   form.addEventListener('submit', function (ev) {
     ev.preventDefault();
     var a = clean(input.value);
-    var bad = !a ? "Type your Rouh's address, such as yourname.rouh.page."
-      : a === location.host.toLowerCase() ? 'That is the address of this Rouh, the one the link is from. Type your own.'
-      : !/^[a-z0-9.-]+\.[a-z]{2,}(:\d+)?$/.test(a) ? 'That does not look like an address. It is like yourname.rouh.page.' : '';
+    var own = !!a && ours(a);
+    var bad = own ? '' : !a ? "Type your Rouh's name or address, such as yourname or yourname." + DOMAIN + '.'
+      : !HOST.test(a) ? 'That is not a Rouh address. Type its name, such as yourname, or its address, such as yourname.' + DOMAIN + '.' : '';
+    ownsaid.hidden = !own;
     missing.hidden = !bad; missing.textContent = bad;
-    input.setAttribute('aria-invalid', bad ? 'true' : 'false');
-    if (bad) { input.focus(); return; }
+    input.setAttribute('aria-invalid', bad || own ? 'true' : 'false');
+    if (bad || own) { input.focus(); return; }
     try { localStorage.setItem(KEY, a); } catch (e) { /* not kept: it works anyway */ }
-    location.href = 'https://' + a + '/link/accept?link=' + encodeURIComponent(location.origin + location.pathname);
+    location.href = 'https://' + a + '/link/accept?link=' + encodeURIComponent(LINK);
   });
 }());
 </script>

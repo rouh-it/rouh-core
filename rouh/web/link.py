@@ -24,7 +24,7 @@ import logging
 import time
 
 from asgiref.sync import sync_to_async
-from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 
@@ -94,41 +94,26 @@ async def inbox(request: HttpRequest):
     return answer(got, headers=NO_STORE)
 
 
-def _moved_to(request: HttpRequest, address: str) -> str:
-    """The Rouh's current address, when this request came in on another of its own relay names."""
-    from urllib.parse import urlsplit
-
-    from rouh import relay
-
-    current = (urlsplit(address).hostname or "").lower()
-    asked = request.get_host().split(":")[0].lower()
-    try:
-        own = {n.lower() for n in relay.hostnames()}
-    except Exception:  # noqa: BLE001 - no relay state: nothing to move from
-        own = set()
-    if not current or asked == current or asked not in own or current not in own:
-        return ""
-    return address.rstrip("/")
-
-
 @only("GET")
 async def join_page(request: HttpRequest, token: str):
     from rouh.link import me as _me
 
     org = await sync_to_async(_org_for_request)(request)
-    name, address = "", ""
+    name = ""
     if org is not None:
         try:
             mine = await sync_to_async(_me.me)(org)
-            name, address = mine.tagged, mine.address
+            name = mine.tagged
         except Exception:  # noqa: BLE001
             name = ""
-    moved = await sync_to_async(_moved_to)(request, address)
-    if moved:
-        # A link made on another of this Rouh's names (its born one, before its owner chose one):
-        # the secret is the same on every name, so it opens on the address the Rouh has now.
-        return HttpResponseRedirect(moved + request.path)
-    link = request.build_absolute_uri(request.path)
+    # Never moved to another name (Petar, 19 November 2026): the page answers on whichever of this
+    # Rouh's names it was opened on, a link sent on a chosen name keeps opening while that name is
+    # answered, and the link it hands on to the visitor's own Rouh is always the born-name one.
+    from rouh.link import peers
+
+    here = request.build_absolute_uri("/").rstrip("/")
+    link = (await sync_to_async(peers.join_base)(here)) + request.path
+    names, where_owner = await sync_to_async(_names_and_owner_home)(request)
     if not name:
         return render(request, "rouh/link_join.html", {"name": "", "link": link}, status=404)
     own = await _own_link(request, org, token)
@@ -145,7 +130,47 @@ async def join_page(request: HttpRequest, token: str):
     # Somebody else's browser. rouh.land knows which Rouh is theirs when they are signed in there, and
     # sends them on to it (rouh-land `birth/connect.py`); it tells this page nothing about them.
     land = birth.defaults()[0].rstrip("/") + "/connect/?" + urlencode({"link": link})
-    return render(request, "rouh/link_join.html", {"name": name, "link": link, "land": land})
+    domain = await sync_to_async(_relay_domain)()
+    return render(request, "rouh/link_join.html", {
+        "name": name, "link": link, "land": land, "domain": domain, "owner_home": where_owner,
+        "js": {"domain": domain, "own": names, "link": link}})
+
+
+def _relay_domain() -> str:
+    """The relay's domain, which a bare Rouh name typed on the page is put on: rouh.page, or the one
+    this Rouh's own born name is on."""
+    from rouh import relay
+
+    try:
+        born = relay.hostname().lower()
+    except Exception:  # noqa: BLE001
+        born = ""
+    return born.split(".", 1)[1] if born.count(".") >= 2 else "rouh.page"
+
+
+def urlsplit_host(url: str) -> str:
+    from urllib.parse import urlsplit
+
+    return (urlsplit(url).hostname or "").lower()
+
+
+def _names_and_owner_home(request: HttpRequest) -> tuple[list[str], str]:
+    """Every name this Rouh answers on (born, chosen, and the one this page came in on), and, when its
+    person signs in on another name than this one, this page there: their session lives on the name
+    they sign in on, so their own-link view is one press away, and nobody else is moved."""
+    from rouh import relay
+
+    asked = request.get_host().lower()
+    try:
+        names = [n.lower() for n in relay.hostnames()]
+        preferred = relay.preferred_address()
+    except Exception:  # noqa: BLE001 - no relay state: only the name it came in on
+        names, preferred = [], ""
+    names = list(dict.fromkeys(names + [asked, asked.split(":")[0]]))
+    home = ""
+    if preferred and urlsplit_host(preferred) != asked.split(":")[0]:
+        home = preferred.rstrip("/") + request.path
+    return names, home
 
 
 async def _own_link(request: HttpRequest, org: str | None, token: str) -> dict | None:

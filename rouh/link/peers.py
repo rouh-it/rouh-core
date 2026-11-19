@@ -134,13 +134,28 @@ def invite(org: str, *, trust_level: str = "known", silo: str = "", for_label: s
     row = LinkInvite.objects.create(org_id=org, token_hash=_hash(token), trust=trust.valid(trust_level),
                                     silo=silo[:40], for_label=for_label[:80], note=note[:200],
                                     created_at=now, expires_at=now + days * 86400)
-    link = f"{me.address}/link/join/{token}"
+    link = f"{join_base(me.address)}/link/join/{token}"
     words = f"Made a connect link at {trust.WORDS[row.trust]}"
     words += f", for {for_label} only" if for_label else ""
     log.write(org, "invite", words + f", good until {time.strftime('%d %B %Y', time.gmtime(row.expires_at))}.",
               peer=for_label)
     return {"id": row.id, "link": link, "trust": row.trust, "for_label": row.for_label,
             "expires_at": row.expires_at, "qr": qr_svg(link)}
+
+
+def join_base(fallback: str = "") -> str:
+    """Where this Rouh's connect links point: its born relay name, never the one its owner chose.
+
+    Petar, 19 November 2026: connect links stay on the born name, as share links do
+    (`relay.share_address`): the chosen name can change, and a link sent on it would stop opening,
+    while the born name answers for as long as this Rouh does. Before the relay, its own address."""
+    from rouh import relay
+
+    try:
+        born = relay.share_address()
+    except Exception:  # noqa: BLE001 - no relay state: the Rouh's own address
+        born = ""
+    return (born or fallback).rstrip("/")
 
 
 def qr_svg(link: str) -> str:
