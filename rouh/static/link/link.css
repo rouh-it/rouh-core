@@ -14,6 +14,9 @@
   --partner: #ffb547;
   --third: #b9a7ff;
   --fourth: #ff8fb0;
+  /* Live cursors (step 189-09): people's own colours, never amber (a partner's Rouh) or turquoise
+     (this Rouh), so a person's arrow is never taken for a Rouh's marker. */
+  --person-1: #ff6fa5; --person-2: #9d8cff; --person-3: #5cb8ff; --person-4: #b5e04f;
   --good: #7fe0a0;
   --warn: #ffcf70;
   --bad: #ff6b81;
@@ -28,12 +31,14 @@
     --ground: #f5f7f7; --panel: #ffffff; --raised: #eef2f3; --line: #d5dde0; --ink: #12191c; --dim: #4c5a60;
     --accent: #0b7f86; --accent-ink: #ffffff; --partner: #a35a00; --third: #5b45c4; --fourth: #b0285a;
     --good: #1c7a43; --warn: #8a5a00; --bad: #b3243b; --focus: #0b7f86; color-scheme: light;
+    --person-1: #c2185b; --person-2: #5e45d6; --person-3: #0b62b3; --person-4: #4d7a00;
   }
 }
 :root[data-theme="light"] {
   --ground: #f5f7f7; --panel: #ffffff; --raised: #eef2f3; --line: #d5dde0; --ink: #12191c; --dim: #4c5a60;
   --accent: #0b7f86; --accent-ink: #ffffff; --partner: #a35a00; --third: #5b45c4; --fourth: #b0285a;
   --good: #1c7a43; --warn: #8a5a00; --bad: #b3243b; --focus: #0b7f86; color-scheme: light;
+    --person-1: #c2185b; --person-2: #5e45d6; --person-3: #0b62b3; --person-4: #4d7a00;
 }
 
 * { box-sizing: border-box; }
@@ -213,3 +218,44 @@ section.box > header { display: flex; gap: 8px; align-items: baseline; justify-c
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Live cursors (step 189-09): everyone's pointer, caret and selection, drawn over the page by
+   link/space.js. One fixed layer that never takes a press and is clipped to the screen; under the bar
+   along the top, so a pointer scrolled under it goes under it. People's colours only (--person-*). */
+.cursor-layer { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 4; }
+.cursor-layer > * { position: absolute; left: 0; top: 0; }
+.cur-arrow { --pc: var(--person-1); transition: opacity .3s; will-change: transform; }
+.cur-arrow svg { display: block; overflow: visible; margin: -2px 0 0 -2px; }
+.cur-arrow path { fill: var(--pc); stroke: var(--ground); stroke-width: 1.4; }
+.cur-label {
+  position: absolute; left: 15px; top: 17px; white-space: nowrap; background: var(--pc); border-radius: 6px;
+  padding: 1px 7px; font-size: 12px; font-weight: 600; line-height: 18px; box-shadow: 0 1px 3px rgba(0, 0, 0, .28);
+}
+.cur-arrow.flip .cur-label { left: auto; right: 4px; }
+.cur-ring { --pc: var(--person-1); width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 50%;
+  border: 3px solid var(--pc); background: color-mix(in srgb, var(--pc) 18%, transparent); }
+.cur-bands { --pc: var(--person-1); }
+.cur-band { position: absolute; left: 0; top: 0; background: color-mix(in srgb, var(--pc) 26%, transparent); border-radius: 2px; }
+.cur-caret { --pc: var(--person-1); width: 2px; background: var(--pc); border-radius: 1px; }
+.cur-flag {
+  position: absolute; left: 0; bottom: 100%; white-space: nowrap; background: var(--pc); border-radius: 4px 4px 4px 0;
+  padding: 0 5px; font-size: 11px; font-weight: 600; line-height: 16px; transition: opacity .3s;
+}
+.cur-caret.quiet .cur-flag { opacity: 0; }
+.cur-mirror { position: fixed; left: -10000px; top: 0; visibility: hidden; white-space: pre-wrap; overflow-wrap: break-word;
+  word-break: normal; box-sizing: content-box; border: 0; margin: 0; }
+/* "Show my cursor to others": a real checkbox drawn as a switch, the whole line its target. */
+.cursor-share { display: grid; gap: 2px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+label.switch { display: flex; gap: 10px; align-items: center; min-height: 44px; margin: 0; font-size: 14px; color: var(--ink); cursor: pointer; }
+label.switch input {
+  appearance: none; -webkit-appearance: none; flex: none; position: relative; width: 40px; height: 24px; margin: 0; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--raised); cursor: pointer; transition: background .15s, border-color .15s;
+}
+label.switch input::after {
+  content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--dim);
+  transition: transform .15s, background .15s;
+}
+label.switch input:checked { background: var(--accent); border-color: var(--accent); }
+label.switch input:checked::after { transform: translateX(16px); background: var(--accent-ink); }
+label.switch input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+label.switch:hover input { border-color: var(--dim); }

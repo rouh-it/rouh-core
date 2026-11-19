@@ -21,6 +21,9 @@ from . import trust
 
 #: Messages a minute, by level; a live room sends many small ones.
 PER_MINUTE = {"stranger": 20, "known": 900, "colleague": 1500, "family": 1500, "delegate": 1500}
+#: Live cursors (`cursors.py`) have an allowance of their own: up to 15 a second each way, by a
+#: member's Rouh sending its person's and listening for the others'. A Stranger's Rouh only listens.
+CURSOR_PER_MINUTE = {"stranger": 120, "known": 2400, "colleague": 2400, "family": 2400, "delegate": 2400}
 #: Changes a person or Rouh outside this one may never make, whoever they are.
 ONLY_PERSONS = {"yes", "restore", "pace"}
 ONLY_HOLDER = {"settle"}
@@ -34,9 +37,9 @@ _RATE: dict[tuple[str, str], deque] = {}
 _RATE_LOCK = threading.Lock()
 
 
-def rate(org: str, label: str, level: str, now: float | None = None) -> None:
+def rate(org: str, label: str, level: str, now: float | None = None, *, table: dict | None = None) -> None:
     t = time.time() if now is None else now
-    most = PER_MINUTE.get(trust.valid(level), 20)
+    most = (table or PER_MINUTE).get(trust.valid(level), 20)
     with _RATE_LOCK:
         q = _RATE.setdefault((org, label), deque())
         while q and q[0] < t - 60:
@@ -69,7 +72,10 @@ def gate(org: str, peer, kind: str) -> str:
             raise No("Strangers are switched off on this Rouh.")
     if not trust.may_send(level, kind):
         raise No(f"A {trust.WORDS[level]} Rouh may not send {kind} here.")
-    rate(org, peer.label if peer is not None else "?", level)
+    if kind == "room.cursor":
+        rate(org, (peer.label if peer is not None else "?") + "#cursor", level, table=CURSOR_PER_MINUTE)
+    else:
+        rate(org, peer.label if peer is not None else "?", level)
     return level
 
 

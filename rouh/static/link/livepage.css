@@ -53,8 +53,11 @@
 .lp-pick textarea { background: var(--ground); }
 
 /* the source */
-.lp-source { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; min-height: 0; min-width: 0;
+.lp-source { position: relative; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 0; min-height: 0; min-width: 0;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; }
+.lp-source > .lp-source-head { grid-row: 1; margin-bottom: 8px; }
+.lp-source > .lp-src-said { grid-row: 2; margin-bottom: 8px; }
+.lp-source > .lp-code, .lp-source > .lp-edit { grid-row: 3; }
 .lp-source-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .lp-source-head h2 { flex: 1 1 auto; }
 .lp-writers { gap: 4px; }
@@ -67,9 +70,26 @@
 .lp-code .w-4 { background: color-mix(in srgb, var(--dim) 14%, transparent); }
 .lp-edit { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 8px; min-height: 0; }
 .lp-edit textarea.lp-code { resize: none; width: 100%; height: 100%; min-height: 240px; }
-.lp-source.editing { grid-template-rows: auto minmax(0, 1fr); }
+
 .lp-said { color: var(--ink); padding: 8px 10px; border-radius: 8px; border: 1px solid var(--bad); background: color-mix(in srgb, var(--bad) 10%, var(--panel)); }
 .lp-said.info { border-color: var(--line); background: var(--raised); }
+
+/* Live cursors over the source (step 189-09): the others' selections as bands in their own colour,
+   a caret with their name; in words while you edit, since the box you type in is yours. */
+.lp-src-marks { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: hidden; pointer-events: none; z-index: 1; border-radius: 8px; }
+.lp-band { position: absolute; background: color-mix(in srgb, var(--c) 25%, transparent); border-radius: 2px; }
+.lp-caret { position: absolute; width: 2px; margin-left: -1px; background: var(--c); }
+.lp-caret-name { position: absolute; left: -1px; bottom: 100%; font: 600 11px/16px var(--sans, system-ui, sans-serif); padding: 0 6px;
+  border-radius: 4px 4px 4px 0; background: var(--c); white-space: nowrap; }
+.lp-src-said { display: grid; gap: 4px; }
+.lp-src-said[hidden] { display: none; }
+.lp-src-sel { display: flex; gap: 8px; align-items: center; color: var(--ink); overflow-wrap: anywhere; }
+.lp-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+
+/* "Show my cursor to others" */
+.lp-cursor-share { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 2px; }
+.lp-switch { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; font-size: 15px; }
+.lp-switch input { flex: none; width: 22px; height: 22px; margin: 0; accent-color: var(--accent); cursor: pointer; }
 
 /* the side */
 .lp-sub { margin-top: 14px; margin-bottom: 6px; }

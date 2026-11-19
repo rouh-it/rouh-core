@@ -32,6 +32,7 @@
   var historyOpen = false;
   var colours = {};          // actor label -> colour slot
   var seenItems = {};
+  var cur = null;            // live cursors (link/cursors.js), started once the person is in the space
   var $ = function (id) { return document.getElementById(id); };
 
   function el(tag, attrs, kids) {
@@ -322,7 +323,10 @@
       title: el('h2', { text: textTitle(name) }), claim: el('span', { class: 'row' }) };
     b.ta = el('textarea', { rows: '6', 'aria-label': textTitle(name), placeholder: 'Write here; everyone sees it as you type.',
       oninput: function () { b.busy = true; clearTimeout(b.timer); b.timer = setTimeout(function () { sendText(name); }, 260); },
-      onfocus: function () { myPart = 'text:' + name; nudge(); } });
+      onfocus: function () { myPart = 'text:' + name; nudge(); tellSelection(b.ta); },
+      onkeyup: function () { tellSelection(b.ta); }, onmouseup: function () { tellSelection(b.ta); },
+      onselect: function () { tellSelection(b.ta); } });
+    b.ta._textName = name;
     var holder = el('div');
     b.section = el('section', { class: 'box part notes', 'data-part': 'text:' + name }, [
       el('header', {}, [b.title, el('span', { class: 'row' }, [b.marks, b.claim])]),
@@ -380,18 +384,17 @@
     clear(b.comments).appendChild(commentsFor(part));
     if (b.busy) return;
     if (ta.value !== t.text) {
-      var focused = document.activeElement === ta;
-      var at = ta.selectionStart, idAt = focused && at > 0 ? (ta._ids || [])[at - 1] : null;
+      // The person's own caret and selection stay on the same characters through the others' edits,
+      // both ends by the ids of the characters round them, as the others' are drawn (`indexOf`).
+      var focused = document.activeElement === ta, oldIds = ta._ids || [];
+      var ps = posAt(oldIds, ta.selectionStart), pe = posAt(oldIds, ta.selectionEnd), dir = ta.selectionDirection;
       ta.value = t.text;
-      if (focused) {
-        var i = idAt ? t.ids.indexOf(idAt) + 1 : 0;
-        if (i < 0) i = Math.min(at, t.text.length);
-        ta.setSelectionRange(i, i);
-      }
+      if (focused) ta.setSelectionRange(indexOf(t.ids, t.text.length, ps), indexOf(t.ids, t.text.length, pe), dir);
     }
     ta._ids = t.ids.slice();
     ta._text = t.text;
     ta._top = t.top;
+    tellSelection(ta);   // the ids under the caret may be new now; cursors.js sends only a change
   }
 
   function sendText(name) {
@@ -589,9 +592,11 @@
     }
     if (following) {
       var p = presenceByActor()[following];
-      b.appendChild(el('div', { class: 'banner info' }, [el('p', { text: 'Following ' + actorWords(following) + (p && p.part ? ', on ' + partName(p.part) : '') + '.' }),
+      var pointer = livePointer(following);   // a person's own pointer, when it is live, says more than their presence
+      var on = pointer ? pointer.part : (p && p.part);
+      b.appendChild(el('div', { class: 'banner info' }, [el('p', { text: 'Following ' + actorWords(following) + (on ? ', on ' + partName(on) : '') + '.' }),
         el('button', { text: 'Stop following', onclick: function () { following = ''; nudge(); draw(); } })]));
-      if (p && p.part) {
+      if (!pointer && p && p.part) {
         var target = document.querySelector('[data-part="' + p.part + '"]');
         if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
@@ -634,11 +639,334 @@
     drawMembers();
     if (historyOpen) $('histRange').max = String(S.seq);
     $('work').hidden = !S.space.joined;
+    if (!cur && S.space.joined) startCursors();
   }
 
   function showGone() {
     clear($('main')).appendChild(el('div', { class: 'empty' }, [el('h2', { text: 'This space is not here' }),
       el('p', { text: 'It may have ended, or you were never asked into it.' }), el('a', { href: '/link', text: 'Back to Connections' })]));
+  }
+
+  // --- live cursors (step 189-09) -----------------------------------------------------------------
+  // Each person's pointer, caret and selection, shared live with the others here, like Figma. The
+  // talking is link/cursors.js; this draws. A point is a part of the space and a place inside it, so
+  // it lands right on any screen; a caret is the text's character ids, so it follows everyone's edits.
+  // Nothing of it is kept anywhere. People's colours only (--person-1..4), never a Rouh's.
+
+  var others = {};           // actor -> what is known and drawn of their cursor
+  var rings = [];            // touch taps, each drawn for 2 s
+  var looping = false;
+  var personColours = null;  // read from the theme, again when it changes
+  var mirror = null;         // a hidden copy of a textarea, to measure where a character is
+  var lastFollowScroll = 0;
+  var FADE_AFTER = 4000, DROP_AFTER = 30000, RING_FOR = 2000;
+  var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function startCursors() {
+    if (!window.RouhCursors) return;
+    cur = window.RouhCursors.start({ base: base, key: 'link-cursor-share', onCursors: takeCursors });
+    var box = $('cursorShare');
+    if (box) {
+      box.checked = cur.sharing();
+      box.addEventListener('change', function () { cur.share(box.checked); });
+    }
+  }
+
+  // The innermost shared part under a point, and where in it, as fractions of its box.
+  function partAt(target, cx, cy) {
+    var node = target && target.closest ? target.closest('[data-part]') : null;
+    if (!node || !$('work').contains(node)) return null;
+    var r = node.getBoundingClientRect();
+    if (!r.width || !r.height) return null;
+    return { node: node, part: node.getAttribute('data-part'),
+      x: Math.max(0, Math.min(1, (cx - r.left) / r.width)), y: Math.max(0, Math.min(1, (cy - r.top) / r.height)) };
+  }
+
+  function wireCursors() {
+    document.addEventListener('pointermove', function (ev) {
+      if (!cur || ev.pointerType === 'touch') return;
+      var at = partAt(ev.target, ev.clientX, ev.clientY);
+      cur.move(at ? { part: at.part, x: at.x, y: at.y } : { part: '' });
+    }, { passive: true });
+    // A finger lifting "leaves" too; the tap it made stays shown, so only a real pointer leaving counts.
+    document.documentElement.addEventListener('pointerleave', function (ev) { if (cur && ev.pointerType !== 'touch') cur.move({ part: '' }); });
+    document.addEventListener('pointerdown', function (ev) {
+      if (!cur) return;
+      var at = partAt(ev.target, ev.clientX, ev.clientY);
+      if (ev.pointerType === 'touch' && at) cur.tap({ part: at.part, x: at.x, y: at.y });
+      // Into another shared part that is not a text: the selection there is over. Anywhere else (the
+      // ask box, a button outside the work) keeps it, so "this one" still means it.
+      if (at && at.part.indexOf('text:') !== 0) cur.select(null);
+    }, { passive: true });
+    document.addEventListener('selectionchange', function () {
+      var a = document.activeElement;
+      if (a && a._textName) tellSelection(a);
+    });
+    var again = function () { personColours = null; };
+    $('themeSwitch').addEventListener('click', function () { setTimeout(again, 0); });
+    if (window.matchMedia) {
+      var mq = matchMedia('(prefers-color-scheme: light)');
+      if (mq.addEventListener) mq.addEventListener('change', again);
+    }
+  }
+
+  // The person's own caret or selection in a live text, by the ids of the characters round it.
+  function posAt(ids, i) {
+    var p = { i: i };
+    if (i > 0 && ids[i - 1]) p.b = ids[i - 1];
+    if (ids[i]) p.n = ids[i];
+    return p;
+  }
+  function tellSelection(ta) {
+    if (!cur || !ta || document.activeElement !== ta || !ta._textName) return;
+    var ids = ta._ids || [];
+    var s = ta.selectionStart, e = ta.selectionEnd, back = ta.selectionDirection === 'backward';
+    cur.select({ t: 'text:' + ta._textName, a: posAt(ids, back ? e : s), f: posAt(ids, back ? s : e) }, ta.value.slice(s, e));
+  }
+  // A place sent by someone else, in the text as it is here now: just after the character before it
+  // if that is still here, else just before the one after it, else where it was, kept inside the text.
+  function indexOf(ids, len, p) {
+    if (!p) return 0;
+    var k;
+    if (p.b && (k = ids.indexOf(p.b)) >= 0) return Math.min(k + 1, len);
+    if (p.n && (k = ids.indexOf(p.n)) >= 0) return Math.min(k, len);
+    return Math.max(0, Math.min(len, p.i | 0));
+  }
+
+  function takeCursors(list) {
+    var now = Date.now(), seen = {};
+    (list || []).forEach(function (c) {
+      if (!c || !c.actor || isRouh(c.actor)) return;
+      seen[c.actor] = true;
+      var o = others[c.actor];
+      if (!o) o = others[c.actor] = { actor: c.actor, n: -1, at: 0, shown: false };
+      if (c.gone) { dropCursor(c.actor); return; }
+      if (c.n === o.n) return;
+      o.n = c.n;
+      o.c = c;
+      o.at = now - Math.max(0, Number(c.age) || 0) * 1000;
+      if (c.tap) {
+        o.tapAt = [c.part, c.x, c.y].join('|');
+        if (now - o.at < RING_FOR) rings.push({ actor: c.actor, part: c.part, x: c.x, y: c.y, t0: o.at });
+      }
+    });
+    Object.keys(others).forEach(function (a) { if (!seen[a]) dropCursor(a); });
+    if (following && others[following]) draw();   // the banner says where they point
+    loop();
+  }
+  function dropCursor(actor) {
+    var o = others[actor];
+    if (o && o.nodes) Object.keys(o.nodes).forEach(function (k) { var n = o.nodes[k]; if (n.parentNode) n.parentNode.removeChild(n); });
+    delete others[actor];
+  }
+  // A person's pointer on this screen, if it is live: fresh, on a part, and not just a touch tap.
+  function livePointer(actor) {
+    var o = others[actor];
+    if (!o || !o.c || !o.c.part || Date.now() - o.at > FADE_AFTER) return null;
+    if (o.tapAt === [o.c.part, o.c.x, o.c.y].join('|')) return null;
+    return o.c;
+  }
+
+  // Colours: by the person's place in the members, so each person has the same colour on every screen.
+  function colourOf(label) {
+    if (!personColours) {
+      var cs = getComputedStyle(document.documentElement);
+      personColours = [1, 2, 3, 4].map(function (k) { return cs.getPropertyValue('--person-' + k).trim() || '#9d8cff'; });
+    }
+    var ms = (S && S.space.members) || [];
+    var i = ms.map(function (m) { return m.label; }).indexOf(label);
+    if (i < 0) { i = ms.length + Object.keys(others).indexOf('person:' + label); }
+    return personColours[((i % 4) + 4) % 4];
+  }
+  // Dark words on a light colour, white on a dark one, so a label reads in either theme.
+  function ink(hex) {
+    var h = String(hex).replace('#', '');
+    if (h.length < 6) h = h.split('').map(function (c) { return c + c; }).join('');
+    var lin = function (i) { var c = parseInt(h.substr(i, 2), 16) / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    var L = 0.2126 * lin(0) + 0.7152 * lin(2) + 0.0722 * lin(4);
+    return L > 0.18 ? '#0b1114' : '#ffffff';
+  }
+  function firstName(c) {
+    var n = (c.name || memberName(labelOf(c.actor)) || '').split(' ·')[0].trim();
+    return n.split(/\s+/)[0] || 'Someone';
+  }
+
+  function layer() {
+    var l = $('cursorLayer');
+    if (!l) { l = el('div', { id: 'cursorLayer', class: 'cursor-layer', 'aria-hidden': 'true' }); document.body.appendChild(l); }
+    return l;
+  }
+  function node(o, key, make) {
+    o.nodes = o.nodes || {};
+    if (!o.nodes[key]) { o.nodes[key] = make(); layer().appendChild(o.nodes[key]); }
+    return o.nodes[key];
+  }
+  function hide(o, key) { if (o.nodes && o.nodes[key]) o.nodes[key].style.display = 'none'; }
+  function partNode(part) {
+    if (!part) return null;
+    var n = document.querySelector('[data-part="' + (window.CSS && CSS.escape ? CSS.escape(part) : part) + '"]');
+    if (!n || !$('work').contains(n) || $('work').hidden) return null;
+    var r = n.getBoundingClientRect();
+    return r.width && r.height ? r : null;
+  }
+
+  function arrowNode(colour) {
+    var d = el('div', { class: 'cur-arrow' });
+    var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    s.setAttribute('viewBox', '0 0 20 22'); s.setAttribute('width', '20'); s.setAttribute('height', '22');
+    var p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', 'M2 1.5 L2 18 L6.4 14 L9.6 20.6 L12.6 19.2 L9.5 12.8 L15.6 12.8 Z');
+    p.setAttribute('stroke-linejoin', 'round');
+    s.appendChild(p); d.appendChild(s);
+    d.appendChild(el('span', { class: 'cur-label' }));
+    return d;
+  }
+
+  function loop() {
+    if (looping) return;
+    looping = true;
+    requestAnimationFrame(frame);
+  }
+  function frame() {
+    var now = Date.now();
+    var vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    var sx = window.scrollX, sy = window.scrollY;
+    Object.keys(others).forEach(function (a) {
+      var o = others[a], c = o.c;
+      if (!c) return;
+      if (now - o.at > DROP_AFTER) { dropCursor(a); return; }
+      var colour = colourOf(labelOf(a));
+      // The pointer: eased toward its newest point, in page coordinates so a scroll moves it at once.
+      var r = c.part ? partNode(c.part) : null;
+      var tapOnly = o.tapAt === [c.part, c.x, c.y].join('|');
+      if (r && !tapOnly) {
+        var tx = r.left + sx + c.x * r.width, ty = r.top + sy + c.y * r.height;
+        if (!o.shown || calm || Math.abs(tx - o.dx) + Math.abs(ty - o.dy) > 900) { o.dx = tx; o.dy = ty; }
+        else { o.dx += (tx - o.dx) * 0.35; o.dy += (ty - o.dy) * 0.35; }
+        o.shown = true;
+        var arrow = node(o, 'arrow', function () { return arrowNode(colour); });
+        var vx = o.dx - sx, vy = o.dy - sy;
+        arrow.style.display = '';
+        arrow.style.transform = 'translate(' + Math.round(vx) + 'px,' + Math.round(vy) + 'px)';
+        arrow.style.setProperty('--pc', colour);
+        arrow.style.opacity = now - o.at > FADE_AFTER ? '0' : '1';
+        var lab = arrow.lastChild;
+        var name = firstName(c);
+        if (lab.textContent !== name) lab.textContent = name;
+        lab.style.color = ink(colour);
+        // Near the right edge the label goes to the left of the arrow, so it is never cut off.
+        arrow.classList.toggle('flip', vx + 16 + lab.offsetWidth > vw - 8);
+        // Following this person: keep their point in the middle band of the screen.
+        if (following === a && now - o.at < FADE_AFTER && now - lastFollowScroll > 700 && (vy < vh * 0.2 || vy > vh * 0.8)) {
+          lastFollowScroll = now;
+          window.scrollTo({ top: Math.max(0, ty - vh / 2), behavior: calm ? 'auto' : 'smooth' });
+        }
+      } else {
+        o.shown = false;
+        hide(o, 'arrow');
+      }
+      drawSelection(o, colour, now);
+    });
+    rings = rings.filter(function (g) {
+      var t = (now - g.t0) / RING_FOR;
+      var r = partNode(g.part);
+      if (t >= 1 || !r) { if (g.node && g.node.parentNode) g.node.parentNode.removeChild(g.node); return false; }
+      if (!g.node) { g.node = el('div', { class: 'cur-ring' }); layer().appendChild(g.node); }
+      g.node.style.setProperty('--pc', colourOf(labelOf(g.actor)));
+      var scale = calm ? 1 : 0.4 + 1.2 * t;
+      g.node.style.transform = 'translate(' + Math.round(r.left + g.x * r.width) + 'px,' + Math.round(r.top + g.y * r.height) + 'px) scale(' + scale.toFixed(3) + ')';
+      g.node.style.opacity = String((1 - t) * 0.95);
+      return true;
+    });
+    looping = false;
+    if (Object.keys(others).length || rings.length) loop();
+  }
+
+  // Someone's caret and selection in a live text: a 2 px bar with their name, and a band over the words.
+  function drawSelection(o, colour, now) {
+    var sel = o.c.sel;
+    var b = sel && sel.t && sel.t.indexOf('text:') === 0 ? textBoxes[sel.t.slice(5)] : null;
+    var ta = b && !b.section.hidden && !$('work').hidden ? b.ta : null;
+    var box = ta ? ta.getBoundingClientRect() : null;
+    if (!box || !box.width) { hide(o, 'caret'); hide(o, 'bands'); return; }
+    var ids = ta._ids || [], len = ta.value.length;
+    var ia = indexOf(ids, len, sel.a), ifo = indexOf(ids, len, sel.f);
+    var s = Math.min(ia, ifo), e = Math.max(ia, ifo);
+    var g = measure(ta, s, e, ifo);
+    // The textarea's inside, on screen; what is scrolled out of it is not drawn.
+    var left = box.left + ta.clientLeft - ta.scrollLeft, top = box.top + ta.clientTop - ta.scrollTop;
+    var inTop = box.top + ta.clientTop, inBottom = inTop + ta.clientHeight;
+    var inLeft = box.left + ta.clientLeft, inRight = inLeft + ta.clientWidth;
+    var bands = node(o, 'bands', function () { return el('div', { class: 'cur-bands' }); });
+    bands.style.display = '';
+    bands.style.setProperty('--pc', colour);
+    var want = g.rects.length;
+    while (bands.childNodes.length < want) bands.appendChild(el('div', { class: 'cur-band' }));
+    while (bands.childNodes.length > want) bands.removeChild(bands.lastChild);
+    g.rects.forEach(function (q, i) {
+      var y0 = Math.max(inTop, top + q.top), y1 = Math.min(inBottom, top + q.top + q.height);
+      var x0 = Math.max(inLeft, left + q.left), x1 = Math.min(inRight, left + q.left + Math.max(q.width, 4));
+      var d = bands.childNodes[i];
+      if (y1 <= y0 || x1 <= x0) { d.style.display = 'none'; return; }
+      d.style.display = '';
+      d.style.transform = 'translate(' + x0 + 'px,' + y0 + 'px)';
+      d.style.width = (x1 - x0) + 'px'; d.style.height = (y1 - y0) + 'px';
+    });
+    var cy = top + g.caret.top, cx = left + g.caret.left;
+    if (cy + g.caret.height <= inTop || cy >= inBottom || cx < inLeft - 1 || cx > inRight + 1) { hide(o, 'caret'); return; }
+    var caret = node(o, 'caret', function () { return el('div', { class: 'cur-caret' }, [el('span', { class: 'cur-flag' })]); });
+    caret.style.display = '';
+    caret.style.setProperty('--pc', colour);
+    caret.style.transform = 'translate(' + Math.round(cx - 1) + 'px,' + Math.round(cy) + 'px)';
+    caret.style.height = g.caret.height + 'px';
+    var flag = caret.firstChild, name = firstName(o.c);
+    if (flag.textContent !== name) flag.textContent = name;
+    flag.style.color = ink(colour);
+    // The name shows while they are at it, then only the bar and the band stay.
+    caret.classList.toggle('quiet', now - o.at > FADE_AFTER);
+  }
+
+  // Where characters s..e and the caret at f sit inside a textarea, measured on a hidden copy with the
+  // same font, padding, width and wrapping. Kept until the text, the width or the places change.
+  function measure(ta, s, e, f) {
+    var key = [ta.value.length, ta.clientWidth, s, e, f].join('|');
+    ta._measured = ta._measured || {};
+    var m = ta._measured[key];
+    if (m && m.text === ta.value) return m;
+    if (!mirror) { mirror = el('div', { class: 'cur-mirror', 'aria-hidden': 'true' }); document.body.appendChild(mirror); }
+    var cs = getComputedStyle(ta);
+    ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'wordSpacing', 'lineHeight', 'textTransform',
+      'textIndent', 'tabSize', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].forEach(function (p) { mirror.style[p] = cs[p]; });
+    mirror.style.width = Math.max(0, ta.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) + 'px';
+    var v = ta.value;
+    clear(mirror);
+    // A caret is a word joiner: no width, and no new place to break a line.
+    var mark = function (t) { return el('span', { text: t }); };
+    var caretSpan;
+    if (s === e) {
+      mirror.appendChild(document.createTextNode(v.slice(0, s)));
+      mirror.appendChild(caretSpan = mark('⁠'));
+      mirror.appendChild(document.createTextNode(v.slice(s) + '⁠'));
+    } else {
+      var band = mark(v.slice(s, e));
+      mirror.appendChild(document.createTextNode(v.slice(0, s)));
+      if (f === s) { mirror.appendChild(caretSpan = mark('⁠')); mirror.appendChild(band); }
+      else { mirror.appendChild(band); mirror.appendChild(caretSpan = mark('⁠')); }
+      mirror.appendChild(document.createTextNode(v.slice(e) + '⁠'));
+    }
+    var mr = mirror.getBoundingClientRect();
+    var rects = [];
+    if (s !== e) {
+      Array.prototype.forEach.call(mirror.querySelectorAll('span')[f === s ? 1 : 0].getClientRects(), function (q) {
+        rects.push({ left: q.left - mr.left, top: q.top - mr.top, width: q.width, height: q.height });
+      });
+    }
+    var cr = caretSpan.getClientRects()[0] || caretSpan.getBoundingClientRect();
+    var lh = parseFloat(cs.lineHeight) || cr.height || 20;
+    m = { text: v, rects: rects, caret: { left: cr.left - mr.left, top: cr.top - mr.top + (cr.height - lh) / 2, height: lh } };
+    if (Object.keys(ta._measured).length > 8) ta._measured = {};
+    ta._measured[key] = m;
+    return m;
   }
 
   // --- the side controls ------------------------------------------------------------------------------
@@ -730,6 +1058,7 @@
     });
     try { var th = localStorage.getItem('link-theme'); if (th) document.documentElement.setAttribute('data-theme', th); } catch (e) {}
     wire();
+    wireCursors();
     poll();
   });
 })();

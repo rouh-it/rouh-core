@@ -67,7 +67,10 @@ SYSTEM = (
     "another site.\n"
     "- Keep every existing data-rouh-id attribute exactly as it is; new elements get theirs by "
     "themselves, so never invent one.\n"
-    "- Nothing outside this page: no mail, no calendar, no payments, no other space.")
+    "- Nothing outside this page: no mail, no calendar, no payments, no other space.\n"
+    "- When your person says \"this\", \"this one\", \"these\" or \"here\", they mean the element named "
+    "under \"Where your own person is pointing\", if it is there: put its data-rouh-id in the step's el "
+    "and say which element in your intent.")
 
 PLAN = {"intent": ("text", 300),
         "steps": ("list", MOST_STEPS, ("obj", {"say": ("text", 200), "el?": ("str", 80),
@@ -94,6 +97,15 @@ def _plan_of(text: str) -> tuple[dict, list[str]]:
                 cut.append(f"Step {i} had more than {MOST_EDITS} edits; it was left out.")
                 s["edits"] = []
     return forms.read(got, PLAN, "plan"), cut
+
+
+def _pointing(org: str, sid: str) -> str:
+    """Where this Rouh's own person points on the page and what they selected (`cursors.said_for`),
+    so "this one" is the element under their pointer. Only theirs, never another person's."""
+    from . import cursors
+
+    said = cursors.said_for(org, sid)
+    return said + "\n\n" if said else ""
 
 
 def describe(source: str, comments: list[dict]) -> str:
@@ -220,7 +232,8 @@ async def work(org: str, sid: str, words: str, *, who=None) -> dict:
     try:
         answer = await llm.ask(USE, system=SYSTEM, max_tokens=MAX_TOKENS, who=who, org_id=org, purpose=USE,
                                messages=[{"role": "user", "content":
-                                          f"{describe(source, comments)}\n\nYour own person asks you: {words}"}])
+                                          f"{describe(source, comments)}\n\n{_pointing(org, sid)}"
+                                          f"Your own person asks you: {words}"}])
         plan, cut = _plan_of(answer.text)
     finally:
         spaces.seen(live, actor, kind="rouh", name=me.tagged, part="", doing="", busy=False)

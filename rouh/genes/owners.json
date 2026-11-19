@@ -3331,6 +3331,7 @@
     "rouh/link/peers.py",
     "rouh/link/doc.py",
     "rouh/link/htmldoc.py",
+    "rouh/link/cursors.py",
     "rouh/link/pagework.py",
     "rouh/link/pagein.py",
     "rouh/link/pageout.py",
@@ -3353,6 +3354,7 @@
     "rouh/static/link/livepage.js",
     "rouh/static/link/livepage.css",
     "rouh/static/link/frame-bridge.js",
+    "rouh/static/link/cursors.js",
     "rouh/static/link/connections.js",
     "rouh/management/commands/rouh_link.py",
     "LINK.md"

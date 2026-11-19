@@ -61,7 +61,9 @@
             <span id="writers" class="row lp-writers"></span>
             <button type="button" id="editSource">Edit source</button>
           </div>
+          <div id="srcSel" class="lp-src-said" aria-live="polite" hidden></div>
           <pre id="sourceView" class="lp-code" tabindex="0" aria-label="The page's source"></pre>
+          <div id="srcMarks" class="lp-src-marks" aria-hidden="true"></div>
           <form id="sourceEdit" class="lp-edit" hidden>
             <label for="sourceText">The page's source. Others' changes made while you edit are kept when you save.</label>
             <textarea id="sourceText" class="lp-code" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
@@ -110,6 +112,13 @@
       <section class="box">
         <header><h2>Members</h2><span id="hereCount" class="small dim"></span></header>
         <div id="members" class="stack"></div>
+        <div class="lp-cursor-share">
+          <label class="lp-switch" for="cursorShare">
+            <input type="checkbox" id="cursorShare" role="switch" checked aria-describedby="cursorShareSaid">
+            <span>Show my cursor to others</span>
+          </label>
+          <p class="small dim" id="cursorShareSaid">Cursors are live only. They are never stored.</p>
+        </div>
         <div id="claimsBox" class="stack lp-claims" hidden>
           <h3>Claimed parts</h3>
           <ul id="claims" class="lp-list"></ul>
@@ -136,6 +145,7 @@
 </aside>
 <div id="toast" class="toast" role="status" hidden></div>
 <script defer src="{% asset "csrf.js" %}"></script>
+<script defer src="{% asset "link/cursors.js" %}"></script>
 <script defer src="{% asset "link/livepage.js" %}"></script>
 </body>
 </html>

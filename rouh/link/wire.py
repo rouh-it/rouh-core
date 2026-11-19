@@ -71,7 +71,7 @@ def handles(kind: str):
 
 
 def _load_handlers() -> None:
-    from . import grants, groups, handoff, meeting, pageout, peers, spaces, standin  # noqa: F401 - each registers its kinds
+    from . import cursors, grants, groups, handoff, meeting, pageout, peers, spaces, standin  # noqa: F401 - each registers its kinds
 
 
 # --- the network -----------------------------------------------------------------------------------
@@ -409,6 +409,10 @@ async def _key_holds(org: str, peer, head: dict) -> object:
     return peer
 
 
+#: Kinds that are live only (`cursors.py`): nothing of them is written down on the way in.
+LIVE_ONLY = {"room.cursor"}
+
+
 async def receive(env: dict, *, by_mailbox: bool = False) -> dict:
     """Take in one envelope; the envelope to answer with. Raises limits.No or seal.Refused, whose
     words are safe to send back."""
@@ -427,7 +431,9 @@ async def receive(env: dict, *, by_mailbox: bool = False) -> dict:
     peer = await asyncio.to_thread(_peer_for, org, head["from"])
     peer = await _key_holds(org, peer, head)
     level = await asyncio.to_thread(limits.gate, org, peer, kind)
-    before = await asyncio.to_thread(_seen_before, org, head["id"])
+    # A cursor (`cursors.py`) is live only: never looked up, kept or remembered, 15 times a second.
+    live_only = kind in LIVE_ONLY
+    before = None if live_only else await asyncio.to_thread(_seen_before, org, head["id"])
     if before is not None and kind != "room.poll":
         reply = (before.envelope or {}).get("reply") or {}
         return _answer(me, head, reply)
@@ -441,9 +447,9 @@ async def receive(env: dict, *, by_mailbox: bool = False) -> dict:
     else:
         reply = await asyncio.to_thread(fn, ctx, form)
     reply = reply or {}
-    if kind not in ("room.poll", "room.presence", "ping"):
+    if kind not in ("room.poll", "room.presence", "ping") and not live_only:
         await asyncio.to_thread(_remember, org, head["id"], head["from"], kind, reply)
-    if peer is not None:
+    if peer is not None and not live_only:
         await asyncio.to_thread(_seen, org, peer.label)
     if by_mailbox and kind in REPLY_AS and reply and ctx.peer is not None:
         await asyncio.to_thread(queue, org, ctx.peer, REPLY_AS[kind], reply)

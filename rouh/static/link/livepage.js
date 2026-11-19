@@ -19,6 +19,11 @@
 // Rouhs here (Undo its edits), claimed parts, invite, the version in the task (Bring this version
 // into the task, Put back what was there, the asks to keep it), history (the page as it was, Bring
 // back this version), the log and Leave.
+//
+// Live cursors (step 189-09, `link/cursors.js`): the person's pointer, taps and selection go to their
+// own Rouh, which shares them live with the others unless "Show my cursor to others" is off; the
+// others' are drawn in the frame (an arrow with a name, a tap ring, a tinted band over selected words)
+// and over the source. Each person gets one of the people's colours, never a Rouh's amber or turquoise.
 (function () {
   'use strict';
 
@@ -63,6 +68,18 @@
   var frame = null, pending = null, drawnKey = '', drawAgain = false, serial = 0;
   var scroll = { x: 0, y: 0 };
   var sentMarks = '';
+  var cur = null;            // the live cursors (link/cursors.js)
+  var others = [], othersAt = 0;   // the others' cursors as they last came, and when
+  var personColours = {};    // person label -> 1..4, the --person-N colour
+  // Where this screen itself last saw the pointer, outside the frame. The frame is sealed in a process
+  // of its own, so this screen hears nothing while the pointer is over it: a point from the frame is
+  // believed only while this screen hears nothing (`inFrame`), and only if the pointer was last seen
+  // here at the frame's edge, so the page's own script cannot move the person's arrow while they
+  // point somewhere else on Rouh's screen.
+  var lastOut = null;        // {x, y, t} of the last pointer move this screen saw, outside the frame
+  var touchedAt = 0;         // the last tap the frame said
+  var mySel = '';            // where the person's own selection last was: 'el', 'src' or ''
+  var sentCursors = '';
   var $ = function (id) { return document.getElementById(id); };
 
   function el(tag, attrs, kids) {
@@ -354,7 +371,7 @@
     if (!String(w.text).trim()) { drawnKey = w.key; dropFrames(); showBlank(); return; }
     loadBridge().then(function () {
       drawnKey = w.key;
-      var f = newFrame(srcdoc(w.text, { x: scroll.x, y: scroll.y, mode: commenting ? 'comment' : 'view', marks: marks() }));
+      var f = newFrame(srcdoc(w.text, { x: scroll.x, y: scroll.y, mode: commenting ? 'comment' : 'view', marks: marks(), cursors: frameCursors() }));
       pending = f;
       $('frames').appendChild(f);
       f._timer = setTimeout(function () { if (pending === f) notDrawn(f); }, 6000);
@@ -371,9 +388,10 @@
     f.classList.remove('waiting');
     f.removeAttribute('tabindex');
     if (old && old.parentNode) old.parentNode.removeChild(old);
-    sentMarks = '';
+    sentMarks = ''; sentCursors = '';
     say('');
     sendMarks();
+    sendCursors(true);
     if (drawAgain) { drawAgain = false; drawFrame(); }
   }
 
@@ -419,7 +437,18 @@
   }
 
   // Only the frame this screen made speaks, only in the fixed shapes, every value checked.
-  var SHAPES = { ready: ['h'], scroll: ['x', 'y'], pointer: ['part'], pick: ['part'] };
+  var SHAPES = { ready: ['h'], scroll: ['x', 'y'], pointer: ['part', 'x', 'y'], pick: ['part'], select: ['part', 'a', 'f', 'q'], tap: ['part', 'x', 'y'] };
+  var EL = /^el:[A-Za-z0-9_-]{1,40}$/;
+  function isFrac(v) { return typeof v === 'number' && isFinite(v) && v >= 0 && v <= 1; }
+  function fr3(v) { return Math.round(v * 1000) / 1000; }
+  function inFrame() {
+    var box = $('frames') ? $('frames').getBoundingClientRect() : null;
+    if (!box || !box.width) return false;
+    if (!lastOut) return true;                       // not seen on this screen yet: came in from outside the window
+    if (Date.now() - lastOut.t < 120) return false;  // still moving on Rouh's own screen
+    var m = 48;
+    return lastOut.x >= box.left - m && lastOut.x <= box.right + m && lastOut.y >= box.top - m && lastOut.y <= box.bottom + m;
+  }
   window.addEventListener('message', function (ev) {
     var f = frame && ev.source === frame.contentWindow ? frame : (pending && ev.source === pending.contentWindow ? pending : null);
     if (!f || ev.origin !== 'null') return;
@@ -438,8 +467,34 @@
         scroll = { x: Math.max(0, Math.min(1e7, Math.round(m.x))), y: Math.max(0, Math.min(1e7, Math.round(m.y))) };
     } else if (m.type === 'pointer') {
       if (typeof m.part !== 'string' || m.part.length > 44) return;
-      if (m.part && !/^el:[A-Za-z0-9_-]{1,40}$/.test(m.part)) return;
+      if (m.part && !EL.test(m.part)) return;
+      if (m.part && (!isFrac(m.x) || !isFrac(m.y))) return;
+      // The page's own script runs in the same frame and could post these too. So a point is taken
+      // only while this screen itself saw the pointer go over the frame: a page cannot move the
+      // person's arrow on the others' screens while the person is somewhere else.
+      if (!inFrame()) return;
+      if (cur && !past) cur.move(m.part ? { part: m.part, x: fr3(m.x), y: fr3(m.y) } : { part: '' });
       if (m.part && m.part !== myPart && !editing) { myPart = m.part; nudgeSoon(); }
+    } else if (m.type === 'tap') {
+      if (typeof m.part !== 'string' || !EL.test(m.part) || !isFrac(m.x) || !isFrac(m.y)) return;
+      var now = Date.now();
+      if (now - touchedAt < 300) return;   // a page's script cannot fill the others' screens with rings
+      touchedAt = now;
+      if (cur && !past) cur.tap({ part: m.part, x: fr3(m.x), y: fr3(m.y) });
+      if (m.part !== myPart && !editing) { myPart = m.part; nudgeSoon(); }
+    } else if (m.type === 'select') {
+      if (typeof m.part !== 'string' || (m.part && !EL.test(m.part))) return;
+      if (!m.part) {
+        // Nothing selected in the page any more: only a selection that was in the page goes.
+        if (mySel === 'el' && cur) { mySel = ''; cur.select(null); }
+        return;
+      }
+      var whole = function (v) { return typeof v === 'number' && isFinite(v) && v >= 0 && v <= MOST && Math.floor(v) === v; };
+      if (!whole(m.a) || !whole(m.f) || typeof m.q !== 'string' || m.q.length > 300) return;
+      // As with the pointer: only while the person is in the frame (pointer over it, the frame
+      // focused, or a tap in it just now), so a page cannot put words in the person's selection.
+      if (!inFrame() && document.activeElement !== frame && Date.now() - touchedAt > 10000) return;
+      if (cur && !past) { mySel = 'el'; cur.select({ t: m.part, a: { i: m.a }, f: { i: m.f } }, m.q); }
     } else if (m.type === 'pick') {
       if (!commenting || !canComment() || past || typeof m.part !== 'string' || m.part.length > 56) return;
       var g = /^el:([A-Za-z0-9_-]{1,40}):(\d{1,4}):(\d{1,4})$/.exec(m.part);
@@ -492,11 +547,186 @@
 
   function follow() {
     if (!following || past) return;
+    if (following.indexOf('person:') === 0) {
+      // A person with a live pointer: their pointer's element, each time it changes, not every frame.
+      var c = others.filter(function (o) { return o.actor === following && !o.gone && o.part && EL.test(o.part) && (o.age || 0) < 4; })[0];
+      if (c) {
+        if (c.part !== revealed && frame) { revealed = c.part; post({ type: 'reveal', part: c.part }); }
+        return;
+      }
+    }
     var p = presenceByActor()[following];
     if (p && p.part && /^el:/.test(p.part) && p.part !== revealed && frame) {
       revealed = p.part;
       post({ type: 'reveal', part: p.part });
     }
+  }
+
+  // --- live cursors ----------------------------------------------------------------------------------
+
+  // A person's own colour: one of the four people's colours, each label its own, in the order seen.
+  // Never --partner (amber) or --accent (turquoise): those are the Rouhs'.
+  function personHex(label) {
+    if (personColours[label] == null) personColours[label] = (Object.keys(personColours).length % 4) + 1;
+    var v = getComputedStyle(document.documentElement).getPropertyValue('--person-' + personColours[label]).trim();
+    return /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : '#a3b1b6';
+  }
+  function personName(c) {
+    var n = String(c.name || '') || (S ? shortName(labelOf(c.actor)) : '') || 'Someone';
+    return n.split(' ·')[0].slice(0, 40);
+  }
+  function takeCursors(list) {
+    others = (Array.isArray(list) ? list : []).filter(function (c) {
+      return c && typeof c === 'object' && /^person:[A-Za-z0-9_.:-]{1,80}$/.test(String(c.actor));
+    });
+    othersAt = Date.now();
+    sendCursors();
+    drawSourceSel();
+    follow();
+  }
+  // What the frame gets: only parts of the drawn page, every value plain and in range.
+  function frameCursors() {
+    if (past) return [];
+    var lag = (Date.now() - othersAt) / 1000;
+    return others.slice(0, 40).map(function (c) {
+      var part = typeof c.part === 'string' && EL.test(c.part) ? c.part : '';
+      var one = { id: String(c.actor), name: personName(c), part: part, x: isFrac(c.x) ? c.x : 0, y: isFrac(c.y) ? c.y : 0,
+        colour: personHex(labelOf(c.actor)), tap: c.tap === true, gone: c.gone === true,
+        age: Math.max(0, Math.min(3600, (typeof c.age === 'number' && isFinite(c.age) ? c.age : 0) + lag)) };
+      var s = c.sel;
+      if (s && typeof s === 'object' && typeof s.t === 'string' && EL.test(s.t) && s.a && s.f && typeof s.a.i === 'number' && typeof s.f.i === 'number')
+        one.sel = { part: s.t, a: Math.max(0, Math.min(MOST, Math.round(s.a.i))), f: Math.max(0, Math.min(MOST, Math.round(s.f.i))) };
+      return one;
+    });
+  }
+  function sendCursors(force) {
+    if (!frame) return;
+    var list = frameCursors();
+    var key = JSON.stringify(list.map(function (c) { var o = {}; Object.keys(c).forEach(function (k) { if (k !== 'age') o[k] = c[k]; }); return o; }));
+    if (!force && key === sentCursors) return;
+    sentCursors = key;
+    post({ type: 'cursors', cursors: list });
+  }
+
+  // The person's own selection in the source: the source view (offsets in its text, which is the
+  // page's text) or the box they edit in.
+  function textAt(within, node, off) {
+    try { var r = document.createRange(); r.setStart(within, 0); r.setEnd(node, off); return r.toString().length; } catch (e) { return -1; }
+  }
+  function sourceSelected() {
+    if (!cur || past) return;
+    if (editing) {
+      var t = $('sourceText');
+      if (document.activeElement !== t) return;   // keep the last one while the person is elsewhere
+      var a = t.selectionDirection === 'backward' ? t.selectionEnd : t.selectionStart;
+      var f = t.selectionDirection === 'backward' ? t.selectionStart : t.selectionEnd;
+      mySel = 'src';
+      cur.select({ t: 'src', a: { i: a }, f: { i: f } }, t.value.slice(Math.min(a, f), Math.max(a, f)).slice(0, 300));
+      return;
+    }
+    var sel = window.getSelection ? window.getSelection() : null;
+    var pre = $('sourceView');
+    if (!sel || !sel.rangeCount || !pre.contains(sel.anchorNode) || !pre.contains(sel.focusNode)) return;   // elsewhere: kept
+    var a2 = textAt(pre, sel.anchorNode, sel.anchorOffset), f2 = textAt(pre, sel.focusNode, sel.focusOffset);
+    if (a2 < 0 || f2 < 0) return;
+    mySel = 'src';
+    cur.select({ t: 'src', a: { i: a2 }, f: { i: f2 } }, String(sel).slice(0, 300));
+  }
+
+  // The others' selections in the source: tinted bands over the source view, from their offsets in
+  // the page's text, and in words while the person is editing (the box they type in is their own).
+  function lineOf(text, i) { var n = 1, at = -1; while ((at = text.indexOf('\n', at + 1)) >= 0 && at < i) n++; return n; }
+  function drawSourceSel() {
+    var layer = $('srcMarks'), said = $('srcSel');
+    if (!layer || !said) return;
+    clear(layer); clear(said);
+    var text = page.text;
+    var sels = past ? [] : others.filter(function (c) {
+      var s = c.sel;
+      return !c.gone && s && s.t === 'src' && s.a && s.f && typeof s.a.i === 'number' && typeof s.f.i === 'number';
+    });
+    said.hidden = true;
+    if (!sels.length) return;
+    var pre = $('sourceView');
+    var showing = !editing && !pre.hidden && pre.offsetParent !== null && pre.textContent.length === text.length;
+    if (showing) {   // the layer sits exactly over the source view, so a band scrolled out of it is cut off
+      layer.style.left = pre.offsetLeft + 'px'; layer.style.top = pre.offsetTop + 'px';
+      layer.style.width = pre.offsetWidth + 'px'; layer.style.height = pre.offsetHeight + 'px';
+    }
+    var lines = [];
+    sels.slice(0, 8).forEach(function (c) {
+      var lo = Math.max(0, Math.min(text.length, Math.min(c.sel.a.i, c.sel.f.i))), hi = Math.max(0, Math.min(text.length, Math.max(c.sel.a.i, c.sel.f.i)));
+      var l1 = lineOf(text, lo), l2 = lineOf(text, hi);
+      lines.push({ who: personName(c), colour: personHex(labelOf(c.actor)), words: l1 === l2 ? 'line ' + l1 : 'lines ' + l1 + ' to ' + l2, caret: lo === hi });
+      if (showing) bandsIn(pre, layer, lo, hi, personHex(labelOf(c.actor)), personName(c));
+    });
+    if (!showing) {
+      said.hidden = false;
+      lines.forEach(function (l) {
+        said.appendChild(el('p', { class: 'small lp-src-sel' }, [el('span', { class: 'lp-dot', style: '--c:' + l.colour, 'aria-hidden': 'true' }),
+          l.who + (l.caret ? ' is in the source: ' : ' is selecting in the source: ') + l.words]));
+      });
+    }
+  }
+  function bandsIn(pre, layer, lo, hi, colour, who) {
+    var w = document.createTreeWalker(pre, 4, null), t, at = 0, start = null, end = null, last = null;
+    while ((t = w.nextNode())) {
+      var len = t.data.length;
+      if (!start && lo <= at + len) start = [t, lo - at];
+      if (!end && hi <= at + len) { end = [t, hi - at]; break; }
+      at += len; last = t;
+    }
+    if (!start || !end) return;
+    var r = document.createRange();
+    try { r.setStart(start[0], start[1]); r.setEnd(end[0], end[1]); } catch (e) { return; }
+    var box = layer.getBoundingClientRect();
+    var pr = pre.getBoundingClientRect();
+    var inside = function (q) { return q.bottom > pr.top && q.top < pr.bottom; };
+    if (lo !== hi) Array.prototype.slice.call(r.getClientRects(), 0, 300).forEach(function (q) {
+      if (q.width < 1 || !inside(q)) return;
+      layer.appendChild(el('span', { class: 'lp-band', style: '--c:' + colour + ';left:' + (q.left - box.left) + 'px;top:' + (q.top - box.top) + 'px;width:' + q.width + 'px;height:' + q.height + 'px' }));
+    });
+    var c = r.cloneRange(); c.collapse(false);
+    var q = c.getClientRects()[0] || c.getBoundingClientRect();
+    if (q && inside(q)) layer.appendChild(el('span', { class: 'lp-caret', style: '--c:' + colour + ';left:' + (q.left - box.left) + 'px;top:' + (q.top - box.top) + 'px;height:' + Math.max(14, q.height) + 'px' },
+      [el('span', { class: 'lp-caret-name', style: 'color:' + inkOn(colour), text: who.split(/\s+/)[0] })]));
+  }
+  function inkOn(hex) {
+    var h = hex.replace('#', '');
+    if (h.length < 6) h = h.split('').map(function (c) { return c + c; }).join('');
+    var lin = function (i) { var c = parseInt(h.substr(i, 2), 16) / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    return 0.2126 * lin(0) + 0.7152 * lin(2) + 0.0722 * lin(4) > 0.18 ? '#0b1114' : '#ffffff';
+  }
+
+  function startCursors() {
+    if (!window.RouhCursors || cur) return;
+    cur = window.RouhCursors.start({ base: base, key: 'link-cursor-share', onCursors: takeCursors });
+    var box = $('cursorShare');
+    if (box) {
+      box.checked = cur.sharing();
+      box.addEventListener('change', function () { cur.share(box.checked); toast(box.checked ? 'The others see your cursor again.' : 'Your cursor is hidden from the others. Your own Rouh still sees where you point.'); });
+    }
+    // Over Rouh's own screen, outside the page: remembered (see `inFrame`), and the arrow goes from
+    // the others' screens.
+    var offAt = 0;
+    document.addEventListener('pointermove', function (ev) {
+      if (ev.pointerType === 'touch') return;
+      var now = Date.now();
+      lastOut = { x: ev.clientX, y: ev.clientY, t: now };
+      if (now - offAt < 250) return;
+      offAt = now;
+      cur.move({ part: '' });
+    }, { passive: true });
+    document.documentElement.addEventListener('pointerleave', function (ev) {
+      if (ev.pointerType === 'touch') return;
+      lastOut = null;   // out of the window: it may come back in anywhere, the frame included
+      cur.move({ part: '' });
+    });
+    document.addEventListener('selectionchange', function () { clearTimeout(startCursors.t); startCursors.t = setTimeout(sourceSelected, 80); });
+    var t = $('sourceText');
+    ['select', 'keyup', 'mouseup', 'focus'].forEach(function (k) { t.addEventListener(k, function () { clearTimeout(startCursors.t); startCursors.t = setTimeout(sourceSelected, 80); }); });
+    $('sourceView').addEventListener('scroll', function () { requestAnimationFrame(drawSourceSel); }, { passive: true });
+    window.addEventListener('resize', function () { requestAnimationFrame(drawSourceSel); });
   }
 
   // --- the views: page, side by side, source --------------------------------------------------------
@@ -510,6 +740,7 @@
     $('viewBoth').setAttribute('aria-pressed', v === 'both' ? 'true' : 'false');
     $('viewSource').setAttribute('aria-pressed', v === 'source' ? 'true' : 'false');
     if (v !== 'page' && v !== 'both' && commenting) setCommenting(false);
+    requestAnimationFrame(drawSourceSel);
   }
 
   function setCommenting(on) {
@@ -590,7 +821,7 @@
     var top = pre.scrollTop;
     clear(pre);
     if (!text) { pre.appendChild(el('span', { class: 'dim', text: 'Nothing here yet.' })); return; }
-    if (text.length > 300000 || !by || !by.length || by.length > 4000) { pre.textContent = text; pre.scrollTop = top; return; }
+    if (text.length > 300000 || !by || !by.length || by.length > 4000) { pre.textContent = text; pre.scrollTop = top; drawSourceSel(); return; }
     var frag = document.createDocumentFragment();
     var at = 0;
     by.forEach(function (r) {
@@ -605,6 +836,7 @@
     if (at < text.length) frag.appendChild(document.createTextNode(text.slice(at)));
     pre.appendChild(frag);
     pre.scrollTop = top;
+    drawSourceSel();
   }
   function kb(n) { return n >= 1000000 ? (n / 1000000).toFixed(2).replace(/\.?0+$/, '') + ' MB' : Math.max(n ? 1 : 0, Math.round(n / 1000)) + ' KB'; }
 
@@ -617,13 +849,16 @@
     if (view === 'page') setView(wide.matches ? 'both' : 'source');
     myPart = 'text:html'; nudge();
     draw();
+    drawSourceSel();
     $('sourceText').focus();
   }
   function stopEdit() {
     editing = null;
     myPart = '';
+    if (mySel === 'src' && cur) { mySel = ''; cur.select(null); }
     nudge();
     draw();
+    drawSourceSel();
   }
   function saveSource(ev) {
     ev.preventDefault();
@@ -889,6 +1124,7 @@
     drawToolbar();
     drawFrame();
     sendMarks();
+    sendCursors();
     follow();
     drawSource();
     drawMyRouh();
@@ -900,6 +1136,7 @@
     if (historyOpen && !past) { $('histRange').max = String(S.seq); $('histRange').value = String(S.seq); }
     else if (historyOpen) $('histRange').max = String(S.seq);
     $('work').hidden = !S.space.joined;
+    if (!cur && live()) startCursors();   // only once in: before that, this Rouh has no cursors for it
   }
 
   function showGone() {
@@ -925,6 +1162,7 @@
       $('restore').disabled = !canEdit();
       $('stage').classList.add('past');
       draw();
+      if (cur) { cur.move({ part: '' }); if (mySel) { mySel = ''; cur.select(null); } }
     }).catch(fail);
   }
   function leavePast() {
@@ -1049,6 +1287,8 @@
       root.setAttribute('data-theme', dark ? 'light' : 'dark');
       try { localStorage.setItem('link-theme', root.getAttribute('data-theme')); } catch (e) {}
       sendMarks(true);
+      sendCursors(true);
+      drawSourceSel();
     });
     try { var th = localStorage.getItem('link-theme'); if (th) document.documentElement.setAttribute('data-theme', th); } catch (e) {}
     setView(wide.matches ? 'both' : 'page');

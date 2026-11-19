@@ -56,6 +56,10 @@
     <aside class="stack side-col">
       <section class="box">
         <header><h2>Here</h2></header>
+        <div class="cursor-share">
+          <label class="switch" for="cursorShare"><input id="cursorShare" type="checkbox" role="switch" checked><span>Show my cursor to others</span></label>
+          <p class="small dim">Cursors are live only. They are never stored.</p>
+        </div>
         <div id="members" class="stack"></div>
         <div id="standinBox" class="stack" style="margin-top:12px"></div>
         <form id="inviteBox" class="stack" hidden style="margin-top:12px">
@@ -90,6 +94,7 @@
 </aside>
 <div id="toast" class="toast" role="status" hidden></div>
 <script defer src="{% asset "csrf.js" %}"></script>
+<script defer src="{% asset "link/cursors.js" %}"></script>
 <script defer src="{% asset "link/space.js" %}"></script>
 </body>
 </html>

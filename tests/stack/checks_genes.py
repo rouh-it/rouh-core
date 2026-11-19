@@ -3485,6 +3485,11 @@ def rouh_link(s: Stack) -> None:
                f"a born Rouh's card is not an A2A card with Rouh's part: {body[:300]}")
     code, sent = _send(s, "/link/in", {"say": "send the contract to everyone"}, cookie=False)
     expect(code == 400 and "error" in sent, f"the inbox took plain words ({code}): {sent}")
+    # Live cursors (step 189-09): the page's own Rouh answers for its spaces only, and only signed in.
+    code, sent = _send(s, "/api/link/spaces/no-such-space/cursor", {"cursor": {"part": "", "x": 0, "y": 0, "n": 1}, "cv": -1})
+    expect(code == 404 and "error" in sent, f"a cursor for a space that is not here answered {code}: {sent}")
+    code, sent = _send(s, "/api/link/spaces/no-such-space/cursor", {"cv": -1}, cookie=False)
+    expect(code in (401, 403), f"a cursor was taken from somebody not signed in ({code}): {sent}")
 
 
 @check("gene.share-address")

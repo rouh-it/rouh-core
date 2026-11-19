@@ -656,6 +656,19 @@ async def api_space_ops(request, sid: str):
     return await _guard(request, go)
 
 
+@only("POST")
+async def api_space_cursor(request, sid: str):
+    """Live cursors (step 189-09): this person's pointer, caret and selection to their own Rouh, and the
+    others' back, after waiting up to ``wait`` seconds for anything new. Kept in memory only, never
+    stored. It carries the CSRF token like every write: where a person points is what "this one" means
+    to their Rouh, so no other site may say it for them."""
+    from rouh.link import cursors
+
+    async def go(me, b):
+        return await cursors.from_page(str(me.org_id), sid[:40], b if isinstance(b, dict) else {}, who=me)
+    return await _guard(request, go)
+
+
 @only("GET")
 async def api_space_history(request, sid: str):
     from rouh.link import spaces

@@ -112,6 +112,10 @@ def read_value(value, rule, where: str):
         from . import doc
 
         return doc.read_op(value, where)
+    if kind == "cursor":
+        from . import cursors
+
+        return read_value(value, cursors.CURSOR, where)
     if kind == "maybe":
         return None if value is None else read_value(value, rule[1], where)
     raise Refused(f"{where}: unknown rule")
@@ -168,6 +172,9 @@ FORMS: dict[str, dict] = {
     "room.poll": {"space_id": SPACE_ID, "since": ("int", 0, 10**9), "wait?": ("num", 0, 25), "epoch?": ("int", 0, 10**6),
                   "presence?": ("list", 6, PRESENCE)},
     "room.presence": {"space_id": SPACE_ID, "presence": ("list", 6, PRESENCE)},
+    # Live cursors (`cursors.py`): a member's own person's, and a wait for the others'. Never kept.
+    "room.cursor": {"space_id": SPACE_ID, "cursors": ("list", 2, ("cursor",)), "cv": ("int", 0, 10**12),
+                    "wait?": ("num", 0, 20)},
     # A member asks the owner to keep the live page as it is now (`pageout.py`); the owner decides.
     "space.keep_ask": {"space_id": SPACE_ID, "seq": ("int", 0, 10**9), "words?": T(300)},
     "group.welcome": {"space_id": SPACE_ID, "epoch": ("int", 0, 10**6), "secret": ("b64", 64),

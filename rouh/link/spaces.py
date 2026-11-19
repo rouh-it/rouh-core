@@ -862,6 +862,7 @@ async def leave(org: str, sid: str) -> None:
     live = _LIVE.pop((org, sid), None)
     if live is not None and live.follower is not None:
         live.follower.cancel()
+    _forget_cursors(org, sid)
 
 
 def end(org: str, sid: str) -> None:
@@ -879,6 +880,14 @@ def end(org: str, sid: str) -> None:
             wire.queue(org, p, "space.ended", {"space_id": sid})
     log.write(org, "end", f"Ended the live space “{row.title[:80]}”.", space=sid)
     _wake(org, sid)
+    _forget_cursors(org, sid)
+
+
+def _forget_cursors(org: str, sid: str) -> None:
+    """A space that ended or was left here: its live cursors go with it (`cursors.py`)."""
+    from . import cursors
+
+    cursors.forget(org, sid)
 
 
 @wire.handles("space.left")

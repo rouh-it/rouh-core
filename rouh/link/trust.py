@@ -4,7 +4,8 @@
                shared space only watch or comment. Off by a setting until rouh.land's terms cover
                the relay and Rouhs talking (task 131, step 131-10).
     known      also free and busy times, meeting proposals, invitations to a space, hand-offs.
-    colleague  also Work-side live spaces as an editor, and presence.
+    colleague  also Work-side live spaces as an editor, and presence (and its person's live cursor;
+               a stranger's Rouh only sees the others' cursors, `cursors.py`).
     family     also Personal-side live spaces as an editor, and presence.
     delegate   also decides for this Rouh's person inside a written grant (`grants.py`).
 
@@ -33,7 +34,7 @@ SAYS = {
 #: Message kinds each level may send here. A kind not listed for a level is refused before it is read.
 _BASE = {"hello", "ping", "card", "bye", "log.ask", "log.share", "cut", "trust.told"}
 _STRANGER = _BASE | {"handoff.brief", "handoff.quote", "money.proposal", "space.join", "room.poll",
-                     "room.ops", "space.left", "a2a.note", "space.keep_ask"}
+                     "room.ops", "space.left", "a2a.note", "space.keep_ask", "room.cursor"}
 _KNOWN = _STRANGER | {"meeting.ask", "meeting.busy", "meeting.yes", "space.invite", "space.ended",
                       "room.presence", "grant.shown", "grant.withdrawn", "group.welcome", "standin.hold",
                       "standin.handback"}

@@ -44,7 +44,9 @@ SYSTEM = (
     '  {"set": {"field": "<field name>", "value": "<short value>"}}\n'
     '  {"comment": {"part": "<part, such as list:steps>", "text": "<comment>"}}\n'
     "Use only the lists, texts and fields the space has. At most 12 steps. Nothing outside this "
-    "space: no mail, no calendar, no payments, no other space.")
+    "space: no mail, no calendar, no payments, no other space.\n"
+    "When your person says \"this\", \"this one\", \"these\" or \"here\", they mean the part named "
+    "under \"Where your own person is pointing\", if it is there: say which part in your intent.")
 
 PLAN = {"intent": ("text", 300), "steps": ("list", 12, ("obj", {"say": ("text", 200), "do": ("list", 10, ("json", 4000))}))}
 
@@ -72,6 +74,15 @@ def describe(sd: dict, kind: str, my_actor: str) -> str:
         if not c.get("resolved"):
             lines.append(untrusted.wrap(f"Comment on {c['part']}: {c['text']}", "a comment in the shared space"))
     return "\n".join(lines)
+
+
+def _pointing(org: str, sid: str, sd: dict) -> str:
+    """Where this Rouh's own person points and what they selected (`cursors.said_for`), so "this one"
+    means what is under their pointer. Only theirs: another person's cursor never reaches a prompt."""
+    from . import cursors
+
+    said = cursors.said_for(org, sid, sd)
+    return said + "\n\n" if said else ""
 
 
 def _json_of(text: str) -> dict:
@@ -179,6 +190,7 @@ async def work(org: str, sid: str, words: str, *, who=None) -> dict:
         answer = await llm.ask(USE, system=SYSTEM, max_tokens=2000, who=who, org_id=org, purpose=USE,
                                messages=[{"role": "user", "content":
                                           f"The space:\n{describe(sd, row.kind, actor)}\n\n"
+                                          f"{_pointing(org, sid, sd)}"
                                           f"Your own person asks you: {words}"}])
         plan = _json_of(answer.text)
     finally:

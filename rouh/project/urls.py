@@ -204,6 +204,7 @@ urlpatterns = [
     path("api/link/spaces/<str:sid>", link_web.api_space),
     path("api/link/spaces/<str:sid>/ops", link_web.api_space_ops),
     path("api/link/spaces/<str:sid>/history", link_web.api_space_history),
+    path("api/link/spaces/<str:sid>/cursor", link_web.api_space_cursor),
     path("api/link/spaces/<str:sid>/act", link_web.api_space_act),
     path("api/link/spaces/<str:sid>/log", link_web.api_space_log),
     path("phone/in", relay_web.phone_in),

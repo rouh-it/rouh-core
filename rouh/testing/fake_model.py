@@ -1107,6 +1107,12 @@ def a_space_plan(body: dict) -> str:
         i = int(num) - 1
         if 0 <= i < len(secs) and words.strip():
             steps.append({"say": f"Writing section {num}", "do": [{"write": {"text": secs[i], "add": words.strip()}}]})
+    # "this one" is what the person's own pointer is on (`rouh/link/cursors.py`): "done" marks that item
+    # done, and the intent names it, so a test sees which pointer the Rouh followed.
+    on = re.search(r"^Pointer on: item:([\w.-]+) \(an item of list (\w+)\)", said, re.M)
+    if not steps and on and re.search(r"\bthis( one)?\b", asked, re.I):
+        steps = [{"say": f"Marking item {on.group(1)} done", "do": [{"done": {"list": on.group(2), "item": on.group(1), "value": True}}]}]
+        return json.dumps({"intent": f"Marking the one you point at (item {on.group(1)}) done", "steps": steps})
     if not steps and lists:
         steps = [{"say": "Adding a step", "do": [{"add": {"list": lists[0], "text": asked[:120] or "A step"}}]}]
     return json.dumps({"intent": f"{len(steps)} change{'s' if len(steps) != 1 else ''}: {asked[:120]}", "steps": steps})
@@ -1145,6 +1151,16 @@ def a_page_plan(body: dict) -> str:
                           "edits": [{"find": h1.group(0),
                                      "replace": h1.group(1) + (quoted.group(1).strip() if quoted else "A new heading")
                                      + h1.group(3)}]})
+    # "this" is the element under the person's own pointer (`rouh/link/cursors.py`): its first words
+    # become the words in quotes.
+    on = re.search(r'^Pointer on: el:([A-Za-z0-9_-]+) ', said, re.M)
+    if on and re.search(r"\bthis( one)?\b", asked, re.I):
+        tag = re.search(r'(<[a-zA-Z][^>]*data-rouh-id="' + re.escape(on.group(1)) + r'"[^>]*>)([^<]*)', source)
+        quoted = re.search(r"[\"“]([^\"”]{1,120})[\"”]", asked)
+        if tag and source.count(tag.group(0)) == 1:
+            steps.append({"say": "Changing the one you point at", "el": on.group(1),
+                          "edits": [{"find": tag.group(0), "replace": tag.group(1) + (quoted.group(1) if quoted else "Changed")}]})
+            return json.dumps({"intent": f"Changing the element you point at ({on.group(1)})", "steps": steps})
     if re.search(r"\bsection\b", asked, re.I):
         end = next((t for t in ("</main>", "</body>") if source.count(t) == 1), "")
         if end:
