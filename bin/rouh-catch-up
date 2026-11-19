@@ -30,6 +30,12 @@ the backup part; bin/rouh-catch-up-mac does). Undo: Meta, Changes, Put back on t
 rouh-guard undo N; then, if the database must go back too, rouh-backup restore <the copy>.
 
     --check   say what it would do, and change nothing
+    --stuck   a Rouh that has Rouh's updates, but whose update cannot move (19 November 2026: a Rouh
+              said "0 copied exactly, 0 adapted, 74 waiting", every change behind one its model call
+              could not adapt, and the fixes for that behind it too). The same, from the release its
+              code was installed from (or brought by an earlier catch-up), with the changes its updates
+              took and its own merged on top. Its update then counts every change up to the release
+              as taken (rouh/code_evolution.py, caught_up), and goes on from there.
 Settings: ROUH_SITE_URL (https://rouh.land), ROUH_CODE_RELEASE_URL (its /mac/code/release.json),
 ROUH_CODE_TARBALL ({org} and {commit} filled in), ROUH_APP_DIR (/code), ROUH_GUARD_BIN
 (/opt/rouh-guard/bin).
@@ -189,17 +195,20 @@ def day(iso: str) -> str:
     return f"{int(m.group(3))} {months[int(m.group(2)) - 1]} {m.group(1)}"
 
 
-def catch_up(dry: bool) -> int:
+def catch_up(dry: bool, stuck: bool = False) -> int:
     if not (CODE / ".git").exists():
         raise Refused(f"{CODE} is not a Rouh's code (no git repository).")
-    if git("cat-file", "-e", "HEAD:rouh/code_update.py", cwd=CODE).returncode == 0:
+    if git("cat-file", "-e", "HEAD:rouh/code_update.py", cwd=CODE).returncode == 0 and not stuck:
         raise Refused("this Rouh already has Rouh's updates: press Update to the newest Rouh in Anatomy, "
-                      "Meta, Changes instead. Nothing was changed.")
+                      "Meta, Changes instead; if its update cannot move, run this with --stuck. Nothing was changed.")
     if out("status", "--porcelain", "--untracked-files=normal", cwd=CODE):
         raise Refused("its code has work in it that is not committed; nothing was changed.")
     b = came_from(CODE)
     head = out("rev-parse", "HEAD", cwd=CODE)
-    own = int(out("rev-list", "--count", "--no-merges", f"{b['local']}..{head}", cwd=CODE) or 0)
+    # Its own changes: not the released changes its updates took (Rouh-master-change:), which the
+    # release brings again anyway.
+    own = len(out("rev-list", "--no-merges", "--invert-grep", "--grep=^Rouh-master-change:",
+                  f"{b['local']}..{head}", cwd=CODE).split())
     rel = newest()
     commit = rel["commit"]
     say(f"this Rouh came from Rouh {b['release'][:12]} ({b['how']}), with {own} change"
@@ -231,6 +240,11 @@ def catch_up(dry: bool) -> int:
         unpack(data, work, commit)
         if not (work / "manage.py").is_file() or not (work / "rouh").is_dir():
             raise Refused("the download holds no Rouh code.")
+        evolution = work / "rouh" / "code_evolution.py"
+        if stuck and "def caught_up(" not in (evolution.read_text(errors="replace") if evolution.is_file() else ""):
+            raise Refused(f"the newest release ({commit[:12]}) cannot yet count a catch-up as taken, so its update "
+                          "would go on trying the changes it already has. Wait for the next release of Rouh's code "
+                          "and run this again. Nothing was changed.")
         for left in LEFT_OUT:
             if git("cat-file", "-e", f"{b['local']}:{left}", cwd=work).returncode == 0:
                 continue
@@ -257,6 +271,16 @@ def catch_up(dry: bool) -> int:
             if r.returncode and not clashes:
                 raise Refused("its own changes could not be laid over the release: " + (r.stderr or r.stdout).strip()[-300:])
             for f in clashes:
+                mine = out("log", "--format=%H", "--no-merges", "--invert-grep", "--grep=^Rouh-master-change:",
+                           f"{b['local']}..{head}", "--", f, cwd=work)
+                if stuck and not mine:
+                    # Only released changes its update took touched it: the release has them, and more.
+                    if git("cat-file", "-e", f":3:{f}", cwd=work).returncode == 0:
+                        git("checkout", "-q", "--theirs", "--", f, cwd=work, check=True)
+                        git("add", "--", f, cwd=work, check=True)
+                    else:
+                        git("rm", "-q", "--", f, cwd=work, check=True)
+                    continue
                 if git("cat-file", "-e", f":2:{f}", cwd=work).returncode == 0:
                     git("checkout", "-q", "--ours", "--", f, cwd=work, check=True)
                     git("add", "--", f, cwd=work, check=True)
@@ -296,11 +320,11 @@ def catch_up(dry: bool) -> int:
 
 
 def main(argv: list[str]) -> int:
-    if any(a not in ("--check",) for a in argv):
+    if any(a not in ("--check", "--stuck") for a in argv):
         print(__doc__.strip(), file=sys.stderr)
         return 2
     try:
-        return catch_up("--check" in argv)
+        return catch_up("--check" in argv, "--stuck" in argv)
     except Refused as exc:
         say(str(exc))
         print("ROUH-CATCH-UP " + json.dumps({"ok": False, "said": str(exc)}), flush=True)

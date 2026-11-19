@@ -19,6 +19,8 @@
 # back as it was in COPY (rouh-backup restore), and starts the core again.
 #
 #   ... | bash -s check        say what it would do, and change nothing
+#   ... | bash -s stuck        a Rouh that has Rouh's updates but whose update cannot move: the same,
+#                              over the changes it took (rouh-catch-up --stuck)
 set -euo pipefail
 say() { printf 'rouh-catch-up: %s\n' "$*"; }
 SRC="${ROUH_CATCH_UP_FROM:-https://raw.githubusercontent.com/rouh-land/rouh-core/main/bin}"
@@ -52,7 +54,8 @@ case "${1:-run}" in
     exit 0 ;;
   check) args=(--check) ;;
   run) args=() ;;
-  *) say "say nothing, check, or undo POINT COPY"; exit 2 ;;
+  stuck) args=(--stuck) ;;
+  *) say "say nothing, check, stuck, or undo POINT COPY"; exit 2 ;;
 esac
 
 script="$(mktemp)"; trap 'rm -f "$script"' EXIT
@@ -60,7 +63,7 @@ if [ -f "$(dirname "$0")/rouh-catch-up" ]; then cp "$(dirname "$0")/rouh-catch-u
 else curl -fsSL "$SRC/rouh-catch-up" -o "$script"; fi
 
 copy=""
-if [ "${#args[@]}" = 0 ]; then
+if [ "${#args[@]}" = 0 ] || [ "${args[0]}" = --stuck ]; then
   [ -n "$backup" ] || { say "the backup part is not running, so no copy of the database can be made first; nothing was changed."; exit 1; }
   say "copying the database first"
   said="$(docker exec "$backup" /opt/rouh-guard/bin/rouh-backup now)" || { say "the copy failed; nothing was changed."; exit 1; }

@@ -25,6 +25,14 @@ change held back only the later changes guessed to need it (the same file, a nam
 never ran anywhere - a page using a table whose migration waited - and broke instead of holding
 back. Now this Rouh's code is always shared main as it was at one commit, plus its own changes.
 
+**Changes that never ran alone.** Shared main has commits that only ever ran with the one after
+them (9659a1a2 and its renumbered migration in 40971b51). When the protected core refuses an exact
+copy, the walk takes it with the next change or two as one undo point (``join``). A database change
+copied exactly into a Rouh whose migrations are shared main's own needs no model: the protected core
+rehearses it with a fixed plan and proof (``exact_database``). A failed model call is kept in the
+provider's own words (``failure_said``). A Rouh brought to a whole release at once by
+``rouh-catch-up --stuck`` counts every change up to it as taken (``caught_up``).
+
 **Observable.** A walk is driven by a run (``code_update.start_run``), one call of its
 ``update_step`` tool at a time, so its every step is on the run's record as it goes.
 """
@@ -207,6 +215,8 @@ def scan(release: dict, b: dict, *, report: bool = True) -> dict:
     if start != end and u._git("merge-base", "--is-ancestor", end, start, cwd=repo).returncode == 0:
         # The release is already inside what this Rouh started from (the Creator Rouh, ahead of
         # its own release): nothing to list, and nothing to fetch again for it.
+        caught_up(doc, b, repo)
+        doc["through"] = _through(doc)
         doc["looked"] = end
         save(doc)
         return doc
@@ -243,15 +253,26 @@ def scan(release: dict, b: dict, *, report: bool = True) -> dict:
                 all_files = _git("diff", "--name-only", "--no-renames", row["parent"], row["master"]).splitlines()
                 row.update(classify(row["master"], row["parent"], all_files,
                                     _git("show", "-s", "--format=%B", row["master"])))
-    through = doc["installed"]
-    for row in doc["changes"]:
-        if row.get("status") not in TAKEN:
-            break
-        through = row["master"]
-    doc["through"] = through
+    caught_up(doc, b, repo)
+    doc["through"] = _through(doc)
     doc["seen"] = end
     save(doc)
     return doc
+
+
+def caught_up(doc: dict, b: dict, repo: Path) -> None:
+    """Every change a whole release brought at once is taken. rouh-catch-up --stuck lays the newest
+    release over a Rouh whose walk is stuck, outside the walk, with a Rouh-release: line; the
+    changes up to that release are then in this Rouh's code, and are never walked again."""
+    release = b.get("release") if b.get("how") == "update" else ""
+    if not release or u._git("cat-file", "-e", release + "^{commit}", cwd=repo).returncode:
+        return
+    for row in doc["changes"]:
+        if row.get("status") in TAKEN:
+            continue
+        if u._git("merge-base", "--is-ancestor", row["master"], release, cwd=repo).returncode == 0:
+            row.update(status="copied", local=b.get("local"), point=None, at=time.time(), put_back=None,
+                       blocked_by=None, reason=f"Came in with the whole release {release[:8]} at once (rouh-catch-up).")
 
 
 def _bytes(repo: Path, *args: str) -> bytes:
@@ -396,6 +417,65 @@ def _merge(work: Path, here: str, base: str, theirs: str) -> bytes | None:
 _END: list[str] = []
 
 
+def failure_said(exc: BaseException, most: int = 600) -> str:
+    """What a failed model call said, from the provider's own error body when there is one: its
+    status, type and message, such as "400 invalid_request_error: prompt is too long ..."."""
+    body = getattr(exc, "body", None)
+    status = getattr(exc, "status_code", None) or getattr(getattr(exc, "response", None), "status_code", None)
+    error = body.get("error") if isinstance(body, dict) else None
+    if isinstance(error, dict) and error.get("message"):
+        text = f"{error.get('type') or 'error'}: {error['message']}"
+    elif isinstance(body, dict) and body.get("message"):
+        text = str(body["message"])
+    else:
+        text = str(getattr(exc, "message", "") or exc or "")
+    head = f"{type(exc).__name__}" + (f" {status}" if status else "")
+    return (f"{head}: {text}" if text else head)[:most]
+
+
+#: The fixed proof of a database change copied exactly: after the protected core's rehearsal (and its
+#: real migration), no migration of the code is left unapplied. The core runs it on the copies, with
+#: the check user's rights only; the core itself checks every table's rows were kept, and runs this
+#: Rouh's own checks on the migrated copy with the new code and with the code still running.
+EXACT_DB_PROOF = """import sys
+import django
+django.setup()
+from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
+left = MigrationExecutor(connection)
+left = left.migration_plan(left.loader.graph.leaf_nodes())
+print("ROUH-PROOF unapplied migrations:", [str(m) for m, _ in left])
+sys.exit(1 if left else 0)
+"""
+
+
+def exact_database(said: str) -> dict:
+    """The plan of a database change copied exactly: no table renamed (every existing table and
+    column must keep its rows), the fixed proof, and the restore path the core keeps."""
+    return {"reason": said + " A database change copied exactly: the protected core rehearsed its migration on a "
+                             "full copy of this Rouh's database, checked every table kept its rows, and ran this "
+                             "Rouh's own checks on it before migrating for real.",
+            "proof": EXACT_DB_PROOF, "exact_database": True,
+            "database_plan": {"tables": {}, "columns": {},
+                              "restore": "Put back the undo point before this change, then restore the protected "
+                                         "backup taken just before the migration (immediately-before.dump) into a "
+                                         "new database and switch to it."}}
+
+
+def own_schema(row: dict, work: Path) -> bool:
+    """Whether this Rouh's migrations differ from shared main's where the change starts: one of its
+    own, or one changed. Then a database change must be fitted to this Rouh's schema by the adapting
+    job; otherwise its migrations are shared main's own and are copied exactly."""
+    def migrations(repo: Path, rev: str) -> set:
+        out = set()
+        for line in u._git("ls-tree", "-r", rev, cwd=repo).stdout.splitlines():
+            meta, _, path = line.partition("\t")
+            if "/migrations/" in path and not test_file(path):
+                out.add((path, meta.split()[2]))
+        return out
+    return migrations(work, "HEAD") != migrations(master_repo(), row["parent"])
+
+
 def sort_files(row: dict, work: Path) -> dict:
     """Each file of a change, by how it can be taken here (the master commit already fetched into work):
     exact (this Rouh's file is the one the change started from, or already the one it ends with),
@@ -404,13 +484,15 @@ def sort_files(row: dict, work: Path) -> dict:
     whole (a file only copied whole that this Rouh changed itself: it waits)."""
     master = master_repo()
     out: dict = {"exact": [], "merged": {}, "clash": [], "whole": [], "already": []}
+    own = bool(row.get("database")) and own_schema(row, work)
     for f in row["files"]:
         base, here, theirs = (_blob(master, row["parent"], f), _blob(work, "HEAD", f), _blob(master, row["master"], f))
         if here and here != theirs and _END and here == _blob(master, _END[0], f):
             # Already the release's own final version (the protected core's update step brings its
             # files so): every change before it is in it.
             out["already"].append(f)
-        elif here != theirs and row.get("database") and database_file(f) and not opaque(master, row["master"], f):
+        elif here != theirs and row.get("database") and database_file(f) and not opaque(master, row["master"], f) \
+                and own:
             # A database change's migration must fit this Rouh's own schema (its own tables, its own
             # newest migration), so the adapting job may change it; it is never locked as a copy.
             out["clash"].append(f)
@@ -725,8 +807,16 @@ def core_features() -> dict:
     return guardface.ask("status").get("features") or {}
 
 
+class CoreRefused(u.Refused):
+    """The protected core checked a proposed change and did not make it live."""
+
+
+#: How many changes after one the protected core refused are tried with it, as one undo point.
+JOIN_MOST = 3
+
+
 def _propose(doc: dict, row: dict, rel: dict, by: str, work: Path, plan: dict, copied: bool,
-             taken: dict | None = None) -> bool:
+             taken: dict | None = None, unit: list[dict] | None = None) -> bool:
     from . import guardface
 
     if core_features().get("master_changes") != 1:
@@ -735,8 +825,9 @@ def _propose(doc: dict, row: dict, rel: dict, by: str, work: Path, plan: dict, c
     u._git("add", "-A", cwd=work, check=True)
     if taken.get("exact"):
         check_exact(work, taken["exact"])
-    u._git("commit", "-q", "--allow-empty", "-m", row["purpose"], "-m", "Rouh-master-change: " + row["master"],
-           cwd=work, check=True)
+    unit = unit or [row]
+    u._git("commit", "-q", "--allow-empty", "-m", "; ".join(r["purpose"] for r in unit)[:400],
+           "-m", "\n".join("Rouh-master-change: " + r["master"] for r in unit), cwd=work, check=True)
     commit = _git("rev-parse", "HEAD", cwd=work)
     u._git("fetch", "-q", str(work), "+HEAD:refs/rouh/update/change", cwd=u.code_dir(), check=True)
     # The release commit itself beside it, so the protected core can check each exact copy against it.
@@ -744,40 +835,49 @@ def _propose(doc: dict, row: dict, rel: dict, by: str, work: Path, plan: dict, c
            cwd=u.code_dir(), check=True)
     backup = u._backup(u.code_dir(), False)
     pending = {"release": rel["commit"], "label": u.label(rel["commit"], rel), "commit": commit,
-               "at": time.time(), "by": by, "master_change": row["master"],
+               "at": time.time(), "by": by, "master_change": row["master"], "unit": [r["master"] for r in unit],
                "change_status": "copied" if copied else "adapted", "backup": backup,
                "reason": plan.get("reason", "Every touched file still matched master."),
                "continuation": rel}
     u._change(pending=pending)
     # The protected core owns every gate. From core 1.1 it checks each exact copy against the release
     # commit, and a change that is all exact copies (not a database change) needs no model's proof.
-    evidence = {"master": row["master"], "database": row["database"], "security": row["security"],
+    evidence = {"master": row["master"], "database": row["database"],
+                "security": row["security"] and not plan.get("exact_database"),
                 "proof": plan.get("proof", ""), "database_plan": plan.get("database_plan"),
                 "not_applicable": bool(plan.get("not_applicable")),
                 "model": plan.get("model", ""), "reason": plan.get("reason", ""),
                 "exact": taken.get("exact") or {}, "merged": sorted(taken.get("merged") or [])}
+    if len(unit) > 1:
+        # Several changes as they landed together: the core checks each exact copy against one release
+        # commit only, so none is claimed; a database one among them is still rehearsed in full.
+        evidence = ({"master": row["master"], "database": True, "security": False, "proof": EXACT_DB_PROOF,
+                     "database_plan": exact_database("")["database_plan"], "not_applicable": False, "model": "",
+                     "reason": plan.get("reason", ""), "exact": {}, "merged": []}
+                    if any(r["database"] for r in unit) else None)
     try:
-        answer = guardface.ask("propose", commit=commit, why="Master change: " + row["purpose"],
+        answer = guardface.ask("propose", commit=commit, why="Master change: " + "; ".join(r["purpose"] for r in unit)[:300],
                                by="Rouh's update (" + by + ")", update=evidence, timeout=3600)
     except guardface.Unavailable:
         u._change(busy=None)
         return False  # The next start reconciles the pending transaction, never guesses success.
     except guardface.Refused as exc:
         u._change(pending=None)
-        raise u.Refused(str(exc)) from None
+        raise CoreRefused(u._plain_refusal(str(exc))) from None
     if not answer.get("ok"):
         u._change(pending=None)
-        raise u.Refused(u._plain_refusal(str(answer.get("refused") or "The protected core refused it.")))
+        raise CoreRefused(u._plain_refusal(str(answer.get("refused") or "The protected core refused it.")))
     finish(pending, answer.get("point") or {})
     return True
 
 
 def finish(pending: dict, point: dict) -> None:
     doc = ledger()
+    unit = pending.get("unit") or [pending["master_change"]]
     for row in doc.get("changes", []):
-        if row["master"] == pending["master_change"]:
+        if row["master"] in unit:
             row.update(status=pending["change_status"], local=pending["commit"], point=point.get("n"),
-                       at=time.time(), reason=pending["reason"])
+                       at=time.time(), reason=pending["reason"], put_back=None, blocked_by=None)
     through = doc["installed"]
     for row in doc["changes"]:
         if row.get("status") not in TAKEN:
@@ -786,6 +886,56 @@ def finish(pending: dict, point: dict) -> None:
     doc["through"] = through
     save(doc)
     u._change(pending=None, busy=None, continue_update={"release": pending["continuation"], "by": pending["by"]})
+
+
+def join(doc: dict, i: int, rel: dict, by: str, work: Path, start: str, refused: str) -> bool:
+    """A change the protected core refused, copied exactly, taken with the change or two after it as
+    one undo point; True when such a group went live.
+
+    Shared main has commits that never ran alone: 9659a1a2 (15 November 2026) added a second 0252
+    migration, the Creator's own protected core refused it, and 40971b51 renumbered it a minute later,
+    and the two landed together. Walked a commit at a time, an installed Rouh was asked to pass a
+    commit no Rouh ever passed, and stopped there for good. Each change of a group is still copied
+    exactly, and a group with a database change is still rehearsed in full."""
+    rows = doc["changes"]
+    why = ""
+    for extra in range(1, JOIN_MOST + 1):
+        unit = rows[i:i + extra + 1]
+        if len(unit) <= extra or any(r.get("status") in TAKEN or was_put_back(r) for r in unit[1:]):
+            break
+        u._git("reset", "--hard", start, cwd=work, check=True)
+        u._git("clean", "-fdq", cwd=work, check=True)
+        fits = True
+        for r in unit:
+            if not r["files"]:
+                continue
+            sort = sort_files(r, work)
+            if sort["whole"] or sort["clash"] or sort["merged"] or (r["database"] and own_schema(r, work)):
+                fits = False
+                break
+            copy_exact(r, work, sort["exact"])
+            u._git("commit", "-q", "--allow-empty", "-m", "a change of a group", cwd=work, check=True)
+        if not fits:
+            break
+        u._git("reset", "-q", "--soft", start, cwd=work, check=True)
+        names = "; ".join(f"“{r['purpose']}”" for r in unit[1:])
+        u._step(f"taking {len(unit)} changes together, as they landed: {rows[i]['purpose']}; {names}")
+        plan = {"reason": f"Copied exactly, together with {names}, as one undo point: on shared main "
+                          f"“{rows[i]['purpose']}” never ran without the change after it (the protected core "
+                          f"refused it alone: {refused[:300]})."}
+        try:
+            _propose(doc, unit[-1], rel, by, work, plan, True, unit=unit)
+            return True
+        except (u.Refused, ValueError) as exc:
+            why = str(exc)
+            log_ = getattr(u, "log", None)
+            if log_ is not None:
+                log_.info("update: %d changes together were refused too: %s", len(unit), why[:300])
+    u._git("reset", "--hard", start, cwd=work, check=True)
+    u._git("clean", "-fdq", cwd=work, check=True)
+    if why:
+        rows[i]["reason"] = (rows[i].get("reason") or "") + f" Taken with the changes after it, it was refused too: {why[:400]}"
+    return False
 
 
 def advance(rel: dict, by: str, work: Path) -> None:
@@ -842,11 +992,21 @@ def advance(rel: dict, by: str, work: Path) -> None:
             stopped = row
             break
         exact_only = not sort["merged"] and not sort["clash"]
-        no_proof = exact_only and bool(row["files"]) and not row.get("outside_own_code") \
-            and core_features().get("exact_copies") == 1
-        needs_model = bool(sort["clash"]) or row["database"] or (row["security"] and not no_proof)
+        # Every file of this Rouh's own code is the release's, byte for byte, which the protected core
+        # checks against the release commit. Release tooling outside it (guard/, deploy/container/) is
+        # not in the proposal at all, so it never asks for a proof (until 19 November 2026 it did, and
+        # "Base: pg_dump and pg_restore ..." waited on a model for a change of tests/stack/run.sh).
+        no_proof = exact_only and bool(row["files"]) and core_features().get("exact_copies") == 1
+        # A database change copied exactly, into a Rouh whose migrations are shared main's own: the
+        # protected core rehearses it on a full copy of the database with a fixed plan and proof
+        # (`exact_database`), and only one that does not pass goes to the adapting job.
+        exact_db = bool(row["database"]) and no_proof and not row.get("exact_db_refused") \
+            and not own_schema(row, work)
+        needs_model = bool(sort["clash"]) or (row["database"] and not exact_db) or \
+            (row["security"] and not no_proof)
         start = _git("rev-parse", "HEAD", cwd=work)
         feedback = ""
+        refused_exact = ""
         for attempt in range(3 if needs_model else 1):
             u._step(("adapting" if sort["clash"] else "checking" if needs_model else "copying") + ": " + row["purpose"])
             u._git("reset", "--hard", start, cwd=work, check=True)
@@ -865,6 +1025,8 @@ def advance(rel: dict, by: str, work: Path) -> None:
                     row["depends_on"] = view.get("depends_on", row.get("depends_on", []))
                     check_exact(work, copied)
                     plan["reason"] = (said + " " if copied or sort["merged"] else "") + str(plan.get("reason") or "")
+                elif exact_db:
+                    plan = exact_database(said)
                 else:
                     plan = {"reason": said}
                 if any(f in u.LIBRARIES for f in row["files"]):
@@ -875,6 +1037,12 @@ def advance(rel: dict, by: str, work: Path) -> None:
                 return
             except (u.Refused, ValueError) as exc:
                 feedback = str(exc)
+                if isinstance(exc, CoreRefused) and not needs_model:
+                    refused_exact = feedback
+                if exact_db:
+                    # The next walk gives it to the adapting job, with this refusal to read.
+                    row["exact_db_refused"] = True
+                    feedback = "Copied exactly, its migration did not pass the protected rehearsal: " + feedback
                 if feedback == "needs a frontier model":
                     feedback += (" (it changes the database, so a Smart-tier model must fit and prove it)" if row["database"]
                                  else " (its lines clash with this Rouh's own, so a Smart-tier model must adapt them)"
@@ -885,11 +1053,17 @@ def advance(rel: dict, by: str, work: Path) -> None:
                 if "frontier model" in feedback or not needs_model:
                     break
             except Exception as exc:  # noqa: BLE001 - said on the row, and the walk stops at it
-                feedback = f"The adapting job could not finish ({type(exc).__name__})."
+                # The model's own words, never the class alone: "BadRequestError" said nothing of why
+                # every adapting job on a Rouh was refused (19 November 2026).
+                feedback = f"The adapting job could not finish: {failure_said(exc)}"
+                u.log.warning("update: the adapting job for %s failed: %s", row["master"][:12], failure_said(exc, 2000))
                 _waiting(doc, row, feedback)
                 break
         u._git("reset", "--hard", start, cwd=work, check=True)
         u._git("clean", "-fdq", cwd=work, check=True)
+        if refused_exact and join(doc, i, rel, by, work, start, refused_exact):
+            return
+        save(doc)
         stopped = row
         break
     if stopped is not None:
