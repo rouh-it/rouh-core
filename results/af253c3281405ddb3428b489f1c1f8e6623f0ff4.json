@@ -1,0 +1,8 @@
+{
+  "commit": "af253c3281405ddb3428b489f1c1f8e6623f0ff4",
+  "ref": "main",
+  "ok": false,
+  "result": "failure",
+  "at": "2026-11-19T16:26:26Z",
+  "run": "https://github.com/rouh-land/rouh-core/actions/runs/44557285392"
+}
