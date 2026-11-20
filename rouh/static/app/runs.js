@@ -17778,6 +17778,79 @@ window.RouhReceiptsHost = { close: receiptsClose };
   }
 })();
 
+/* ------------------------------------------------------------------ handholding
+
+   The guided way into Rouh for someone who has never seen it (`rouh/handholding.py`), at
+   `/handholding`, and one of its lessons at `/handholding/lessons/<id>`, drawn by
+   `handholdingpage.js`. This is the layer's side, as with the receipts: opening and closing it,
+   its row under Now, its address, and the three things the page asks of the rest of Rouh:
+   putting a phrase in the message box, pressing one of Rouh's own controls (the orb, Voice), and
+   going to an address. */
+
+var HOLD = { open: false, page: '', lesson: '', gave: '' };
+
+function handholdingViewing() { return HOLD.open; }
+
+/** @param {string} [page] one of the section's pages, or '' for its first
+    @param {string} [lesson] one lesson's id, on the Lessons page */
+function handholdingOpen(page, lesson) {
+  if (ORBX.open) orbExpand(false);
+  var wantPage = page || '', wantLesson = lesson || '';
+  var moved = HOLD.page !== wantPage || HOLD.lesson !== wantLesson;
+  HOLD.page = wantPage;
+  HOLD.lesson = wantLesson;
+  if (window.RouhHandholding) window.RouhHandholding.shown(HOLD.page, HOLD.lesson);
+  if (!HOLD.open || $('handholdingView').hidden || settingsViewing()) {
+    HOLD.open = true;
+    showLayer('handholdingView');
+    sidebarDone();
+    if (!narrow()) $('handholdingView').focus({ preventScroll: true });
+    addrTouch();
+    return;
+  }
+  if (moved) addrTouch();
+}
+
+function handholdingClose() {
+  if (!HOLD.open) return;
+  HOLD.open = false;
+  if (window.RouhHandholding) window.RouhHandholding.hidden();
+  showLayer(null);
+  addrTouch();
+}
+
+// What `handholdingpage.js` is handed. `say` puts a phrase in the message box, ready to send or
+// change, and never sends it: what the box already held stays, unless it is the last phrase this
+// page put there, which the new one replaces. On a phone the conversation comes forward.
+window.RouhHandholdingHost = {
+  close: handholdingClose,
+  go: function (href) { return goToAddress(href); },
+  /** The page says which of its pages, and which lesson, it is showing, for the address. */
+  place: function (page, lesson) { HOLD.page = page || ''; HOLD.lesson = lesson || ''; addrTouch(); },
+  /** @param {string} text */
+  say: function (text) {
+    if (narrow()) setPane('chat'); else chatIsWanted();
+    var was = input.value.trim();
+    input.value = !was || was === HOLD.gave ? text : was + '\n\n' + text;
+    HOLD.gave = input.value.trim();
+    growInput();
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  },
+  /** @param {string} what one of Rouh's own controls: 'orb', 'voice' or 'input' */
+  press: function (what) {
+    if (what === 'orb') { orbExpand(true); return; }
+    if (narrow()) setPane('chat'); else chatIsWanted();
+    if (what === 'voice') {
+      var v = $('voiceMenuBtn');
+      if (v) { v.focus(); v.click(); }
+      return;
+    }
+    input.focus();
+  }
+};
+
+
 /* ------------------------------------------------------------------ home
 
    The house itself, at `/home`, drawn by `homepage.js`: its lights first,
@@ -18386,6 +18459,7 @@ oneConnect();
 export { applyObjects, applyWorkspace, ASK, askDelete, askFromPage, askPageNow, BRIEF, briefClose, briefOpen,
   WORK, workClose, workOpen, workViewing,
   DECIDE, decisionsClose, decisionsHeard, decisionsOpen, decisionsViewing, ACTS, actionsClose, actionsOpen, actionsViewing,
+  HOLD, handholdingClose, handholdingOpen, handholdingViewing,
   receiptsClose, receiptsOpen, receiptsViewing, HOME, homeClose, homeOpen, homeViewing, SOURCES, sourcesClose, sourcesOpen, sourcesViewing,
   APPROVALS, approvalsClose, approvalsOpen, approvalsViewing,
   EVO, evolutionClose, evolutionOpen, evolutionViewing, incubatorHeard,

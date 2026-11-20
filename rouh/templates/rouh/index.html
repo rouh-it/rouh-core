@@ -161,6 +161,7 @@ with {% asset %}, which gives it its hashed address.
 <link rel="stylesheet" href="{% asset "decision.css" %}">
 <link rel="stylesheet" href="{% asset "decisionspage.css" %}">
 <link rel="stylesheet" href="{% asset "actionspage.css" %}">
+<link rel="stylesheet" href="{% asset "handholdingpage.css" %}">
 <link rel="stylesheet" href="{% asset "notices.css" %}">
 <link rel="stylesheet" href="{% asset "receiptspage.css" %}">
 <link rel="stylesheet" href="{% asset "homepage.css" %}">
@@ -484,7 +485,7 @@ with {% asset %}, which gives it its hashed address.
                     data-group="{{ g.id }}" aria-controls="navGroup-{{ g.id }}"
                     aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
                     tabindex="{% if forloop.first %}0{% else %}-1{% endif %}"><svg class="sb-tab-glyph" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none"
-                    stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{{ g.icon|safe }}</svg><span class="sb-tab-name">{{ g.name }}</span>{% if g.counted %}<span class="sb-tab-count" id="navNowCount" hidden></span>{% endif %}</button>
+                    stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{{ g.icon|safe }}</svg><span class="sb-tab-name">{{ g.label }}</span>{% if g.counted %}<span class="sb-tab-count" id="navNowCount" hidden></span>{% endif %}</button>
             {% endfor %}
           </div>
           {% comment %} Every link, generated from the gene registry (`rouh/genes`,
@@ -4085,6 +4086,24 @@ with {% asset %}, which gives it its hashed address.
       </div>
     </article>
 
+    {% comment %} Handholding (`rouh/handholding.py`, `handholdingpage.js`): the guided way
+         into Rouh for someone who has never seen it, at `/handholding`: what Rouh is, a path
+         of seven stages of steps, and a library of lessons, one at
+         `/handholding/lessons/<id>`. Every word is `rouh/handholding.json`'s. {% endcomment %}
+    <article id="handholdingView" class="canvas-layer settings-view clock-view hh-view" hidden
+             tabindex="-1" aria-label="Handholding">
+      <div class="run-head">
+        <div class="run-heading">
+          <h3>Handholding</h3>
+        </div>
+        <button id="handholdingClose" class="layer-x" type="button"
+                title="Close (Esc)" aria-label="Close and go back to the canvas">&times;</button>
+      </div>
+      <div class="hh-wrap">
+        <div id="handholdingBody" class="hh-body" aria-busy="false"></div>
+      </div>
+    </article>
+
     {% comment %} Decisions (`rouh/decisions.py`, `decisionspage.js`): everything
          waiting on the person as one line each, a link to where it is decided,
          at `/decisions`; and one of them at `/decisions/<number>`, drawn in full
@@ -5475,6 +5494,7 @@ with {% asset %}, which gives it its hashed address.
 <script defer src="{% asset "questspage.js" %}"></script>
 <script defer src="{% asset "decisionspage.js" %}"></script>
 <script defer src="{% asset "actionspage.js" %}"></script>
+<script defer src="{% asset "handholdingpage.js" %}"></script>
 <script defer src="{% asset "receiptspage.js" %}"></script>
 <script defer src="{% asset "homepage.js" %}"></script>
 <script defer src="{% asset "homevacuum.js" %}"></script>

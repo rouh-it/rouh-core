@@ -28,10 +28,14 @@ import re
 from pathlib import Path
 from typing import Callable, Iterable
 
-#: The six groups, in the order their boxes stand in the navigation's rail,
+#: The groups, in the order their boxes stand in the navigation's rail,
 #: top to bottom. Fixed: nothing reorders them, by use or otherwise.
 GROUPS: tuple[tuple[str, str], ...] = (
     ("now", "Now"),
+    # The guided way into Rouh, a section of its own right after Now (Petar, 20 November 2026:
+    # "Actually, don't put it in NOW. Make it its own section."). Its links are its sub-pages,
+    # drawn from the data file `rouh/handholding.json` (`nav.as` "handholding").
+    ("handholding", "Handholding"),
     ("work", "Work"),
     ("time", "Time"),
     ("memory", "Memory"),
@@ -56,6 +60,8 @@ GROUP_IDS: tuple[str, ...] = tuple(g for g, _ in GROUPS)
 #: pair of lungs, something alive rather than a cog (Petar, 13 October 2026, fr_d3dbbd554a2a).
 GROUP_ICONS: dict[str, str] = {
     "now": '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3" fill="currentColor"/>',
+    "handholding": '<path d="M12 3v18"/><path d="M5.5 5.5h10l3 2.5-3 2.5h-10z"/>'
+                   '<path d="M18.5 12.5h-10l-3 2.5 3 2.5h10z"/>',
     "work": '<path d="M12 3.8 20.5 8 12 12.2 3.5 8z"/><path d="M3.5 12 12 16.2 20.5 12"/>'
             '<path d="M3.5 16 12 20.2 20.5 16"/>',
     "time": '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.4 2.1"/>',
@@ -71,6 +77,9 @@ GROUP_ICONS: dict[str, str] = {
                '2.5-1.1 2.5-2.5z"/><path d="M15 7.3c0-1 1-1.6 1.9-1 2.4 1.6 3.8 5.7 3.8 10.4 0 1.9-1.4 '
                '3.3-3.2 3.3-1.4 0-2.5-1.1-2.5-2.5z"/>',
 }
+#: A group's name as its box in the rail shows it, where the name is too long for the box's
+#: width: a soft hyphen, so it breaks over two lines as "Hand-" and "holding".
+GROUP_LABELS: dict[str, str] = {"handholding": "Hand\u00adholding"}
 #: The one group whose box may carry a count: what is waiting on the person.
 COUNTED_GROUP = "now"
 
@@ -220,7 +229,9 @@ NAV_KEYS = {"place", "order", "opens", "row", "press", "controls", "class", "mar
 #: October 2026 (fr_d9e20791f108): "all the 5 groups under anatomy should be in the navigation
 #: under the anatomy square tab", and the next day: "remove the anatomy link that is at the top,
 #: within the anatomy section. No need for that, each subsection goes to the subpage".
-AS: tuple[str, ...] = ("anatomy",)
+#: `handholding` is Handholding's sub-pages, as its data file lists them (`rouh/handholding.py`,
+#: `pages`), so a page is added, renamed or moved by editing that file alone.
+AS: tuple[str, ...] = ("anatomy", "handholding")
 
 ID = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 ELEMENT = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,60}$")
@@ -530,7 +541,14 @@ def as_links(m: dict) -> list[dict]:
     """The links a gene's link is drawn as, in its place (`nav.as`), in the order they stand:
     each with the key its presses are counted under, its name, its glyph, its address and its
     row's id. Empty for a gene drawn as its own one link."""
-    if (m.get("nav") or {}).get("as") != "anatomy":
+    drawn = (m.get("nav") or {}).get("as")
+    if drawn == "handholding":
+        from .. import handholding
+
+        return [{"id": f"handholding-{p['id']}", "name": p["name"], "title": f"{m['name']}, {p['name']}",
+                 "icon": p["icon"], "route": handholding.page_route(p["id"]),
+                 "row_id": f"nav-handholding-{p['id']}"} for p in handholding.pages()]
+    if drawn != "anatomy":
         return []
     return [{"id": f"anatomy-{gid}", "name": gname, "title": f"{m['name']}, {gname}",
              "icon": ANATOMY_ICONS[gid], "route": f"{ANATOMY_ROOT}/{gid}",
@@ -594,7 +612,7 @@ def in_list(group: str, genes: Iterable[dict] = GENES) -> list[dict]:
 
 
 def nav_groups(switch_on: Callable[[str], bool] = _always, extra: Iterable[dict] = ()) -> list[dict]:
-    """The six groups with the links under each, ready for the template. `extra` is the
+    """The groups with the links under each, ready for the template. `extra` is the
     shared genes in the organisation's lab (`rouh/genelab.py`), drawn after Rouh's own."""
     out = []
     here = [m for m in (*GENES, *extra) if shown(m, switch_on)]
@@ -608,7 +626,8 @@ def nav_groups(switch_on: Callable[[str], bool] = _always, extra: Iterable[dict]
                          "marks": nav.get("marks", []), "plus": nav.get("plus"), "as_links": as_links(m),
                          "hidden": bool(nav.get("while")), "shared": bool(m.get("shared")),
                          "publisher_name": m.get("publisher_name", "")})
-        out.append({"id": gid, "name": gname, "icon": GROUP_ICONS[gid], "counted": gid == COUNTED_GROUP,
+        out.append({"id": gid, "name": gname, "label": GROUP_LABELS.get(gid, gname), "icon": GROUP_ICONS[gid],
+                    "counted": gid == COUNTED_GROUP,
                     "genes": rows})
     return out
 

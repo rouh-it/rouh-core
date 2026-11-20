@@ -14,7 +14,7 @@ import { endTurnOnScreen, wipeTranscript } from 'app/transcript.js';
 import { CARDVIEW, cardViewing, clearTheCards, standingDown, WORKSPACE_ROUTE } from 'app/cards.js';
 import { JOBVIEW, jobViewing, taskRecs, webOpen, webViewing } from 'app/tasks.js';
 import { BRIEF, briefOpen, briefViewing, CANVAS, canvasDoc, controlOpen, controlViewing, CRUMB_HOME,
-  WORK, workOpen, workViewing, DECIDE, decisionsOpen, decisionsViewing, ACTS, actionsOpen, actionsViewing, receiptsOpen,
+  WORK, workOpen, workViewing, DECIDE, decisionsOpen, decisionsViewing, ACTS, actionsOpen, actionsViewing, HOLD, handholdingOpen, handholdingViewing, receiptsOpen,
   receiptsViewing, homeOpen, homeViewing, APPROVALS, approvalsOpen, approvalsViewing, SOURCES, sourcesOpen, sourcesViewing, THOUGHTS, thoughtsOpen, thoughtsViewing,
   EVO, evolutionOpen, evolutionViewing,
   BOX, boxOpen, boxViewing,
@@ -204,6 +204,8 @@ var ADDR_WORK = '/quests';
 var ADDR_DECISIONS = '/decisions';
 // Your part (`rouh/actions.py`), and one action by its number.
 var ADDR_ACTIONS = '/actions';
+// Handholding (`rouh/handholding.py`), and one of its lessons.
+var ADDR_HANDHOLDING = '/handholding';
 //: Receipts, every receipt and invoice in the mail by month (`addressing.RECEIPTS`).
 var ADDR_RECEIPTS = '/receipts';
 //: Home, the house's lights and devices (`addressing.HOME`).
@@ -350,6 +352,16 @@ function addrReadPlace(path, query) {
   }
   if (parts.length === 2 && '/' + parts[0] === ADDR_ACTIONS && /^\d+$/.test(parts[1])) {
     return { kind: '', id: '', chat: chat, actions: parts[1] };
+  }
+  // Handholding's section: its first page, one of its pages, or one lesson.
+  if (parts.length === 1 && '/' + parts[0] === ADDR_HANDHOLDING) {
+    return { kind: '', id: '', chat: chat, handholding: '' };
+  }
+  if (parts.length === 2 && '/' + parts[0] === ADDR_HANDHOLDING && /^[a-z0-9-]+$/.test(parts[1])) {
+    return { kind: '', id: '', chat: chat, handholding: parts[1] };
+  }
+  if (parts.length === 3 && '/' + parts[0] === ADDR_HANDHOLDING && /^[a-z0-9-]+$/.test(parts[1]) && /^[a-z0-9-]+$/.test(parts[2])) {
+    return { kind: '', id: '', chat: chat, handholding: parts[1], lesson: parts[2] };
   }
   if (parts.length === 1 && '/' + parts[0] === ADDR_RECEIPTS) {
     return { kind: '', id: '', chat: chat, receipts: true };
@@ -552,6 +564,7 @@ function addrOnCanvas() {
   if (workViewing()) return ADDR_WORK + (WORK.id ? '/' + WORK.id : '');
   if (decisionsViewing()) return ADDR_DECISIONS + (DECIDE.id ? '/' + DECIDE.id : '');
   if (actionsViewing()) return ADDR_ACTIONS + (ACTS.id ? '/' + ACTS.id : '');
+  if (handholdingViewing()) return ADDR_HANDHOLDING + (HOLD.page ? '/' + HOLD.page + (HOLD.lesson ? '/' + HOLD.lesson : '') : '');
   if (receiptsViewing()) return ADDR_RECEIPTS;
   if (homeViewing()) return ADDR_HOME;
   if (memoryViewing()) return memoryAddress();
@@ -747,6 +760,7 @@ function addrName() {
   if (workViewing()) return WORK.id ? (WORK.title || 'Quest ' + WORK.id) + ' - Quests' : 'Quests';
   if (decisionsViewing()) return 'Decisions';
   if (actionsViewing()) return ACTS.id ? 'Action ' + ACTS.id + ' - Your part' : 'Your part';
+  if (handholdingViewing()) return 'Handholding';
   if (receiptsViewing()) return 'Receipts';
   if (homeViewing()) return 'Home';
   if (memoryViewing()) {
@@ -989,6 +1003,14 @@ function addrAsk() {
     ADDR.wanted = null;
     ADDR.asked = false;
     actionsOpen(want.actions);
+    if (want.chat) chatIsWanted();
+    return;
+  }
+  // And Handholding, or one of its lessons.
+  if (want.handholding !== undefined) {
+    ADDR.wanted = null;
+    ADDR.asked = false;
+    handholdingOpen(want.handholding, want.lesson || '');
     if (want.chat) chatIsWanted();
     return;
   }

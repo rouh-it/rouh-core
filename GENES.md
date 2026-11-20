@@ -57,7 +57,7 @@ From it come:
 3. **A new gene starts as a lab.** `"maturity": "lab"` marks it with a small LAB tag and lists it last in its group. When the owner accepts it, the same commit that says so changes it to `"accepted"`. What the nightly feature run builds are genes in the lab, behind their switch (`"switch"`), off until the owner keeps each in Mutations (EVOLUTION.md).
 4. **Check it**: `python3 -m rouh.genes`. `land.sh` runs it (`genes_guard`) before it pushes work that touches the registry, the page's markup or its script, and will not land work that breaks the contract.
 
-## The six groups
+## The groups
 
 The groups are a rail of six stacked boxes down the left of the navigation, each the group's own glyph over its name, and beside the rail a column of the picked group's links (Petar, 12 October 2026, from the sketch on card 1462: "I like the sketch you had with the vertically stacked boxes for the categories where they have also icons").
 The rail and the column share the navigation's width, the rail 62 pixels of it, and on a phone or a tablet they are the same inside the menu the orb opens.
@@ -65,12 +65,14 @@ The boxes stand in this order, top to bottom, always; nothing reorders them, by 
 Each group's glyph is in the registry beside its name (`GROUP_ICONS` in `rouh/genes/__init__.py`), held to the same contract as a gene's icon: Now a dot in a circle, Work a stack, Time a clock, Memory a few nodes joined into a network, Evolution a fork, Anatomy a pair of lungs.
 The fifth group was Machine, under a cog, until 13 October 2026, when Petar renamed it (fr_d3dbbd554a2a): "we're not a robot. We're a living thing"; its memory glyph, a spark, went the same day, because "our memory is made up of interconnected nodes".
 Only its name changed: its id is still `machine`, in every manifest, shared gene, count of presses and remembered group.
+Handholding was added right after Now on 20 November 2026 (Petar: "Actually, don't put it in NOW. Make it its own section."), the guided way into Rouh: its box reads Hand-holding over two lines (`GROUP_LABELS`), and its links are one gene drawn as its sub-pages (`nav.as` "handholding"), listed in the data file `rouh/handholding.json`, so a page is added, renamed or reordered there alone, each at `/handholding/<page>`.
 Evolution was added right before Anatomy on 13 October 2026 (task 94, step 94-08: "an extra tab box in the navigation that is called evolution right before anatomy ... Evolution will have an icon of forking"), with exactly two links, Parameters and the Gene library; the deck, Decide later, mutations, questions and learning are views inside the library, never links of their own.
 On 14 October 2026 Petar made the Gene Pool a third link of its own and renamed the Gene library Mutations (fr_a982710d30c7): "So gene pool need to be its own item in evolution. Gene library competes as name so it should be renamed to mutations."
 
 | Group | What is in it | Its links today |
 |---|---|---|
 | `now` | What needs the owner now | Decisions, Morning brief, Live browser (while a browser is open) |
+| `handholding` | The guided way into Rouh, for someone who has never seen it (`rouh/handholding.py`) | Its sub-pages, from `pages` in `rouh/handholding.json`: Next steps, Start here, What Rouh is, Journey, Connections, Lessons |
 | `work` | The work | Task browser (with New task), Control room, Goals, Quests |
 | `time` | What happens at a time | Clockwork |
 | `memory` | What is kept | Thoughts, Rules, Trusted contacts, Synapse (lab), Receipts (lab, behind its switch), Boxes (lab) |
@@ -148,7 +150,7 @@ Waiting tasks and the inbox are not links of their own: Decisions is where every
 | `nav.opens` | `own` (the page's own code wires the link by `nav.row` or `nav.class`), `address` (Rouh goes to the route, as any link inside it does), `press` (presses the control whose id is `nav.press`) or `page` (a server page outside the app). |
 | `nav.row`, `nav.controls`, `nav.class`, `nav.marks`, `nav.plus`, `nav.while` | The link's element id (otherwise `nav-<id>`), the layer it opens (`aria-controls`), an extra class, what follows the name (a count `sb-row-hint`, a red dot `sb-row-dot`, the Live browser's `sb-web-who`), a plus beside it (New task on the Task browser), and `browser-open` for a link drawn hidden and shown by the page. |
 | `nav.counts` | For a row of the dedicated area, whether its presses are counted in Stats. |
-| `nav.as` | Optional, on a plain link: `anatomy` draws it as Anatomy's groups, in its place, each with its glyph and opening its own page. |
+| `nav.as` | Optional, on a plain link: `anatomy` draws it as Anatomy's groups, in its place, each with its glyph and opening its own page; `handholding` as Handholding's sub-pages, from its data file. |
 | `touches` | `permissions` it acts with, outside `accounts` and services, the `tables` it owns, the scheduled `jobs` it runs, and how to `remove` or undo it. Lists are empty when there is nothing; `remove` is never empty. |
 | `uses` | Optional: what counts as using it, so its use is counted as its own (`genes.claims`, the gene log): the `tools` Rouh's model calls for it, the `places` and `settings` groups it opens at, its scheduled `jobs` as `schedule.ran` names them, and the `purposes` of model calls made for it. Its link's presses and its route are its own without saying so. A tool, job or purpose is claimed by one gene only (`python3 -m rouh.genes` refuses a second claim); anything no gene claims is counted as Rouh's own gene, `rouh`. |
 | `capabilities` | Optional: what it lets Rouh do for somebody other than the owner (CAPABILITIES.md, `rouh/capabilities.py`): each an id, a version, what it does, the kind of thing it acts on, its effects, its limits, and the tools that carry it out with how their arguments name the resource and the limited values. Checked with the manifest, and against `rouh/capabilities.lock.json` by `python -m rouh.capabilities check`: a change in what one does needs a new version. |

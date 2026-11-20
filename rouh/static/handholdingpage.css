@@ -1,0 +1,430 @@
+/* Handholding (`handholdingpage.js`): the guided way into Rouh (20 November 2026). Rouh's own tokens
+   (app.css): one accent, Rouh's blue, for what to press next and what is done; --good only beside
+   the word Connected, --warn beside Needs attention, each with its own shape. Two things carry the
+   page: the ring with Next step at the top, and the path of stages joined by one line. */
+
+.hh-view:focus { outline: none; }
+.hh-wrap { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
+.hh-body {
+  flex: 1 1 auto; min-width: 0; overflow: auto; scrollbar-width: thin; padding: 2px 2px 112px;
+  container-type: inline-size; container-name: hhbody; scroll-padding-top: 8px;
+}
+.hh-page { display: grid; gap: 40px; max-width: 920px; align-content: start; }
+.hh-wait { margin: 0; color: var(--dim); font-size: 14px; }
+.hh-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---- type ---- */
+.hh-h1 { margin: 0; font-size: 26px; line-height: 1.2; font-weight: 720; letter-spacing: -0.01em; text-wrap: balance; }
+.hh-h2 { margin: 0; font-size: 20px; line-height: 1.25; font-weight: 700; }
+.hh-h3 { margin: 0; font-size: 16px; line-height: 1.3; font-weight: 680; }
+.hh-h1:focus, .hh-h2:focus, .hh-h3:focus { outline: none; }
+.hh-lede { margin: 0; font-size: 15.5px; line-height: 1.5; color: var(--dim); max-width: 60ch; text-wrap: pretty; }
+.hh-sub { margin: 4px 0 0; font-size: 14.5px; line-height: 1.5; color: var(--dim); max-width: 62ch; text-wrap: pretty; }
+
+/* ---- buttons and links ---- */
+.hh-main, .hh-quiet, .hh-jump, .hh-node, .hh-stage-t, .hh-steptitle, .hh-saybtn, .hh-seg, .hh-chip, .hh-back {
+  font: inherit; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.hh-main {
+  display: inline-grid; gap: 1px; justify-items: start; text-align: left; min-height: 56px; max-width: 100%;
+  padding: 9px 20px; border-radius: 12px; border: 1px solid var(--accent); background: var(--accent);
+  color: var(--accent-ink); transition: filter .15s ease, transform .1s ease;
+}
+.hh-main:not(:has(.hh-main-k)) { align-content: center; font-size: 16px; font-weight: 720; }
+.hh-main-k { font-size: 12.5px; font-weight: 650; opacity: .8; }
+.hh-main-t { font-size: 16px; font-weight: 720; line-height: 1.25; overflow-wrap: anywhere; }
+.hh-main:hover { filter: brightness(1.07); }
+.hh-main:active { transform: translateY(1px); }
+.hh-quiet {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 16px;
+  border-radius: 10px; border: 1px solid var(--line); background: transparent; font-size: 14.5px; font-weight: 600;
+  color: var(--text); transition: border-color .15s ease, background-color .15s ease;
+}
+.hh-quiet:hover { border-color: var(--dim); background: var(--panel); }
+.hh-quiet:active { background: var(--panel-2); }
+.hh-quiet.hh-small { min-height: 40px; padding: 6px 12px; font-size: 13.5px; }
+.hh-link, .hh-see, .hh-show {
+  color: var(--accent); text-decoration: none; font-weight: 600; overflow-wrap: anywhere;
+  display: inline-flex; align-items: center; min-height: 44px;
+}
+.hh-press { background: transparent; border: 0; padding: 0; font: inherit; font-weight: 600; cursor: pointer; }
+.hh-link:hover, .hh-see:hover, .hh-show:hover { text-decoration: underline; text-underline-offset: 3px; }
+:is(.hh-main, .hh-quiet, .hh-jump, .hh-node, .hh-stage-t, .hh-steptitle, .hh-saybtn, .hh-seg, .hh-chip, .hh-back,
+    .hh-link, .hh-see, .hh-show, .hh-lrow):focus-visible,
+.hh-tick input:focus-visible + .hh-tick-face,
+.hh-search:focus-within {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hh-main, .hh-quiet, .hh-ring-arc, .hh-bar-fill, .hh-stage-t svg, .hh-steptitle .hh-step-side svg { transition: none !important; }
+}
+
+/* ---- the hero ---- */
+.hh-hero {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 28px; align-items: center;
+  padding: 26px 28px; border: 1px solid var(--line); border-radius: 20px; background: var(--panel);
+}
+.hh-hero-words { display: grid; gap: 14px; min-width: 0; }
+.hh-acts { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.hh-jumps { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 2px; }
+.hh-jump {
+  min-height: 36px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line-soft); background: transparent;
+  font-size: 13.5px; font-weight: 600; color: var(--dim);
+}
+.hh-jump:hover { color: var(--text); border-color: var(--line); }
+a.hh-jump { display: inline-flex; align-items: center; text-decoration: none; }
+.hh-startwrap { display: grid; gap: 40px; }
+.hh-stagelist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.hh-stagelink {
+  display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 14px; align-items: center; min-height: 60px;
+  padding: 10px 16px 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel);
+  color: var(--text); text-decoration: none; transition: border-color .15s ease;
+}
+.hh-stagelink:hover { border-color: var(--dim); }
+.hh-stagelink.here { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.hh-stagelink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hh-sl-n {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 13.5px; font-weight: 720;
+  border: 2px solid var(--line); color: var(--dim);
+}
+.hh-stagelink.here .hh-sl-n { border-color: var(--accent); color: var(--text); }
+.hh-sl-words { display: grid; gap: 1px; min-width: 0; }
+.hh-sl-t { font-size: 15px; font-weight: 680; }
+.hh-sl-why { font-size: 13px; color: var(--dim); line-height: 1.4; }
+.hh-sl-c { font-size: 13px; font-weight: 650; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hh-ring { position: relative; width: 120px; height: 120px; flex: none; }
+.hh-ring svg { display: block; }
+.hh-ring-track { fill: none; stroke: var(--line); stroke-width: 9; }
+.hh-ring-arc { fill: none; stroke: var(--accent); stroke-width: 9; stroke-linecap: round; transition: stroke-dashoffset .6s ease; }
+.hh-ring-mid { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.hh-ring-pct { font-size: 28px; font-weight: 760; font-variant-numeric: tabular-nums; line-height: 1; }
+.hh-ring-word { font-size: 12.5px; color: var(--dim); margin-top: 3px; }
+@container hhbody (max-width: 560px) {
+  /* On a phone the ring sits beside the headline, so Next step is in view at once. */
+  .hh-hero { grid-template-columns: 76px minmax(0, 1fr); gap: 14px 14px; padding: 18px 16px; }
+  .hh-hero-words { display: contents; }
+  .hh-hero-words > .hh-h1 { grid-column: 2; grid-row: 1; align-self: center; }
+  .hh-hero-words > :not(.hh-h1) { grid-column: 1 / -1; }
+  .hh-ring { width: 76px; height: 76px; grid-row: 1; }
+  .hh-ring svg { width: 76px; height: 76px; }
+  .hh-ring-pct { font-size: 19px; }
+  .hh-ring-word { font-size: 11.5px; margin-top: 1px; }
+  .hh-h1 { font-size: 21px; }
+  .hh-main { width: 100%; }
+  .hh-acts .hh-quiet { flex: 1 1 auto; }
+}
+
+/* ---- sections ---- */
+.hh-sec { display: grid; gap: 16px; min-width: 0; scroll-margin-top: 8px; }
+.hh-sec > .hh-h2 + .hh-sub { margin-top: -12px; }
+
+/* ---- what Rouh is: the diagram ---- */
+.hh-map { position: relative; }
+.hh-map-lines { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
+.hh-map-line { stroke: var(--line); stroke-width: 1.5; }
+.hh-map-line.on { stroke: var(--accent); stroke-width: 2; }
+.hh-map-nodes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.hh-node {
+  display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 9px 12px; text-align: left;
+  border-radius: 14px; border: 1px solid var(--line); background: var(--panel);
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.hh-node svg { flex: none; color: var(--dim); }
+.hh-node:hover { border-color: var(--dim); }
+.hh-node.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--panel)); }
+.hh-node.on svg { color: var(--accent); }
+.hh-node-t { display: grid; min-width: 0; }
+.hh-node-name { font-size: 14.5px; font-weight: 680; line-height: 1.25; }
+.hh-node-short { font-size: 12.5px; color: var(--dim); line-height: 1.3; }
+.hh-node-hub { grid-column: 1 / -1; }
+@container hhbody (min-width: 780px) {
+  .hh-map { aspect-ratio: 16 / 9.5; max-height: 520px; }
+  .hh-map-lines { display: block; }
+  .hh-map-nodes { display: block; position: absolute; inset: 0; }
+  .hh-node {
+    position: absolute; left: var(--x); top: var(--y); transform: translate(-50%, -50%);
+    width: 172px; flex-direction: column; justify-content: center; text-align: center; gap: 4px; padding: 10px 10px;
+  }
+  .hh-node .hh-node-t { justify-items: center; }
+  .hh-node-hub {
+    left: 50%; top: 50%; width: 150px; height: 150px; border-radius: 50%; gap: 6px;
+    background: var(--bg-2); border-color: var(--dim);
+  }
+  .hh-node-hub .hh-node-name { font-size: 16px; }
+  .hh-node-hub.on { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); border-color: var(--accent); }
+}
+.hh-ccard {
+  display: grid; gap: 8px; padding: 18px 20px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel);
+}
+.hh-ccard-head { display: flex; align-items: center; gap: 10px; color: var(--accent); }
+.hh-ccard-head .hh-h3 { color: var(--text); }
+.hh-ccard-p { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--text); max-width: 68ch; }
+.hh-ccard-foot { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+
+/* ---- your path: the stages ---- */
+.hh-stages { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; position: relative; }
+.hh-stage { position: relative; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 14px; }
+/* The one line through every stage's marker, from the first to the last. */
+.hh-stage::before {
+  content: ""; position: absolute; left: 17px; top: 0; bottom: -10px; width: 2px; background: var(--line);
+}
+.hh-stage:first-child::before { top: 22px; }
+.hh-stage:last-child::before { bottom: auto; height: 22px; }
+.hh-stage.all::before { background: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.hh-mark {
+  position: relative; z-index: 1; width: 36px; height: 36px; margin-top: 12px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 14px; font-weight: 720; font-variant-numeric: tabular-nums;
+  border: 2px solid var(--line); background: var(--bg); color: var(--dim);
+}
+.hh-stage.here .hh-mark { border-color: var(--accent); color: var(--text); }
+.hh-stage.all .hh-mark { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.hh-stage-box { min-width: 0; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
+.hh-stage.here .hh-stage-box { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.hh-stage-h { margin: 0; font: inherit; }
+.hh-stage-t {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 14px; align-items: center; width: 100%;
+  min-height: 60px; padding: 12px 16px; text-align: left; background: transparent; border: 0; border-radius: 16px;
+}
+.hh-stage-t > svg { color: var(--dim); transition: transform .2s ease; }
+.hh-stage-t[aria-expanded="true"] > svg { transform: rotate(180deg); }
+.hh-stage-words { display: grid; gap: 1px; min-width: 0; }
+.hh-stage-n { font-size: 12.5px; font-weight: 650; color: var(--dim); }
+.hh-stage-name { font-size: 16.5px; font-weight: 700; line-height: 1.3; }
+.hh-stage-why { font-size: 13.5px; line-height: 1.45; color: var(--dim); }
+.hh-stage-meter { display: grid; gap: 6px; justify-items: end; min-width: 76px; }
+.hh-stage-count { font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--dim); white-space: nowrap; }
+.hh-bar { display: block; width: 76px; height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.hh-bar-fill { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width .4s ease; }
+@container hhbody (max-width: 520px) {
+  .hh-stage { grid-template-columns: 28px minmax(0, 1fr); gap: 10px; }
+  .hh-stage::before { left: 13px; }
+  .hh-mark { width: 28px; height: 28px; font-size: 12.5px; margin-top: 14px; }
+  .hh-stage-t { grid-template-columns: minmax(0, 1fr) auto; padding: 12px 12px; gap: 10px; }
+  .hh-stage-meter { grid-column: 1 / 2; grid-row: 2; justify-items: start; grid-template-columns: auto 1fr; align-items: center; gap: 10px; width: 100%; }
+  .hh-bar { width: 100%; }
+  .hh-stage-t > svg { grid-column: 2; grid-row: 1; }
+}
+
+/* ---- a step ---- */
+.hh-steps { list-style: none; margin: 0; padding: 0 8px 8px; display: grid; gap: 2px; border-top: 1px solid var(--line-soft); }
+.hh-steps[hidden] { display: none; }
+/* A list of steps standing on its own, outside a stage's box: Next steps, Connections. */
+.hh-steps-loose { padding: 0; border-top: 0; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); padding: 4px 6px; }
+.hh-step-stage { font-size: 12.5px; color: var(--dim); }
+.hh-nextfirst, .hh-nextthen { display: grid; gap: 8px; }
+.hh-nextfirst .hh-steps-loose { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.hh-progline { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 14px; max-width: 520px; }
+.hh-progwords { font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.hh-bar-wide { width: 100%; height: 8px; }
+.hh-step { border-radius: 12px; }
+.hh-step + .hh-step { border-top: 1px solid var(--line-soft); }
+.hh-step.open { background: var(--bg-2); border-top-color: transparent; }
+.hh-step.open + .hh-step { border-top-color: transparent; }
+.hh-step-top { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: start; gap: 4px; padding: 4px 4px 4px 2px; }
+.hh-tick { position: relative; width: 44px; height: 44px; display: grid; place-items: center; cursor: pointer; margin-top: 4px; }
+.hh-tick input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.hh-tick-face {
+  width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--dim); display: grid; place-items: center;
+  color: transparent; transition: background-color .15s ease, border-color .15s ease;
+}
+.hh-tick:hover .hh-tick-face { border-color: var(--text); }
+.hh-tick input:checked + .hh-tick-face { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.hh-det { width: 44px; height: 44px; margin-top: 4px; display: grid; place-items: center; }
+.hh-det svg {
+  width: 24px; height: 24px; padding: 3px; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+}
+.hh-step.done .hh-step-name { color: var(--dim); }
+.hh-steptitle {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; width: 100%;
+  min-height: 52px; padding: 8px 8px; text-align: left; border: 0; border-radius: 10px; background: transparent;
+}
+.hh-steptitle:hover { background: var(--panel-2); }
+.hh-step-words { display: grid; gap: 2px; min-width: 0; }
+.hh-step-name { font-size: 15px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+.hh-step-out { font-size: 13.5px; line-height: 1.45; color: var(--dim); }
+.hh-step-side { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.hh-step-side > svg { color: var(--dim); transition: transform .2s ease; flex: none; }
+.hh-steptitle[aria-expanded="true"] .hh-step-side > svg { transform: rotate(180deg); }
+.hh-det-word { font-size: 12.5px; font-weight: 650; color: var(--accent); }
+.hh-tag-opt { font-size: 12px; font-weight: 600; color: var(--dim); padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); }
+.hh-stage-conn { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.hh-step-top-conn { grid-template-columns: 44px minmax(0, 1fr) auto; }
+.hh-rowshow { padding: 0 10px; font-size: 14px; align-self: center; }
+.hh-step-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+@container hhbody (max-width: 520px) {
+  /* On a phone the title has the width; what Rouh knows of the step goes under it. */
+  .hh-steptitle { grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; }
+  .hh-step-side { display: contents; }
+  .hh-step-meta { grid-column: 1; grid-row: 2; }
+  .hh-step-top-conn { grid-template-columns: 44px minmax(0, 1fr); }
+  .hh-step-top-conn .hh-rowshow { grid-column: 2; justify-self: start; padding: 0 8px; margin-top: -8px; }
+  .hh-step-side > svg { grid-column: 2; grid-row: 1; }
+}
+.hh-failed { margin: 0 12px 8px 54px; font-size: 13.5px; color: var(--bad); }
+
+/* A connection's state: a shape and a word, never a colour alone. */
+.hh-badge {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 2px 9px 2px 6px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 650; white-space: nowrap; border: 1px solid var(--line); color: var(--dim);
+}
+.hh-badge-live { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+.hh-badge-attention { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, var(--line)); }
+.hh-badge-off { color: var(--dim); }
+.hh-badge-unknown { color: var(--dim); border-style: dashed; }
+
+.hh-step-body { display: grid; gap: 12px; padding: 4px 16px 16px 54px; }
+.hh-step-body[hidden] { display: none; }
+@container hhbody (max-width: 520px) { .hh-step-body { padding: 4px 12px 14px 12px; } .hh-failed { margin-left: 12px; } }
+.hh-said { margin: 0; font-size: 14px; line-height: 1.45; }
+.hh-said-attention { color: var(--warn); }
+.hh-facts { margin: 0; display: grid; gap: 10px; }
+@container hhbody (min-width: 700px) { .hh-facts { grid-template-columns: 1fr 1fr; gap: 16px; } }
+.hh-fact dt { font-size: 12.5px; font-weight: 650; color: var(--dim); margin-bottom: 2px; }
+.hh-fact dd { margin: 0; font-size: 14px; line-height: 1.5; }
+.hh-k { margin: 0; font-size: 12.5px; font-weight: 650; color: var(--dim); }
+.hh-clicks, .hh-lsteps { margin: 0; padding: 0; list-style: none; counter-reset: hhn; display: grid; gap: 8px; }
+.hh-clicks li, .hh-lsteps li {
+  counter-increment: hhn; position: relative; padding-left: 34px; font-size: 14px; line-height: 1.5; min-height: 24px;
+}
+.hh-clicks li::before, .hh-lsteps li::before {
+  content: counter(hhn); position: absolute; left: 0; top: 0; width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 12px; font-weight: 720; background: var(--panel-2);
+  border: 1px solid var(--line); color: var(--text);
+}
+.hh-more { margin: 0; font-size: 14px; line-height: 1.5; max-width: 66ch; }
+
+/* Try saying: the phrase, and the one button that puts it in the box. */
+.hh-say {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 12px 12px 16px;
+  border-radius: 12px; border: 1px solid var(--line); background: var(--panel);
+}
+.hh-say-q { margin: 0; flex: 1 1 260px; min-width: 0; display: grid; gap: 2px; }
+.hh-say-k { font-size: 12.5px; font-weight: 650; color: var(--dim); }
+.hh-say-w { font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
+.hh-saybtn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 8px 14px; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft);
+  color: var(--accent); font-size: 14px; font-weight: 680; white-space: nowrap;
+}
+.hh-saybtn:hover { border-color: var(--accent); }
+.hh-step-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; }
+
+/* ---- lessons ---- */
+.hh-ltools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.hh-search {
+  flex: 1 1 260px; display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--dim);
+}
+.hh-search input {
+  flex: 1 1 auto; min-width: 0; height: 44px; border: 0; background: transparent; color: var(--text);
+  font: inherit; font-size: 15px; outline: none;
+}
+.hh-search input::placeholder { color: var(--dimmer); }
+.hh-levels { display: inline-flex; flex-wrap: wrap; padding: 3px; gap: 2px; border: 1px solid var(--line); border-radius: 12px; }
+.hh-seg {
+  min-height: 38px; padding: 4px 12px; border: 0; border-radius: 9px; background: transparent; font-size: 13.5px;
+  font-weight: 600; color: var(--dim);
+}
+.hh-seg:hover { color: var(--text); }
+.hh-seg.on { background: var(--panel-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+.hh-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.hh-chip {
+  min-height: 36px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent;
+  font-size: 13.5px; font-weight: 600; color: var(--dim);
+}
+.hh-chip:hover { color: var(--text); border-color: var(--dim); }
+.hh-chip.on { color: var(--text); background: var(--panel-2); border-color: var(--dim); }
+.hh-lholder { display: grid; gap: 8px; }
+.hh-lcount { margin: 0; font-size: 13px; color: var(--dim); }
+.hh-lrows { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 8px; }
+.hh-lrow {
+  display: grid; gap: 10px; align-content: space-between; height: 100%; min-height: 112px; padding: 14px 16px;
+  border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: var(--text); text-decoration: none;
+  transition: border-color .15s ease;
+}
+.hh-lrow:hover { border-color: var(--dim); }
+.hh-lrow-words { display: grid; gap: 4px; }
+.hh-lrow-t { font-size: 15px; font-weight: 680; line-height: 1.35; }
+.hh-lrow-s { font-size: 13.5px; line-height: 1.45; color: var(--dim); }
+.hh-lrow-meta, .hh-lmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.hh-lmeta { margin: 0; }
+.hh-tag { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--panel-2); color: var(--dim); }
+.hh-tag-lv { background: transparent; border: 1px solid var(--line); }
+.hh-min { font-size: 12.5px; color: var(--dim); margin-left: auto; font-variant-numeric: tabular-nums; }
+.hh-lmeta .hh-min { margin-left: 4px; }
+
+/* One lesson. */
+.hh-lesson { display: grid; gap: 16px; max-width: 760px; }
+.hh-back {
+  justify-self: start; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 6px 12px 6px 6px;
+  border-radius: 10px; border: 1px solid transparent; background: transparent; font-size: 14px; font-weight: 600; color: var(--dim);
+}
+.hh-back:hover { color: var(--text); border-color: var(--line); }
+.hh-lsteps li { font-size: 15px; }
+.hh-says { display: grid; gap: 8px; }
+
+/* ---- empty and failing ---- */
+.hh-empty { display: grid; gap: 8px; padding: 22px 20px; border: 1px dashed var(--line); border-radius: 16px; }
+.hh-empty-big { margin: 0; font-size: 17px; font-weight: 680; }
+.hh-empty-small { margin: 0; font-size: 14px; color: var(--dim); line-height: 1.5; }
+
+/* ---- ask anything ---- */
+.hh-askband {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px;
+  padding: 22px 24px; border-radius: 18px; border: 1px solid var(--line); background: var(--bg-2);
+}
+.hh-askwords { flex: 1 1 320px; min-width: 0; }
+.hh-askwords .hh-sub { margin-top: 4px; }
+.hh-askbtn { min-height: 48px; padding: 10px 20px; }
+@container hhbody (max-width: 520px) { .hh-askbtn { width: 100%; } }
+
+/* ---- in-page jumps, at the top of a page of several parts ---- */
+.hh-jumps-top { margin-bottom: -16px; }
+
+/* ---- features that switch on and off ---- */
+.hh-featlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.hh-feat { display: grid; gap: 12px; padding: 16px 18px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); }
+.hh-feat-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: start; }
+.hh-feat-words { display: grid; gap: 4px; min-width: 0; }
+.hh-feat-what { margin: 0; font-size: 14px; line-height: 1.5; color: var(--dim); max-width: 64ch; }
+.hh-feat-ctl { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.hh-feat-state { font-size: 13.5px; font-weight: 650; color: var(--dim); min-width: 3.4em; }
+.hh-feat-note { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--dim); }
+.hh-feat-bad { color: var(--bad); }
+/* A real switch: a button with role switch, its state said beside it in words. */
+.hh-switch {
+  position: relative; width: 52px; height: 30px; flex: none; padding: 0; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel-2); transition: background-color .15s ease, border-color .15s ease;
+}
+.hh-switch::before { content: ""; position: absolute; inset: -8px -4px; }
+.hh-switch-knob {
+  position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--dim);
+  transition: transform .15s ease, background-color .15s ease;
+}
+.hh-switch.on { background: var(--accent); border-color: var(--accent); }
+.hh-switch.on .hh-switch-knob { transform: translateX(22px); background: var(--accent-ink); }
+.hh-switch:disabled { opacity: .5; cursor: default; }
+.hh-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .hh-switch, .hh-switch-knob { transition: none; } }
+
+/* ---- pro tips ---- */
+.hh-tiplist { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 10px; }
+.hh-tip { display: grid; gap: 8px; align-content: start; padding: 16px 18px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); }
+.hh-tip .hh-tag { justify-self: start; }
+.hh-tip-body { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text); }
+.hh-tip .hh-say { background: var(--bg-2); }
+
+/* A connection Rouh can see for itself: an empty ring where a box would be, until it is connected. */
+.hh-det-wait svg { background: transparent; color: var(--dim); padding: 0; width: 22px; height: 22px; }
+
+/* The hero beside the list of next steps: where you are, small enough that the step is in view. */
+.hh-hero-slim { padding: 20px 24px; gap: 22px; }
+.hh-hero-slim .hh-hero-words { gap: 10px; }
+@container hhbody (max-width: 560px) {
+  .hh-hero-slim { padding: 16px; gap: 10px 14px; }
+  .hh-hero-slim .hh-lede { font-size: 14.5px; }
+  .hh-hero-slim .hh-acts .hh-quiet { min-height: 44px; }
+}
+
+.hh-badge-count { color: var(--text); padding-left: 9px; }
+.hh-det-skip svg { background: transparent; color: var(--dim); padding: 0; width: 22px; height: 22px; }

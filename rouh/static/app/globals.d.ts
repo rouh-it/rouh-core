@@ -26,6 +26,7 @@ interface Window {
   RouhWorkHost: Record<string, any>;
   RouhDecisionsHost: Record<string, any>;
   RouhActionsHost: Record<string, any>;
+  RouhHandholdingHost: Record<string, any>;
   RouhReceiptsHost: Record<string, any>;
   RouhHomeHost: Record<string, any>;
   RouhInstrHost: Record<string, any>;
@@ -86,6 +87,8 @@ interface Window {
   /** The Decisions page, and the one drawing of a decision (decisionspage.js, decision.js). */
   RouhDecisions?: any;
   RouhActions?: any;
+  /** Handholding, the guided way into Rouh (handholdingpage.js). */
+  RouhHandholding?: any;
   /** The Receipts page (receiptspage.js). */
   RouhReceipts?: any;
   /** The Home page (homepage.js), and the sections each kind of device adds to it. */

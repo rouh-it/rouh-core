@@ -1,0 +1,41 @@
+{
+  "id": "handholding",
+  "name": "Handholding",
+  "title": "Handholding: your path to everything Rouh can do, step by step, with lessons",
+  "aliases": [
+    "onboarding",
+    "getting started",
+    "start here",
+    "guide",
+    "tutorial",
+    "lessons",
+    "how to",
+    "how do I",
+    "help",
+    "learn",
+    "walkthrough",
+    "what can Rouh do"
+  ],
+  "group": "handholding",
+  "route": "/handholding",
+  "icon": "<path d=\"M12 3v18\"/><path d=\"M5.5 5.5h10l3 2.5-3 2.5h-10z\"/><path d=\"M18.5 12.5h-10l-3 2.5 3 2.5h10z\"/>",
+  "attaches_to": [],
+  "maturity": "accepted",
+  "nav": {
+    "place": "list",
+    "order": 10,
+    "opens": "address",
+    "as": "handholding"
+  },
+  "touches": {
+    "permissions": [
+      "reads, never changes, what the person has done: their chats, tasks, reminders, rules and connections, to tick the steps it can see"
+    ],
+    "accounts": [],
+    "tables": [
+      "user_settings"
+    ],
+    "jobs": [],
+    "remove": "Delete rouh/handholding.py, rouh/handholding.json, rouh/web/handholding.py, handholdingpage.js/.css, its article in index.html, its block in app/runs.js and its lines in app/address.js and app/cards.js, its routes in urls.py, the handholding group and `as` in rouh/genes/__init__.py, and this manifest. Delete the user_settings rows named handholding_done."
+  }
+}

@@ -50,6 +50,7 @@ from rouh.web import relay as relay_web
 from rouh.web import slack as slack_web
 from rouh.web import synapse as synapse_web
 from rouh.web import actions as actions_web
+from rouh.web import handholding as handholding_web
 from rouh.web import (apple, assets, auth, boxes, brief, changes as changes_web, clock, cloudflare, comments, control,
                       decisions, defaults,
                       definitions,
@@ -642,6 +643,9 @@ urlpatterns = [
     path("api/actions", actions_web.listing),
     re_path(r"^api/actions/at/(?P<ref>\d+)$", actions_web.at),
     path("api/actions/<int:ident>/act", actions_web.act),
+    # Handholding: the guided way into Rouh (`rouh/web/handholding.py`).
+    path("api/handholding", handholding_web.page),
+    path("api/handholding/progress", handholding_web.progress),
     # The quests the heartbeat carries (`rouh/web/quests.py`).
     path("api/quests", quests.listing),
     path("api/quests/<int:number>", quests.page),
@@ -896,6 +900,11 @@ urlpatterns = [
     # Your part, and one action by its number (`rouh/actions.py`).
     path(addressing.ACTIONS.lstrip("/"), views.index),
     re_path(r"^" + addressing.ACTIONS.lstrip("/") + r"/\d+$", views.index),
+    # Handholding, and one of its lessons (`rouh/handholding.py`).
+    path(addressing.HANDHOLDING.lstrip("/"), views.index),
+    re_path(r"^" + addressing.HANDHOLDING.lstrip("/") + r"/(?P<page>[a-z0-9-]+)$", handholding_web.address),
+    re_path(r"^" + addressing.HANDHOLDING.lstrip("/") + r"/(?P<page>[a-z0-9-]+)/(?P<lesson>[a-z0-9-]+)$",
+            handholding_web.lesson_address),
     re_path(r"^" + addressing.QUESTS.lstrip("/") + r"/\d+$", views.index),
     path(addressing.RECEIPTS.lstrip("/"), views.index),
     path(addressing.HOME.lstrip("/"), views.index),

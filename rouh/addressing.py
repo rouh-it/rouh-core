@@ -260,6 +260,10 @@ DECISIONS = "/decisions"
 #: work Rouh is doing, at `/actions`, and one at `/actions/<number>` ("Action 430", from the
 #: decisions' numbers). Since 7 November 2026; `/decisions/<number>` of an action lands here.
 ACTIONS = "/actions"
+#: Handholding (`rouh/handholding.py`): the guided way into Rouh for someone who has never seen it,
+#: a section of its own: its sub-pages at `/handholding/<page>` (the data file's `pages`), and a lesson
+#: under the page that holds the lessons, `/handholding/learn/<id>`. Since 20 November 2026.
+HANDHOLDING = "/handholding"
 #: Receipts (`rouh/receipts.py`): every receipt and invoice in the person's mail, by month,
 #: with one download for the accountant. Since 7 October 2026, behind the switch `receipts`.
 RECEIPTS = "/receipts"

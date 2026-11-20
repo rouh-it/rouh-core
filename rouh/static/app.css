@@ -2302,6 +2302,8 @@ input[type="range"]::-moz-range-thumb { width: 15px; height: 15px; border: 0; bo
   touch-action: manipulation;
 }
 .sb-tab-glyph { flex: 0 0 auto; color: var(--dim); }
+/* A name too long for the box breaks where it carries a soft hyphen (`GROUP_LABELS`): Hand-holding. */
+.sb-tab-name { white-space: normal; text-align: center; hyphens: manual; max-width: 100%; }
 .sb-tab:hover { color: var(--text); background: var(--panel); }
 .sb-tab:hover .sb-tab-glyph { color: var(--text); }
 .sb-tab[aria-selected="true"],

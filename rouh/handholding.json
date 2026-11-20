@@ -1,0 +1,1792 @@
+{
+  "version": 1,
+  "pages_note": "The sub-pages of the Handholding section, in the order the navigation lists them. Each draws the views it names, in order: hero, next, stages, jumps, concepts, journey, lessons, connections, features, tips. The first is where the section opens; a lesson's address is /handholding/<the page with the lessons view>/<lesson id>.",
+  "pages": [
+    {
+      "id": "next",
+      "name": "Next steps",
+      "views": [
+        "hero",
+        "next",
+        "stages"
+      ],
+      "count": 5,
+      "title": "Your next steps",
+      "lede": "",
+      "icon": "<path d=\"M5 12h11\"/><path d=\"M12 6l6 6-6 6\"/><circle cx=\"5\" cy=\"12\" r=\"1.6\"/>"
+    },
+    {
+      "id": "enable",
+      "name": "Enabling Rouh",
+      "views": [
+        "jumps",
+        "connections",
+        "features"
+      ],
+      "title": "Connections",
+      "lede": "Each connection unlocks a part of Rouh, and Rouh ticks it when it sees it connected. Start with Google and your phone.",
+      "icon": "<rect x=\"3\" y=\"8\" width=\"18\" height=\"8\" rx=\"4\"/><circle cx=\"16\" cy=\"12\" r=\"2.4\"/>"
+    },
+    {
+      "id": "learn",
+      "name": "Learning Rouh",
+      "views": [
+        "jumps",
+        "concepts",
+        "journey",
+        "lessons"
+      ],
+      "title": "What Rouh is",
+      "lede": "One assistant you talk to, and everything it works with. Press a part to see what it does for you.",
+      "icon": "<path d=\"M4 5.5c2.7-1 5.3-1 8 .8 2.7-1.8 5.3-1.8 8-.8v13c-2.7-1-5.3-1-8 .8-2.7-1.8-5.3-1.8-8-.8z\"/><path d=\"M12 6.3v13\"/>"
+    },
+    {
+      "id": "tips",
+      "name": "Pro tips",
+      "views": [
+        "tips"
+      ],
+      "title": "Pro tips",
+      "lede": "For when you already use Rouh: small habits that make it much faster.",
+      "icon": "<path d=\"M9 18h6M10 21h4\"/><path d=\"M12 3a6 6 0 0 0-3.6 10.8c.8.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z\"/>"
+    }
+  ],
+  "hero": {
+    "title": "Your path to everything Rouh can do",
+    "fresh": "You have not started yet. Begin with the first step: each one takes a minute or two, and Rouh ticks most of them by itself when it sees you do them."
+  },
+  "ask": {
+    "prefix": "Help me with Handholding: ",
+    "title": "Stuck, or curious?",
+    "line": "Ask Rouh anything about itself. It knows every page here and will walk you through it, one step at a time."
+  },
+  "concepts": [
+    {
+      "id": "assistant",
+      "name": "One assistant",
+      "short": "Talk or type",
+      "icon": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><circle cx=\"12\" cy=\"12\" r=\"3.2\"/>",
+      "body": [
+        "Rouh is one assistant you talk to the way you would talk to a person: type in the message box, or turn on the microphone and speak.",
+        "The same Rouh reads your mail, keeps your calendar, runs work in the background and remembers what you teach it, so you just say what you want."
+      ],
+      "see": {
+        "label": "the conversation",
+        "press": "input"
+      }
+    },
+    {
+      "id": "screen",
+      "name": "The screen",
+      "short": "Chat, canvas, orb",
+      "icon": "<rect x=\"3\" y=\"4.5\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M9 21h6M12 17.5V21M10 4.5v13\"/>",
+      "body": [
+        "The conversation is where you and Rouh talk; the canvas beside it is where Rouh puts pages, tables and pictures, each with its own address.",
+        "The orb in the top corner is a live picture of everything Rouh is doing, and a branch that needs you is drawn in red."
+      ],
+      "see": {
+        "label": "the orb",
+        "press": "orb"
+      }
+    },
+    {
+      "id": "workspace",
+      "name": "Your workspace",
+      "short": "Tasks and numbers",
+      "icon": "<path d=\"M4 7.5l8-4 8 4-8 4z\"/><path d=\"M4 12l8 4 8-4M4 16.5l8 4 8-4\"/>",
+      "body": [
+        "Everything you work on is a task with steps inside it, and every task has a number, like 58, with steps 58-01, 58-02.",
+        "Say the number and Rouh knows exactly what you mean; research always comes back as a task, with its sources."
+      ],
+      "see": {
+        "label": "the task browser",
+        "href": "/tasks"
+      }
+    },
+    {
+      "id": "background",
+      "name": "Background work",
+      "short": "Jobs and runs",
+      "icon": "<path d=\"M4 17l5-5 4 4 7-8\"/><path d=\"M15 8h5v5\"/>",
+      "body": [
+        "When something takes real work, Rouh hands it to an assistant that works in the background while you carry on talking.",
+        "Each piece of work is a run: Metabolism lists them all, and the orb draws them live."
+      ],
+      "see": {
+        "label": "Metabolism",
+        "href": "/metabolism"
+      }
+    },
+    {
+      "id": "memory",
+      "name": "Memory",
+      "short": "Rules, words, thoughts",
+      "icon": "<circle cx=\"6\" cy=\"7\" r=\"2.2\"/><circle cx=\"18\" cy=\"6\" r=\"2.2\"/><circle cx=\"12\" cy=\"18\" r=\"2.2\"/><path d=\"M8 8l3 8M16.5 7.8L13 16M8.2 7h7.6\"/>",
+      "body": [
+        "Rules say how Rouh must always or never act, Vocabulary holds your own words, and Thoughts keeps your ideas in your words.",
+        "Boxes hold secrets, such as a password, that never reach the AI."
+      ],
+      "see": {
+        "label": "Rules",
+        "href": "/rules"
+      }
+    },
+    {
+      "id": "time",
+      "name": "Time",
+      "short": "Clockwork, goals",
+      "icon": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M12 7.5V12l3 2\"/>",
+      "body": [
+        "Clockwork holds everything Rouh will say or do at a time, once or on repeat; Goals are things you want to reach, with a plan Rouh writes.",
+        "The heartbeat is Rouh's own turn every half hour in working hours, when it checks its duties and carries its quests forward."
+      ],
+      "see": {
+        "label": "Clockwork",
+        "href": "/clockwork"
+      }
+    },
+    {
+      "id": "decisions",
+      "name": "Decisions",
+      "short": "What waits on you",
+      "icon": "<path d=\"M12 3.5v4M12 7.5l-6 4.5M12 7.5l6 4.5\"/><circle cx=\"6\" cy=\"15.5\" r=\"3.2\"/><circle cx=\"18\" cy=\"15.5\" r=\"3.2\"/>",
+      "body": [
+        "Whenever Rouh needs your answer, the question lands in one list, Decisions, numbered, with the answer Rouh recommends.",
+        "Things only you can do with your hands wait in Your part, next to it; the number on Now is how many are waiting."
+      ],
+      "see": {
+        "label": "Decisions",
+        "href": "/decisions"
+      }
+    },
+    {
+      "id": "delegates",
+      "name": "Trusted people",
+      "short": "Who Rouh helps",
+      "icon": "<circle cx=\"8.5\" cy=\"8\" r=\"3\"/><circle cx=\"16.5\" cy=\"9\" r=\"2.5\"/><path d=\"M3 19c.8-3.2 3-4.8 5.5-4.8S13.2 15.8 14 19M14.5 14.6c2.6-.4 5 1 5.8 4.4\"/>",
+      "body": [
+        "Trusted contacts are the people Rouh may answer and act for when they write to it, and you say what each may do.",
+        "You can also let someone decide for you on one goal or task, and nowhere else."
+      ],
+      "see": {
+        "label": "Trusted contacts",
+        "href": "/anatomy/behaviour/trusted-contacts"
+      }
+    },
+    {
+      "id": "safety",
+      "name": "Safety",
+      "short": "What needs your yes",
+      "icon": "<path d=\"M12 3l7 3v5.5c0 4.4-3 8-7 9.5-4-1.5-7-5.1-7-9.5V6z\"/><path d=\"M9 12l2.2 2.2L15.5 10\"/>",
+      "body": [
+        "When background work wants to send, share, publish, pay or delete, it stops and asks you first, and Permission gates make more tools ask.",
+        "Text from outside, such as an email or a web page, is read as information and never obeyed as an order."
+      ],
+      "see": {
+        "label": "Permission gates",
+        "href": "/anatomy/behaviour/gates"
+      }
+    }
+  ],
+  "stages": [
+    {
+      "id": "meet",
+      "n": 0,
+      "title": "Meet Rouh",
+      "why": "Five minutes: how to talk to it, and where things show up.",
+      "steps": [
+        {
+          "id": "say-typed",
+          "title": "Say hello by typing",
+          "outcome": "After this you can ask Rouh anything in writing.",
+          "more": [
+            "Type in the message box at the bottom of the conversation and press Enter. Shift and Enter starts a new line."
+          ],
+          "say": "Hello Rouh, what can you do for me?",
+          "show": {
+            "label": "the message box",
+            "press": "input"
+          },
+          "lesson": "talking",
+          "detect": "said_typed"
+        },
+        {
+          "id": "say-voice",
+          "title": "Say hello by voice",
+          "outcome": "After this you can talk to Rouh with your hands free.",
+          "more": [
+            "Press Voice beside the message box and turn on Microphone. Turn on Voice replies to hear Rouh answer out loud. Nothing listens until you turn the microphone on."
+          ],
+          "say": "Hi Rouh, can you hear me?",
+          "show": {
+            "label": "the Voice button",
+            "press": "voice"
+          },
+          "lesson": "talking",
+          "detect": "said_voice"
+        },
+        {
+          "id": "canvas",
+          "title": "Put something on the canvas",
+          "outcome": "After this you know where pages, tables and pictures appear.",
+          "more": [
+            "The canvas is the wide panel beside the conversation (on a phone, behind it). Every card on it has its own address, so you can come back to it later."
+          ],
+          "say": "Make a page with a three-day plan for Lisbon: where to stay, what to see each day, and where to eat.",
+          "lesson": "canvas",
+          "detect": "artifact"
+        },
+        {
+          "id": "orb",
+          "title": "Open the orb",
+          "outcome": "After this you can see at a glance what Rouh is doing.",
+          "more": [
+            "The orb is the small circle in the top left corner. Press it to open it over the whole screen: each branch is work going on, and a red one needs you. Press the close button or Escape to go back."
+          ],
+          "say": "What are you working on right now?",
+          "show": {
+            "label": "the orb",
+            "press": "orb"
+          },
+          "lesson": "orb"
+        },
+        {
+          "id": "stop",
+          "title": "Stop a turn",
+          "outcome": "After this you can stop Rouh in the middle of an answer.",
+          "more": [
+            "While Rouh is answering, the Send button turns into Stop. Press it, or press Escape. Work Rouh already started in the background carries on."
+          ],
+          "say": "Tell me a long story about the sea.",
+          "show": {
+            "label": "the message box",
+            "press": "input"
+          },
+          "lesson": "talking"
+        }
+      ]
+    },
+    {
+      "id": "connect",
+      "n": 1,
+      "title": "Connect your life",
+      "why": "Each connection unlocks a part of Rouh. Start with Google and your phone; the rest are for when you use them.",
+      "steps": [
+        {
+          "id": "conn-google",
+          "title": "Connect Google: Gmail, Calendar and Drive",
+          "outcome": "After this Rouh can read and answer your mail, keep your calendar and find your files.",
+          "connection": {
+            "key": "google",
+            "why": "Your inbox, your calendar, your Drive and your Docs, all in one conversation.",
+            "needs": "Your Google account. The first time, whoever runs this Rouh gives it a Google app on the same page: a client id and secret from Google Cloud.",
+            "clicks": [
+              "Open Email and calendar, under Connections.",
+              "If the page shows Your organisation's Google app, an administrator copies the redirect address into Google Cloud, fills in Client id and Client secret, and presses Save.",
+              "Press Connect Google and allow what Google asks for.",
+              "Back in Rouh, the page shows which account is connected."
+            ]
+          },
+          "say": "What came into my inbox this morning?",
+          "show": {
+            "label": "Email and calendar",
+            "href": "/anatomy/connections/email"
+          },
+          "lesson": "connect-google",
+          "detect": "connection:google"
+        },
+        {
+          "id": "conn-phone",
+          "title": "Reach Rouh from your phone",
+          "outcome": "After this you can open Rouh in your phone's browser, wherever you are.",
+          "connection": {
+            "key": "",
+            "why": "Your Rouh at an address of its own, so your phone reaches it as easily as your desk does.",
+            "needs": "A Rouh connected to rouh.land. If this Rouh has no relay, the page says so and there is no address to turn on.",
+            "clicks": [
+              "Open Your Rouh in Anatomy.",
+              "Under Your Rouh's URL, press Get its URL, then Turn on URL.",
+              "Press Show sign-in code, open the address on your phone and sign in."
+            ]
+          },
+          "say": "How can I reach you from the browser on my phone?",
+          "show": {
+            "label": "Your Rouh",
+            "href": "/anatomy/your-rouh"
+          },
+          "lesson": "phone"
+        },
+        {
+          "id": "conn-telegram",
+          "title": "Talk to Rouh on Telegram",
+          "outcome": "After this Rouh can message you, and you can answer it, from Telegram.",
+          "connection": {
+            "key": "telegram",
+            "why": "Reminders, questions and decisions reach your phone, and you can answer them with a tap.",
+            "needs": "Telegram on your phone, and a bot token from @BotFather.",
+            "clicks": [
+              "In Telegram, open @BotFather, send /newbot and answer its two questions. Copy the token it gives you.",
+              "Open your new bot and press Start.",
+              "In Rouh, open Telegram under Connections.",
+              "Paste the token into Bot token and press Save."
+            ]
+          },
+          "say": "Send me a Telegram message saying hello.",
+          "show": {
+            "label": "Telegram",
+            "href": "/anatomy/connections/telegram"
+          },
+          "lesson": "phone",
+          "detect": "connection:telegram"
+        },
+        {
+          "id": "conn-apple",
+          "title": "Bring in your iCloud contacts",
+          "outcome": "After this Rouh knows the people you know: their numbers, addresses and companies.",
+          "connection": {
+            "key": "apple_contacts",
+            "why": "Rouh can find anyone in your contacts, show their card and keep it up to date.",
+            "needs": "An Apple ID with two-factor sign-in on, and an app-specific password: at account.apple.com, open Sign-In and Security, then App-Specific Passwords, press +, name it Rouh and press Create.",
+            "clicks": [
+              "Open Apple Contacts, under Connections.",
+              "Fill in Apple ID and App-specific password.",
+              "Press Connect. Rouh reads your contacts and keeps them in step."
+            ]
+          },
+          "say": "Who do I know in Berlin?",
+          "show": {
+            "label": "Apple Contacts",
+            "href": "/anatomy/connections/apple"
+          },
+          "lesson": "contacts",
+          "detect": "connection:apple_contacts"
+        },
+        {
+          "id": "conn-hue",
+          "title": "Connect your Philips Hue lights",
+          "outcome": "After this you can set the lights in any room by saying so.",
+          "optional": true,
+          "connection": {
+            "key": "hue",
+            "why": "Every light in the house, room by room, on the Home page and by voice.",
+            "needs": "A Hue account and a Hue bridge. The first time, an administrator gives Rouh a Hue app from developers.meethue.com.",
+            "clicks": [
+              "Open Philips Hue, under Connections.",
+              "Press Connect and sign in to Hue.",
+              "If Rouh cannot reach the bridge, press the round button on top of the bridge, then press Try again within 30 seconds."
+            ]
+          },
+          "say": "What lights do I have?",
+          "show": {
+            "label": "Philips Hue",
+            "href": "/anatomy/connections/hue"
+          },
+          "lesson": "home",
+          "detect": "connection:hue"
+        },
+        {
+          "id": "conn-dreame",
+          "title": "Connect your robot vacuum",
+          "outcome": "After this you can start, pause and dock the vacuum by saying so.",
+          "optional": true,
+          "connection": {
+            "key": "dreame",
+            "why": "Clean a room, send the robot home or check its battery, from the Home page or by voice.",
+            "needs": "A Dreame robot, and a Dreamehome account with a password (an account made with Apple or Google sign-in has none), or a Xiaomi Mi Home account.",
+            "clicks": [
+              "Open Dreame, under Connections.",
+              "Pick the app the robot is in, then fill in your email and password.",
+              "Press Connect. If Xiaomi asks for a code, type it and press Verify."
+            ]
+          },
+          "say": "Is the vacuum charged?",
+          "show": {
+            "label": "Dreame",
+            "href": "/anatomy/connections/dreame"
+          },
+          "lesson": "home",
+          "detect": "connection:dreame"
+        },
+        {
+          "id": "conn-slack",
+          "title": "Connect Slack",
+          "outcome": "After this Rouh can read, search and write in your Slack channels.",
+          "optional": true,
+          "connection": {
+            "key": "slack",
+            "why": "Your team's conversations, searchable and answerable from Rouh.",
+            "needs": "Permission to install apps in your Slack workspace.",
+            "clicks": [
+              "Open Slack, under Connections, and press Create the app in Slack. In Slack press Next, then Create.",
+              "In Install App press Install to Workspace, then Allow.",
+              "In Basic Information, App-Level Tokens, press Generate Token and Scopes and add connections:write.",
+              "Paste the bot token, your user token and the app-level token into Rouh and press Save.",
+              "In each channel Rouh should see, type /invite @Rouh."
+            ]
+          },
+          "say": "Which Slack channels can you see?",
+          "show": {
+            "label": "Slack",
+            "href": "/anatomy/connections/slack"
+          },
+          "detect": "connection:slack"
+        },
+        {
+          "id": "conn-meetings",
+          "title": "Connect your meeting library",
+          "outcome": "After this you can ask what was said in any recorded meeting.",
+          "optional": true,
+          "connection": {
+            "key": "meetings",
+            "why": "Every recorded meeting's notes, searchable by what was said and who said it.",
+            "needs": "Your meeting library's address and a key that starts with ml_.",
+            "clicks": [
+              "Open Keys, under Connections, and find Meeting library.",
+              "Press Set up, fill in Address and Key.",
+              "Press Save. Rouh checks the key with the library before it keeps it."
+            ]
+          },
+          "say": "Find the meeting where we talked about pricing.",
+          "show": {
+            "label": "Keys",
+            "href": "/anatomy/connections/keys"
+          },
+          "detect": "connection:meetings"
+        },
+        {
+          "id": "conn-mcp",
+          "title": "Add an MCP server",
+          "outcome": "After this Rouh can use the tools of another service you rely on.",
+          "optional": true,
+          "connection": {
+            "key": "mcp",
+            "why": "An MCP server (a standard way for a service to offer its tools to an AI) gives Rouh that service's tools.",
+            "needs": "The server's address and its token. A server that runs as a command needs an administrator.",
+            "clicks": [
+              "Open MCP servers, under Connections, and press Connect a server.",
+              "Pick one of the ready-made servers, or Your own, and fill in its name and address.",
+              "Press Test, and once it passes, press Save."
+            ]
+          },
+          "say": "Which MCP servers are connected?",
+          "show": {
+            "label": "MCP servers",
+            "href": "/anatomy/connections/mcp"
+          },
+          "detect": "connection:mcp"
+        },
+        {
+          "id": "conn-payments",
+          "title": "Set up payments and Stripe",
+          "outcome": "After this Rouh can pay within limits you set, and take payments through Stripe.",
+          "optional": true,
+          "connection": {
+            "key": "payments",
+            "why": "A card kept sealed, with spending caps you choose, and Stripe for payment links.",
+            "needs": "Your card, and for Stripe a restricted key from Developers, API keys, Create restricted key.",
+            "clicks": [
+              "Open Payments, under Money.",
+              "Press Add card, fill in the card and press Save card. Press Set caps to choose the limits.",
+              "For Stripe, paste the restricted key, press Save key, then Make the webhook."
+            ]
+          },
+          "say": "What cards are in my vault?",
+          "show": {
+            "label": "Payments",
+            "href": "/anatomy/money/payments"
+          },
+          "detect": "connection:payments"
+        },
+        {
+          "id": "conn-cloudflare",
+          "title": "Connect a domain on Cloudflare",
+          "outcome": "After this Rouh can look after your domain's settings for you.",
+          "optional": true,
+          "connection": {
+            "key": "cloudflare",
+            "why": "Your domain's records, changed by asking, with nothing to click through.",
+            "needs": "A Cloudflare token for one zone: My Profile, API Tokens, Create Token, Custom token.",
+            "clicks": [
+              "Open Cloudflare, under Connections.",
+              "Under Add a zone, type the domain name and press Add zone.",
+              "Paste the token into its box and press Save. Rouh checks it."
+            ]
+          },
+          "say": "Which Cloudflare zones do you have?",
+          "show": {
+            "label": "Cloudflare",
+            "href": "/anatomy/connections/cloudflare"
+          },
+          "detect": "connection:cloudflare"
+        }
+      ]
+    },
+    {
+      "id": "everyday",
+      "n": 2,
+      "title": "Everyday wins",
+      "why": "The small things Rouh takes off your hands every day.",
+      "steps": [
+        {
+          "id": "reminder",
+          "title": "Set a reminder",
+          "outcome": "After this Rouh reminds you of anything, at the time you say.",
+          "say": "Remind me tomorrow at nine to call the dentist.",
+          "show": {
+            "label": "Clockwork",
+            "href": "/clockwork"
+          },
+          "lesson": "clockwork",
+          "detect": "reminder"
+        },
+        {
+          "id": "repeat",
+          "title": "Have Rouh do something on repeat",
+          "outcome": "After this Rouh does a piece of work for you every day or week, by itself.",
+          "say": "Every Monday at eight, tell me what is on my calendar this week.",
+          "show": {
+            "label": "Clockwork",
+            "href": "/clockwork"
+          },
+          "lesson": "clockwork",
+          "detect": "repeat"
+        },
+        {
+          "id": "inbox",
+          "title": "Go through your inbox",
+          "outcome": "After this you know what came in and what needs an answer, without opening your mail.",
+          "say": "What came into my inbox today that needs an answer?",
+          "show": {
+            "label": "Mail approvals",
+            "href": "/mail/approvals"
+          },
+          "lesson": "inbox"
+        },
+        {
+          "id": "reply",
+          "title": "Answer an email with Rouh",
+          "outcome": "After this Rouh writes your replies, and you only read and agree.",
+          "more": [
+            "Rouh writes the draft and shows it to you. Change anything, then tell it to send. Emails Rouh stopped on for your OK wait in Mail approvals."
+          ],
+          "say": "Draft a reply to the last email from my accountant saying I will send the papers on Friday.",
+          "show": {
+            "label": "Mail approvals",
+            "href": "/mail/approvals"
+          },
+          "lesson": "inbox"
+        },
+        {
+          "id": "calendar",
+          "title": "Plan your day with the calendar",
+          "outcome": "After this you can check and change your calendar by asking.",
+          "say": "What is on my calendar tomorrow, and when am I free for an hour?",
+          "show": {
+            "label": "Morning brief",
+            "href": "/brief"
+          },
+          "lesson": "calendar"
+        },
+        {
+          "id": "brief",
+          "title": "Read your morning brief",
+          "outcome": "After this your day starts on one page: weather, calendar, news and mail.",
+          "say": "Open my morning brief.",
+          "show": {
+            "label": "Morning brief",
+            "href": "/brief"
+          },
+          "lesson": "calendar"
+        },
+        {
+          "id": "contacts",
+          "title": "Find someone in your contacts",
+          "outcome": "After this a person's card, with Call, Text and Directions, is one question away.",
+          "say": "What is Lena's office address?",
+          "lesson": "contacts"
+        },
+        {
+          "id": "home",
+          "title": "Control your home",
+          "outcome": "After this you can set the lights or start the vacuum by saying so.",
+          "say": "Dim the living room lights to thirty percent.",
+          "show": {
+            "label": "Home",
+            "href": "/home"
+          },
+          "lesson": "home"
+        },
+        {
+          "id": "lookup",
+          "title": "Look something up",
+          "outcome": "After this you get a quick, sourced answer without leaving the conversation.",
+          "say": "Look into what the weather will be like in Lisbon next weekend.",
+          "lesson": "browser"
+        },
+        {
+          "id": "browser",
+          "title": "Have Rouh use a website while you watch",
+          "outcome": "After this Rouh does errands on websites, and you step in when it needs you.",
+          "more": [
+            "You watch it in the Live browser. Press Take control to step in, and Hand back when you are done. Rouh never types your passwords and never presses the final Book or Pay for you."
+          ],
+          "say": "Find a table for two on Friday evening on a restaurant's own website, and stop before booking.",
+          "show": {
+            "label": "Live browser",
+            "href": "/browser"
+          },
+          "lesson": "browser"
+        }
+      ]
+    },
+    {
+      "id": "tasks",
+      "n": 3,
+      "title": "Work with tasks",
+      "why": "Give your work a home, and Rouh keeps track of every piece of it.",
+      "steps": [
+        {
+          "id": "task",
+          "title": "Make a task",
+          "outcome": "After this your work has a home, a number and a conversation of its own.",
+          "say": "Make a task for organising a team offsite in March, and break it into steps.",
+          "show": {
+            "label": "Task browser",
+            "href": "/tasks"
+          },
+          "lesson": "tasks",
+          "detect": "task"
+        },
+        {
+          "id": "steps",
+          "title": "Add a step and use its number",
+          "outcome": "After this you can point Rouh at any piece of work by its number.",
+          "more": [
+            "Every task has a number, like 58, and its steps are 58-01, 58-02. Say the number and Rouh knows what you mean."
+          ],
+          "say": "Add a step to the offsite task: find three venues and compare them.",
+          "show": {
+            "label": "Task browser",
+            "href": "/tasks"
+          },
+          "lesson": "tasks"
+        },
+        {
+          "id": "pin",
+          "title": "Pin what you are working on",
+          "outcome": "After this the Control room shows where you left off and what is next.",
+          "say": "Pin the offsite task.",
+          "show": {
+            "label": "Control room",
+            "href": "/control"
+          },
+          "lesson": "tasks",
+          "detect": "pinned"
+        },
+        {
+          "id": "research",
+          "title": "Ask for research",
+          "outcome": "After this you get research back as a task, with its sources and a recommendation.",
+          "say": "Research which robot vacuum I should buy for a small flat with a cat.",
+          "show": {
+            "label": "Task browser",
+            "href": "/tasks"
+          },
+          "lesson": "research"
+        },
+        {
+          "id": "share",
+          "title": "Share or publish a task",
+          "outcome": "After this you can show your work to anyone, by email or by link.",
+          "more": [
+            "Sharing gives one email address access to a task, to view or to edit. Publishing makes its pages readable by anyone with the link."
+          ],
+          "say": "Share the offsite task with sam@example.com so they can view it.",
+          "show": {
+            "label": "Task browser",
+            "href": "/tasks"
+          },
+          "lesson": "share"
+        }
+      ]
+    },
+    {
+      "id": "delegate",
+      "n": 4,
+      "title": "Let Rouh work for you",
+      "why": "Hand over whole pieces of work, and answer only what really needs you.",
+      "steps": [
+        {
+          "id": "job",
+          "title": "Hand Rouh a real piece of work",
+          "outcome": "After this Rouh works in the background while you carry on.",
+          "say": "Write a one-page plan for the offsite and put it in its task.",
+          "show": {
+            "label": "Metabolism",
+            "href": "/metabolism"
+          },
+          "lesson": "jobs",
+          "detect": "run"
+        },
+        {
+          "id": "running",
+          "title": "Check what is running",
+          "outcome": "After this you always know what Rouh is busy with.",
+          "say": "What is running right now?",
+          "show": {
+            "label": "the orb",
+            "press": "orb"
+          },
+          "lesson": "orb"
+        },
+        {
+          "id": "decision",
+          "title": "Answer a decision",
+          "outcome": "After this you clear what waits on you, usually with one press.",
+          "say": "What is waiting on me?",
+          "show": {
+            "label": "Decisions",
+            "href": "/decisions"
+          },
+          "lesson": "decisions",
+          "detect": "decision"
+        },
+        {
+          "id": "yourpart",
+          "title": "Do your part",
+          "outcome": "After this you know the few hands-on things only you can do.",
+          "say": "What do I need to do?",
+          "show": {
+            "label": "Your part",
+            "href": "/actions"
+          },
+          "lesson": "decisions"
+        },
+        {
+          "id": "goal",
+          "title": "Set a goal",
+          "outcome": "After this Rouh plans the steps to something you want, and says who does each.",
+          "say": "My goal is to run a half marathon by June.",
+          "show": {
+            "label": "Goals",
+            "href": "/goals"
+          },
+          "lesson": "goals",
+          "detect": "goal"
+        },
+        {
+          "id": "quest",
+          "title": "Start a quest",
+          "outcome": "After this Rouh carries a long-running question forward on its own.",
+          "say": "Start a quest to find a cheaper phone plan for me.",
+          "show": {
+            "label": "Quests",
+            "href": "/quests"
+          },
+          "lesson": "heartbeat"
+        },
+        {
+          "id": "heartbeat",
+          "title": "Meet the heartbeat",
+          "outcome": "After this you know what Rouh does by itself, and how to pause it.",
+          "more": [
+            "Every half hour in working hours the heartbeat checks Rouh's duties. It does only safe things by itself; anything else comes to you as a decision."
+          ],
+          "say": "Is the heartbeat on, and what did it do today?",
+          "show": {
+            "label": "Heartbeat",
+            "href": "/anatomy/behaviour/heartbeat"
+          },
+          "lesson": "heartbeat"
+        }
+      ]
+    },
+    {
+      "id": "yours",
+      "n": 5,
+      "title": "Make it yours",
+      "why": "Teach Rouh how you like things, and who it works with.",
+      "steps": [
+        {
+          "id": "rule",
+          "title": "Give Rouh a rule",
+          "outcome": "After this Rouh always, or never, does something the way you said.",
+          "say": "From now on, always write to me in short sentences.",
+          "show": {
+            "label": "Rules",
+            "href": "/rules"
+          },
+          "lesson": "memory",
+          "detect": "rule"
+        },
+        {
+          "id": "vocab",
+          "title": "Teach Rouh one of your words",
+          "outcome": "After this Rouh understands your nicknames and shorthand.",
+          "say": "Remember that Bo means my brother Bob.",
+          "show": {
+            "label": "Vocabulary",
+            "href": "/synapse/vocabulary"
+          },
+          "lesson": "memory",
+          "detect": "vocabulary"
+        },
+        {
+          "id": "thought",
+          "title": "Keep a thought",
+          "outcome": "After this your ideas are kept in your words, and Rouh fills them out.",
+          "say": "Thought: we should try a four-day week in the summer.",
+          "show": {
+            "label": "Thoughts",
+            "href": "/thoughts"
+          },
+          "lesson": "memory",
+          "detect": "thought"
+        },
+        {
+          "id": "box",
+          "title": "Keep a secret in a box",
+          "outcome": "After this you can hand Rouh a password that the AI never sees.",
+          "say": "Give me a box for my Wi-Fi password.",
+          "show": {
+            "label": "Boxes",
+            "href": "/box"
+          },
+          "lesson": "boxes",
+          "detect": "box"
+        },
+        {
+          "id": "silos",
+          "title": "Keep parts of your life apart",
+          "outcome": "After this work and family stay apart, each labelled with its own silo.",
+          "say": "Explain how my silos keep things apart.",
+          "show": {
+            "label": "Silos",
+            "href": "/anatomy/you/silos"
+          }
+        },
+        {
+          "id": "trusted",
+          "title": "Add a trusted contact",
+          "outcome": "After this Rouh can help someone you trust when they write to it.",
+          "say": "Who are my trusted contacts, and what may each of them ask?",
+          "show": {
+            "label": "Trusted contacts",
+            "href": "/anatomy/behaviour/trusted-contacts"
+          },
+          "lesson": "delegates",
+          "detect": "trusted"
+        },
+        {
+          "id": "gates",
+          "title": "Choose what needs your yes",
+          "outcome": "After this the tools you pick always ask you before they act.",
+          "say": "Which of your tools ask me first before they act?",
+          "show": {
+            "label": "Permission gates",
+            "href": "/anatomy/behaviour/gates"
+          },
+          "lesson": "safety"
+        },
+        {
+          "id": "models",
+          "title": "Choose which AI answers",
+          "outcome": "After this you know which model answers, and how to trade quality for cost.",
+          "say": "Which model answers my chats, and which mode are you in?",
+          "show": {
+            "label": "Models",
+            "href": "/anatomy/behaviour/models"
+          },
+          "lesson": "models"
+        }
+      ]
+    },
+    {
+      "id": "power",
+      "n": 6,
+      "title": "Power user",
+      "why": "The deep end: Rouh's memory, your team's tools, and changing Rouh itself.",
+      "steps": [
+        {
+          "id": "synapse",
+          "title": "Look inside Rouh's memory",
+          "outcome": "After this you can see what Rouh knows, and where it learned it.",
+          "say": "What do you know about my accountant?",
+          "show": {
+            "label": "Synapse",
+            "href": "/synapse"
+          }
+        },
+        {
+          "id": "meetings",
+          "title": "Ask about a meeting",
+          "outcome": "After this any recorded meeting is a question away.",
+          "say": "What did we agree in the last meeting about the budget?",
+          "show": {
+            "label": "Keys",
+            "href": "/anatomy/connections/keys"
+          }
+        },
+        {
+          "id": "slack-link",
+          "title": "Link a Slack person to their contact",
+          "outcome": "After this Rouh knows who someone on Slack is in your contacts.",
+          "say": "Link Sam on Slack to Sam's contact.",
+          "show": {
+            "label": "Slack",
+            "href": "/anatomy/connections/slack"
+          }
+        },
+        {
+          "id": "stripe",
+          "title": "Take a payment through Stripe",
+          "outcome": "After this you can send someone a link to pay you.",
+          "say": "Is Stripe connected, and what payment links do I have?",
+          "show": {
+            "label": "Payments",
+            "href": "/anatomy/money/payments"
+          }
+        },
+        {
+          "id": "mcp-use",
+          "title": "Use an MCP server's tools",
+          "outcome": "After this another service's tools work from your conversation.",
+          "say": "What can you do with the MCP servers I have connected?",
+          "show": {
+            "label": "MCP servers",
+            "href": "/anatomy/connections/mcp"
+          }
+        },
+        {
+          "id": "cloudflare-use",
+          "title": "Change your domain by asking",
+          "outcome": "After this your domain's records change when you say so.",
+          "say": "Which records does my domain have on Cloudflare?",
+          "show": {
+            "label": "Cloudflare",
+            "href": "/anatomy/connections/cloudflare"
+          }
+        },
+        {
+          "id": "gene-therapy",
+          "title": "Ask Rouh to change itself",
+          "outcome": "After this Rouh grows a new ability because you asked for it.",
+          "more": [
+            "Say what you would like Rouh to do differently. Rouh builds the change as a gene (one ability of Rouh), checks it, and puts it live."
+          ],
+          "say": "Improve yourself so the morning brief also lists my birthdays this week.",
+          "show": {
+            "label": "Gene therapy",
+            "href": "/gene-therapy"
+          },
+          "lesson": "evolution"
+        },
+        {
+          "id": "evolution",
+          "title": "See how Rouh evolves",
+          "outcome": "After this you can keep or reject the new abilities Rouh tries out.",
+          "say": "Which new genes are on trial for me?",
+          "show": {
+            "label": "Mutations",
+            "href": "/evolution/mutations"
+          },
+          "lesson": "evolution"
+        },
+        {
+          "id": "incubator",
+          "title": "Add an idea to the incubator",
+          "outcome": "After this your idea waits, scored, until it is built.",
+          "say": "Add an idea to the incubator: a weekly summary of what I spent.",
+          "show": {
+            "label": "Incubator",
+            "href": "/evolution/incubator"
+          },
+          "lesson": "evolution"
+        }
+      ]
+    }
+  ],
+  "areas": [
+    {
+      "id": "talking",
+      "name": "Talking"
+    },
+    {
+      "id": "connections",
+      "name": "Connections"
+    },
+    {
+      "id": "mail",
+      "name": "Mail and calendar"
+    },
+    {
+      "id": "home",
+      "name": "Home and errands"
+    },
+    {
+      "id": "tasks",
+      "name": "Tasks"
+    },
+    {
+      "id": "background",
+      "name": "Background work"
+    },
+    {
+      "id": "memory",
+      "name": "Memory"
+    },
+    {
+      "id": "settings",
+      "name": "Settings and safety"
+    },
+    {
+      "id": "evolution",
+      "name": "Evolution"
+    }
+  ],
+  "levels": [
+    {
+      "id": "starter",
+      "name": "Starter"
+    },
+    {
+      "id": "everyday",
+      "name": "Everyday"
+    },
+    {
+      "id": "power",
+      "name": "Power"
+    }
+  ],
+  "lessons": [
+    {
+      "id": "talking",
+      "title": "Talk to Rouh, by typing or by voice",
+      "area": "talking",
+      "level": "starter",
+      "minutes": 3,
+      "summary": "Everything starts with a sentence. Here is how to type one, speak one, and stop Rouh when you have heard enough.",
+      "steps": [
+        "Type in the message box at the bottom of the conversation and press Enter. Shift and Enter starts a new line.",
+        "To talk instead, press Voice beside the box and turn on Microphone. Rouh listens and answers.",
+        "Turn on Voice replies to hear the answers out loud, or leave it off to read them.",
+        "For a long message, turn on Dictate (or press Ctrl, Shift and Space), say it all, then turn it off. A pause never ends your turn.",
+        "To stop Rouh mid-answer, press Stop, where Send was, or press Escape."
+      ],
+      "say": [
+        "Hello Rouh, what can you do for me?",
+        "Call this chat Holiday plans."
+      ],
+      "show": {
+        "label": "the Voice button",
+        "press": "voice"
+      }
+    },
+    {
+      "id": "canvas",
+      "title": "Use the canvas and its cards",
+      "area": "talking",
+      "level": "starter",
+      "minutes": 3,
+      "summary": "The canvas is where Rouh shows you what is easier to see than to read.",
+      "steps": [
+        "Ask for something visual: a page, a table, a plan or a picture.",
+        "Rouh puts it on the canvas, beside the conversation on a desk and behind it on a phone.",
+        "Each card has its own address, so you can open it again later or send it to someone.",
+        "Ask for changes in plain words, and Rouh redraws the card.",
+        "To keep it with your work, ask Rouh to file it into a task."
+      ],
+      "say": [
+        "Make a page with a three-day plan for Lisbon.",
+        "Show that as a table.",
+        "File that card as a step of the Lisbon task."
+      ]
+    },
+    {
+      "id": "orb",
+      "title": "Read the orb",
+      "area": "talking",
+      "level": "starter",
+      "minutes": 2,
+      "summary": "The orb is a live picture of everything Rouh is doing. One glance tells you if anything needs you.",
+      "steps": [
+        "Find the small circle in the top left corner. On a phone it also opens the menu.",
+        "Press it to open the orb over the whole screen.",
+        "Each branch is a piece of work going on. A red branch needs you: press it to see why.",
+        "Press the close button or Escape to go back to where you were."
+      ],
+      "say": [
+        "What are you working on right now?"
+      ],
+      "show": {
+        "label": "the orb",
+        "press": "orb"
+      }
+    },
+    {
+      "id": "connect-google",
+      "title": "Connect your Gmail, calendar and Drive",
+      "area": "connections",
+      "level": "starter",
+      "minutes": 4,
+      "summary": "The one connection that unlocks the most. Once it is on, Rouh reads your mail, keeps your calendar and finds your files.",
+      "steps": [
+        "Open Email and calendar, under Connections in Anatomy.",
+        "The first time on this Rouh, an administrator sets up its Google app: copy the redirect address into Google Cloud, then fill in Client id and Client secret and press Save.",
+        "Press Connect Google, pick your account and allow what Google asks for.",
+        "Back in Rouh, the page names the connected account.",
+        "Ask about your inbox or tomorrow's calendar to check it works."
+      ],
+      "say": [
+        "Help me connect my Gmail and calendar, one step at a time.",
+        "What came into my inbox this morning?",
+        "What is on my calendar tomorrow?"
+      ],
+      "show": {
+        "label": "Email and calendar",
+        "href": "/anatomy/connections/email"
+      }
+    },
+    {
+      "id": "phone",
+      "title": "Rouh on your phone and on Telegram",
+      "area": "connections",
+      "level": "starter",
+      "minutes": 4,
+      "summary": "Two ways to have Rouh with you: its own address in your phone's browser, and messages on Telegram.",
+      "steps": [
+        "For the browser: open Your Rouh in Anatomy, press Get its URL, then Turn on URL.",
+        "Press Show sign-in code, open the address on your phone and sign in. Add it to your home screen if you like.",
+        "For Telegram: in Telegram open @BotFather, send /newbot and copy the token it gives you. Open your new bot and press Start.",
+        "In Rouh open Telegram under Connections, paste the token into Bot token and press Save.",
+        "Ask Rouh to message you to check it works."
+      ],
+      "say": [
+        "How can I reach you from the browser on my phone?",
+        "Help me connect Telegram, so I can talk to you from my phone.",
+        "Send me a Telegram message saying hello."
+      ],
+      "show": {
+        "label": "Telegram",
+        "href": "/anatomy/connections/telegram"
+      }
+    },
+    {
+      "id": "clockwork",
+      "title": "Reminders and things on repeat",
+      "area": "mail",
+      "level": "everyday",
+      "minutes": 3,
+      "summary": "Clockwork holds everything Rouh will say or do at a time, once or on repeat.",
+      "steps": [
+        "Say what and when, in plain words: a day, a time, or every week.",
+        "A reminder is said to you at that time, in the conversation and on Telegram if you have it.",
+        "Ask Rouh to do something on repeat, such as reading your calendar every Monday, and it does the work itself.",
+        "Open Clockwork to see everything coming up, and change or turn off any of it.",
+        "Ask what is coming up whenever you like."
+      ],
+      "say": [
+        "Remind me on Friday at nine to call the dentist.",
+        "Every Monday at eight, tell me what is on my calendar this week.",
+        "What is coming up?"
+      ],
+      "show": {
+        "label": "Clockwork",
+        "href": "/clockwork"
+      }
+    },
+    {
+      "id": "inbox",
+      "title": "Clear your inbox with Rouh",
+      "area": "mail",
+      "level": "everyday",
+      "minutes": 4,
+      "summary": "Let Rouh read the pile, tell you what matters and write the replies.",
+      "steps": [
+        "Connect Google first, if you have not yet.",
+        "Ask what came in and what needs an answer. Rouh sums it up and says who is waiting.",
+        "Ask for a reply in a sentence: who to, and what to say.",
+        "Read the draft Rouh shows you, change anything, then tell it to send.",
+        "Emails Rouh stopped on for your OK wait in Mail approvals."
+      ],
+      "say": [
+        "What came into my inbox today that needs an answer?",
+        "Draft a reply to Lena saying Thursday works for me.",
+        "Find the email with last month's invoice."
+      ],
+      "show": {
+        "label": "Mail approvals",
+        "href": "/mail/approvals"
+      }
+    },
+    {
+      "id": "calendar",
+      "title": "Plan your week",
+      "area": "mail",
+      "level": "everyday",
+      "minutes": 3,
+      "summary": "Your calendar and your morning brief, by asking.",
+      "steps": [
+        "Ask what is on a day, or when you are free.",
+        "Ask Rouh to put something on your calendar, with a day and a time.",
+        "Each morning the brief puts the day on one page: weather, calendar, news, unread mail and reminders.",
+        "Choose when the brief arrives and what is in it in Morning brief settings."
+      ],
+      "say": [
+        "What is on my calendar tomorrow?",
+        "When am I free for an hour on Thursday?",
+        "Put lunch with Sam on Thursday at one."
+      ],
+      "show": {
+        "label": "Morning brief",
+        "href": "/brief"
+      }
+    },
+    {
+      "id": "contacts",
+      "title": "Find and keep your contacts",
+      "area": "mail",
+      "level": "everyday",
+      "minutes": 3,
+      "summary": "Rouh knows the people you know, once your iCloud contacts are connected.",
+      "steps": [
+        "Connect Apple Contacts, under Connections.",
+        "Ask about anyone by name, or by where they are or what they do.",
+        "Rouh opens their card on the canvas, with Call, Text and Directions.",
+        "When someone new writes to you, Rouh offers to save them to your contacts."
+      ],
+      "say": [
+        "What is Lena's office address?",
+        "Who do I know in Berlin?"
+      ],
+      "show": {
+        "label": "Apple Contacts",
+        "href": "/anatomy/connections/apple"
+      }
+    },
+    {
+      "id": "home",
+      "title": "Lights and the robot vacuum",
+      "area": "home",
+      "level": "everyday",
+      "minutes": 3,
+      "summary": "Your home's lights and vacuum, by voice or on the Home page.",
+      "steps": [
+        "Connect Philips Hue or your Dreame vacuum, under Connections.",
+        "Open Home to see every room's lights and every device.",
+        "Or just say it: a room, a brightness, a colour, or what the vacuum should do."
+      ],
+      "say": [
+        "Dim the living room lights to thirty percent.",
+        "Turn off all the lights.",
+        "Clean the kitchen.",
+        "Send the robot back to its dock."
+      ],
+      "show": {
+        "label": "Home",
+        "href": "/home"
+      }
+    },
+    {
+      "id": "browser",
+      "title": "Let Rouh use a website while you watch",
+      "area": "home",
+      "level": "everyday",
+      "minutes": 4,
+      "summary": "For errands on websites, Rouh uses a real browser that you can watch and take over.",
+      "steps": [
+        "For a quick fact, ask Rouh to look into it: it reads the web and answers with its sources.",
+        "For an errand, say what to do and on which site.",
+        "Watch it work in the Live browser.",
+        "When it needs you, for a login, a code or a payment, press Take control, do that part, then press Hand back.",
+        "Rouh never types your passwords and never presses the final Book or Pay for you."
+      ],
+      "say": [
+        "Look into the opening hours of the Lisbon Oceanarium.",
+        "Find a table for two on Friday evening on a restaurant's own website, and stop before booking."
+      ],
+      "show": {
+        "label": "Live browser",
+        "href": "/browser"
+      }
+    },
+    {
+      "id": "tasks",
+      "title": "Tasks, steps and their numbers",
+      "area": "tasks",
+      "level": "everyday",
+      "minutes": 4,
+      "summary": "Give each piece of work a home and a number, and Rouh keeps track of it for you.",
+      "steps": [
+        "Ask Rouh to make a task, and to break it into steps if you like.",
+        "Each task has a number, like 58, and each step a number after it, like 58-01.",
+        "Say a number to point Rouh at that work: what is happening with it, what is next, move it.",
+        "Pin what you are working on this week; the Control room shows where you left off.",
+        "Open the Task browser to see everything, filed under Work and Personal."
+      ],
+      "say": [
+        "Make a task for organising a team offsite in March, and break it into steps.",
+        "What is happening with 58?",
+        "Pin 58."
+      ],
+      "show": {
+        "label": "Task browser",
+        "href": "/tasks"
+      }
+    },
+    {
+      "id": "research",
+      "title": "Get research back as a task",
+      "area": "tasks",
+      "level": "everyday",
+      "minutes": 3,
+      "summary": "Ask Rouh to look into something properly, and the answer comes back as a task you can keep.",
+      "steps": [
+        "Ask Rouh to research or compare something.",
+        "It hands the work to an assistant in the background, so you can carry on.",
+        "The result comes back as a task: the findings, their sources and Rouh's recommendation.",
+        "Ask for another round in the same task, and it becomes the next step."
+      ],
+      "say": [
+        "Research which robot vacuum I should buy for a small flat with a cat.",
+        "Compare three project management apps for a team of five."
+      ],
+      "show": {
+        "label": "Task browser",
+        "href": "/tasks"
+      }
+    },
+    {
+      "id": "share",
+      "title": "Share or publish a task",
+      "area": "tasks",
+      "level": "everyday",
+      "minutes": 3,
+      "summary": "Show your work to someone, or to everyone with the link.",
+      "steps": [
+        "To share with one person, give Rouh their email address and say view or edit.",
+        "They get an email with the link, and sign in to open it.",
+        "To publish, ask Rouh to publish the task: anyone with the link can read its pages.",
+        "Ask whether a task is public at any time."
+      ],
+      "say": [
+        "Share 58 with sam@example.com so they can view it.",
+        "Publish 58.",
+        "Is 58 public?"
+      ],
+      "show": {
+        "label": "Task browser",
+        "href": "/tasks"
+      }
+    },
+    {
+      "id": "decisions",
+      "title": "Answer decisions quickly",
+      "area": "background",
+      "level": "everyday",
+      "minutes": 3,
+      "summary": "Everything that waits on you is in one place, with Rouh's recommendation ready.",
+      "steps": [
+        "Open Decisions, under Now. The number on Now says how many are waiting.",
+        "Each decision says what each answer means, and which one Rouh recommends.",
+        "Press an answer. You can undo it for a short while after.",
+        "Things only you can do with your hands wait in Your part, next to Decisions.",
+        "You can also answer by voice or on Telegram."
+      ],
+      "say": [
+        "What is waiting on me?",
+        "What do I need to do?"
+      ],
+      "show": {
+        "label": "Decisions",
+        "href": "/decisions"
+      }
+    },
+    {
+      "id": "jobs",
+      "title": "Hand off real work",
+      "area": "background",
+      "level": "power",
+      "minutes": 4,
+      "summary": "For anything bigger than a quick answer, Rouh starts work in the background and reports back.",
+      "steps": [
+        "Describe the work as you would to a colleague: what, where it should end up, and by when.",
+        "Rouh starts a run and tells you. Carry on with anything else.",
+        "Watch it on the orb, or open Metabolism to see every run.",
+        "If the work needs your answer, it waits in Decisions.",
+        "When it finishes, Rouh tells you what it did and where to find it."
+      ],
+      "say": [
+        "Write a one-page plan for the offsite and put it in its task.",
+        "What is running right now?",
+        "Stop that run."
+      ],
+      "show": {
+        "label": "Metabolism",
+        "href": "/metabolism"
+      }
+    },
+    {
+      "id": "goals",
+      "title": "Set a goal and let Rouh plan it",
+      "area": "background",
+      "level": "everyday",
+      "minutes": 4,
+      "summary": "Say what you want to reach, and Rouh writes the plan and keeps it moving.",
+      "steps": [
+        "Tell Rouh your goal and when you want to reach it.",
+        "Answer the few questions it asks.",
+        "Rouh writes a plan of steps, saying who does each one: you, Rouh or someone else.",
+        "Open Goals to follow the plan; Rouh carries its own steps forward."
+      ],
+      "say": [
+        "My goal is to run a half marathon by June.",
+        "How is my half marathon goal going?"
+      ],
+      "show": {
+        "label": "Goals",
+        "href": "/goals"
+      }
+    },
+    {
+      "id": "heartbeat",
+      "title": "The heartbeat and quests",
+      "area": "background",
+      "level": "power",
+      "minutes": 3,
+      "summary": "Rouh's own turn every half hour, and the long-running quests it carries.",
+      "steps": [
+        "Every half hour in working hours, the heartbeat checks Rouh's duties without being asked.",
+        "It does only safe things by itself; anything else comes to you as a decision.",
+        "A quest is a long-running question the heartbeat keeps working on, such as finding a better deal.",
+        "Open Heartbeat to see what it did today, pause it, or change its rhythm."
+      ],
+      "say": [
+        "Is the heartbeat on, and what did it do today?",
+        "Start a quest to find a cheaper phone plan for me.",
+        "Pause the heartbeat."
+      ],
+      "show": {
+        "label": "Heartbeat",
+        "href": "/anatomy/behaviour/heartbeat"
+      }
+    },
+    {
+      "id": "memory",
+      "title": "Teach Rouh your rules and your words",
+      "area": "memory",
+      "level": "everyday",
+      "minutes": 4,
+      "summary": "Rouh remembers how you like things done, what your words mean, and what is on your mind.",
+      "steps": [
+        "Say a rule as you would to a new colleague: always this, never that.",
+        "Rouh keeps it on the Rules page, where you can change it or turn it off.",
+        "Tell Rouh what one of your words or nicknames means, and it lands in Vocabulary.",
+        "Start a sentence with “Thought:” to keep an idea in your own words. Rouh fills it out in Thoughts.",
+        "Ask what Rouh remembers whenever you like, and tell it to forget anything."
+      ],
+      "say": [
+        "From now on, always write to me in short sentences.",
+        "Remember that Bo means my brother Bob.",
+        "Thought: we should try a four-day week in the summer.",
+        "What do you remember about me?"
+      ],
+      "show": {
+        "label": "Rules",
+        "href": "/rules"
+      }
+    },
+    {
+      "id": "boxes",
+      "title": "Keep a secret in a box",
+      "area": "memory",
+      "level": "everyday",
+      "minutes": 2,
+      "summary": "A box holds something the AI never sees, such as a password.",
+      "steps": [
+        "Ask Rouh for a box. A numbered box opens for you to type into.",
+        "What you type goes straight into the database, sealed, and never reaches the AI.",
+        "Open Boxes to see them; you choose if and when to give one to Rouh."
+      ],
+      "say": [
+        "Give me a box for my Wi-Fi password.",
+        "Open box 3."
+      ],
+      "show": {
+        "label": "Boxes",
+        "href": "/box"
+      }
+    },
+    {
+      "id": "delegates",
+      "title": "Let someone you trust work with Rouh",
+      "area": "settings",
+      "level": "power",
+      "minutes": 4,
+      "summary": "Rouh can answer people you trust, and let one of them decide for you on a goal or task.",
+      "steps": [
+        "Open Trusted contacts, under Behaviour in Anatomy.",
+        "Add a person and say what they may ask Rouh for.",
+        "When they write, Rouh helps them within what you allowed, and asks you about the rest.",
+        "To let someone decide for you on one goal or task, say so; their answers count there and nowhere else."
+      ],
+      "say": [
+        "Who are my trusted contacts?",
+        "Let Sam decide for the offsite task."
+      ],
+      "show": {
+        "label": "Trusted contacts",
+        "href": "/anatomy/behaviour/trusted-contacts"
+      }
+    },
+    {
+      "id": "safety",
+      "title": "What always needs your yes",
+      "area": "settings",
+      "level": "starter",
+      "minutes": 3,
+      "summary": "How Rouh keeps you in charge of anything that matters.",
+      "steps": [
+        "Work in the background that wants to send, share, publish, pay or delete something stops and asks you, as a decision.",
+        "Open Permission gates to make more tools ask you first, every time.",
+        "Text from outside, such as an email or a web page, is read as information and never obeyed as an order.",
+        "Rouh never types your passwords, codes or card numbers, and never presses the final Book or Pay on a website."
+      ],
+      "say": [
+        "Which of your tools ask me first before they act?"
+      ],
+      "show": {
+        "label": "Permission gates",
+        "href": "/anatomy/behaviour/gates"
+      }
+    },
+    {
+      "id": "models",
+      "title": "Choose which AI answers",
+      "area": "settings",
+      "level": "power",
+      "minutes": 3,
+      "summary": "Trade quality for cost, with one setting or one sentence.",
+      "steps": [
+        "Open Models, under Behaviour in Anatomy.",
+        "Pick a mode: Best, Balanced or Saver.",
+        "Each tier, Cheaper and Smart, has a model; every use of an AI in Rouh is on one of them.",
+        "Or say what you want, and Rouh changes the setting for you."
+      ],
+      "say": [
+        "Which model answers my chats?",
+        "Switch to Saver."
+      ],
+      "show": {
+        "label": "Models",
+        "href": "/anatomy/behaviour/models"
+      }
+    },
+    {
+      "id": "evolution",
+      "title": "Change Rouh itself",
+      "area": "evolution",
+      "level": "power",
+      "minutes": 4,
+      "summary": "Rouh grows: you can ask for a new ability, and keep or reject what it tries.",
+      "steps": [
+        "Say what you would like Rouh to do differently, or open Gene therapy and write it there.",
+        "Rouh builds the change as a gene (one ability of Rouh), checks it and puts it live.",
+        "New genes Rouh tries for you are listed in Mutations, where you keep or reject each one.",
+        "Ideas for genes wait in the Incubator, scored, until one is built."
+      ],
+      "say": [
+        "Improve yourself so the morning brief also lists my birthdays this week.",
+        "Which new genes are on trial for me?",
+        "Add an idea to the incubator: a weekly summary of what I spent."
+      ],
+      "show": {
+        "label": "Gene therapy",
+        "href": "/gene-therapy"
+      }
+    }
+  ],
+  "sections": {
+    "journey": {
+      "title": "Your journey",
+      "lede": "Seven stages, from saying hello to Rouh running work for you while you get on with your day. Tick each step as you go; Rouh ticks the ones it can see for itself."
+    },
+    "lessons": {
+      "title": "Lessons",
+      "lede": "Short how-tos, two to five minutes each. Search, or narrow them down by area and level."
+    },
+    "features": {
+      "title": "Features you can switch on and off",
+      "lede": "The same switches as on their Settings pages: flip one here and it is flipped there."
+    },
+    "stages": {
+      "title": "Your path at a glance"
+    }
+  },
+  "features": [
+    {
+      "id": "heartbeat",
+      "switch": "heartbeat",
+      "name": "The heartbeat",
+      "what": "Rouh's own turn, every half hour in working hours: it checks its duties, carries your quests forward and starts work nobody had to ask for. It only does safe things by itself; anything else comes to you as a decision.",
+      "off": "Off, nothing beats by itself and quests wait; a yes you give in Decisions still runs.",
+      "say": "Is the heartbeat on, and what did it do today?",
+      "show": {
+        "label": "Heartbeat",
+        "href": "/anatomy/behaviour/heartbeat"
+      }
+    },
+    {
+      "id": "brief",
+      "switch": "brief",
+      "name": "The morning brief",
+      "what": "One page every morning: the weather, your calendar, a few world stories, AI news from your YouTube channels, unread mail and reminders.",
+      "off": "Off, no brief is made in the morning; you can still ask for one.",
+      "say": "Open my morning brief.",
+      "show": {
+        "label": "Morning brief settings",
+        "href": "/anatomy/behaviour/brief"
+      }
+    },
+    {
+      "id": "mail-alerts",
+      "switch": "mail_alerts",
+      "name": "New mail as it arrives",
+      "what": "Gmail tells Rouh the moment a new email lands, so Rouh can sort it and tell you about what matters, instead of waiting for you to ask.",
+      "off": "Off, Rouh reads your mail only when you ask about it.",
+      "say": "What came into my inbox today that needs an answer?",
+      "show": {
+        "label": "Email and calendar",
+        "href": "/anatomy/connections/email"
+      }
+    }
+  ],
+  "tips": [
+    {
+      "id": "numbers",
+      "area": "tasks",
+      "title": "Numbers are addresses",
+      "body": "Every task and step has a number. Say it, and Rouh goes straight there: 58 is a task, 58-02 its second step.",
+      "say": "What is happening with 58-02?"
+    },
+    {
+      "id": "one-breath",
+      "area": "talking",
+      "title": "Ask for several things in one breath",
+      "body": "You do not have to wait between requests. Say them together and Rouh does each one.",
+      "say": "Remind me on Friday at nine to call Sam, and put lunch with Lena on Thursday at one."
+    },
+    {
+      "id": "drive",
+      "area": "background",
+      "title": "Take a run over, then hand it back",
+      "body": "A run of the one program can be yours for a while: say let me drive to take its terminal, and carry on to give it back.",
+      "say": "Let me drive that run."
+    },
+    {
+      "id": "tell-run",
+      "area": "background",
+      "title": "Change course while it works",
+      "body": "You can talk to work that is already running, to steer it or answer what it is stuck on.",
+      "say": "Tell that run to use the shorter opening."
+    },
+    {
+      "id": "boxes",
+      "area": "memory",
+      "title": "Secrets go in a box",
+      "body": "Never type a password into the chat. Ask for a box: what you put in it goes straight into the database and never reaches the AI.",
+      "say": "Give me a box for my Wi-Fi password."
+    },
+    {
+      "id": "vocab",
+      "area": "memory",
+      "title": "Teach it your nicknames",
+      "body": "Say once what a word of yours means, and Rouh understands it from then on, by voice too.",
+      "say": "Remember that Bo means my brother Bob."
+    },
+    {
+      "id": "thought",
+      "area": "memory",
+      "title": "Start with Thought:",
+      "body": "A sentence that starts with Thought: is kept in your own words, and Rouh fills it out later.",
+      "say": "Thought: a monthly dinner with the old team."
+    },
+    {
+      "id": "rules",
+      "area": "memory",
+      "title": "Say it once, as a rule",
+      "body": "When you correct Rouh twice about the same thing, make it a rule. Say always or never and it sticks.",
+      "say": "From now on, never book anything before nine in the morning."
+    },
+    {
+      "id": "pins",
+      "area": "tasks",
+      "title": "Pin this week's work",
+      "body": "Pin the few tasks you are on. The Control room then shows each one, where you left off and what is next.",
+      "say": "Pin 58 and unpin 19."
+    },
+    {
+      "id": "revise",
+      "area": "talking",
+      "title": "Change a card, do not ask for a new one",
+      "body": "Ask for a change to the card on the screen and Rouh revises it in place. Every version is kept, so you can go back.",
+      "say": "What did that table say before you changed it?"
+    },
+    {
+      "id": "file-card",
+      "area": "tasks",
+      "title": "Keep a card with its work",
+      "body": "A card worth keeping can become a step of a task, so it is found with everything else about it.",
+      "say": "File that card as a step of the offsite task."
+    },
+    {
+      "id": "delegate",
+      "area": "settings",
+      "title": "Let someone decide for you",
+      "body": "For one goal or task, a person you trust can answer in your place. Their answers count there and nowhere else.",
+      "say": "Let Sam decide for the offsite task."
+    },
+    {
+      "id": "waiting",
+      "area": "background",
+      "title": "One question clears the queue",
+      "body": "Ask what is waiting on you, and answer each by its number, in the same sentence if you like.",
+      "say": "What is waiting on me?"
+    },
+    {
+      "id": "orb",
+      "area": "talking",
+      "title": "Read the orb's colours",
+      "body": "A branch marked NEEDS YOU is waiting on you. The rings round the orb are the machine: storage, then CPU, then memory, each green or grey while there is room, amber when busy, red when too busy.",
+      "say": "What are you working on right now?"
+    },
+    {
+      "id": "stop",
+      "area": "talking",
+      "title": "Escape stops the answer, not the work",
+      "body": "Press Escape to stop Rouh mid-answer. Anything it already started in the background carries on.",
+      "say": "What is running right now?"
+    },
+    {
+      "id": "switch-model",
+      "area": "settings",
+      "title": "Trade quality for cost in a sentence",
+      "body": "Pick Best, Balanced or Saver by asking, without opening Settings.",
+      "say": "Switch to Saver."
+    },
+    {
+      "id": "research",
+      "area": "tasks",
+      "title": "Research comes back as a task",
+      "body": "Say research or compare and you get a task with sources and a recommendation, not a quick answer. For a quick answer, say look into.",
+      "say": "Look into what time the Lisbon Oceanarium opens on Sunday."
+    },
+    {
+      "id": "gene",
+      "area": "evolution",
+      "title": "Ask Rouh to change itself",
+      "body": "If Rouh cannot do something you want, say improve yourself so, and it grows the ability as a gene.",
+      "say": "Improve yourself so the morning brief also lists my birthdays this week."
+    }
+  ]
+}
