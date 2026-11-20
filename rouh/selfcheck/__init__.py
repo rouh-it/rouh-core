@@ -48,7 +48,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 #: The groups, in the order they run, and the module each lives in.
-GROUPS = ("own", "security")
+GROUPS = ("own", "security", "unrestricted")
 
 #: What is known to be missing, said on every run and never failed: (name, why).
 KNOWN_GAPS = (

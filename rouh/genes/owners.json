@@ -3608,6 +3608,17 @@
    "files": [
     "rouh/mail_button.py"
    ]
+  },
+  "unrestricted-mode": {
+   "files": [
+    "rouh/unrestricted.py",
+    "rouh/models/mode.py",
+    "rouh/web/permissions.py",
+    "rouh/static/permissionspage.*",
+    "rouh/migrations/0266_permission_mode.py",
+    "rouh/genes/manifests/unrestricted-mode.json",
+    "rouh/selfcheck/unrestricted.py"
+   ]
   }
  }
 }

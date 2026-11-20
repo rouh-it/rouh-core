@@ -52,6 +52,7 @@ from .dreame import DreameConnection
 from .servicekeys import ServiceCheck, ServiceKey
 from .lean import LeanApplied, LeanChoice, LeanState
 from .gates import PermissionGate
+from .mode import PermissionMode, PermissionModeFlip, UnrestrictedAction
 from .hue import HueApp, HueConnection
 from .connections import ConnectionIncident, ConnectionTrouble
 from .mcp import McpServer
@@ -68,7 +69,7 @@ __all__ = [
     "ContactRelation", "RelationType",
     "ServiceCheck", "ServiceKey",
     "LeanApplied", "LeanChoice", "LeanState",
-    "PermissionGate",
+    "PermissionGate", "PermissionMode", "PermissionModeFlip", "UnrestrictedAction",
     "IncubatorEvent", "IncubatorIdea",
     "Trial", "TrialJob", "TrialNote", "TrialProblem", "TrialSighting", "TrialStep", "TrialTester",
     "DemoApproval", "DemoEvent", "DemoState",

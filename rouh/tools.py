@@ -3052,6 +3052,9 @@ class ToolRegistry:
             "nothing and names each record it would replace - say them to ‹owner› - and only with "
             "replace_mx true removes those MX records and adds Cloudflare's include to the SPF record "
             "(keeping what it already allows); DKIM, DMARC and every other record are never touched. "
+            "email_routing_disable (zone): turn it off; Cloudflare takes off the MX and SPF records it "
+            "added for it, and its rules, catch-all and destination addresses are kept, so "
+            "email_routing_enable puts it back as it was. "
             "email_routing_destination (zone, email): add a destination address to the zone's account; "
             "Cloudflare emails it a verification link its owner must click, and no rule delivers there "
             "until then - say so. email_routing_rule (zone, from, to, catch_all?): forward an address of "
@@ -3064,8 +3067,8 @@ class ToolRegistry:
                                "enum": ["status", "check", "open", "records", "settings", "dns_set",
                                         "dns_delete", "settings_set", "origin_certificate",
                                         "origin_certificates", "email_routing_status",
-                                        "email_routing_enable", "email_routing_destination",
-                                        "email_routing_rule"]},
+                                        "email_routing_enable", "email_routing_disable",
+                                        "email_routing_destination", "email_routing_rule"]},
                     "replace_mx": {"type": "boolean",
                                    "description": "For email_routing_enable: remove the MX records and change the SPF record it named. Only once ‹owner› has agreed to exactly those."},
                     "email": {"type": "string", "description": "For email_routing_destination: the address mail is forwarded to."},
@@ -12279,6 +12282,32 @@ class ToolRegistry:
         return (f"{toolsides.NAMES[side]} are turned off in this chat's Chat Options, so {name} cannot be "
                 "called here. Answer without it, and say so if it was needed.")
 
+    async def _unrestricted_passes(self, name: str, args, emit) -> bool:
+        """Whether a tool the owner's own gates (or an MCP server's Ask first) would stop runs at
+        once instead, because this is the owner's own chat and their mode is Unrestricted
+        (`rouh/unrestricted.py`). The server's ROUH_CONFIRM_TOOLS always asks, and so does what
+        every mode still asks (`unrestricted.STILL_ASKS`). Written into What Rouh did."""
+        from . import gates, unrestricted
+        from .tenancy import SPEAKER
+
+        if name in gates.from_server(self.cfg):
+            return False
+        who = SPEAKER.get()
+        try:
+            if not await asyncio.to_thread(unrestricted.for_chat, who):
+                return False
+            if await asyncio.to_thread(unrestricted.still_asks, name, args, who):
+                return False
+            chat = self.memory.answering_chat() if self.memory is not None else ""
+            await asyncio.to_thread(
+                unrestricted.record, who, via="chat", where=chat, title="", tool=name,
+                args=args or {}, what=(worklabel.describe_step(name, args).get("what") or name),
+                why="Your own chat, in Unrestricted: its gate was not asked.", result="Run in the chat.")
+        except Exception:  # noqa: BLE001 - the gate asks as before
+            log.exception("whether %s passes under Unrestricted could not be read", name)
+            return False
+        return True
+
     async def call(self, name: str, args, emit, *, call_id: str = ""):
         handler = self._handlers.get(name)
         if handler is None:
@@ -12337,7 +12366,8 @@ class ToolRegistry:
         # And the tools of an MCP server a person connected with Ask first on, which is how
         # it starts (`rouh/mcp_servers.py`).
         from . import gates
-        if name in await gates.live(self.gated) or self._mcp_asks_first(name):
+        if (name in await gates.live(self.gated) or self._mcp_asks_first(name)) and \
+                not await self._unrestricted_passes(name, args, emit):
             said = worklabel.describe_step(name, args)
             verdict = await self.gate.ask(name, said, emit, call_id=call_id,
                                           args=args if isinstance(args, dict) else None)
@@ -12361,6 +12391,10 @@ class ToolRegistry:
                 return untrusted.ours(gate.get("result") or "Done already.")
             use_id = int(gate.get("use_id") or 0)
         made = turn.made if turn is not None else 0
+        # No tool call can switch the owner's mode, whatever it runs (`unrestricted.CALLING`).
+        from . import unrestricted as _unres
+
+        calling = _unres.CALLING.set(name or "a tool")
         try:
             if asyncio.iscoroutinefunction(handler):
                 out = await handler(args or {}, emit)
@@ -12373,6 +12407,8 @@ class ToolRegistry:
                 await asyncio.to_thread(capability_grants.finish, capability_grants._turn_who(
                     turn), use_id, ok=False, result="It stopped with an error.")
             raise
+        finally:
+            _unres.CALLING.reset(calling)
         if use_id:
             from . import capability_grants
 
@@ -16499,7 +16535,8 @@ class ToolRegistry:
                                                   else "failed: " + got["why"].replace("Not saved: ", "it is still kept, but ", 1)) + "\n" + "\n".join(lines))
         if action in ("settings", "dns_set", "dns_delete", "settings_set", "origin_certificate",
                       "origin_certificates", "email_routing_status",
-                      "email_routing_enable", "email_routing_destination", "email_routing_rule"):
+                      "email_routing_enable", "email_routing_disable", "email_routing_destination",
+                      "email_routing_rule"):
             zone = cloudflare.domain_of(args.get("zone"))
             if not zone:
                 return "Which zone? Give its domain name, such as example.com."
@@ -16510,6 +16547,8 @@ class ToolRegistry:
                         said = await asyncio.to_thread(api.email_status)
                     elif action == "email_routing_enable":
                         said = await asyncio.to_thread(api.email_enable, args.get("replace_mx") is True)
+                    elif action == "email_routing_disable":
+                        said = await asyncio.to_thread(api.email_disable)
                     elif action == "email_routing_destination":
                         said = await asyncio.to_thread(api.email_destination, args.get("email"))
                     else:

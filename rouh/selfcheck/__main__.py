@@ -72,7 +72,7 @@ def _database(wait: float) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="python -m rouh.selfcheck")
-    ap.add_argument("--only", choices=("own", "security"), default="")
+    ap.add_argument("--only", choices=("own", "security", "unrestricted"), default="")
     ap.add_argument("--wait-db", type=float, default=90.0)
     a = ap.parse_args()
 

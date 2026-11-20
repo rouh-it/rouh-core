@@ -8684,7 +8684,7 @@ function settingsPages(section) {
                 cloudflare: window.RouhCloudflare, keys: window.RouhKeys, slack: window.RouhSlack, hue: window.RouhHue, dreame: window.RouhDreame, mcp: window.RouhMcp,
                 'draft-edits': window.RouhDraftEdits,
                 'gene-pool': window.RouhGenes, changes: window.RouhChanges, silos: window.RouhSilos,
-                stats: window.RouhStats, keeps: window.RouhKeeps, gates: window.RouhGates, offline: window.RouhOfflinePanel, 'this-rouh': window.RouhBirth,
+                stats: window.RouhStats, keeps: window.RouhKeeps, gates: window.RouhGates, permissions: window.RouhPermissions, offline: window.RouhOfflinePanel, 'this-rouh': window.RouhBirth,
                 account: window.RouhSignIn };
   for (var name in pages) {
     var drawn = pages[name];
@@ -8766,7 +8766,9 @@ function anatomyBoardLoad() {
     .catch(function () {});
 }
 
-window.RouhAnatomy = { repaint: function () { if (SETTINGS.open && !SETTINGS.page) anatomyBoardDraw(); } };
+window.RouhAnatomy = { repaint: function () { if (SETTINGS.open && !SETTINGS.page) anatomyBoardDraw(); },
+                      /* A section opened from outside Anatomy, such as the mode chip (`permissionspage.js`). */
+                      open: function (/** @type {string} */ section) { settingsOpen(section); } };
 
 function anatomyBoardDraw() {
   var facts = /** @type {Record<string, string[]>} */ ({});

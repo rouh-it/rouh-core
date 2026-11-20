@@ -58,6 +58,7 @@ interface Window {
   RouhKeeps?: any;
   /** Anatomy, Behaviour, Permission gates (gatespage.js). */
   RouhGates?: any;
+  RouhPermissions?: any;
   RouhSignups?: any;
   RouhBirth?: any;
   /** Rouh Land Account, Your profile, and the Gene Pool's standing card (landaccountpage.js). */

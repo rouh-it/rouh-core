@@ -29,6 +29,7 @@ from rouh.web import link as link_web
 from rouh.web import anatomy as anatomy_web
 from rouh.web import lean as lean_web
 from rouh.web import gates as gates_web
+from rouh.web import permissions as permissions_web
 from rouh.web import silos as silos_web
 from rouh.web import demo as demo_web
 from rouh.web import dreame as dreame_web
@@ -675,6 +676,9 @@ urlpatterns = [
     path("api/anatomy/keeps/preset", lean_web.preset),
     # Anatomy, Behaviour, Permission gates (`rouh/web/gates.py`, `rouh/gates.py`).
     path("api/anatomy/gates", gates_web.page),
+    # Anatomy, Behaviour, Permissions: the mode switch and What Rouh did (`rouh/web/permissions.py`).
+    path("api/permissions", permissions_web.page),
+    path("api/permissions/undo", permissions_web.undo),
     path("api/settings/stats", stats.page),
     path("api/settings/stats/events", stats.event_log),
     path("api/nav/tap", stats.tap),

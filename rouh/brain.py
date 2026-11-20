@@ -1095,6 +1095,11 @@ class Brain:
                      + (f"person is, on {place} time, which is UTC{clock.offset(now)}." if where
                         else f"person is, UTC{clock.offset(now)}."),
                      "The date and the time", "rouh/clock.py")
+        # The owner's mode, Restricted or Unrestricted, is a live value too (`rouh/unrestricted.py`):
+        # which of it applies to this turn is code's, and the words come with it.
+        from . import unrestricted
+
+        turn.context(unrestricted.told_for_turn(), "Permissions mode", "rouh/unrestricted.py")
         # Which switch each piece of live context follows (`reading.CONTEXT`); "" is the chat's own, or one
         # that holds only what the switches already decided (the turn's memory, what is turned off).
         follows = {20: "location", 30: "inboxes", 45: "task", 47: "page", 35: "general-summary", 40: "goals",

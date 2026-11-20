@@ -647,6 +647,12 @@ def cloudflare_token(zone: str, org_id: str | None = None) -> str:
     return _box().open_(row.token_sealed)
 
 
+def _body_of(r: dict) -> dict:
+    """A record as dns_records gives it, as the body that makes it again."""
+    return {k: r.get(k) for k in ("type", "name", "content", "proxied", "ttl", "priority", "comment")
+            if r.get(k) not in (None, "")}
+
+
 class ZoneAPI:
     """Cloudflare for one zone, by name: its id, and calls made with its kept token."""
 
@@ -742,13 +748,56 @@ class ZoneAPI:
                     said.append(f"{label}: already so")
                     continue
                 self.call("PUT", f"/dns_records/{old['id']}", body)
+                self._undo({"do": "put", "id": old["id"], "body": _body_of(old)})
                 said.append(f"{label}: settings changed")
             elif how == "change":
                 self.call("PUT", f"/dns_records/{old['id']}", body)
+                self._undo({"do": "put", "id": old["id"], "body": _body_of(old)})
                 said.append(f"{label}: was {old['type']} {old['content']}")
             else:
-                self.call("POST", "/dns_records", body)
+                made = (self.call("POST", "/dns_records", body).get("result") or {})
+                if made.get("id"):
+                    self._undo({"do": "delete", "id": made["id"], "body": body})
                 said.append(f"{label}: added")
+        return said
+
+    def _undo(self, op: dict) -> None:
+        """How to put back what was just written, kept for whoever collects it (What Rouh did,
+        `unrestricted.UNDO`): each change keeps the record as it was before."""
+        from . import unrestricted
+
+        got = unrestricted.UNDO.get()
+        if got is None:
+            return
+        for step in got:
+            if step.get("kind") == "cloudflare" and step.get("zone") == self.zone:
+                step["ops"].append(op)
+                return
+        got.append({"kind": "cloudflare", "zone": self.zone, "ops": [op]})
+
+    def put_back(self, ops: list) -> list[str]:
+        """Undo what `_undo` kept, newest first: each record as it was, Email Routing as it was,
+        each setting as it was. What it did, a line each."""
+        said = []
+        for op in reversed(list(ops or [])):
+            do = op.get("do")
+            body = op.get("body") or {}
+            if do == "put":
+                self.call("PUT", f"/dns_records/{op['id']}", body)
+                said.append(f"{body.get('type')} {body.get('name')} is {body.get('content')} again")
+            elif do == "delete":
+                self.call("DELETE", f"/dns_records/{op['id']}")
+                said.append(f"removed {body.get('type')} {body.get('name')} -> {body.get('content')}")
+            elif do == "post":
+                self.call("POST", "/dns_records", body)
+                said.append(f"made {body.get('type')} {body.get('name')} -> {body.get('content')} again")
+            elif do == "setting":
+                self.call("PATCH", f"/settings/{op['key']}", {"value": op["value"]})
+                said.append(f"{op['key']} is {op['value']} again")
+            elif do == "email_disable":
+                said += self.email_disable(keep_undo=False)
+            elif do == "email_enable":
+                said += self.email_enable(replace_mx=bool(op.get("replace_mx")), keep_undo=False)
         return said
 
     def _full(self, name) -> str:
@@ -803,6 +852,7 @@ class ZoneAPI:
                 said.append(f"{key}: already {value}")
                 continue
             now = self.call("PATCH", f"/settings/{key}", {"value": value})["result"].get("value")
+            self._undo({"do": "setting", "key": key, "value": was})
             said.append(f"{key}: was {was}, now {now}")
         return said
 
@@ -884,8 +934,8 @@ class ZoneAPI:
                           f"one is deleted a call, so nothing was deleted")
         r = found[0]
         self.call("DELETE", f"/dns_records/{r['id']}")
-        was = {k: r.get(k) for k in ("type", "name", "content", "proxied", "ttl", "priority", "comment")
-               if r.get(k) not in (None, "")}
+        was = _body_of(r)
+        self._undo({"do": "post", "body": was})
         log.info("cloudflare: deleted %s %s -> %s from %s", r.get("type"), r.get("name"), r.get("content"), self.zone)
         return {"id": r.get("id"), "deleted": was}
 
@@ -1001,7 +1051,7 @@ class ZoneAPI:
             said.append(f"rules: unreadable ({e})")
         return said
 
-    def email_enable(self, replace_mx: bool = False) -> list[str]:
+    def email_enable(self, replace_mx: bool = False, keep_undo: bool = True) -> list[str]:
         """Turn Email Routing on. When an MX record that is not Cloudflare's, or an SPF record
         without Email Routing's include, is in the way, nothing is changed and each record is
         named, unless `replace_mx`: then those MX records are removed and the SPF record is
@@ -1015,13 +1065,20 @@ class ZoneAPI:
                     + ["- " + _conflict(c) for c in plan["conflicts"]]
                     + ["Mail sent to those MX hosts stops arriving once they go. Call email_routing_enable "
                        "again with replace_mx true to do exactly this; no other record is touched."])
+        was_on = bool((self._need(EMAIL_RULES, "GET", "/email/routing")["result"] or {}).get("enabled"))
         for c in plan["conflicts"]:
             if c["do"] == "remove":
                 self.call("DELETE", f"/dns_records/{c['id']}")
+                if keep_undo:
+                    self._undo({"do": "post", "body": {k: c.get(k) for k in ("type", "name", "content", "priority")
+                                                       if c.get(k) not in (None, "")}})
                 said.append(f"removed MX {c['content']}" + (f" (priority {c['priority']})" if c.get("priority") is not None else ""))
             else:
                 self.call("PUT", f"/dns_records/{c['id']}", {"type": "TXT", "name": self.zone,
                                                               "content": c["to"], "ttl": int(c.get("ttl") or 1)})
+                if keep_undo:
+                    self._undo({"do": "put", "id": c["id"], "body": {"type": "TXT", "name": self.zone,
+                                                                    "content": c["content"], "ttl": int(c.get("ttl") or 1)}})
                 said.append(f"SPF changed from {c['content']} to {c['to']}")
         # The zone's apex is enabled by sending no name at all: `name` is only for a subdomain,
         # and Cloudflare refuses the zone's own name there ("2007: Invalid Input: must be a
@@ -1034,6 +1091,8 @@ class ZoneAPI:
                               codes=e.codes, status=e.status) from None
             self._need(EMAIL_RULES, "POST", "/email/routing/enable", {})
         got = self._need(EMAIL_RULES, "GET", "/email/routing")["result"] or {}
+        if keep_undo and not was_on and got.get("enabled"):
+            self._undo({"do": "email_disable"})
         said.append(f"Email Routing is {'on' if got.get('enabled') else 'still off'}"
                     + (f" (Cloudflare says {got.get('status')})" if got.get("status") else ""))
         after = self.email_plan()
@@ -1041,6 +1100,29 @@ class ZoneAPI:
                     "still missing " + _and([_rec(r) for r in after["missing"]])))
         said.append("no other record was touched")
         return said
+
+    def email_disable(self, keep_undo: bool = True) -> list[str]:
+        """Turn Email Routing off for the zone (19 November 2026: a job asked for it twice, as
+        Decisions 498 and 499, and the tool had no way to). Cloudflare takes off the MX and SPF
+        records it added for it; its rules, its catch-all and the destination addresses are kept,
+        so turning it on again with email_routing_enable puts everything back as it was. Nothing
+        else of the zone is touched."""
+        before = self._need(EMAIL_RULES, "GET", "/email/routing")["result"] or {}
+        if not before.get("enabled"):
+            return [f"Email Routing is already off for {self.zone}; nothing was changed"]
+        try:
+            self._need(EMAIL_RULES, "DELETE", "/email/routing/dns")
+        except CFError as e:
+            if e.status not in (404, 405):
+                raise
+            self._need(EMAIL_RULES, "POST", "/email/routing/disable", {})
+        got = self._need(EMAIL_RULES, "GET", "/email/routing")["result"] or {}
+        if keep_undo and not got.get("enabled"):
+            self._undo({"do": "email_enable", "replace_mx": False})
+        return [f"Email Routing is {'off' if not got.get('enabled') else 'still on'}"
+                + (f" (Cloudflare says {got.get('status')})" if got.get("status") else ""),
+                "its rules, catch-all and destination addresses are kept; email_routing_enable "
+                "turns it on again", "no other record was touched"]
 
     def email_destination(self, email: str) -> list[str]:
         """Add a destination address to the zone's account. Cloudflare emails it a link, and

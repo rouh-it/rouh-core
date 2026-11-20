@@ -18,7 +18,8 @@ through the gate in front of his decisions. Nothing on that path knew what he ha
    words of that turn and of his last few messages in that chat, exactly as he said them
    (`words_now`). A run a scheduled item started keeps the words stored with that item
    (`protected.stored_words`). What he says to a run later, through one_say or reply_to_task in a
-   turn of his, is kept too, and a run a job starts carries its starter's words (`CARRY`). Never
+   turn of his, is kept too, and so, since 20 November 2026, is what he types or says to a run of
+   the one program from his own devices, read from the program's own entries (`keep_typed`), and a run a job starts carries its starter's words (`CARRY`). Never
    words from an email, a page, a file or a tool's result: only what a turn of his heard.
 2. **A risky call is judged against them** before anything is queued (`judge`): one model
    call, on its own entry on the Models page (`USE`, "Whether Petar already asked for this",
@@ -353,6 +354,74 @@ def words_of_scope(scope) -> list[dict]:
     return []
 
 
+#: Who, in the one program's entries, is never a person: the program itself and the run.
+#: Rouh's own device is left out by its id (`OneClient.device_id`).
+NOT_A_PERSON = frozenset({"", "program", "run", "rouh"})
+#: The entries of a run that carry a person's own words, typed or spoken to it on their devices.
+TYPED_KINDS = frozenset({"message.sent", "message.queued", "run.requested"})
+#: How many of a run's entries are read for them.
+TYPED_ENTRIES = 600
+
+
+def typed_of(entries: list, rouh_device: str | None) -> list[str]:
+    """The owner's own words in a one-program run's entries: what was typed or spoken to it from one
+    of their paired devices (a browser, a terminal, the phone), never what Rouh's own device sent
+    (Rouh's words for it are kept when Rouh starts or steers it) and never the run's or the
+    program's. Standard library only."""
+    out, seen = [], set()
+    for e in entries or []:
+        if not isinstance(e, dict) or e.get("kind") not in TYPED_KINDS:
+            continue
+        by = str(e.get("by") or "").strip()
+        if by in NOT_A_PERSON or (rouh_device and by == rouh_device):
+            continue
+        body = e.get("body") or {}
+        said = _clean(body.get("text") if e["kind"] != "run.requested" else body.get("brief"))
+        if said and said not in seen:
+            seen.add(said)
+            out.append(said[:WORDS_MOST])
+    return out
+
+
+async def keep_typed(run_id: str, who=None) -> int:
+    """Keep what the owner typed or said to a one-program run from their own devices as their words
+    for it (`SAID`), read from the program's own entries (Petar, 19 November 2026: his "do all of the
+    ones you can", typed to the run, was never kept, so Decisions 498 and 499 reached him). How many
+    were new; 0 when the program cannot be asked. Never raises."""
+    import asyncio
+
+    try:
+        from .one_client import OneClient, OneRefused, OneUnavailable
+
+        client = OneClient()
+        if not client.configured():
+            return 0
+        try:
+            got = await client.ask("run", run=str(run_id), entries=TYPED_ENTRIES)
+        except (OneRefused, OneUnavailable):
+            return 0
+        typed = typed_of(got.get("entries") or [], client.device_id)
+        if not typed:
+            return 0
+        return await asyncio.to_thread(keep, str(run_id), [(t, SAID, "") for t in typed], who)
+    except Exception:  # noqa: BLE001 - judged on what was kept before
+        log.exception("what the owner typed to run %s could not be read", run_id)
+        return 0
+
+
+async def words_of_scope_now(scope) -> list[dict]:
+    """`words_of_scope`, after keeping what the owner typed to this run and the runs above it in the
+    one program (`keep_typed`). Only an owner's job reads them: never a contact's or a process's."""
+    import asyncio
+
+    from . import job_policy as policy
+
+    if scope.kind == policy.OWNER:
+        for run in (scope.chain or [scope.run])[:4]:
+            await keep_typed(run, scope.who)
+    return await asyncio.to_thread(words_of_scope, scope)
+
+
 async def judge(scope, name: str, args: dict, why: str, actions=None) -> Judgement:
     """Whether the owner's words for this job already ask for this call. Never raises: a judge
     that cannot be asked, a job with no words of his behind it, or a call whose effect cannot be
@@ -371,7 +440,7 @@ async def judge(scope, name: str, args: dict, why: str, actions=None) -> Judgeme
     if opaque:
         return Judgement(False, unasked=f"{opaque}, so what it would do cannot be worked out")
     try:
-        words = await asyncio.to_thread(words_of_scope, scope)
+        words = await words_of_scope_now(scope)
     except Exception:  # noqa: BLE001
         log.exception("the owner's words for job %s could not be read", scope.run)
         words = []
@@ -403,6 +472,6 @@ async def judge(scope, name: str, args: dict, why: str, actions=None) -> Judgeme
     return out
 
 
-__all__ = ["CARRY", "HELD_SAID", "Judgement", "OPEN_ENDED", "SCHEDULED", "SAID", "STARTED", "USE",
+__all__ = ["keep_typed", "typed_of", "words_of_scope_now", "CARRY", "HELD_SAID", "Judgement", "OPEN_ENDED", "SCHEDULED", "SAID", "STARTED", "USE",
            "carried", "held", "judge", "keep", "unknown", "words_for", "words_now",
            "words_of_scope"]

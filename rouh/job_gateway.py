@@ -269,10 +269,15 @@ NATIVE_TOOLS = [
      "description": (
          "What became of what this job asked Rouh for: each call that waits on the person's yes "
          "and each request_from_rouh, with its answer. Give the decision's number an earlier "
-         "answer gave (such as 351, for Decision 351) for one, or nothing for all of this job's."),
+         "answer gave (such as 351, for Decision 351) for one, or nothing for all of this job's. "
+         "With withdraw true, this job's own calls still waiting under that number (or all of "
+         "them, with no number; or only the one tool named in tool) are taken back at once, "
+         "nothing of them runs, and the person's decision no longer lists them."),
      "inputSchema": {"type": "object", "properties": {
          "id": {"type": "string", "description": "The decision's number an earlier answer gave, "
-                                                 "such as 351."}},
+                                                 "such as 351."},
+         "withdraw": {"type": "boolean", "description": "Take this job's waiting calls back."},
+         "tool": {"type": "string", "description": "With withdraw: only the calls of this tool."}},
          "additionalProperties": False}},
 ]
 
@@ -290,12 +295,17 @@ PENDING_NOTE = (
     "\n\nThrough Rouh, a call of this that sends, shares, publishes, pays, deletes or reaches "
     "other people needs the person's yes: it is queued as one decision, nothing runs, and the "
     "answer says pending. Carry on with the rest of your work. Say why in rouh_why.")
+#: The same, when the owner's mode is Unrestricted for this job (`rouh/unrestricted.py`).
+UNRESTRICTED_NOTE = (
+    "\n\nThe person's mode is Unrestricted: through Rouh this runs at once, with nobody asked, and "
+    "is written into What Rouh did with its undo. Only money above their caps, deleting their data "
+    "for good and giving access to outsiders still wait for their yes. Say why in rouh_why.")
 WHY_PROPERTY = {"type": "string", "description": (
     "Why the work needs this call, in one plain sentence: the person reads it when they are "
     "asked to say yes.")}
 
 
-def _mcp(defn: dict, scope: str = "") -> dict:
+def _mcp(defn: dict, scope: str = "", free: bool = False) -> dict:
     """One registry tool as a job is shown it: its schema, and what a pending call means. A
     beat's own job is told by the heartbeat's rules instead, which a refusal names."""
     name = defn.get("name", "")
@@ -308,7 +318,7 @@ def _mcp(defn: dict, scope: str = "") -> dict:
         props.pop("his_words", None)
     if name not in policy.READS and scope != policy.BEAT and isinstance(props, dict):
         props[policy.WHY_ARG] = WHY_PROPERTY
-        description += PENDING_NOTE
+        description += UNRESTRICTED_NOTE if free else PENDING_NOTE
     return {"name": name, "description": description, "inputSchema": schema}
 
 
@@ -359,6 +369,10 @@ async def tools_for(scope: Scope) -> list[dict]:
         found = await _in_gateway(scope.who, defs, scope.beat_id)
     except RuntimeError:
         found = []
+    from . import unrestricted
+
+    # Unrestricted: a risky tool is told it runs at once, not that it waits (`UNRESTRICTED_NOTE`).
+    free = not await unrestricted.for_job(scope)
     have = {t["name"] for t in native}
     out = list(native)
     for d in found:
@@ -370,7 +384,7 @@ async def tools_for(scope: Scope) -> list[dict]:
             continue
         if want is not None and name not in want:
             continue
-        out.append(_mcp(d, scope.kind))
+        out.append(_mcp(d, scope.kind, free))
         have.add(name)
     return out
 
@@ -561,6 +575,12 @@ async def _pend(scope: Scope, name: str, args: dict, why: str) -> dict:
                                 settled_at=time.time())
         log.info("%s ran %s by the rule: %s", _job_said(scope), name, rule)
         return {"ok": True, "text": f"{rule} So it ran.\n\n{text}"}
+    # The owner's mode (`rouh/unrestricted.py`, 20 November 2026): Unrestricted, an owner's own
+    # live run's risky call runs now, with no judge and no decision, unless it is one of the few
+    # things still asked in every mode (`unrestricted.STILL_ASKS`). Written into What Rouh did.
+    free = await _unrestricted(scope, name, args, why)
+    if free is not None:
+        return free
     # The owner's own words for this job, and the jobs above it, judged against the call
     # (`his_word.judge`). Covered, it runs now, as a call a standing rule covers does.
     judged = await his_word.judge(scope, name, args, why, await _actions_of(scope, name))
@@ -604,6 +624,37 @@ async def _pend(scope: Scope, name: str, args: dict, why: str) -> dict:
               f"answer, you are told here; otherwise {_check_back(number)}")
     await asyncio.to_thread(_settle, row_id, answer=text, settled_at=None)
     return {"ok": True, "pending": True, **({"id": number} if number else {}), "text": text}
+
+
+async def _unrestricted(scope: Scope, name: str, args: dict, why: str) -> dict | None:
+    """Run this risky call now when the owner's mode lets it (`unrestricted.for_job`), and write
+    it into What Rouh did with how to undo it; None when the mode does not cover it."""
+    from . import unrestricted, worklabel
+
+    if await unrestricted.for_job(scope):
+        return None
+    kept = await asyncio.to_thread(unrestricted.still_asks, name, args, scope.who)
+    if kept:
+        return None
+    steps = unrestricted.collecting()
+    ok = True
+    try:
+        text = await _run(scope, name, args)
+    except asyncio.TimeoutError:
+        ok, text = False, f"{name} did not finish within {CALL_SECONDS:.0f} seconds."
+    what = (worklabel.describe_step(name, args).get("what") or f"Run {name}").strip().rstrip(".")
+    ident = await asyncio.to_thread(
+        unrestricted.record, scope.who, via="job", where=scope.run, title=scope.title, tool=name,
+        args=args, what=what, why=why, result=text, ok=ok, undo=list(steps))
+    await asyncio.to_thread(_row, scope, kind="tool", tool=name, why=why[:1000],
+                            need=_args_said(args), outcome="unrestricted", answer=text[:4000],
+                            undo=("Undo on the Permissions page, What Rouh did" if steps else ""),
+                            settled_at=time.time())
+    log.info("%s ran %s under Unrestricted (What Rouh did #%s)", _job_said(scope), name, ident)
+    return {"ok": ok, "unrestricted": True,
+            "text": ("Ran at once: the owner's mode is Unrestricted, so nobody was asked. It is in "
+                     "What Rouh did on their Permissions page"
+                     + (", with Undo." if steps else ".") + f"\n\n{text}")}
 
 
 async def _actions_of(scope: Scope, name: str) -> frozenset | None:
@@ -890,6 +941,8 @@ def status(scope: Scope, args: dict) -> dict:
     from . import decision_numbers
     from .models import Decision, JobRequest
 
+    if args.get("withdraw") is True:
+        return withdraw(scope, args)
     rows = JobRequest.objects.filter(job_id__in=scope.chain or [scope.run])
     said = " ".join(str(args.get("id") or "").split())
     if said:
@@ -917,6 +970,101 @@ def status(scope: Scope, args: dict) -> dict:
         lines.append(f"{_called(number, who=scope.who) if number else 'Not a decision'} "
                      f"({r.kind}, {r.outcome}): {what[:200]}\n  {r.answer[:1200]}")
     return {"ok": True, "text": "\n".join(lines)}
+
+
+#: An approval taken back before anybody answered it: by the job that asked (`withdraw`), or
+#: because its job ended more than `STALE_HOURS` ago (`expire_stale`). Never a decision again.
+WITHDRAWN = "withdrawn"
+#: How long after its job ended a job's approval may still wait (191-02 package 1.7).
+STALE_HOURS = 24
+
+
+def withdraw(scope: Scope, args: dict) -> dict:
+    """This job's own waiting calls taken back, in code and at once: nothing runs, and the bundle
+    they were in no longer lists them (Petar, 19 November 2026: the Slack note he had cancelled
+    could not be withdrawn, "servers overloaded", and rode inside Decisions 498 and 499). Only
+    this job's own calls; another job's, even the same call, stay."""
+    from . import decision_numbers
+    from .models import Decision, HeartbeatApproval
+
+    rows = HeartbeatApproval.objects.filter(
+        user_id=str(scope.who.user_id), org_id=str(scope.who.org_id or ""), state="waiting",
+        duty=DUTY + scope.run)
+    said = " ".join(str(args.get("id") or "").split())
+    if said:
+        number = decision_numbers.read(said)
+        found = (Decision.objects.filter(user_id=str(scope.who.user_id),
+                                         org_id=str(scope.who.org_id or ""), source="approval",
+                                         number=number).values_list("prepared", "source_id").first()
+                 if number is not None else None)
+        if found is None:
+            return {"ok": False, "text": f"There is no decision {said} of this job's to take back."}
+        prepared, head = found
+        ids = {int(p["approval"]) for p in prepared or []
+               if isinstance(p, dict) and str(p.get("approval") or "").isdigit()}
+        if str(head).isdigit():
+            ids.add(int(head))
+        rows = rows.filter(id__in=ids)
+    tool = str(args.get("tool") or "").strip()
+    if tool:
+        rows = rows.filter(tool=tool)
+    ids = list(rows.values_list("id", flat=True))
+    if not ids:
+        return {"ok": True, "text": "Nothing of this job's was waiting there, so nothing was taken back."}
+    now = time.time()
+    text = "Taken back by the job that asked, before anybody answered: nothing ran."
+    HeartbeatApproval.objects.filter(id__in=ids).update(state=WITHDRAWN, answered_on="job",
+                                                        answered_at=now, result=text)
+    from .models import JobRequest
+
+    JobRequest.objects.filter(approval_id__in=ids, outcome="pending",
+                              job_id=scope.run).update(outcome=WITHDRAWN, answer=text, settled_at=now)
+    log.info("%s took back %d waiting call(s): %s", _job_said(scope), len(ids), ids)
+    return {"ok": True, "text": f"Taken back: {len(ids)} call{'s' if len(ids) != 1 else ''} of this "
+                                "job's, which the person is no longer asked about. Nothing of them ran."}
+
+
+def _ended_at(job: str) -> float | None:
+    """When this job ended, by the run register or the crew's own, or None while it goes on."""
+    from .models import Crewmate, Run
+
+    row = Run.objects.filter(id=job).values_list("state", "ended_at", "updated_at").first()
+    if row is not None:
+        state, ended, updated = row
+        return None if state in ("running", "waiting") else float(ended or updated or 0) or None
+    mate = Crewmate.objects.filter(id=job).values_list("status", flat=True).first()
+    if mate is not None and mate not in ("running", "waiting", "starting", "queued"):
+        return 0.0  # ended, when not known: long enough ago
+    return None
+
+
+def expire_stale(who, now: float | None = None) -> list[int]:
+    """Every job approval still waiting whose job ended more than `STALE_HOURS` ago, withdrawn by
+    this rule (191-02 package 1.7): a finished job's question is nobody's to answer. The ids."""
+    from .models import HeartbeatApproval, JobRequest
+
+    moment = time.time() if now is None else now
+    out = []
+    rows = HeartbeatApproval.objects.filter(user_id=str(who.user_id), org_id=str(who.org_id or ""),
+                                            state="waiting", duty__startswith=DUTY)
+    ended: dict[str, float | None] = {}
+    for ident, duty in rows.values_list("id", "duty"):
+        job = str(duty)[len(DUTY):]
+        if job not in ended:
+            ended[job] = _ended_at(job)
+        at = ended[job]
+        if at is not None and moment - at > STALE_HOURS * 3600:
+            out.append(int(ident))
+    if out:
+        text = (f"Withdrawn by Rouh: its job ended more than {STALE_HOURS} hours ago, so nothing "
+                "waits on the answer. Nothing ran.")
+        HeartbeatApproval.objects.filter(id__in=out, state="waiting").update(
+            state=WITHDRAWN, answered_on="expired", answered_at=moment, result=text)
+        JobRequest.objects.filter(approval_id__in=out, outcome="pending").update(
+            outcome=WITHDRAWN, answer=text, settled_at=moment)
+        log.info("withdrew %d approval(s) of jobs that ended over %d h ago: %s", len(out),
+                 STALE_HOURS, out)
+    return out
 
 
 # --- when the owner answers ------------------------------------------------------------------

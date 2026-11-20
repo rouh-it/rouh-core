@@ -154,6 +154,7 @@ with {% asset %}, which gives it its hashed address.
 <link rel="stylesheet" href="{% asset "servicespage.css" %}">
 <link rel="stylesheet" href="{% asset "keepspage.css" %}">
 <link rel="stylesheet" href="{% asset "gatespage.css" %}">
+<link rel="stylesheet" href="{% asset "permissionspage.css" %}">
 <link rel="stylesheet" href="{% asset "birthpage.css" %}">
 <link rel="stylesheet" href="{% asset "landaccountpage.css" %}">
 <link rel="stylesheet" href="{% asset "statspage.css" %}">
@@ -926,6 +927,12 @@ with {% asset %}, which gives it its hashed address.
              row and on a phone just inside the corner the canvas glyph is
              fixed in. {% endcomment %}
         <div class="crumb-acts">
+          {% comment %} The owner's mode: Restricted quietly, Unrestricted in the warning colour with when it ends; pressing it
+               opens Permissions (permissionspage.js, `rouh/unrestricted.py`). {% endcomment %}
+          <a id="modeChip" class="mode-chip" href="/anatomy/behaviour/permissions" hidden>
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M6 11h12v9H6z"/><path id="modeChipShackle" d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/></svg>
+            <span id="modeChipWords" class="mode-chip-words">Restricted</span>
+          </a>
           {% comment %} No New chat here. Petar, 4 November 2026 (fr_ad19bb8be13e):
                "new chat icon should be deleted with its functionality. that
                should be present only in the tasks." A new chat is started
@@ -3646,6 +3653,15 @@ with {% asset %}, which gives it its hashed address.
             <div id="yrToast" class="yr-toast" role="status" aria-live="polite" hidden></div>
           </div>
 
+          <div class="settings-section" data-section="permissions" hidden>
+            {% comment %} Behaviour, Permissions (20 November 2026, task 191): the one switch, Restricted or
+                 Unrestricted, for what the owner's own chats and runs do without asking, for some hours,
+                 until switched back or permanently; what still asks in every mode; What Rouh did with
+                 Undo; what rouh-open has open; every flip. permissionspage.js draws it from
+                 /api/permissions (`rouh/unrestricted.py`). {% endcomment %}
+            <div id="permissionsBody" class="hb-body" aria-busy="false"></div>
+          </div>
+
           <div class="settings-section" data-section="gates" hidden>
             {% comment %} Behaviour, Permission gates (15 November 2026): whether any tool must get the
                  person's yes before it runs, what a gate is, and every tool by its area with an
@@ -5451,6 +5467,7 @@ with {% asset %}, which gives it its hashed address.
 <script defer src="{% asset "servicespage.js" %}"></script>
 <script defer src="{% asset "keepspage.js" %}"></script>
 <script defer src="{% asset "gatespage.js" %}"></script>
+<script defer src="{% asset "permissionspage.js" %}"></script>
 <script defer src="{% asset "birthpage.js" %}"></script>
 <script defer src="{% asset "landaccountpage.js" %}"></script>
 <script defer src="{% asset "signinpage.js" %}"></script>

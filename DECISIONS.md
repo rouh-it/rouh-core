@@ -306,7 +306,20 @@ Kept, each for a reason that is not the question going stale:
 - **A meeting guest's LinkedIn pick** (`MeetingSource`): asked for the meeting's preparation and withdrawn when the meeting begins, an event rather than a clock. The guest stays unresolved on their contact card, where the question can still be answered.
 - **Codes and grants**: a trusted contact's Telegram link code (48 hours), a device pairing code (10 minutes) and a sign-up grant (24 hours) are one-time secrets or permissions he gave for a while, not questions waiting on him.
 
+- **A finished job's approvals** (`job_gateway.expire_stale`, `STALE_HOURS`): withdrawn 24 hours after the job that asked **ended**, an event rather than a clock, on Petar's own words of 20 November 2026 (task 191, 191-02 package 1.7: "Job approvals expire 24 hours after their job ends, and the stale ones already waiting are withdrawn by this rule"). Nothing waits on the answer once the job is over; the approval is marked `withdrawn`, never run, and its decision closes as withdrawn. A job can also take its own waiting calls back, in code and at once (`request_status` with `withdraw`), and a call taken back leaves its bundle: what is left is asked again on its own.
+
 Display only, nothing closed: "Probably stale" in the list (`stale_reasons`), a snooze that runs out (it brings the question back), and a goal step's "3 days ago".
+
+## Unrestricted: what is never asked at all
+
+Petar, 20 November 2026 (task 191): "in unrestricted mode we should remove the barriers that cost something and keep the protections that don't cost my time and usability... I want to see toggle for unrestricted mode."
+One switch on Anatomy, Behaviour, Permissions (`rouh/unrestricted.py`), Restricted or Unrestricted, for some hours, until switched back, or permanently, and only the owner's own press in the page writes it (every flip is logged).
+In Unrestricted a risky call of the owner's own live run runs at once through the job gateway (`job_gateway._unrestricted`): no judge, no approval, no decision; and in the owner's own chat their own gates are not asked (the server's `ROUH_CONFIRM_TOOLS` still is).
+Each such call is a row of What Rouh did, on the same page, with Undo where the service keeps what was there (Cloudflare does).
+Still asked in every mode (`unrestricted.STILL_ASKS`): money not checked in code against the owner's caps, deleting their data for good, and giving credentials or access to somebody outside.
+A run a trusted contact's mail or one of Rouh's processes started never gets it, nor an ended run, nor one with no words of the owner's behind it.
+
+A bundle of one job's calls is now named by its own calls only, and each call in it is an item of its own, answered yes or no one by one or all at once (`ApprovalSource._job_calls`, `apply`).
 
 ## What is not in it yet
 

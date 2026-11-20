@@ -40,6 +40,8 @@ so a tool added tomorrow fails closed:
   gateway, which runs it when the owner's own words for this job already ask for it
   (`rouh/his_word.py`) or one of their standing rules covers it (`job_gateway.covered_by_rule`),
   and otherwise makes it one decision for the owner, one per job however many calls wait.
+  When the owner's mode is Unrestricted (`rouh/unrestricted.py`, 20 November 2026), an owner's own
+  live run's risky call runs at once instead, except what every mode still asks.
 
 **This ruling is not the last word on a risky call.** Petar, 2 November 2026, after two calls
 of the rouh.land move he had asked for came back to him as Decisions 385 and 386: "no this is
@@ -113,6 +115,13 @@ READS = frozenset({
     "mail_alerts",
     # The public web, read with Rouh's own accounts.
     "youtube_search", "youtube_transcript", "linkedin_search", "linkedin_profile",
+    # Reads that were in no table until 20 November 2026 (task 191, 191-02 package 1.7), so each
+    # was unknown, and unknown always waited for the owner: 10 of the 50 decisions waiting on 19
+    # November were one of these. Each reads and changes nothing.
+    "find_slides", "incubator_list", "incubator_read", "page_asks", "comments_by",
+    "between_us", "promised_to_you", "to_answer", "reply_times", "when_free", "meeting_hours",
+    "public_holidays", "read_calendar_link", "no_company", "same_contact", "open_files",
+    "mcp_servers", "recall_result",
 })
 
 #: Tools that read with some actions and change something with the rest: the actions that
@@ -124,7 +133,8 @@ READ_ACTIONS = {
     "link_person": frozenset({"show"}),
     # check writes back only the value it just read (`cloudflare._settings_edit`);
     # origin_certificates lists the zone's public certificates. dns_delete is not here: it is risky.
-    "cloudflare": frozenset({"status", "check", "records", "settings", "origin_certificates"}),
+    "cloudflare": frozenset({"status", "check", "records", "settings", "origin_certificates",
+                             "email_routing_status"}),
     "hue": frozenset({"list"}),
     "vacuum": frozenset({"status"}),
     # What the heartbeat reads of Stripe (`heartbeat.STRIPE_READS`); "status" when not said.
@@ -132,6 +142,14 @@ READ_ACTIONS = {
     # The comments pinned to one of the owner's pages (`rouh/page_comments.py`); "list" when
     # not said.
     "page_comments": frozenset({"list"}),
+    # The trials' lists and reads; run, record, decide and the testers' changes write.
+    "trials": frozenset({"jobs", "job", "list", "read", "problems", "problem", "personas",
+                         "persona"}),
+    # The card vault's state, never a card: "status" is its one action (20 November 2026).
+    "payments": frozenset({"status"}),
+    # This Rouh's version and what is new; update and mode change it.
+    "update_rouh": frozenset({"check"}),
+    "contact_relationships": frozenset({"list"}),
 }
 #: Tools that only read unless one of these arguments is said, which spends or writes:
 #: meeting_people's research_now looks the guests up, at a cost, and keeps what it found on
@@ -139,9 +157,17 @@ READ_ACTIONS = {
 READ_UNLESS = {"meeting_people": ("research_now",),
                # Each connection's state, and a test that asks the service once and changes
                # nothing; reconnect clears a connection's needs_new_password when the test passes.
-               "connection_status": ("reconnect",)}
+               "connection_status": ("reconnect",),
+               # What changed on a contact; put back only with confirmed.
+               "contact_changes": ("confirmed",),
+               # The lists never opened; stop unsubscribes.
+               "unread_lists": ("stop",),
+               # A command on this server: a read only when it is one of the read-only commands
+               # below (`shell_reads`), never when it is chained. Classified by `classify`.
+               }
 #: The action a tool takes when none is given, where it has one.
-DEFAULT_ACTION = {"stripe": "status", "page_comments": "list"}
+DEFAULT_ACTION = {"stripe": "status", "page_comments": "list", "payments": "status",
+                  "update_rouh": "check"}
 
 #: Tools that write only inside the job's own work, whatever their arguments.
 OWNS = frozenset({
@@ -150,6 +176,8 @@ OWNS = frozenset({
     # A printable PDF of one of the person's own pages, for them: nothing is shared. Listed
     # under sharing and publishing until 2 November 2026.
     "print_page",
+    # A contact's card file (.vcf) made for an attachment: it sends nothing.
+    "contact_card",
 })
 
 #: Tools that read with some actions (`READ_ACTIONS`) and, with these, write only on the owner's
@@ -196,6 +224,10 @@ RISKS = frozenset({
     "assistant_job", "one_start", "one_say", "one_stop", "stop_task", "reply_to_task",
     "move_task", "rename_task", "move_step", "tidy_tasks", "schedule", "change_scheduled", "set_goal", "plan_goal",
     "goal_step", "goal_control",
+    # The Incubator's ideas changed, and the page open on the canvas edited (20 November 2026:
+    # classified, so that no listed tool is in none of these tables).
+    "incubator_add", "incubator_edit", "incubator_link", "incubator_merge", "incubator_score",
+    "incubator_status", "edit_page",
 })
 
 #: Never a job's, whatever its scope: listed nowhere and refused if named.
@@ -227,6 +259,10 @@ NEVERS = frozenset({
     # The Synapse lab's own, in the Synapse chat.
     "synapse_settings", "synapse_eval", "synapse_trace", "synapse_learn", "synapse_dream",
     "synapse_improvements", "synapse_why",
+    # The owner's mode switch, Restricted or Unrestricted (`rouh/unrestricted.py`): only a press
+    # of theirs in the web page writes it, and no tool of any kind exists for it. Named here so
+    # a tool by that name, if one were ever added, is refused to every job.
+    "permission_mode", "set_permission_mode", "unrestricted", "unrestricted_mode",
 })
 
 #: Of the mail the registry reads, these take an inbox: a job of Rouh's own processes is held
@@ -247,6 +283,47 @@ CONTACT_MAY = frozenset({MAIL_FIND, MAIL_FILE, REQUEST, REQUEST_STATUS,
 
 #: Arguments only the gateway reads, taken off before a tool is run or queued.
 WHY_ARG = "rouh_why"
+
+
+#: Commands on this server that only read, for `run_command` (20 November 2026, task 191,
+#: 191-02 package 1.7: 20 of the 50 decisions waiting on 19 November were a job's read-only
+#: shell command). A command is a read only when every stage of its pipeline starts with one of
+#: these, none of them has an option that writes or runs something (`SHELL_REFUSED`), and it has
+#: none of the characters that chain, redirect or substitute (`SHELL_CHAINS`). Anything else -
+#: `ls; rm x`, `cat a > b`, `find -exec` - stays risky. run_command's own handler refuses a write
+#: as well (`tools.READ_ONLY_COMMANDS`); this list is narrower, fixed, and standard library only.
+SHELL_READS = frozenset({
+    "ls", "cat", "head", "tail", "wc", "df", "du", "free", "uptime", "ps", "grep", "egrep",
+    "fgrep", "rg", "stat", "readlink", "realpath", "basename", "dirname", "nproc", "hostname",
+    "whoami", "id", "which", "jq", "diff", "sha256sum", "md5sum", "cut", "tr", "column", "sort",
+    "uniq", "pwd",
+})
+#: Options that make one of `SHELL_READS` write a file or start a program.
+SHELL_REFUSED = {"sort": ("-o", "--output"), "rg": ("--pre", "--pre-glob")}
+#: Characters that chain, redirect, substitute or run in the background: never a read.
+SHELL_CHAINS = (";", "&", "`", "$", ">", "<", "\n", "\r", "||", "(", ")", "{", "}")
+
+
+def shell_read(command) -> bool:
+    """Whether this command for run_command only reads, by the fixed list above."""
+    import shlex
+
+    text = str(command or "").strip()
+    if not text or any(c in text for c in SHELL_CHAINS):
+        return False
+    for stage in text.split("|"):
+        try:
+            parts = shlex.split(stage)
+        except ValueError:
+            return False
+        if not parts or parts[0] not in SHELL_READS:
+            return False
+        refused = SHELL_REFUSED.get(parts[0], ())
+        if any(p.startswith(r) for p in parts[1:] for r in refused):
+            return False
+        if parts[0] == "uniq" and sum(1 for p in parts[1:] if not p.startswith("-")) > 1:
+            return False  # uniq IN OUT writes OUT
+    return True
 
 
 @dataclass(frozen=True)
@@ -295,6 +372,8 @@ def classify(name: str, args=None) -> str:
         return OWN if _action(name, args) in OWN_ACTIONS.get(name, ()) else RISKY
     if name in READ_UNLESS:
         return RISKY if any(_said(args.get(k)) for k in READ_UNLESS[name]) else READ
+    if name == "run_command":
+        return READ if shell_read(args.get("command")) else RISKY
     if name in OWNS:
         return OWN
     if name in OWN_UNLESS:
@@ -360,6 +439,6 @@ def decide(scope: str, name: str, args=None) -> Ruling:
     return Ruling(PENDING, klass)
 
 
-__all__ = ["BEAT", "HEARTBEAT_OWN", "CONTACT", "CONTACT_MAY", "CORE_COMMAND", "CORE_MAINTENANCE", "CORE_READS", "NATIVE", "NEVER", "NEVERS", "OWN", "OWNER", "OWNS",
+__all__ = ["SHELL_READS", "shell_read", "BEAT", "HEARTBEAT_OWN", "CONTACT", "CONTACT_MAY", "CORE_COMMAND", "CORE_MAINTENANCE", "CORE_READS", "NATIVE", "NEVER", "NEVERS", "OWN", "OWNER", "OWNS",
            "PENDING", "PROCESS", "READ", "READS", "READ_UNLESS", "REFUSE", "RISKS", "RISKY", "RUN",
            "Ruling", "SCOPES", "WHY_ARG", "classify", "decide", "known", "listed"]

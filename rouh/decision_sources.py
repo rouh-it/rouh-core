@@ -975,6 +975,12 @@ def _steps_words(steps) -> str:
     return "steps " + ", ".join(ns[:-1]) + " and " + ns[-1]
 
 
+def job_gateway_withdrawn() -> str:
+    from . import job_gateway
+
+    return job_gateway.WITHDRAWN
+
+
 class ApprovalSource(Source):
     kind = "approval"
     label = "Approval"
@@ -1054,6 +1060,11 @@ class ApprovalSource(Source):
     def collect(self, who) -> list[Ask] | None:
         from . import heartbeat, job_gateway, quests
 
+        # A finished job's questions are nobody's to answer: withdrawn a day after it ended.
+        try:
+            job_gateway.expire_stale(who)
+        except Exception:  # noqa: BLE001 - asked as before
+            log.exception("stale job approvals could not be withdrawn")
         rows = heartbeat.waiting(who)
         works = {w.id: w for w in quests.all_of(who)} if rows else {}
         # Off, no beat carries on from an answer by itself: said on each of its own questions.
@@ -1178,11 +1189,13 @@ class ApprovalSource(Source):
         order = ["money", "irreversible", "publishing", "sending"]
         risk = next((r for r in order if r in risks), "reversible")
         whats = [" ".join(str(a.what or "").split()).rstrip(".") or f"Run {a.tool}" for a in calls]
+        own = [w.split(", for job ")[0] for w in whats]
         if len(calls) == 1:
             title = whats[0]
         else:
-            title = (f"{len(calls)} calls for {work or f'job {job}'}: " + "; ".join(
-                w.split(", for job ")[0] for w in whats))
+            # Labelled by its own calls and nothing else (191-02 package 1.7): the work's title
+            # and another call's recipients never name it.
+            title = f"{len(calls)} calls: " + "; ".join(own)
         # The reason is the issue they serve, then each call's own, said as the job's.
         reason = " ".join(str(head.why or "").split()) if len(calls) == 1 else (
             (f"All for one piece of work, {work}. " if work else "All for one piece of work. ")
@@ -1204,8 +1217,15 @@ class ApprovalSource(Source):
             then="The jobs that asked are told your answer either way; a no runs nothing.",
             link="", context=f"Job {root}", project="Metabolism", batch=f"job:{root}",
             options=[{"id": "yes", "label": "Yes, do it" if len(calls) == 1 else "Yes, do all",
-                      "detail": f"Runs {each}, and nothing else.", "go": True},
-                     {"id": "no", "label": "No", "detail": "Nothing runs."}],
+                      "each": "Yes", "detail": f"Runs {each}, and nothing else.", "go": True},
+                     {"id": "no", "label": "No" if len(calls) == 1 else "No to all", "each": "No",
+                      "detail": "Nothing runs."}],
+            # Each call its own yes or no (191-02 package 1.7), answered one by one or all at once.
+            items=[{"id": str(a.id), "label": own[i][:300],
+                    "detail": f"{a.tool}: {_args_text(a.args)}"[:1200],
+                    "why": " ".join(str(a.why or "").split())[:1200],
+                    **({"text": f"To: {a.to_whom}"} if a.to_whom else {})}
+                   for i, a in enumerate(calls)] if len(calls) > 1 else [],
             recommended="", recommended_why="", allow_other=True, answer_type="approval",
             urgency="now" if any(a.blocking for a in calls) else "today",
             risk=risk,
@@ -1239,6 +1259,10 @@ class ApprovalSource(Source):
                                "Mail from Rouh's own inbox to the person who decides for this "
                                "work, about it, needs nobody's yes, so it went as queued.",
                                a.result or "") if x))[:600])
+        if a.state == job_gateway_withdrawn():
+            # Taken back by the job that asked, or its job ended a day ago: it leaves its bundle,
+            # and what is left of the bundle is asked again on its own.
+            return Settled(decisions.WITHDRAWN, result=(a.result or "Taken back.")[:600])
         if a.state in ("yes", "no", "failed"):
             said = {"yes": "Yes", "no": "No", "failed": "Yes"}[a.state]
             return Settled(decisions.APPLIED, said=said, channel=a.answered_on or "heartbeat",
@@ -1259,6 +1283,19 @@ class ApprovalSource(Source):
             yes = True
         listed = [int(p["approval"]) for p in row.prepared or []
                   if isinstance(p, dict) and str(p.get("approval") or "").isdigit()]
+        each = {str(k): str(v) for k, v in (got.get("items") or {}).items() if v}
+        if jobs and each:
+            # Each call its own answer: a yes runs that one, a no runs nothing of it, and one left
+            # unanswered waits on.
+            parts = []
+            for ident in listed:
+                verdict = each.get(str(ident))
+                if verdict not in ("yes", "no"):
+                    continue
+                parts.append(await live.answer(who, ident, verdict == "yes", on=channel,
+                                               words=str(got.get("text") or "")))
+            ok = not any("could not run" in p for p in parts)
+            return Applied(ok, " ".join(parts)[:3000] or "Nothing was answered.")
         if jobs and len(listed) > 1:
             # One decision for a job's calls: the answer is each one's, run one by one.
             parts = [await live.answer(who, ident, yes, on=channel,
