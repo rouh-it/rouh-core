@@ -62,6 +62,14 @@ It first brings the updater to rouh.land's newest tested, signed commit (forward
 Its log is `~/rouh/logs/update.log`; `rouh status` shows the last line.
 `rouh update --off` turns it off; `rouh update` updates now.
 
+## The switch on Permissions, ready by itself
+
+The switch on Anatomy, Behaviour, Permissions (Restricted or Unrestricted) hands your own runs, while it is Unrestricted, the internet on any port, GitHub as you, and this server's own ssh; nobody else's run gets any of it (`deploy/grants/README.md`, "Set up with Rouh, with no command on a Mac").
+Nothing has to be run on another computer for it:
+
+- **This server's own login** is put in by `rouh` at install and at every update: one line of the worker's standing key for your account, in `/etc/ssh/rouh-standing/<you>`, taken only from the stack's own network, and `ssh rouh-host` in the worker. The nightly update needs sudo without a password for it; otherwise it waits for the next `rouh update` you type, and says so. `ROUH_STANDING_HOST=0` in `~/rouh/.env` leaves it out.
+- **GitHub as you** needs a token from you, once: paste it in Anatomy, Connections, Keys, under **GitHub for your runs**.
+
 ## Reaching it from a phone
 
 - **A Connected Rouh** has its own address, `https://<its name>.rouh.page`, from its birth: it dials out to the relay and needs no open port, no domain and no router setting. `rouh open` gives a sign-in link and QR code for it.

@@ -9,11 +9,19 @@
 #                               the host's own list)
 #   rouh-open add NAME...       those servers' logins added to what is already open, ending with
 #                               it (rouh-open add NAME)
-#   rouh-open close             all of it closed now (only you close; a job never does)
-#   rouh-open update            the newest of these commands, here and on the host
+#   rouh-open close             what rouh-open opened, closed now (only you close; a job never does).
+#                               The switch's standing access is never touched by close
 #   rouh-open standing [off]    what the switch on the Permissions page hands your Unrestricted runs
 #                               (standing GitHub and server logins), or all of it off at once
+#   rouh-open update            the newest of these commands now (it also does this by itself,
+#                               once a day, so you never need to)
 #   rouh-open --version         which rouh-open this is
+#
+# You do not need rouh-open for the switch: the Permissions page's Unrestricted does all five for
+# your own runs, from standing access set up with Rouh. rouh-open is for opening them to every
+# run for some hours. Its timed lines and the switch's standing ones are kept apart on each server
+# (the standing ones in /etc/ssh/rouh-standing, which no close, lock or prune writes), so closing
+# one never takes the other away, whichever version of rouh-open did it.
 #
 # It prints one short block: a line for each thing, saying what is open, or "NOT open:" and why.
 # Rouh reads the grants itself (server_health), so there is nothing to tell it. Each grant ends by
@@ -36,7 +44,7 @@
 # ROUH_HOST_SSH, ROUH_HOST_SSH_PORT and ROUH_HOST_IDENTITY_FILE, in ~/.config/rouh/grants.env,
 # as for rouh-github-grant.
 set -o pipefail   # not -e: one part failing must not stop the others; not -u: macOS's bash 3.2 calls an empty array unset
-ROUH_OPEN_VERSION=2026-11-20.1
+ROUH_OPEN_VERSION=2026-11-20.2
 
 DEFAULTS='
 '
@@ -361,6 +369,9 @@ status_all() {
   return 0
 }
 
+# Only what rouh-open itself opened: the timed GitHub grant, the timed proxy grants and each
+# server's timed key line. The switch's standing access (the host's standing records, and each
+# server's standing line in /etc/ssh/rouh-standing) is never touched here: rouh-open standing off.
 close_all() {
   local out rc i names=""
   rc=0; out=$(ROUH_GRANT_QUIET=1 "$gh_grant" revoke 2>&1) || rc=$?
@@ -393,8 +404,49 @@ close_all() {
   ! failed
 }
 
+# ---- keeping itself up to date -----------------------------------------------------------------
+# Once a day, before it does anything, rouh-open asks GitHub (no sign-in: rouh-core is public)
+# for main's own rouh-open, and when that one is newer it puts the newest commands in place with
+# install-from-mac.sh, the host's part with sudo -n only (it never stops to ask a password), and
+# then runs the new one with the same words. Nothing reached, nothing changed: it goes on as it is.
+# ROUH_OPEN_SELF_UPDATE=0 turns it off.
+self_update() {
+  [ "${ROUH_OPEN_SELF_UPDATE:-1}" != 0 ] && [ -z "${ROUH_OPEN_UPDATED:-}" ] || return 0
+  command -v curl >/dev/null && command -v tar >/dev/null || return 0
+  local state=${ROUH_GRANTS_STATE:-$HOME/.local/share/rouh-grants} stamp now newest repo dest tmp
+  stamp=$state/last-update-check; now=$(date +%s)
+  mkdir -p "$state" 2>/dev/null || return 0
+  if [ -f "$stamp" ] && [ $(( now - $(cat "$stamp" 2>/dev/null || echo 0) )) -lt 86400 ]; then return 0; fi
+  echo "$now" > "$stamp"
+  repo=${ROUH_GRANTS_REPO:-rouh-land/rouh-core}
+  newest=$(curl -fsS -m 10 "https://raw.githubusercontent.com/$repo/main/deploy/grants/mac/rouh-open" 2>/dev/null \
+           | sed -n 's/^ROUH_OPEN_VERSION=//p' | head -1)
+  [[ "$newest" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\.[0-9]+$ ]] || return 0
+  [ "$newest" != "$ROUH_OPEN_VERSION" ] || return 0
+  [ "$(printf '%s\n%s\n' "$ROUH_OPEN_VERSION" "$newest" | sort -t. -k1,1 -k2,2n | tail -1)" = "$newest" ] || return 0
+  dest=${ROUH_GRANTS_DIR:-$HOME/.rouh-grants}
+  tmp=$(mktemp -d "$dest.new.XXXXXX") || return 0
+  if ! curl -fsSL -m 120 "https://codeload.github.com/$repo/tar.gz/refs/heads/main" | tar -xz -C "$tmp" --strip-components=1 2>/dev/null \
+     || [ ! -f "$tmp/deploy/grants/install-from-mac.sh" ]; then
+    rm -rf "$tmp"; return 0
+  fi
+  rm -rf "$dest.old"; [ -d "$dest" ] && mv "$dest" "$dest.old"
+  mv "$tmp" "$dest" && rm -rf "$dest.old"
+  echo "rouh-open $ROUH_OPEN_VERSION -> $newest: putting the newest commands in place ..."
+  if ROUH_GRANTS_UNATTENDED=1 bash "$dest/deploy/grants/install-from-mac.sh" >"$state/last-update.log" 2>&1; then
+    echo "  done (the log: $state/last-update.log)."
+  else
+    echo "  not all of it: $(grep -v '^[[:space:]]*$' "$state/last-update.log" | tail -1) (the log: $state/last-update.log)"
+  fi
+  local next; next=$(command -v rouh-open 2>/dev/null || true)
+  if [ -n "$next" ] && [ "$("$next" --version 2>/dev/null)" = "rouh-open $newest" ]; then
+    ROUH_OPEN_UPDATED=1 exec "$next" "$@"
+  fi
+}
+case "${1:-}" in -h|--help|help|-V|--version|version|update) ;; *) self_update "$@" ;; esac
+
 case "${1:-8}" in
-  -h|--help|help) sed -n '5,16p' "$0" | sed 's/^# //'; exit 2 ;;
+  -h|--help|help) sed -n '5,24p' "$0" | sed 's/^# \{0,1\}//; s/^#$//'; exit 2 ;;
   -V|--version|version) echo "rouh-open $ROUH_OPEN_VERSION"; exit 0 ;;
   close|revoke) [ $# -le 1 ] || { echo "rouh-open close takes nothing more."; exit 2; }; close_all ;;
   status|list)

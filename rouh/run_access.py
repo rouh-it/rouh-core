@@ -60,15 +60,15 @@ ITEMS = ("internet", "github", "rouh-land", "relay", "host")
 NAMES = {"internet": "Internet", "github": "GitHub", "rouh-land": "rouh.land", "relay": "The relay",
          "host": "The host"}
 SAID = {
-    "internet": ("Ports 80 and 443 to public servers only; anything else waits for rouh-open.",
+    "internet": ("Ports 80 and 443 to public servers only, unless a timed grant is open.",
                  "Any public server, on any port. The office network stays closed."),
-    "github": ("Public repositories only, unless rouh-open's GitHub grant is open.",
+    "github": ("Public repositories only, unless a timed GitHub grant is open.",
                "GitHub as you, from your standing token, added on the way out; no run sees it."),
-    "rouh-land": ("Its login refuses the jobs' key unless rouh-open opened it.",
+    "rouh-land": ("Its login refuses the jobs' key, unless a timed login for it is open.",
                   "rouh.land's ssh, as the jobs' standing key, from the office's addresses only."),
-    "relay": ("Its login refuses the jobs' key unless rouh-open opened it.",
+    "relay": ("Its login refuses the jobs' key, unless a timed login for it is open.",
               "The relay's ssh, as the jobs' standing key, from the office's addresses only."),
-    "host": ("Its login refuses the jobs' key unless rouh-open opened it.",
+    "host": ("Its login refuses the jobs' key, unless a timed login for it is open.",
              "The host's ssh as your admin account, with its sudo: root on the machine Rouh runs on."),
 }
 
@@ -130,13 +130,23 @@ def items(who) -> list[dict]:
     proxy = proxy_state()
     out = []
     for key in ITEMS:
-        ready, why = True, ""
-        if not proxy.get("per_run"):
-            ready, why = False, "the key proxy on this machine does not hand access to one run yet"
+        # Where each is set up, so a new Rouh says how to make it ready, never "run rouh-open":
+        # GitHub on the Keys page, the host by Rouh's own setup on a Linux server, and rouh.land
+        # and the relay only on the Rouh that has them among its servers (applies False elsewhere).
+        ready, why, fix, applies = True, "", None, True
+        if key in ("rouh-land", "relay") and key not in have["servers"]:
+            ready, applies, why = False, False, "Not one of this Rouh's servers."
+        elif not proxy.get("per_run"):
+            ready, why = False, ("The key proxy here does not hand access to one run yet. It comes with the "
+                                 "next update of Rouh's protected core, by itself.")
         elif key == "github" and not have["github"]:
-            ready, why = False, "no standing GitHub token on this machine yet"
+            ready, why = False, "Give a GitHub token once, on Keys, under GitHub for your runs."
+            fix = {"label": "Add it on Keys", "href": "/anatomy/connections/keys#github_runs"}
+        elif key == "host" and key not in have["servers"]:
+            ready, why = False, ("This machine's own login is put in by Rouh's setup on a Linux server "
+                                 "(rouh update does it). A Mac does not use it.")
         elif key in ("rouh-land", "relay", "host") and key not in have["servers"]:
-            ready, why = False, f"{NAMES[key]}'s standing login is not installed yet"
+            ready, why = False, f"{NAMES[key]}'s standing login is not installed yet."
         until = None
         if key == "internet":
             until = timed.get("internet")
@@ -149,7 +159,7 @@ def items(who) -> list[dict]:
         if key == "github" and have["github"] and have["github"] != "yes":
             free = f"GitHub as {have['github']}, from your standing token, added on the way out; no run sees it."
         out.append({"key": key, "name": NAMES[key], "restricted": restricted, "unrestricted": free,
-                    "ready": ready, "why": why, "until": until})
+                    "ready": ready, "why": why, "until": until, "applies": applies, "fix": fix})
     return out
 
 

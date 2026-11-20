@@ -16,10 +16,14 @@
 #                              time has passed, or that has no end at all, taken out
 #   rouh-jobs-keys standing NAME FROM KEYTYPE KEYBODY [COMMENT]
 #                              a standing key (task 191) for NAME: one line with no end, from FROM
-#                              only, kept in /etc/rouh-jobs-keys/standing/NAME.pub, which open,
-#                              close and prune never touch. Rouh's key proxy lets only the owner's
-#                              own runs, while their switch is Unrestricted, reach this server.
-#   rouh-jobs-keys unstanding NAME   that standing line taken out, and its sessions ended
+#                              only, in /etc/ssh/rouh-standing/ACCOUNT (root's, read by sshd through
+#                              /etc/ssh/sshd_config.d/05-rouh-standing.conf), never in the account's
+#                              own authorized_keys. So no close, lock or prune of any version, here
+#                              or in rouh.land's own rouh-land-admin, can take it out: they write
+#                              only authorized_keys. Rouh's key proxy lets only the owner's own
+#                              runs, while their switch is Unrestricted, reach this server.
+#   rouh-jobs-keys unstanding NAME   that standing line taken out
+#   rouh-jobs-keys standing-status   each standing key: where its line is, and whether sshd reads it
 #
 # Only a line holding one of the jobs' own keys (kept in /etc/rouh-jobs-keys/NAME.pub, and the
 # account it is for in NAME.user) is ever written or taken out; every other line of that
@@ -36,6 +40,11 @@ TEST=${ROUH_JOBS_KEYS_TEST:-}          # set only by a check of this file: no ch
 SELF=${ROUH_JOBS_KEYS_SELF:-/usr/local/sbin/rouh-jobs-keys}
 UNITS=${ROUH_JOBS_KEYS_UNITS:-/etc/systemd/system}
 MAX_HOURS=72
+# Standing lines (task 191) live outside every account's authorized_keys, where nothing that
+# closes a timed key looks: a root-owned file per account, which sshd reads beside the usual ones.
+STANDING_DIR=${ROUH_JOBS_KEYS_STANDING_DIR:-/etc/ssh/rouh-standing}
+SSHD_DIR=${ROUH_JOBS_KEYS_SSHD_DIR:-/etc/ssh}
+DROPIN_NAME=05-rouh-standing.conf
 
 say() { printf '%s\n' "$*"; [ -n "$TEST" ] || logger -t rouh-jobs-keys -- "$*" 2>/dev/null || true; }
 die() { say "$*"; exit 2; }
@@ -91,7 +100,8 @@ watched() {
   if [ -n "$TEST" ]; then printf '%s\n' "$AK_ROOT" ${ROUH_JOBS_KEYS_WATCH:-}; return 0; fi
   for f in /etc/ssh/sshd_config /etc/ssh/sshd_config.d/* /root/.ssh/authorized_keys* \
     /home/*/.ssh/authorized_keys* /etc/sudoers /etc/sudoers.d/* /etc/passwd /etc/group /etc/shadow \
-    /etc/crontab /etc/cron.d/* /var/spool/cron/crontabs/* "$SELF" "$UNITS"/rouh-jobs-keys-prune.*; do
+    /etc/crontab /etc/cron.d/* /var/spool/cron/crontabs/* "$SELF" "$UNITS"/rouh-jobs-keys-prune.* \
+    "$STANDING_DIR"/*; do
     [ -f "$f" ] && printf '%s\n' "$f"
   done
   for f in $(names); do [ -f "$(ak_for_user "$(user_of "$f")")" ] && ak_for_user "$(user_of "$f")" && echo; done
@@ -164,6 +174,72 @@ WantedBy=timers.target"
   systemctl is-enabled --quiet rouh-jobs-keys-prune.timer 2>/dev/null && systemctl is-active --quiet rouh-jobs-keys-prune.timer \
     || systemctl enable --now rouh-jobs-keys-prune.timer >/dev/null 2>&1 \
     || say "Note: the 5-minute prune timer did not start; sshd still refuses the key at its end."
+}
+
+# --- standing lines (task 191) ---------------------------------------------------------------
+standing_file() { printf '%s/%s' "$STANDING_DIR" "$1"; }
+write_root_file() {  # stdin -> a file of the standing folder, root's, 0644, whole or not at all
+  local f=$1 tmp
+  mkdir -p "$(dirname "$f")"; chmod 755 "$(dirname "$f")"
+  [ -n "$TEST" ] || chown root:root "$(dirname "$f")"
+  tmp=$(mktemp "$f.new.XXXXXX"); cat > "$tmp"
+  [ -n "$TEST" ] || chown root:root "$tmp"
+  chmod 644 "$tmp"; mv -f "$tmp" "$f"
+}
+strip_body_keep_owner() {  # FILE BODY: every line holding BODY taken out; owner, mode and every other line kept
+  local f=$1 body=$2 tmp before
+  [ -f "$f" ] && grep -qF "$body" "$f" || return 0
+  before=$({ grep -vF "$body" "$f" || true; } | sha256sum)
+  tmp=$(mktemp "$f.new.XXXXXX")
+  { grep -vF "$body" "$f" || true; } > "$tmp"
+  chown --reference="$f" "$tmp" 2>/dev/null || true; chmod --reference="$f" "$tmp" 2>/dev/null || chmod 600 "$tmp"
+  [ "$({ cat "$tmp"; } | sha256sum)" = "$before" ] || { rm -f "$tmp"; die "Stopped: taking the standing line out of $f would have changed another line."; }
+  mv -f "$tmp" "$f"
+}
+append_keep_owner() {  # stdin -> FILE, kept with its owner and mode (a new file is the account's, 0600)
+  local f=$1 tmp
+  mkdir -p "$(dirname "$f")"
+  tmp=$(mktemp "$f.new.XXXXXX"); cat > "$tmp"
+  if [ -f "$f" ]; then chown --reference="$f" "$tmp" 2>/dev/null || true; chmod --reference="$f" "$tmp" 2>/dev/null || true
+  else [ -n "$TEST" ] || chown "$OWNER_USER:" "$tmp" "$(dirname "$f")"; chmod 600 "$tmp"; chmod 700 "$(dirname "$f")"; fi
+  mv -f "$tmp" "$f"
+}
+sshd_t() {  # USER ADDR -> sshd's settings for that account from that address (a check gives its own)
+  if [ -n "${ROUH_JOBS_KEYS_SSHD_T+x}" ]; then printf '%s\n' "$ROUH_JOBS_KEYS_SSHD_T" | tr ';' '\n'; return 0; fi
+  sshd -T -C "user=$1,host=rouh-standing,addr=$2" 2>/dev/null
+}
+sshd_reload() {
+  [ -n "$TEST" ] && return 0
+  systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null \
+    || { [ -f /run/sshd.pid ] && kill -HUP "$(cat /run/sshd.pid)"; }
+}
+# sshd made to read the standing folder too, beside whatever it reads now, with a drop-in that is
+# checked by sshd itself before it is used. Prints why not and fails when it cannot be done here.
+sshd_reads_standing() {
+  local user=$1 addr=$2 dropin="$SSHD_DIR/sshd_config.d/$DROPIN_NAME" want now keep="" old
+  want="$STANDING_DIR/%u"
+  now=$(sshd_t "$user" "$addr" | awk 'tolower($1) == "authorizedkeysfile" { $1 = ""; sub(/^ /, ""); print; exit }')
+  case " $now " in *" $want "*) return 0 ;; esac
+  grep -qiE '^[[:space:]]*Include[[:space:]]+(/etc/ssh/)?sshd_config\.d/\*' "$SSHD_DIR/sshd_config" 2>/dev/null \
+    || { echo "this server's sshd_config reads no sshd_config.d"; return 1; }
+  # What sshd reads now, without a standing folder an earlier drop-in may have named.
+  for f in $now; do [ "$f" = "$want" ] || keep="$keep $f"; done
+  keep=${keep# }; [ -n "$keep" ] || keep=".ssh/authorized_keys .ssh/authorized_keys2"
+  old=""; [ -f "$dropin" ] && old=$(cat "$dropin")
+  mkdir -p "$SSHD_DIR/sshd_config.d"
+  printf '# Written by rouh-jobs-keys (Rouh, task 191): Rouh'"'"'s standing key lines live in\n# %s/ACCOUNT, root'"'"'s, which no close of a timed key touches. The other files are\n# what sshd read before this was written, kept in the same order.\nAuthorizedKeysFile %s %s\n' \
+    "$STANDING_DIR" "$keep" "$want" | write_root_file "$dropin"
+  if [ -z "$TEST" ] && ! sshd -t 2>/dev/null; then
+    if [ -n "$old" ]; then printf '%s\n' "$old" | write_root_file "$dropin"; else rm -f "$dropin"; fi
+    echo "sshd -t refused the drop-in"; return 1
+  fi
+  sshd_reload || { echo "sshd could not be told to read its settings again"; return 1; }
+  [ -n "$TEST" ] && [ -n "${ROUH_JOBS_KEYS_SSHD_T+x}" ] && return 0
+  now=$(sshd_t "$user" "$addr" | awk 'tolower($1) == "authorizedkeysfile" { $1 = ""; sub(/^ /, ""); print; exit }')
+  case " $now " in *" $want "*) return 0 ;; esac
+  if [ -n "$old" ]; then printf '%s\n' "$old" | write_root_file "$dropin"; else rm -f "$dropin"; fi
+  sshd_reload || true
+  echo "sshd still does not read $want for $user (an earlier setting wins)"; return 1
 }
 
 cmd=${1:-status}
@@ -277,40 +353,53 @@ case "$cmd" in
     [[ "$comment" =~ ^[A-Za-z0-9@._-]+$ ]] || die "Not a key comment: $comment"
     user=${ROUH_JOBS_KEYS_USER:-root}
     [[ "$user" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "Not an account: $user"
+    [ -n "$TEST" ] || getent passwd "$user" >/dev/null || die "There is no account $user on this server."
     for n in $(names); do [ "$(body_of "$n")" != "$kbody" ] || die "That key is kept as the timed $n key."; done
     mkdir -p "$CONF/standing"; chmod 755 "$CONF" "$CONF/standing"
     printf '%s %s %s\n' "$ktype" "$kbody" "$comment" > "$CONF/standing/$name.pub"
     printf '%s\n' "$user" > "$CONF/standing/$name.user"
-    AK=$(ak_for_user "$user"); OWNER_USER=$user
-    keep=$(mktemp); [ -f "$AK" ] && cp -p "$AK" "$keep"
-    before=$({ grep -vF "$kbody" "$AK" 2>/dev/null || true; } | sha256sum)
-    [ -f "$AK.before-rouh-open" ] || { [ -f "$AK" ] && cp -p "$AK" "$AK.before-rouh-open"; } || true
-    mkdir -p "$(dirname "$AK")"; chmod 700 "$(dirname "$AK")"
-    tmp=$(mktemp "$AK.new.XXXXXX")
-    { grep -vF "$kbody" "$AK" 2>/dev/null || true
-      printf 'from="%s",no-agent-forwarding,no-X11-forwarding %s %s %s\n' "$from" "$ktype" "$kbody" "$comment"; } > "$tmp"
-    [ -n "$TEST" ] || chown "$OWNER_USER:" "$tmp" "$(dirname "$AK")"
-    chmod 600 "$tmp"; mv -f "$tmp" "$AK"
-    if [ "$({ grep -vF "$kbody" "$AK" 2>/dev/null || true; } | sha256sum)" != "$before" ]; then
-      [ -s "$keep" ] && cp -p "$keep" "$AK"; rm -f "$keep"
-      die "Stopped: writing would have changed a key that is not the standing one. $OWNER_USER's keys are as they were."
+    line=$(printf 'from="%s",no-agent-forwarding,no-X11-forwarding %s %s %s' "$from" "$ktype" "$kbody" "$comment")
+    sfile=$(standing_file "$user")
+    { grep -vF "$kbody" "$sfile" 2>/dev/null || true; printf '%s\n' "$line"; } | write_root_file "$sfile"
+    if why=$(sshd_reads_standing "$user" "${from%%,*}"); then
+      # Moved, not copied: a line of this key in the account's own keys (where the first standing
+      # keys were written, 20 November 2026) is taken out, the file's owner and mode kept as they are.
+      AK=$(ak_for_user "$user"); OWNER_USER=$user
+      strip_body_keep_owner "$AK" "$kbody"
+      say "The standing $name key may log in as $user from $from, with no end, until unstanding."
+      say "Its line is in $sfile, which no close, lock or prune touches."
+    else
+      # This sshd cannot be made to read the file: the line goes where it went before, and says so.
+      AK=$(ak_for_user "$user"); OWNER_USER=$user
+      strip_body_keep_owner "$sfile" "$kbody"
+      { grep -vF "$kbody" "$AK" 2>/dev/null || true; printf '%s\n' "$line"; } | append_keep_owner "$AK"
+      say "The standing $name key may log in as $user from $from, with no end, until unstanding."
+      say "NOTE: $why, so its line is in $AK, where a close of an older rouh-open could take it out."
     fi
-    rm -f "$keep"
-    install_self
-    say "The standing $name key may log in as $user from $from, with no end, until unstanding."
     ;;
   unstanding)
     name=${2:-}
     [ -n "$name" ] && [ -f "$CONF/standing/$name.pub" ] || { say "No standing ${name:-?} key here."; exit 0; }
     kbody=$(awk '{print $2}' "$CONF/standing/$name.pub")
     user=$(cat "$CONF/standing/$name.user" 2>/dev/null || echo root)
+    strip_body_keep_owner "$(standing_file "$user")" "$kbody"
     AK=$(ak_for_user "$user"); OWNER_USER=$user
-    tmp=$(mktemp "$AK.new.XXXXXX")
-    { grep -vF "$kbody" "$AK" 2>/dev/null || true; } > "$tmp"
-    [ -n "$TEST" ] || chown "$OWNER_USER:" "$tmp"
-    chmod 600 "$tmp"; mv -f "$tmp" "$AK"
+    strip_body_keep_owner "$AK" "$kbody"
     rm -f "$CONF/standing/$name.pub" "$CONF/standing/$name.user"
     say "The standing $name key is out of $user's keys."
     ;;
-  *) sed -n '7,25p' "$0" | sed 's/^# //'; exit 2 ;;
+  standing-status)
+    found=""
+    for f in "$CONF"/standing/*.pub; do
+      [ -f "$f" ] || continue
+      found=yes; n=$(basename "$f" .pub); user=$(cat "$CONF/standing/$n.user" 2>/dev/null || echo root)
+      kbody=$(awk '{print $2}' "$f"); where=""
+      grep -qF "$kbody" "$(standing_file "$user")" 2>/dev/null && where="$(standing_file "$user")"
+      [ -n "$where" ] || { grep -qF "$kbody" "$(ak_for_user "$user")" 2>/dev/null && where="$(ak_for_user "$user") (an older close could take it out)"; }
+      if [ -z "$where" ]; then say "standing $n as $user: MISSING, its line is in no file"
+      else say "standing $n as $user: in $where"; fi
+    done
+    [ -n "$found" ] || say "No standing key here."
+    ;;
+  *) sed -n '7,29p' "$0" | sed 's/^# //'; exit 2 ;;
 esac

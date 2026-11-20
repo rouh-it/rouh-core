@@ -13,8 +13,8 @@ rouh-open 8                         # the usual: GitHub as you, the internet, ro
 rouh-open add the host                # one server's login added to what is already open, ending when it ends
 rouh-open status                    # the same block: what is open, and until when
 rouh-open status --details          # and the token's scopes, and the host's own list
-rouh-open close                     # all of it closed now (only the owner closes; a job never does)
-rouh-open update                    # the newest of these commands, here and on the host, checked
+rouh-open close                     # what rouh-open opened, closed now; the switch's standing access is never touched
+rouh-open update                    # the newest of these commands now (it does this by itself once a day)
 rouh-open --version                 # which one this is
 
 rouh-proxy-grant internet 8         # any public server, any port (never a private address); `all` is its older name
@@ -62,7 +62,7 @@ It rests on three things.
 
 - **Each run is known by the kernel, not by what it says.** Every run is the worker's one Linux user, so the one program tells runs apart by their place in the process tree (`one/peers.py`), and keeps a proxy password and a token for each in its own memory (`one/rundoor.py`). Every run's `HTTPS_PROXY` and `HTTP_PROXY` is the program's run door, `127.0.0.1:8078` (and gh's socket), which adds that run's password and hands the connection to the key proxy. A run never sees its password; a process that left its run gets none.
 - **Rouh says which runs are free.** Every 15 seconds and at every press, Rouh's core asks the program for the passwords' hashes, decides each run's kind (the owner's, a contact's, a process's, a beat's) and whether it is free (the owner's own live run with their words, while Unrestricted), and writes `keyproxy_runs.json` into the keys volume, each entry lasting 90 seconds (`rouh/run_access.py`).
-- **Standing access on the host**, which the key proxy hands only to free runs: `github_standing.json` (the owner's token, no end time) and `standing_access.json` (the owner's servers whose login is standing, by address and ssh port), written by `rouh-grant standing`; and on each server one line of the jobs' standing key (`~/.ssh/jobs-standing` in the worker, comment `rouh-jobs-standing`), with no end and `from=` the office's two addresses only, written by `rouh-jobs-keys standing` (the relay, the host) or with a far end time (rouh.land, whose own prune keeps only lines with an end).
+- **Standing access on the host**, which the key proxy hands only to free runs: `github_standing.json` (the owner's token, no end time) and `standing_access.json` (the owner's servers whose login is standing, by address and ssh port), written by the Keys page, by Rouh's own setup or by `rouh-grant standing` (below); and on each server one line of the jobs' standing key (`~/.ssh/jobs-standing` in the worker, comment `rouh-jobs-standing`), with no end and `from=` the addresses the jobs come from only, written by `rouh-jobs-keys standing` into `/etc/ssh/rouh-standing/<account>` (below, "Standing lines are out of every close's reach").
 
 With a runs file in place the key proxy decides per request:
 
@@ -85,8 +85,28 @@ rouh-github-grant standing [--token | off | status] # from the Mac
 rouh-open standing [off]                           # from the Mac: what is standing, or all of it off
 ```
 
-`rouh-open close` still closes the timed parts; on rouh.land its `lock` also takes the standing line out (rouh.land's own command clears every key), so after it run `rouh-open` once with the new commands, or put the line back as above.
 `lan` is unchanged: it stays a Mac command (`rouh-proxy-grant lan`), and the switch never opens it.
+
+### Set up with Rouh, with no command on a Mac
+
+Petar, 20 November 2026: "why do we need to update rouh-open? this should be a default functionality for all rouhs that get setup from scratch".
+So nothing of the switch needs `rouh-open`, `rouh-open update` or any other command on a Mac:
+
+- **Per-run identity, the run door and the runs file** are Rouh's own code (`one/rundoor.py`, `one/peers.py`, `rouh/run_access.py`), on from the first start of every Rouh.
+- **The key proxy that decides per run** is the protected core's (`guard/rouh_guard/keyproxy.py`, `ROUH_GRANTS_FORMAT`); a Rouh gets it with the signed release that carries it, by itself (Rouh for Mac every 6 hours, a Linux server at night). Until then the Permissions page says so on each item.
+- **GitHub as the owner**: the owner pastes a token once in Anatomy, Connections, Keys, under **GitHub for your runs** (`rouh/service_keys.py`, `github_runs`). It is checked with GitHub, sealed like every key there, and written by the core into the keys volume as `github_standing.json` (0640, the key proxy's group, no run can read it) with the login in `standing_access.json`; Remove takes it out again. A token `rouh-grant standing github` put there is left alone unless one is typed on the Keys page. The Permissions page links there while GitHub is not ready.
+- **The host's own login, on a Linux server**: `rouh` puts it in by itself at install and at every update, by hand or at night (`deploy/linux/standing.py`): the worker's standing key (made if it is not there), its line for the account that installed Rouh in `/etc/ssh/rouh-standing/<account>` with `from=` the stack's egress network only, the host in `standing_access.json` (its address on that network and its ssh port), and `Host rouh-host` in the worker's ssh settings. It needs sudo with no password at night, else it waits for the next `rouh update` in a terminal, and it says so. `ROUH_STANDING_HOST=0` in the settings file leaves it out; a host the owner turned off (`rouh-grant standing revoke host`) stays off. Rouh for Mac has no host login: a Mac is not reached over ssh.
+- **rouh.land and the relay** are the Creator Rouh's own servers. A Rouh without them shows them on the Permissions page as "Not here", not counted as waiting.
+
+### Standing lines are out of every close's reach
+
+Every standing line lives in `/etc/ssh/rouh-standing/<account>`, a file of root's that sshd reads beside the account's own keys, through `/etc/ssh/sshd_config.d/05-rouh-standing.conf` (`AuthorizedKeysFile` with what sshd read before, in the same order, and that file; checked with `sshd -t` and `sshd -T` before and after it is used, and taken back if sshd would not read it).
+No `close`, `lock` or prune writes there, in any version: `rouh-jobs-keys` writes the timed lines into `authorized_keys` only, and rouh.land's own `rouh-land-admin lock` empties `/home/rouh/.ssh/authorized_keys` only.
+So `rouh-open close` from a Mac, old or new, closes what rouh-open opened and nothing the switch stands on, and no Mac needs updating for it.
+A standing line written before this into the account's own keys is moved out of them the next time `rouh-jobs-keys standing` runs (owner and mode of that file kept as they were). On a server whose sshd reads no `sshd_config.d`, the line goes into `authorized_keys` as before, and the helper says so.
+`rouh-jobs-keys standing-status` says where each standing line is, or that it is missing.
+
+`rouh-open` keeps itself up to date: once a day, before it does anything, it asks GitHub (no sign-in) for main's `rouh-open`, and when that one is newer it runs `install-from-mac.sh` unattended (the host's part with `sudo -n` only, never stopping for a password) and carries on as the new one. `rouh-open update` does the same at once; nobody needs to run it. `ROUH_OPEN_SELF_UPDATE=0` turns it off.
 
 ## The owner's own servers: rouh.land, the relay and the host
 

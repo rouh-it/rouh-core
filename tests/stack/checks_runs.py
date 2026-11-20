@@ -243,6 +243,77 @@ print(c.recv(100).split(b"\\r\\n")[0].decode())
         s.run("core", f"{GRANT} revoke all")
 
 
+@check("runs.switch-from-setup")
+def runs_switch_from_setup(s: Stack) -> None:
+    """Standing access a fresh Rouh sets up itself, with no command on a Mac (task 191): the GitHub
+    token kept on the Keys page, written into the keys volume by the core's own code
+    (`rouh/service_keys.py`, sync_github_runs), and the host's record written by the Linux setup's
+    own merge (`deploy/linux/standing.py`, MERGE) are both read by the key proxy: the owner's free
+    run gets GitHub as the owner and reaches the host's ssh, and a request with no run's password
+    gets neither. Taken out again by the Keys page's own sync once nothing is kept there."""
+    import hashlib
+
+    owner_pw = "stack-owner-setup-password"
+    h = lambda t: hashlib.sha256(t.encode()).hexdigest()  # noqa: E731
+    target = "public.stack.test"
+    r = s.run("keyproxy", f"python3 -c \"import socket; print(socket.gethostbyname('{target}'))\"")
+    address = r.stdout.strip()
+    expect(address.count(".") == 3, f"{target} has no address in the key proxy: {(r.stdout + r.stderr)[-200:]}")
+    write = f"""python3 - <<'PY'
+import json, os, time
+runs = {{"{h(owner_pw)}": {{"run": "stack-owner", "kind": "owner", "free": True, "gets": ["github", "host"]}}}}
+path = "/keys/keyproxy_runs.json"
+open(path + ".new", "w").write(json.dumps({{"until": time.time() + 600, "ack": time.time(), "canaries": [], "runs": runs}}))
+os.chmod(path + ".new", 0o644); os.replace(path + ".new", path)
+PY"""
+
+    def reach(pw: str) -> bool:
+        r = s.py("worker", f"""
+import base64, socket
+head = "CONNECT {address}:2224 HTTP/1.1\\r\\nHost: x\\r\\n"
+if {pw!r}:
+    head += "Proxy-Authorization: Basic " + base64.b64encode(b"run-x:" + {pw!r}.encode()).decode() + "\\r\\n"
+c = socket.create_connection(("keyproxy", 8080), timeout=15)
+c.sendall((head + "\\r\\n").encode())
+print(c.recv(100).split(b"\\r\\n")[0].decode())
+""")
+        return " 200 " in r.stdout
+
+    sync = """
+from rouh import service_keys
+kept = {"ROUH_RUNS_GITHUB_TOKEN": %r, "ROUH_RUNS_GITHUB_LOGIN": "stack-owner"} if %r else {}
+service_keys.value = lambda name: kept.get(name, "")
+print("SYNC", service_keys.sync_github_runs())
+"""
+    s.run("core", f"{GRANT} revoke all; rm -f /keys/standing_access.json /keys/github_standing.json")
+    s.run("core", write)
+    try:
+        expect(not reach(owner_pw), f"the owner's run reached {address}:2224 before the host was set up")
+        merge = ("python3 - " + address + " 2224 <<'PY'\nimport sys\nsys.path.insert(0, '/code/deploy/linux')\n"
+                 "import standing\nsys.argv = ['merge'] + sys.argv[1:]\nexec(standing.MERGE)\nPY")
+        r = s.run("core", merge)
+        expect("written" in r.stdout, f"the setup's merge did not write the host's record: {(r.stdout + r.stderr)[-300:]}")
+        expect(reach(owner_pw), f"the owner's free run did not reach the host's ssh ({address}:2224) from the setup's record")
+        expect(not reach(""), "a request with no run's password reached the host's ssh")
+        out = s.manage(sync % (STACK_TOKEN, True))
+        expect("SYNC written" in out, f"the Keys page's sync did not write the token: {out[-300:]}")
+        r = s.run("core", "stat -c '%a %g' /keys/github_standing.json")
+        expect(r.stdout.strip() == "640 10002", f"the token's file is not the key proxy group's only: {r.stdout}")
+        got = _github(s, f"curl -U run-x:{owner_pw} http://api.github.com/user")
+        expect(got["authorization"] == f"Bearer {STACK_TOKEN}" and got["grant"].startswith("standing"),
+               f"the owner's free run did not get GitHub from the Keys page's token: "
+               f"{ {**got, 'authorization': got['authorization'][:12]} }")
+        got = _github(s, "curl http://api.github.com/user")
+        expect(got["authorization"] == "", "a request with no run's password was given the standing token")
+        out = s.manage(sync % ("", False))
+        expect("SYNC taken out" in out, f"the Keys page's sync did not take its token out: {out[-300:]}")
+        r = s.run("core", "ls /keys")
+        expect("github_standing.json" not in r.stdout, f"the token's file is still there: {r.stdout}")
+    finally:
+        s.run("core", "rm -f /keys/keyproxy_runs.json /keys/github_standing.json /keys/standing_access.json")
+        s.run("core", f"{GRANT} revoke all")
+
+
 @check("crew.tools")
 def crew_tools(s: Stack) -> None:
     """The person's work goes to a run of the one program with the tool Rouh uses for it on the

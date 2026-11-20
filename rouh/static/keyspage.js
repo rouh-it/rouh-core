@@ -310,7 +310,13 @@
     K.editing = '';
     K.changing = {};
     draw();
-    load();
+    // An address naming one service (#github_runs, as Permissions links to it) opens that one.
+    var want = (location.hash || '').replace(/^#/, '');
+    load().then(function () {
+      if (!want || !K.data) return;
+      var sv = K.data.services.filter(function (x) { return x.id === want; })[0];
+      if (sv) openService(sv);
+    });
   }
 
   function hiddenNow() {

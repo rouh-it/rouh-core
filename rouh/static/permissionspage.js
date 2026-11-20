@@ -412,18 +412,21 @@
     sec.setAttribute('aria-labelledby', 'pmOpensH');
     var h = el('h3', 'hb-h', 'What the switch opens for your runs');
     h.id = 'pmOpensH';
-    var ready = items.filter(function (x) { return x.ready; }).length;
-    h.appendChild(el('span', 'hb-h-sub', ready === items.length ? 'All ' + items.length + ' ready'
-      : ready + ' of ' + items.length + ' ready'));
+    var here = items.filter(function (x) { return x.applies !== false; });
+    var ready = here.filter(function (x) { return x.ready; }).length;
+    h.appendChild(el('span', 'hb-h-sub', ready === here.length ? 'All ' + here.length + ' ready'
+      : ready + ' of ' + here.length + ' ready'));
     sec.appendChild(h);
     var ul = el('ul', 'pm-opens');
     items.forEach(function (x) {
       var li = el('li', 'pm-open');
       var top = el('div', 'pm-open-top');
       top.appendChild(el('span', 'pm-open-name', x.name || x.key));
+      var na = x.applies === false;
+      if (na) li.className += ' na';
       var tag = el('span', 'pm-ready' + (x.ready ? ' yes' : ''));
-      tag.appendChild(icon(x.ready ? CHECK : WAIT));
-      tag.appendChild(document.createTextNode(x.ready
+      if (!na) tag.appendChild(icon(x.ready ? CHECK : WAIT));
+      tag.appendChild(document.createTextNode(na ? 'Not here' : x.ready
         ? (x.until ? 'Ready, until ' + clockOf(x.until) : 'Ready') : 'Not ready'));
       top.appendChild(tag);
       li.appendChild(top);
@@ -436,6 +439,11 @@
       });
       li.appendChild(both);
       if (!x.ready && x.why) li.appendChild(el('p', 'pm-open-why', x.why));
+      if (!x.ready && x.fix && x.fix.href) {
+        var a = el('a', 'pm-open-fix', x.fix.label || 'Set it up');
+        a.href = x.fix.href;
+        li.appendChild(a);
+      }
       ul.appendChild(li);
     });
     sec.appendChild(ul);

@@ -122,6 +122,9 @@ def clean_env(*prefixes: str) -> dict[str, str]:
     env["ROUH_HUE_API"] = "http://127.0.0.1:1/no-hue"
     # And the Dreamehome cloud, so an email and password typed into Settings never reach Dreame.
     env["ROUH_DREAME_API"] = "http://127.0.0.1:1/no-dreame"
+    # And GitHub, which a token typed into Keys, GitHub for your runs, is checked with
+    # (`rouh/service_keys.py`); ROUH_TEST_GITHUB_API points a world at a stand-in of its own.
+    env["ROUH_GITHUB_API"] = os.environ.get("ROUH_TEST_GITHUB_API", "http://127.0.0.1:1/no-github")
     # And rouh.land, where the model standard is fetched from and the day's counts of how each
     # model did would go (`rouh/modelstandard.py`, `rouh/modeloutcomes.py`): nothing a world
     # does reaches it. A world that wants a standard points this at a stand-in of its own.
@@ -541,8 +544,12 @@ def rouh_app(tmp_path_factory) -> App:
         # `rouh/testing/fake_carddav.py` is the stand-in; the talking world
         # has one running.
         ROUH_CARDDAV_URL="http://127.0.0.1:1/no-icloud",
+        # A keys folder of its own, as the core's keys volume, for what Keys writes there for the
+        # key proxy (GitHub for your runs) and the Permissions page reads.
+        ROUH_KEYS_DIR=str(folder / "keys"),
         PYTHONUNBUFFERED="1",
     )
+    (folder / "keys").mkdir()
     make_account(data, env)
     seed_tasks(env, data, workspace)
     app = start(

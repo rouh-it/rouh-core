@@ -263,13 +263,27 @@ def cmd_update(a) -> int:
                                stdout=out, stderr=subprocess.STDOUT, timeout=7200)
             out.write(f"== {stamp}: " + ("up to date or updated, every part healthy" if r.returncode == 0 else
                                          "the update did not go through; Rouh stays on the release before") + "\n")
+            if r.returncode == 0:
+                out.write(_standing_host() + "\n")
         _trim(log)
         return r.returncode
     update_updater()
     r = stack_tool("update")
     with open(log, "a") as out:
         out.write(f"== {stamp}: " + ("updated by hand" if r.returncode == 0 else "the update by hand did not go through") + "\n")
+    if r.returncode == 0:
+        say(_standing_host())
     return r.returncode
+
+
+def _standing_host() -> str:
+    """The host's own login for the switch on Permissions, made ready by setup (deploy/linux/standing.py)."""
+    try:
+        import standing
+
+        return standing.ensure()
+    except Exception as e:  # noqa: BLE001 - never stops an update
+        return f"The host's login for the switch: not checked ({type(e).__name__})."
 
 
 def _trim(log: Path, keep: int = 2000) -> None:
@@ -812,6 +826,7 @@ def cmd_install(a) -> int:
             time.sleep(5)
     rel = release() or {}
     say(f"{OK} Rouh is running (base {rel.get('level', '?')}, release {rel.get('version', '?')}, signature checked).")
+    say(_standing_host())
     if a.no_setup or not can_ask():
         say("", "Next, set your Rouh up in a terminal on this server:", "", f"    {BOLD}rouh setup{RESET}", "")
         return 0

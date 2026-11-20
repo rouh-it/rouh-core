@@ -287,6 +287,115 @@ def _check_offsite(v: dict) -> tuple[dict, str]:
     return v, "the bucket answered"
 
 
+# --- GitHub for the owner's own runs (task 191) ---------------------------------------------
+#
+# Petar, 20 November 2026: "why do we need to update rouh-open? this should be a default
+# functionality for all rouhs that get setup from scratch". The switch on the Permissions page
+# hands GitHub as the owner to their own Unrestricted runs from a standing token the key proxy
+# keeps (`guard/rouh_guard/keyproxy.py`, ``github_standing.json`` in the keys volume), which until
+# then only a command on the owner's Mac could put there. Now it is typed here once: checked with
+# GitHub, sealed like every key on this page, and written into the keys volume for the key proxy,
+# readable by its group only and by no run. A token the host's own `rouh-grant standing github`
+# put there is left alone unless one is typed here, and is never taken away from here.
+
+GITHUB_RUNS_FILE = "github_standing.json"
+GITHUB_RUNS_STANDING = "standing_access.json"
+#: Written into the file, so this page takes away only what it put there.
+GITHUB_RUNS_SOURCE = "keys-page"
+
+
+def _github_api() -> str:
+    return (os.environ.get("ROUH_GITHUB_API") or "https://api.github.com").rstrip("/")
+
+
+def _check_github_runs(v: dict) -> tuple[dict, str]:
+    token = v["ROUH_RUNS_GITHUB_TOKEN"]
+    if not re.fullmatch(r"[A-Za-z0-9_.\-]{8,512}", token):
+        raise Refused("That is not a GitHub token. Copy it again from github.com, Settings, Developer settings.")
+    r = _http("GET", _github_api() + "/user", headers={"Authorization": "Bearer " + token,
+                                                       "Accept": "application/vnd.github+json",
+                                                       "User-Agent": "rouh-keys"})
+    if r.status_code in (401, 403):
+        raise Refused("GitHub did not accept that token. Make a new one at github.com, Settings, "
+                      "Developer settings, and paste it again.")
+    if r.status_code >= 400:
+        raise Refused(f"GitHub answered {r.status_code}. Nothing was saved.")
+    login = str((r.json() or {}).get("login") or "")
+    return {**v, "ROUH_RUNS_GITHUB_LOGIN": login}, f"GitHub knows it as {login}" if login else "GitHub took it"
+
+
+def _keys_dir() -> str:
+    return os.environ.get("ROUH_KEYS_DIR", "/keys")
+
+
+def _write_keys_file(name: str, text: str) -> None:
+    """Into the keys volume whole or not at all, for the key proxy's group only (0640)."""
+    from . import run_access
+
+    path = os.path.join(_keys_dir(), name)
+    tmp = f"{path}.{os.getpid()}.new"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    try:
+        os.chown(tmp, -1, run_access.KEYS_GROUP)
+    except OSError:
+        pass
+    os.chmod(tmp, 0o640)
+    os.replace(tmp, path)
+
+
+def sync_github_runs() -> str:
+    """The token kept here, in the keys volume where the key proxy reads it; or, with none kept
+    here, the one this page put there taken out. Says what it did, in words (never the token)."""
+    import json
+
+    folder = _keys_dir()
+    if not os.path.isdir(folder):
+        return "no keys volume here"
+    token, login = value("ROUH_RUNS_GITHUB_TOKEN"), value("ROUH_RUNS_GITHUB_LOGIN")
+    path = os.path.join(folder, GITHUB_RUNS_FILE)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            have = json.load(fh)
+    except (OSError, ValueError):
+        have = None
+    have = have if isinstance(have, dict) else None
+    try:
+        with open(os.path.join(folder, GITHUB_RUNS_STANDING), encoding="utf-8") as fh:
+            standing = json.load(fh)
+    except (OSError, ValueError):
+        standing = {}
+    standing = standing if isinstance(standing, dict) else {}
+    if token:
+        if have and have.get("token") == token and have.get("source") == GITHUB_RUNS_SOURCE and (
+                (standing.get("github") or {}).get("login") == login):
+            return "already there"
+        _write_keys_file(GITHUB_RUNS_FILE, json.dumps({"token": token, "login": login, "source": GITHUB_RUNS_SOURCE,
+                                                       "since": int(time.time())}))
+        standing["github"] = {"login": login, "since": int(time.time()), "source": GITHUB_RUNS_SOURCE}
+        standing.setdefault("servers", [])
+        standing.update(format=1, written=int(time.time()))
+        _write_keys_file(GITHUB_RUNS_STANDING, json.dumps(standing, indent=1) + "\n")
+        log.info("the standing GitHub token for the owner's runs is in the keys volume")
+        return "written"
+    if have and have.get("source") == GITHUB_RUNS_SOURCE:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        if (standing.get("github") or {}).get("source") == GITHUB_RUNS_SOURCE:
+            standing["github"] = None
+            standing.update(written=int(time.time()))
+            _write_keys_file(GITHUB_RUNS_STANDING, json.dumps(standing, indent=1) + "\n")
+        log.info("the standing GitHub token this page kept is out of the keys volume")
+        return "taken out"
+    return "nothing of this page's there"
+
+
+def _after_github_runs() -> None:
+    sync_github_runs()
+
+
 SERVICES: tuple[Service, ...] = (
     Service("telegram", "Telegram bot", "The bot Rouh writes to your phone with, and you write to Rouh through.",
             fields=(Field("ROUH_TELEGRAM_BOT_TOKEN", "Bot token", placeholder="123456789:AAH..."),
@@ -342,6 +451,17 @@ SERVICES: tuple[Service, ...] = (
                           placeholder="https://github.com/you/workspace.git"),
                     Field("ROUH_WORKSPACE_REMOTE_TOKEN", "Token", required=False, placeholder="github_pat_...")),
             check=_check_workspace),
+    Service("github_runs", "GitHub for your runs", "While Permissions is Unrestricted, your own runs use GitHub "
+            "as you: they push, open pull requests and read your private repositories. No run ever sees the "
+            "token, and nobody else's run gets it.",
+            steps=("At github.com, open Settings, Developer settings, Personal access tokens, and make one: a "
+                   "fine-grained token with the repositories and rights your runs need, or a classic one with "
+                   "repo and workflow.",
+                   "Paste it here once. The switch on Permissions decides when your runs get it."),
+            fields=(Field("ROUH_RUNS_GITHUB_TOKEN", "Token", placeholder="github_pat_... or ghp_..."),
+                    Field("ROUH_RUNS_GITHUB_LOGIN", "GitHub account", secret=False, required=False,
+                          placeholder="Found by itself")),
+            check=_check_github_runs, after=_after_github_runs),
     Service("offsite", "Weekly copy off this machine", "Once a week, an encrypted copy of everything, sent to "
             "Cloudflare R2 or any S3 bucket.",
             steps=("Make a bucket, and an API token for it with Object Read & Write, that bucket only.",

@@ -9,7 +9,8 @@
 #    sends to the relay and runs there as root) into ~/.local/share/rouh-grants;
 # 2. rouh-grant, its install.sh, rouh-jobs-keys and the key proxy that reads grants copied to the host (scp), and
 #    install.sh run there with sudo (ssh -t, so sudo can ask your password if it wants it).
-# Run it again whenever these change (rouh-proxy-grant update does, after fetching the latest):
+# Run it again whenever these change (rouh-open does it by itself once a day, and rouh-proxy-grant
+# update or rouh-open update at once, after fetching the latest):
 # it changes nothing that is already right, and keeps every grant that is open.
 # Settings, in ~/.config/rouh/grants.env (written the first time from the commands installed before,
 # or from the shell): ROUH_HOST_SSH (user@address of the machine the stack runs on), ROUH_HOST_SSH_PORT
@@ -140,7 +141,14 @@ ssh_clean ssh "${SSH_OPTS[@]}" -p "$PORT" "$HOST" "mkdir -m 700 '$dir'" || {
 }
 ssh_clean scp -q "${SSH_OPTS[@]}" -P "$PORT" "$HERE/host/rouh-grant" "$HERE/host/install.sh" "$HERE/servers/rouh-jobs-keys" \
   "$ROOT/guard/rouh_guard/keyproxy.py" "$HOST:$dir/"
-ssh_clean ssh -t "${SSH_OPTS[@]}" -p "$PORT" "$HOST" "sudo bash '$dir/install.sh'; status=\$?; rm -rf '$dir'; exit \$status" \
-  || { echo "the host's part did not finish (above). This Mac's part is in place."; exit 1; }
+# rouh-open's own daily update runs this unattended (ROUH_GRANTS_UNATTENDED=1): then the host's
+# part is tried with sudo -n only, and a host whose sudo wants a password waits for rouh-open update.
+if [ -n "${ROUH_GRANTS_UNATTENDED:-}" ]; then
+  ssh_clean ssh "${SSH_OPTS[@]}" -p "$PORT" "$HOST" "sudo -n bash '$dir/install.sh'; status=\$?; rm -rf '$dir'; exit \$status" </dev/null \
+    || { echo "the host's part waits for: rouh-open update (its sudo may want your password). This Mac's part is in place."; exit 1; }
+else
+  ssh_clean ssh -t "${SSH_OPTS[@]}" -p "$PORT" "$HOST" "sudo bash '$dir/install.sh'; status=\$?; rm -rf '$dir'; exit \$status" \
+    || { echo "the host's part did not finish (above). This Mac's part is in place."; exit 1; }
+fi
 [ -n "$mac_ok" ] || { echo "Not finished on this Mac: see above."; exit 1; }
 echo "Done: $want on this Mac, and the host's part."
