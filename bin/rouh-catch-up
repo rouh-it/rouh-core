@@ -40,7 +40,12 @@ rouh-guard undo N; then, if the database must go back too, rouh-backup restore <
               commits with no Rouh-master-change: line): the release's version wins, conflict or not;
               shared main's history is fetched for this, its trees only (ROUH_CODE_MASTER). Its own
               commits are listed first. On 20 November 2026 a Mac kept five such files, urls.py among
-              them, and the protected core refused the result: it did not import.
+              them, and the protected core refused the result: it did not import. A file where its own
+              lines clash with the release's is never kept whole: the release's file, with only its own
+              lines laid over it when they fit, else the release's alone; and when the protected core
+              refuses that, the release with only its own new files is handed it as a second choice.
+              Whatever of its own is left out is named, and stays in its history. The protected core's
+              copies of an update step are released content, never counted as its own.
 Settings: ROUH_SITE_URL (https://rouh.land), ROUH_CODE_RELEASE_URL (its /mac/code/release.json),
 ROUH_CODE_TARBALL ({org} and {commit} filled in), ROUH_APP_DIR (/code), ROUH_GUARD_BIN
 (/opt/rouh-guard/bin).
@@ -203,11 +208,12 @@ def day(iso: str) -> str:
     return f"{int(m.group(3))} {months[int(m.group(2)) - 1]} {m.group(1)}"
 
 
-def released_versions(work: Path, local: str, head: str) -> set:
-    """The files this Rouh's commits changed whose version at head is one shared main once had."""
+def released_versions(work: Path, local: str, head: str) -> tuple[set, dict]:
+    """The files this Rouh's commits changed whose version at head is one shared main once had, and
+    every version main had of each file they changed ({file: {blob, ...}})."""
     touched = [f for f in out("diff", "--name-only", "--no-renames", local, head, cwd=work).splitlines() if f]
     if not touched:
-        return set()
+        return set(), {}
     r = git("fetch", "-q", "--filter=blob:none", "--no-tags", MAIN, "+refs/heads/main:refs/rouh/catch-up-main", cwd=work)
     if r.returncode:
         raise Refused("shared main's history could not be read, so its versions of this Rouh's files cannot be told "
@@ -226,14 +232,49 @@ def released_versions(work: Path, local: str, head: str) -> set:
         got = git("rev-parse", "-q", "--verify", f"{head}:{f}", cwd=work)
         if got.returncode == 0 and got.stdout.strip() in seen.get(f, set()):
             found.add(f)
-    return found
+    return found, seen
+
+
+def blob_at(work: Path, rev: str, f: str) -> str:
+    got = git("rev-parse", "-q", "--verify", f"{rev}:{f}", cwd=work)
+    return got.stdout.strip() if got.returncode == 0 else ""
+
+
+def own_lines_over(work: Path, f: str, local: str, head: str, release: str, seen: dict) -> bytes | None:
+    """The release's version of f with this Rouh's own lines laid over it, or None when they do not fit.
+
+    Its own lines are what its commits changed since the newest version of f shared main once had in
+    its history (else since its install). A three-way merge of those lines onto the release's file:
+    the release's whole file stays the ground, and only this Rouh's own hunks are carried."""
+    base = ""
+    for c in out("log", "--format=%H", f"{local}..{head}", "--", f, cwd=work).splitlines():
+        if blob_at(work, c, f) in seen.get(f, set()):
+            base = blob_at(work, c, f)
+            break
+    base = base or blob_at(work, local, f)
+    if not base:
+        base = subprocess.run(["git", "-c", "safe.directory=*", "hash-object", "-w", "--stdin"], cwd=str(work),
+                              input=b"", capture_output=True).stdout.decode().strip()
+    theirs, ours = blob_at(work, release, f), blob_at(work, head, f)
+    if not theirs or not ours:
+        return None
+    r = subprocess.run(["git", "-c", "safe.directory=*", "merge-file", "--object-id", "-p", theirs, base, ours],
+                       cwd=str(work), capture_output=True, timeout=120)
+    return r.stdout if r.returncode == 0 else None
+
+
+#: The subject the protected core's update step gives its copy of a release's update step
+#: (guard/rouh_guard/updatestep.py): released content, never this Rouh's own.
+UPDATE_STEP = re.compile(r"update step from the release [0-9a-f]{7,40}, copied exactly by the protected core", re.I)
 
 
 def own_commits(local: str, head: str) -> list[str]:
     """This Rouh's commits since the release it came from that are not released changes its updates
-    took (Rouh-master-change:), as "<sha> <subject>"."""
-    return [l for l in out("log", "--no-merges", "--invert-grep", "--grep=^Rouh-master-change:", "--format=%h %s",
-                           f"{local}..{head}", cwd=CODE).splitlines() if l]
+    took (Rouh-master-change:), as "<sha> <subject>"; the protected core's copies of an update step
+    marked as released."""
+    lines = [l for l in out("log", "--no-merges", "--invert-grep", "--grep=^Rouh-master-change:", "--format=%h %s",
+                            f"{local}..{head}", cwd=CODE).splitlines() if l]
+    return [("released, not its own: " if UPDATE_STEP.search(l) else "") + l for l in lines]
 
 
 def catch_up(dry: bool, stuck: bool = False) -> int:
@@ -248,14 +289,13 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
     head = out("rev-parse", "HEAD", cwd=CODE)
     # Its own changes: not the released changes its updates took (Rouh-master-change:), which the
     # release brings again anyway.
-    own = len(out("rev-list", "--no-merges", "--invert-grep", "--grep=^Rouh-master-change:",
-                  f"{b['local']}..{head}", cwd=CODE).split())
+    own = sum(not l.startswith("released") for l in own_commits(b["local"], head))
     rel = newest()
     commit = rel["commit"]
     say(f"this Rouh came from Rouh {b['release'][:12]} ({b['how']}), with {own} change"
         f"{'' if own == 1 else 's'} of its own; the newest release is {commit[:12]} of {day(rel.get('released_at'))}.")
     for line in own_commits(b["local"], head)[:20]:
-        say(f"  its own: {line}")
+        say("  " + (line if line.startswith("released") else "its own: " + line))
     if commit == b["release"]:
         say("it already has that release; nothing to do.")
         return 0
@@ -304,7 +344,7 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
             "-m", f"{TRAILER}: {commit}", cwd=work, check=True)
         local_release = out("rev-parse", "HEAD", cwd=work)
         git("checkout", "-q", "-B", "catch-up", head, cwd=work, check=True)
-        kept = []
+        kept, carried, dropped, plain, left_out = [], [], [], "", []
         if head == b["local"]:
             merged = local_release
         else:
@@ -313,7 +353,8 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
             clashes = [f for f in out("diff", "--name-only", "--diff-filter=U", cwd=work).splitlines() if f]
             if r.returncode and not clashes:
                 raise Refused("its own changes could not be laid over the release: " + (r.stderr or r.stdout).strip()[-300:])
-            released = released_versions(work, b["local"], head) if stuck else {}
+            released, seen = released_versions(work, b["local"], head) if stuck else (set(), {})
+            carried, dropped = [], []
             if stuck:
                 # A file this Rouh has as shared main once had it is not its own: earlier updates took
                 # changes out of order and left such versions; the release's version wins, conflict or
@@ -332,6 +373,23 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
                         "had as shared main once had it (left by earlier updates, not edits of its own): "
                         + ", ".join(sorted(released)[:12]) + (" and more" if len(released) > 12 else ""))
             for f in clashes:
+                if stuck:
+                    # Never the old whole file over the release's (20 November 2026: urls.py kept whole
+                    # without the release's guest_state change, and nothing imported). The release's file,
+                    # with this Rouh's own lines laid over it when they fit; else the release's alone.
+                    laid = own_lines_over(work, f, b["local"], head, local_release, seen)
+                    if laid is not None:
+                        (work / f).write_bytes(laid)
+                        git("add", "--", f, cwd=work, check=True)
+                        carried.append(f)
+                    elif git("cat-file", "-e", f"{local_release}:{f}", cwd=work).returncode == 0:
+                        git("checkout", "-q", local_release, "--", f, cwd=work, check=True)
+                        git("add", "--", f, cwd=work, check=True)
+                        dropped.append(f)
+                    else:
+                        git("rm", "-q", "--ignore-unmatch", "--", f, cwd=work, check=True)
+                        dropped.append(f)
+                    continue
                 if git("cat-file", "-e", f":2:{f}", cwd=work).returncode == 0:
                     git("checkout", "-q", "--ours", "--", f, cwd=work, check=True)
                     git("add", "--", f, cwd=work, check=True)
@@ -342,20 +400,51 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
                    f"The release's files merged with this Rouh's own {own} change{'s' if own != 1 else ''}, once, by rouh-catch-up."]
             if kept:
                 msg.append("Kept as they were, because the release changed the same lines:\n" + "\n".join(f"- {f}" for f in kept))
+            if carried:
+                msg.append("The release's file with this Rouh's own lines laid over it:\n" + "\n".join(f"- {f}" for f in carried))
+            if dropped:
+                msg.append("The release's file, because this Rouh's own lines did not fit beside it (they are in its "
+                           "history, before this commit):\n" + "\n".join(f"- {f}" for f in dropped))
             git("commit", "-q", "--no-edit", "-m", msg[0], "-m", "\n\n".join(msg[1:]), cwd=work, check=True)
             merged = out("rev-parse", "HEAD", cwd=work)
+            if stuck:
+                # The second choice, if the protected core refuses the first: the release, with only the
+                # files this Rouh added itself; every own line in a file the release has is left out.
+                git("checkout", "-q", "-B", "catch-up-plain", local_release, cwd=work, check=True)
+                added = [f for f in out("diff", "--name-only", "--diff-filter=A", "--no-renames", local_release, merged,
+                                        cwd=work).splitlines() if f]
+                if added:
+                    git("checkout", "-q", merged, "--", *added, cwd=work, check=True)
+                git("commit", "-q", "--allow-empty", "-m", f"Rouh {commit[:12]}, the release of {when}, with only this Rouh's own new files",
+                    "-m", "The second choice of rouh-catch-up --stuck: its own lines in the release's files left out.",
+                    cwd=work, check=True)
+                plain = out("rev-parse", "HEAD", cwd=work)
+                left_out = [f for f in out("diff", "--name-only", "--no-renames", plain, merged, cwd=work).splitlines() if f]
         name = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
         git("fetch", "-q", str(work), f"+{merged}:refs/rouh/update/{name}", f"+{local_release}:refs/rouh/release/{name}",
-            cwd=CODE, check=True)
+            *([f"+{plain}:refs/rouh/update/{name}-plain"] if plain else []), cwd=CODE, check=True)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     if kept:
         say("kept as this Rouh had them, because the release changed the same lines: " + ", ".join(kept[:20]))
+    if carried:
+        say("the release's version, with this Rouh's own lines laid over it: " + ", ".join(carried[:20]))
+    if dropped:
+        say("the release's version, because this Rouh's own lines did not fit beside the release's (still in its "
+            "history): " + ", ".join(dropped[:20]))
     before = point.get("n")
     say(f"handing {merged[:12]} to the protected core; its checks take a minute or a few")
     why = f"Rouh's update to Rouh {commit[:8]} of {when}, once, by rouh-catch-up" + (
         f", {own} own change{'s' if own != 1 else ''} kept" if own else "")
     answer = guard("propose", merged, why)
+    if not answer.get("ok") and plain and plain != merged:
+        say("the protected core refused it: " + str(answer.get("refused") or answer.get("error") or "")[:400])
+        say(f"handing the second choice, {plain[:12]}: the release with only this Rouh's own new files")
+        left = sorted(set(left_out) | set(dropped))
+        answer = guard("propose", plain, why + "; its own lines in the release's files left out")
+        if answer.get("ok"):
+            merged, dropped, carried = plain, left, []
+            say("this Rouh's own lines in these files were left out (they are in its history): " + ", ".join(left[:20]))
     if not answer.get("ok"):
         raise Refused("the protected core did not make it live, so the code is as it was: "
                       + str(answer.get("refused") or answer.get("error") or "it did not say why")[:1500])
@@ -366,7 +455,8 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
     if before:
         say(f"to undo: Anatomy, Meta, Changes, Put back on undo point {before}; or rouh-guard undo {before} here.")
     print("ROUH-CATCH-UP " + json.dumps({"ok": True, "release": commit, "commit": merged, "point": n,
-                                         "before": before, "own": own, "kept": kept}), flush=True)
+                                         "before": before, "own": own, "kept": kept, "carried": carried,
+                                         "dropped": dropped}), flush=True)
     return 0
 
 
