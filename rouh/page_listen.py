@@ -60,7 +60,11 @@ eleven labs to pronounce it so I can hear it". So a page can ask for a short tex
 English speaker would read it, which is what a brand name has to survive. It is said by a model
 that can be told the language (`WORD_MODEL`, ElevenLabs' Flash v2.5, which speaks Bulgarian), in
 Rouh's own voice, and each clip is kept per person by its words, language, voice and model
-(`_word_file`), so the same word is never paid for twice. Only a short text: a word, a name, a
+(`_word_file`), so the same word is never paid for twice. Kept on the server under the data
+folder's ``page_listen/<person>/words/``, for every page and every device of that person; only a
+clip that came back whole is kept; one ask at a time for each clip; the `WORDS_KEPT` most recently
+heard are kept (a clip heard again counts as new, 20 November 2026, Petar: "once we click a
+pronunciation in this specific project, can you save it so we don't use the api again?"). Only a short text: a word, a name, a
 line (`WORD_CHARS`).
 
 **Its switch** is `page_listen` (`rouh/switches.py`): off, the button is not on the page and this
@@ -562,6 +566,11 @@ async def say_word(who, text, lang, cfg=None) -> dict:
     try:
         pcm = await asyncio.to_thread(path.read_bytes)
         kept = True
+        # Heard again: it counts as new, so the clips in use are never the ones tidied away.
+        try:
+            await asyncio.to_thread(os.utime, path)
+        except OSError:
+            pass
     except OSError:
         pcm, kept = None, False
     if pcm is None:
