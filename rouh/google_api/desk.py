@@ -99,6 +99,11 @@ class GoogleDesk:
             raise NotConnected("There is nobody here whose Google account this could be.")
         return self._clients.for_user(who)
 
+    def services_of(self, who: Identity) -> Services:
+        """The clients for this person, named rather than read off the turn: a page's press,
+        such as Undo in What Rouh did (`rouh/unrestricted.py`)."""
+        return self._clients.for_user(who)
+
     def address(self) -> str:
         """The address of the Google account the person here connected, or "".
 

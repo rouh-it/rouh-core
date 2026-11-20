@@ -3633,7 +3633,8 @@
     "rouh/run_access.py",
     "rouh/migrations/0267_permission_mode_seal.py",
     "rouh/genes/manifests/unrestricted-mode.json",
-    "rouh/selfcheck/unrestricted.py"
+    "rouh/selfcheck/unrestricted.py",
+    "rouh/selfcheck/undo_191.py"
    ]
   }
  }

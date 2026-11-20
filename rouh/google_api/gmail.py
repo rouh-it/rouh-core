@@ -858,6 +858,14 @@ class Gmail:
         return {"id": body.get("id") or message_id,
                 "labels": list(body.get("labelIds") or [])}
 
+    async def untrash(self, message_id: str) -> dict:
+        """Out of the bin again: the undo of `trash` (What Rouh did, `rouh/unrestricted.py`)."""
+        body = await self._clients.call(
+            self._who, "POST",
+            self._url(f"/messages/{urllib.parse.quote(message_id)}/untrash"))
+        return {"id": body.get("id") or message_id,
+                "labels": list(body.get("labelIds") or [])}
+
     # --- being told about new mail (`rouh/mail_alerts.py`) --------------------
 
     async def watch(self, topic: str, labels=("INBOX",)) -> dict:

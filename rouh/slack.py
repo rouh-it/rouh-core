@@ -1095,6 +1095,12 @@ def post_message(conn, *, channel: str, text: str, thread_ts: str = "", kind: st
     return {"channel": channel, "ts": ts}
 
 
+def delete_message(conn, *, channel: str, ts: str) -> None:
+    """Take back one message Rouh's bot posted (`chat.delete`): What Rouh did's Undo of a post
+    (`rouh/unrestricted.py`). A bot may delete only its own messages. SlackError when refused."""
+    bot(conn).call("chat.delete", channel=channel, ts=ts)
+
+
 def direct_channel(conn, slack_id: str) -> str:
     """Rouh's own direct message with somebody, opened if it is not yet."""
     got = bot(conn).call("conversations.open", users=slack_id).get("channel") or {}

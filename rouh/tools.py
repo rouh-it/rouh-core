@@ -49,6 +49,7 @@ from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, cal
 from .one_client import OneClient, OneRefused, OneUnavailable, describe_entries
 from . import incubator as _incubator
 from . import signups, tenancy
+from . import unrestricted
 from .google_api import doc_edits
 from .tree import describe_tree
 from .version import get_version
@@ -9929,7 +9930,12 @@ class ToolRegistry:
                 await gmail.trash(message_id)
                 said = f"Put message {message_id} in the bin, where Gmail keeps it 30 days."
                 self.google.wrote("modify_mail", message_id, said)
+                # What Rouh did can take it out of the bin again (`rouh/unrestricted.py`).
+                unrestricted.note_undo({"kind": "gmail", "do": "untrash", "id": message_id})
                 return said
+            # Each message's labels as they were, for What Rouh did's Undo, read only when
+            # somebody collects it: an undo puts back exactly what changed and nothing else.
+            kept = await gmail.labels_now(message_id) if unrestricted.collecting_now() else None
             if args.get("mark_read"):
                 remove.append("UNREAD")
                 did.append("marked it read")
@@ -9939,12 +9945,21 @@ class ToolRegistry:
             if args.get("archive_thread"):
                 thread = await gmail.thread_of(message_id)
                 if thread:
+                    inboxed = ([m["id"] for m in await gmail.thread_minimal(thread)
+                                if "INBOX" in (m.get("labelIds") or [])]
+                               if kept is not None else [])
                     await gmail.modify_thread(thread, remove=["INBOX"])
                     did.append("archived its whole thread out of the inbox")
+                    for one in inboxed:
+                        # The message itself is put back below, with all its labels at once.
+                        if one != message_id:
+                            unrestricted.note_undo({"kind": "gmail", "do": "labels", "id": one,
+                                                    "add": ["INBOX"], "remove": []})
                     if not (args.get("mark_read") or args.get("mark_unread")
                             or args.get("add_labels") or args.get("remove_labels")):
                         said = f"Message {message_id}: " + ", ".join(did) + "."
                         self.google.wrote("modify_mail", message_id, said)
+                        await _mail_put_back(gmail, message_id, kept)
                         return said
             if args.get("archive"):
                 remove.append("INBOX")
@@ -9970,12 +9985,14 @@ class ToolRegistry:
                     did.append("there is no label called " + ", ".join(missing))
             if not add and not remove and not did:
                 return "Nothing was asked for, so that message is unchanged."
+            after = None
             if add or remove:
-                await gmail.modify(message_id, add=add, remove=remove)
+                after = (await gmail.modify(message_id, add=add, remove=remove))["labels"]
         except Exception as exc:
             return _google_trouble(exc)
         said = f"Message {message_id}: " + ", ".join(did) + "."
         self.google.wrote("modify_mail", message_id, said)
+        await _mail_put_back(gmail, message_id, kept, after)
         return said
 
     async def _show_inbox(self, args, emit):
@@ -10488,13 +10505,21 @@ class ToolRegistry:
                 said = (f"Put the {what} {gone['name'] or file_id!r} in the Drive bin"
                         f"{inside} where it stays for 30 days - {what} id {file_id}")
                 self.google.wrote("manage_drive_file", file_id, said)
+                # What Rouh did can take it out of the bin again (`rouh/unrestricted.py`).
+                unrestricted.note_undo({"kind": "drive", "do": "untrash", "id": file_id,
+                                        "name": gone["name"] or file_id, "what": what})
                 return said
             kind = "file"
+            # As it was, for What Rouh did's Undo, read only when somebody collects it.
+            before = await drive.metadata(file_id) if unrestricted.collecting_now() else None
             name = (args.get("new_name") or "").strip()
             if name:
                 renamed = await drive.rename(file_id, name)
                 kind = "folder" if renamed["mime_type"] == FOLDER_TYPE else "file"
                 did.append(f"renamed it to {name!r}")
+                if before is not None and before["name"] != name:
+                    unrestricted.note_undo({"kind": "drive", "do": "rename", "id": file_id,
+                                            "name": before["name"], "now": name})
             folder = (args.get("folder") or "").strip()
             if folder:
                 on_drive = await self._on_which_drive(drive, args)
@@ -10503,6 +10528,10 @@ class ToolRegistry:
                 kind = "folder" if moved["mime_type"] == FOLDER_TYPE else "file"
                 did.append(f"moved it into {folder!r}"
                            + (", with everything inside it" if kind == "folder" else ""))
+                if before is not None and before["parents"] != [moved["folder_id"]]:
+                    unrestricted.note_undo({"kind": "drive", "do": "reparent", "id": file_id,
+                                            "name": moved["name"], "add": before["parents"],
+                                            "remove": [moved["folder_id"]], "from": folder})
         except Exception as exc:
             return _google_trouble(exc)
         if not did:
@@ -11608,6 +11637,9 @@ class ToolRegistry:
                 stop = await self._busy_guard_move(calendar, where, event_id, args)
                 if stop:
                     return untrusted.ours(stop)
+            # As Google holds it now, for What Rouh did's Undo, read only when somebody collects.
+            kept = (await calendar.fields_of(where, event_id, whole_series=whole)
+                    if unrestricted.collecting_now() else None)
             before, after, changes = await calendar.change(
                 where, event_id, title=said_or_none("title"), where=said_or_none("where"),
                 description=said_or_none("description"),
@@ -11615,6 +11647,10 @@ class ToolRegistry:
                 add=_addresses(args.get("add_guests")),
                 remove=_addresses(args.get("remove_guests")),
                 response=answer, whole_series=whole, notify=notify)
+            if kept is not None and changes:
+                unrestricted.note_undo({"kind": "calendar", "do": "fields", "calendar": where,
+                                        "id": kept["id"], "fields": kept["fields"],
+                                        "title": before["title"]})
             moving = str(args.get("move_to_calendar") or "").strip()
             if moving:
                 destination, refused = await _calendar_reached(
@@ -11625,6 +11661,9 @@ class ToolRegistry:
                     after = await calendar.move_to(where, after["id"], destination,
                                                    notify=notify)
                     changes.append(f"moved it to the calendar {after['calendar']}")
+                    unrestricted.note_undo({"kind": "calendar", "do": "move", "calendar":
+                                            destination, "id": after["id"], "back": where,
+                                            "title": after["title"]})
             if rights:
                 # A meeting's guest list hidden from its guests (night 49, `rouh/guest_list.py`).
                 rights_said = await self._guest_list(calendar, after["calendar_id"], after["id"], rights)
@@ -11693,6 +11732,11 @@ class ToolRegistry:
                 + (" - Google told its guests it is cancelled"
                    if guests and gone["mine"] and notify else ""))
         self.google.wrote("delete_calendar_event", gone["id"], said)
+        # Google keeps a deleted event as cancelled, so What Rouh did can restore it
+        # (`Calendar.restore`, `rouh/unrestricted.py`).
+        unrestricted.note_undo({"kind": "calendar", "do": "restore", "calendar": where,
+                                "id": gone["series"] if whole and gone["series"] else gone["id"],
+                                "title": gone["title"]})
         return said
 
     async def _restore_calendar_event(self, args, emit):
@@ -12320,31 +12364,31 @@ class ToolRegistry:
         return (f"{toolsides.NAMES[side]} are turned off in this chat's Chat Options, so {name} cannot be "
                 "called here. Answer without it, and say so if it was needed.")
 
-    async def _unrestricted_passes(self, name: str, args, emit) -> bool:
+    async def _unrestricted_passes(self, name: str, args, emit) -> int | None:
         """Whether a tool the owner's own gates (or an MCP server's Ask first) would stop runs at
         once instead, because this is the owner's own chat and their mode is Unrestricted
         (`rouh/unrestricted.py`). The server's ROUH_CONFIRM_TOOLS always asks, and so does what
-        every mode still asks (`unrestricted.STILL_ASKS`). Written into What Rouh did."""
-        from . import gates, unrestricted
+        every mode still asks (`unrestricted.STILL_ASKS`). Written into What Rouh did: the row's
+        id (0 when it could not be written), or None when the gate asks."""
+        from . import gates
         from .tenancy import SPEAKER
 
         if name in gates.from_server(self.cfg):
-            return False
+            return None
         who = SPEAKER.get()
         try:
             if not await asyncio.to_thread(unrestricted.for_chat, who):
-                return False
+                return None
             if await asyncio.to_thread(unrestricted.still_asks, name, args, who):
-                return False
+                return None
             chat = self.memory.answering_chat() if self.memory is not None else ""
-            await asyncio.to_thread(
+            return await asyncio.to_thread(
                 unrestricted.record, who, via="chat", where=chat, title="", tool=name,
                 args=args or {}, what=(worklabel.describe_step(name, args).get("what") or name),
                 why="Your own chat, in Unrestricted: its gate was not asked.", result="Run in the chat.")
         except Exception:  # noqa: BLE001 - the gate asks as before
             log.exception("whether %s passes under Unrestricted could not be read", name)
-            return False
-        return True
+            return None
 
     async def call(self, name: str, args, emit, *, call_id: str = ""):
         handler = self._handlers.get(name)
@@ -12404,8 +12448,9 @@ class ToolRegistry:
         # And the tools of an MCP server a person connected with Ask first on, which is how
         # it starts (`rouh/mcp_servers.py`).
         from . import gates
+        free_row = None
         if (name in await gates.live(self.gated) or self._mcp_asks_first(name)) and \
-                not await self._unrestricted_passes(name, args, emit):
+                (free_row := await self._unrestricted_passes(name, args, emit)) is None:
             said = worklabel.describe_step(name, args)
             verdict = await self.gate.ask(name, said, emit, call_id=call_id,
                                           args=args if isinstance(args, dict) else None)
@@ -12433,11 +12478,17 @@ class ToolRegistry:
         from . import unrestricted as _unres
 
         calling = _unres.CALLING.set(name or "a tool")
+        # A gate not asked under Unrestricted: what the tool keeps to undo goes on its row.
+        steps: list = []
+        collecting = _unres.UNDO.set(steps) if free_row else None
         try:
             if asyncio.iscoroutinefunction(handler):
                 out = await handler(args or {}, emit)
             else:
                 out = await asyncio.to_thread(handler, args or {}, emit)
+            if free_row:
+                await asyncio.to_thread(_unres.ran, tenancy.SPEAKER.get(), free_row,
+                                        result=str(out), steps=steps)
         except BaseException:
             if use_id:
                 from . import capability_grants
@@ -12447,6 +12498,8 @@ class ToolRegistry:
             raise
         finally:
             _unres.CALLING.reset(calling)
+            if collecting is not None:
+                _unres.UNDO.reset(collecting)
         if use_id:
             from . import capability_grants
 
@@ -16946,6 +16999,10 @@ class ToolRegistry:
             return untrusted.ours(str(exc))
         except slack.SlackError as exc:
             return untrusted.ours(f"Slack would not post it ({exc.error}). Nothing went.")
+        if got.get("ts"):
+            # Rouh's bot may delete its own message, so What Rouh did can take it back.
+            unrestricted.note_undo({"kind": "slack", "do": "delete", "channel": got["channel"],
+                                    "ts": got["ts"], "where": said})
         return untrusted.ours(f"Posted in {said} as Rouh's bot" + (" in the thread" if args.get("thread") else "")
                               + f" (message {got['ts']}).")
 
@@ -18187,6 +18244,24 @@ def _mail_text(found: dict) -> str:
     return (f"From {found['from']} to {found['to']} on {found['date']}\n"
             f"Subject: {found['subject']}\n"
             f"Id: {found['id']}\n\n{found['body']}")
+
+
+async def _mail_put_back(gmail, message_id: str, before, after=None) -> None:
+    """How to put one message's labels back as they were, for What Rouh did's Undo
+    (`rouh/unrestricted.py`): only the labels that changed, either way. Nothing when nobody
+    collects (`before` None). Never raises: what was done was done."""
+    if before is None:
+        return
+    try:
+        if after is None:
+            after = await gmail.labels_now(message_id)
+    except Exception:  # noqa: BLE001 - said as no undo on the row
+        log.exception("the labels of message %s could not be read back for its undo", message_id)
+        return
+    was, now = set(before), set(after)
+    if was != now:
+        unrestricted.note_undo({"kind": "gmail", "do": "labels", "id": message_id,
+                                "add": sorted(was - now), "remove": sorted(now - was)})
 
 
 def _mail_files(found: dict) -> str:

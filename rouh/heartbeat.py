@@ -2621,11 +2621,24 @@ class Heartbeat:
                         if row.work_id is not None else None)
                 if work is not None:
                     chat = work.chat_id
+                # A job's call keeps its undo steps, for What Rouh did when the switch to
+                # Unrestricted let it through (`unrestricted.ran_released`).
+                from . import unrestricted
+
+                steps: list = []
+                kept = (unrestricted.UNDO.set(steps) if str(row.duty or "").startswith("job:")
+                        else None)
                 try:
                     result = str(await self.call_tool(who, row.tool, dict(row.args or {}), chat))
                 except Exception as exc:  # noqa: BLE001 - written on the entry
                     log.exception("approved heartbeat action #%s failed", ident)
                     result, state = f"It failed: {type(exc).__name__}: {exc}", "failed"
+                finally:
+                    if kept is not None:
+                        unrestricted.UNDO.reset(kept)
+                if kept is not None:
+                    await asyncio.to_thread(unrestricted.ran_released, row, state=state,
+                                            result=result, steps=steps)
             await asyncio.to_thread(
                 lambda: m.HeartbeatApproval.objects.filter(id=row.id).update(
                     state=state, result=result[:4000]))

@@ -1204,6 +1204,29 @@ class Calendar:
             end = start + (old_end - old_start)
         return event_span(start, end)
 
+    #: An event's own fields a change can touch, kept as Google holds them so that a change can be
+    #: put back exactly (What Rouh did, `rouh/unrestricted.py`).
+    KEPT_FIELDS = ("summary", "location", "description", "start", "end", "attendees")
+
+    async def fields_of(self, calendar_id: str, event_id: str, *,
+                        whole_series: bool = False) -> dict:
+        """{"id", "fields"}: the event (or its whole series) as Google holds it now, for
+        `put_fields`. A field it does not have is kept empty, so a field added is taken off."""
+        raw = await self._raw(calendar_id, event_id)
+        if whole_series and raw.get("recurringEventId"):
+            raw = await self._raw(calendar_id, raw["recurringEventId"])
+        empty = {"summary": "", "location": "", "description": "", "attendees": []}
+        return {"id": raw.get("id") or event_id,
+                "fields": {k: raw.get(k, empty.get(k)) for k in self.KEPT_FIELDS
+                           if k in raw or k in empty}}
+
+    async def put_fields(self, calendar_id: str, event_id: str, fields: dict) -> dict:
+        """Set an event's fields back as `fields_of` read them, telling nobody."""
+        body = {k: v for k, v in (fields or {}).items() if k in self.KEPT_FIELDS and v is not None}
+        changed = await self._call("PATCH", self._event_path(calendar_id, event_id),
+                                   params=self._send(False), json_body=body)
+        return _an_event(changed, await self.about(calendar_id), self.zone)
+
     async def move_to(self, calendar_id: str, event_id: str, destination: str, *,
                       notify: bool = True) -> dict:
         """Take an event off one calendar and put it on another, as it is."""

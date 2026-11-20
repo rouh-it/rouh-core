@@ -1142,6 +1142,35 @@ class ContactDesk:
         self._wrote("delete_contact", name, f"Deleted {name} from the iCloud contacts, deleted in Synapse", held)
         return ours(f"Deleted {name} from the iCloud contacts, as it was deleted in Synapse.")
 
+    async def put_back(self, who: Identity, step: dict) -> str:
+        """What Rouh did's Undo of one contact change (`rouh/unrestricted.py`): a changed card
+        written back whole as it was, or a card Rouh added taken away. Against iCloud's ETag, so a
+        card changed on another device since is left as it is and said so. Raises `Refused`."""
+        href = str(step.get("href") or "")
+        name = str(step.get("name") or "the contact")
+        row = await self._db(self.store.by_href, who.user_id, who.org_id, href)
+        if row is None:
+            raise Refused(f"{name} is not in the iCloud contacts any more, so there is nothing "
+                          "to put back.")
+        if step.get("do") == "remove":
+            said = await self.remove_card(who, href=href, etag=row["etag"], name=name)
+            return " ".join(str(said).split())
+        async with self._lock(who.user_id):
+            held = await self._db(self.store.held, who.user_id, who.org_id)
+            if held is None or held.needs_new_password:
+                raise Refused("iCloud is not connected, so the contact could not be put back.")
+            async with self._dav(held, quick=True) as dav:
+                dav.part = "save"
+                place = await self._place(dav, held)
+                try:
+                    await dav.put(href, str(step.get("vcard") or ""), etag=row["etag"])
+                except Changed:
+                    raise Refused(f"{name} was changed on another device since, so it was left "
+                                  "as it is.") from None
+                await self._read_back(dav, held, place, href)
+        self._wrote("save_contact", name, f"Put {name} back as it was, from What Rouh did", held)
+        return f"{name} is as it was again in the iCloud contacts"
+
     async def _place(self, dav: CardDAV, held: Held) -> Place:
         if held.place is not None:
             return held.place
@@ -1177,6 +1206,11 @@ class ContactDesk:
         details = f": {', '.join(said)}" if said else ""
         text = f"Added {row['name']} to the iCloud contacts{details}. Id {row['id']}."
         self._wrote("save_contact", row["name"], text, held)
+        from . import unrestricted
+
+        # What Rouh did's Undo of a new card takes the card away again (`put_back`).
+        unrestricted.note_undo({"kind": "contact", "do": "remove", "href": row["href"],
+                                "name": row["name"]})
         return Said(ours(text + " It reaches the phone when the phone next syncs with "
                          "iCloud. " + SHOWN_SAVED),
                     contact_card(row, None, SAVED, person=await self._person_of(held, row),
@@ -1201,6 +1235,11 @@ class ContactDesk:
         await self._face_kept(held, fresh, changes)
         text = f"Changed {fresh['name']} in the iCloud contacts: {'; '.join(said)}. Id {row['id']}."
         self._wrote("save_contact", fresh["name"], text, held)
+        from . import unrestricted
+
+        # The card as it was, whole, so What Rouh did's Undo writes it back (`put_back`).
+        unrestricted.note_undo({"kind": "contact", "do": "card", "href": row["href"],
+                                "name": name, "vcard": row["vcard"]})
         return Said(ours(f"{text} {SHOWN_SAVED}"), contact_card(
             fresh, row, SAVED, person=await self._person_of(held, fresh), picture=changes.photo))
 

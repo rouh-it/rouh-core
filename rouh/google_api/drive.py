@@ -619,6 +619,23 @@ class Drive:
                 "type": _kind(answer.get("mimeType") or ""),
                 "mime_type": answer.get("mimeType") or "", "trashed": True}
 
+    async def untrash(self, file_id: str) -> dict:
+        """Out of the bin again, where it was: the undo of `trash` (What Rouh did,
+        `rouh/unrestricted.py`)."""
+        answer = await self._clients.call(
+            self._who, "PATCH", self._url("/files/" + urllib.parse.quote(file_id)),
+            params={"fields": FILE_FIELDS, **self.SHARED}, json_body={"trashed": False})
+        return {"id": answer.get("id") or file_id, "name": answer.get("name") or "",
+                "mime_type": answer.get("mimeType") or ""}
+
+    async def reparent(self, file_id: str, add: list[str], remove: list[str]) -> dict:
+        """Put a file back in the folders it was in: the undo of `move` (What Rouh did)."""
+        answer = await self._clients.call(
+            self._who, "PATCH", self._url("/files/" + urllib.parse.quote(file_id)),
+            params={"addParents": ",".join(add), "removeParents": ",".join(remove),
+                    "fields": FILE_FIELDS, **self.SHARED})
+        return {"id": answer.get("id") or file_id, "name": answer.get("name") or ""}
+
     # --- who can see it ------------------------------------------------------
     #
     # Sharing is its own resource in Drive - a file has a list of permissions
