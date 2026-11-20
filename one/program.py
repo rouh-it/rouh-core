@@ -43,6 +43,7 @@ from .documents import Documents
 from .listfile import ListFile, epoch
 from .phone import Phone
 from .questions import Questions
+from .rundoor import Door
 from .runs import Runs
 from .scheduler import CpuMeter, Scheduler
 from .terminals import Terminals
@@ -96,6 +97,9 @@ class Program:
         self.scheduler = Scheduler(self, meter=meter)
         self.transcripts = Transcripts(self)
         self.clients: set[Any] = set()
+        #: Each run's own way out and identity, which no other run can borrow (one/rundoor.py).
+        self.door = Door(self.door_holders)
+        self._holder_starts: dict[int, int] = {}
         self.started_at = time.time()
         self._tree_dirty = True
         self._tree_sent: str | None = None
@@ -146,7 +150,36 @@ class Program:
 
     # -- starting and stopping ---------------------------------------------------------
 
+    def door_holders(self) -> dict[int, tuple[str, int]]:
+        """{holder pid: (run id, the holder's start time)} for every run with a terminal now."""
+        from . import peers
+
+        out = {}
+        for run_id, terminal in list(self.terminals.by_run.items()):
+            pid = getattr(terminal, "holder_pid", None)
+            if not pid:
+                continue
+            start = self._holder_starts.get(pid)
+            if start is None:
+                start = self._holder_starts[pid] = peers.started(pid)
+            out[int(pid)] = (run_id, start)
+        for pid in [p for p in self._holder_starts if p not in out]:
+            self._holder_starts.pop(pid, None)
+        return out
+
+    async def _open_door(self) -> None:
+        """Open the run door and send everything this program starts through it."""
+        if os.environ.get("ONE_DOOR", "1") == "0":
+            return
+        await self.door.start()
+        address = self.door.address()
+        if address:
+            for name in ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy"):
+                os.environ[name] = address
+            os.environ.setdefault("ONE_SOCKET", self.settings.socket)
+
     async def start(self) -> None:
+        await self._open_door()
         self.list.append("program.started",
                          body={**version.describe(), "pid": os.getpid()})
         await self.runs.adopt_all()
@@ -157,6 +190,8 @@ class Program:
 
     async def stop(self) -> None:
         sd_notify("STOPPING=1")
+        with contextlib.suppress(Exception):
+            await self.door.close()
         for task in self._tasks:
             task.cancel()
         await self.scheduler.stop()

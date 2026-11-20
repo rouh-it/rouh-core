@@ -68,7 +68,7 @@ from typing import Any, Mapping
 
 from one import agents, billing
 
-SURFACES = ("terminal", "browser", "voice", "phone")
+SURFACES = ("terminal", "browser", "voice", "phone", "run")
 
 #: The messages each place may send. Everything else is refused.
 ALLOWED: dict[str, frozenset[str]] = {
@@ -122,9 +122,14 @@ ALLOWED: dict[str, frozenset[str]] = {
     "voice": frozenset({
         "hello", "ping", "runs", "run", "tree", "tail", "questions", "start", "stop", "say",
         "answer", "take", "give", "spaces", "codex_key", "archive", "calls", "claude_signin",
-        "codex_signin", "shell", "run_logs",
+        "codex_signin", "shell", "run_logs", "run_doors", "run_token_check", "door_attempts",
     }),
     "phone": frozenset({"hello", "ping", "answer"}),
+    # A run's own processes, known by the kernel's process tree (one/peers.py), whatever token
+    # they say hello with: they may only ask for their own run's token (one/rundoor.py, task
+    # 191). Before 20 November 2026 any run could say hello here with no token and be the
+    # server's own terminal, so start, stop and answer anything (191-01 weak spot 3).
+    "run": frozenset({"hello", "ping", "run_token"}),
 }
 
 #: What a run started from each place may be. The voice starts only runs of

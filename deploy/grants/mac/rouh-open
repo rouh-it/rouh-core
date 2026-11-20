@@ -11,6 +11,8 @@
 #                               it (rouh-open add NAME)
 #   rouh-open close             all of it closed now (only you close; a job never does)
 #   rouh-open update            the newest of these commands, here and on the host
+#   rouh-open standing [off]    what the switch on the Permissions page hands your Unrestricted runs
+#                               (standing GitHub and server logins), or all of it off at once
 #   rouh-open --version         which rouh-open this is
 #
 # It prints one short block: a line for each thing, saying what is open, or "NOT open:" and why.
@@ -34,7 +36,7 @@
 # ROUH_HOST_SSH, ROUH_HOST_SSH_PORT and ROUH_HOST_IDENTITY_FILE, in ~/.config/rouh/grants.env,
 # as for rouh-github-grant.
 set -o pipefail   # not -e: one part failing must not stop the others; not -u: macOS's bash 3.2 calls an empty array unset
-ROUH_OPEN_VERSION=2026-11-07.1
+ROUH_OPEN_VERSION=2026-11-20.1
 
 DEFAULTS='
 '
@@ -392,13 +394,22 @@ close_all() {
 }
 
 case "${1:-8}" in
-  -h|--help|help) sed -n '5,14p' "$0" | sed 's/^# //'; exit 2 ;;
+  -h|--help|help) sed -n '5,16p' "$0" | sed 's/^# //'; exit 2 ;;
   -V|--version|version) echo "rouh-open $ROUH_OPEN_VERSION"; exit 0 ;;
   close|revoke) [ $# -le 1 ] || { echo "rouh-open close takes nothing more."; exit 2; }; close_all ;;
   status|list)
     case "${2:-}" in ""|--details) ;; *) echo "rouh-open status [--details]"; exit 2 ;; esac
     status_all "$( [ "${2:-}" = --details ] && echo yes)" ;;
   update) exec "$px_grant" update ;;
+  # The switch on the Permissions page covers all five of these for the owner's own runs while
+  # it is Unrestricted, from standing access on the host (task 191). This shows it, or turns it
+  # all off at once: the key proxy then hands none of it to any run.
+  standing)
+    case "${2:-status}" in
+      status) host_run "$RG standing status" ;;
+      off) host_run "$RG standing revoke all" ;;
+      *) echo "rouh-open standing [status | off]"; exit 2 ;;
+    esac ;;
   add)
     [ $# -ge 2 ] || { echo "rouh-open add NAME...   (a server added to what is open, ending with it: rouh-open add NAME)"; exit 2; }
     shift; add_some "$@" ;;

@@ -25,6 +25,21 @@ grant with its end time, and the proxy stops using one at that time without anyb
                                          this with sudo (the owner's own account), with its end, here on the host itself
     rouh-grant jobs-key close NAME       that key out now, its sessions ended, and what changed
     rouh-grant jobs-key until NAME       its end in epoch seconds, 0 when closed
+    rouh-grant standing github [--from-grant]
+                                         a standing GitHub token (on standard input, or the one
+                                         the open timed grant holds), which the key proxy adds
+                                         only for the owner's own runs while the switch on the
+                                         Permissions page is Unrestricted (task 191)
+    rouh-grant standing server NAME ADDRESS[,ADDRESS] PORT[,PORT] [ITEM]
+                                         one of the owner's servers whose login is standing: its
+                                         ssh is reached only by the owner's Unrestricted runs.
+                                         ITEM is which of the switch's items it is (rouh-land,
+                                         relay or host; NAME when left out)
+    rouh-grant standing jobs-key NAME FROM KEYTYPE KEYBODY COMMENT
+                                         the host's own login as standing: a key line with no end
+                                         in the owner's account, from FROM only
+    rouh-grant standing status           what is standing
+    rouh-grant standing revoke github|NAME|all
     rouh-grant summary                   one line each, for rouh-open to read: github UNTIL LOGIN,
                                          grant KEY UNTIL, login NAME UNTIL (UNTIL in epoch seconds)
     rouh-grant list                      what is open, and until when, in plain words
@@ -35,7 +50,7 @@ grant with its end time, and the proxy stops using one at that time without anyb
     rouh-grant log [COUNT]               what the grants were used for: host, port, which grant
     rouh-grant prune                     what has ended, deleted, and the log gathered
                                          (rouh-grant-prune.timer, each minute)
-    rouh-grant keyproxy [--check]        put a key proxy that reads these grants in place, until a
+    rouh-grant keyproxy [--check|--force] put a key proxy that reads these grants in place, until a
                                          release carries one (deploy/grants/README.md)
     rouh-grant allow add|list|revoke ... the older words for open, list and revoke
 
@@ -79,6 +94,10 @@ GITHUB_FILE = "github_grant.json"
 ALLOW_FILE = "keyproxy_allow_timed"
 GRANTS_FILE = "keyproxy_grants.json"
 LOGINS_FILE = "server_logins.json"
+#: Standing access (task 191): what the switch hands to the owner's Unrestricted runs only. Never
+#: pruned: it stays until `standing revoke`. The token is in its own file, beside the record.
+STANDING_FILE = "standing_access.json"
+GITHUB_STANDING_FILE = "github_standing.json"
 SERVERS_FILE = "servers"
 GROUPS = ("all", "ssh", "servers", "lan")
 #: What each group opens, in plain words.
@@ -889,6 +908,116 @@ def jobs_key_cmd(args: list[str]) -> int:
     raise Refused("jobs-key open NAME HOURS FROM KEYTYPE KEYBODY COMMENT, jobs-key close NAME, jobs-key until NAME")
 
 
+# --- standing access, for the switch (task 191) ----------------------------------------------------
+#
+# Petar, 20 November 2026: "the switch should cover all 5 items in the rouh-open". So GitHub as the
+# owner and the logins of their own servers can be standing, here in the keys volume, and the key
+# proxy hands them only to a run Rouh's core says is the owner's own and Unrestricted
+# (keyproxy_runs.json, rouh/run_access.py). A run of anybody else never reaches them, whatever is
+# open; and nothing here ends by itself: it stays until `standing revoke`.
+
+def read_standing(keys: Path) -> dict:
+    try:
+        raw = json.loads((keys / STANDING_FILE).read_text())
+    except (OSError, ValueError):
+        raw = {}
+    if not isinstance(raw, dict):
+        raw = {}
+    servers = [e for e in raw.get("servers") or [] if isinstance(e, dict) and NAME_SHAPE.fullmatch(str(e.get("name", "")))]
+    return {"github": raw.get("github") if isinstance(raw.get("github"), dict) else None, "servers": servers}
+
+
+def write_standing(keys: Path, data: dict) -> None:
+    data = {"format": 1, "written": int(time.time()), "github": data.get("github"),
+            "servers": sorted(data.get("servers") or [], key=lambda e: e["name"])}
+    write(keys / STANDING_FILE, json.dumps(data, indent=1) + "\n")
+
+
+def standing_cmd(args: list[str]) -> int:
+    keys = keys_dir()
+    data = read_standing(keys)
+    if args[:1] == ["github"] and args[1:] in ([], ["--from-grant"]):
+        if args[1:] == ["--from-grant"]:
+            grant = read_github(keys)
+            if not grant or float(grant.get("until") or 0) <= time.time():
+                raise Refused("No timed GitHub grant is open to make standing.")
+            token = str(grant.get("token") or "")
+        else:
+            token = sys.stdin.read(4096).strip()
+        if not TOKEN_SHAPE.fullmatch(token):
+            raise Refused("That is not a GitHub token.")
+        login, scopes = github_user(token)
+        write(keys / GITHUB_STANDING_FILE, json.dumps({"token": token, "login": login, "scopes": scopes,
+                                                       "since": int(time.time())}))
+        data["github"] = {"login": login, "since": int(time.time())}
+        write_standing(keys, data)
+        note(f"standing github as {login or '?'}")
+        print(f"GitHub standing as {login or 'the token given'}: the owner's Unrestricted runs only.")
+        return 0
+    if args[:1] == ["server"] and len(args) in (4, 5):
+        name, addresses, ports = args[1], [a for a in args[2].split(",") if a], [p for p in args[3].split(",") if p]
+        item = args[4] if len(args) == 5 else name
+        if item not in ("rouh-land", "relay", "host") and item != name:
+            raise Refused(f"{item!r} is not one of the switch's servers (rouh-land, relay, host).")
+        if not NAME_SHAPE.fullmatch(name):
+            raise Refused(f"{name!r} is not a server's name.")
+        if not addresses or not all(is_ipv4(a) for a in addresses):
+            raise Refused(f"{args[2]!r} is not a list of addresses.")
+        if not ports or not all(p.isdigit() and 0 < int(p) < 65536 for p in ports):
+            raise Refused(f"{args[3]!r} is not a list of ports.")
+        data["servers"] = [e for e in data["servers"] if e["name"] != name] + [
+            {"name": name, "item": item, "addresses": addresses, "ports": [int(p) for p in ports],
+             "since": int(time.time()), "off": False}]
+        write_standing(keys, data)
+        note(f"standing server {name} {','.join(addresses)} {','.join(ports)}")
+        print(f"{name}'s login standing: its ssh is reached only by the owner's Unrestricted runs.")
+        return 0
+    if args[:1] == ["jobs-key"] and len(args) == 6:
+        name, frm, ktype, kbody, comment = args[1:]
+        user = os.environ.get("SUDO_USER") or ""
+        if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", user) or user == "root":
+            raise Refused("Run it with sudo from the owner's own account, so the key goes into that account's keys.")
+        if ktype not in KEY_TYPES:
+            raise Refused(f"{ktype!r} is not a kind of key.")
+        addresses = [a for a in frm.split(",") if a]
+        if not addresses or not all(is_ipv4(a) for a in addresses):
+            raise Refused(f"{frm!r} is not a list of addresses.")
+        why = sshd_takes(user, addresses[0], ktype)
+        if why:
+            raise Refused(f"{why}; the key was not written, and sshd's settings are unchanged.")
+        frm = ",".join(dict.fromkeys(addresses + router_gateways()))
+        env = dict(os.environ, ROUH_JOBS_KEYS_USER=user)
+        r = subprocess.run(["bash", str(jobs_keys_helper()), "standing", name, frm, ktype, kbody, comment],
+                           env=env, capture_output=True, text=True, timeout=120)
+        print((r.stdout + r.stderr).strip())
+        note(f"standing jobs-key {name} as {user} from {frm}: {'ok' if r.returncode == 0 else 'refused'}")
+        return r.returncode
+    if args == ["status"]:
+        gh = data["github"]
+        print(f"github standing as {gh.get('login') or '?'}" if gh and (keys / GITHUB_STANDING_FILE).exists()
+              else "github not standing")
+        for e in data["servers"]:
+            print(f"server {e['name']} ({e.get('item') or e['name']}) {','.join(e.get('addresses') or [])} ports "
+                  f"{','.join(str(p) for p in e.get('ports') or [])}" + (" off" if e.get("off") else ""))
+        return 0
+    if args[:1] == ["revoke"] and len(args) == 2:
+        what = args[1]
+        if what in ("github", "all"):
+            with_missing_ok(keys / GITHUB_STANDING_FILE)
+            data["github"] = None
+        # A server stays on the list, off: the key proxy keeps guarding it, so its standing key
+        # line, until it is taken out on that server, still reaches nobody.
+        for e in data["servers"]:
+            if what == "all" or e["name"] == what:
+                e["off"] = True
+        write_standing(keys, data)
+        note(f"standing revoke {what}")
+        print(f"Standing {what} revoked (a server's own key line is taken out on that server).")
+        return 0
+    raise Refused("standing github [--from-grant], standing server NAME ADDRESSES PORTS, standing jobs-key "
+                  "NAME FROM KEYTYPE KEYBODY COMMENT, standing status, standing revoke github|NAME|all")
+
+
 # --- the key proxy that reads them -----------------------------------------------------------------
 
 def proxy_container() -> str:
@@ -949,11 +1078,15 @@ def proxy_note() -> None:
               "Put one that does in place: rouh-proxy-grant update (on the Mac), or sudo rouh-grant keyproxy")
 
 
-def keyproxy(check_only: bool) -> int:
+def keyproxy(check_only: bool, force: bool = False) -> int:
     """The key proxy of this checkout's guard (kept in LIB by install.sh) on top of the image the
     stack runs, and only the key proxy recreated; until a release carries it. Nothing else of the
-    stack changes, and the next linux_stack.py update or apply puts the release's own back."""
+    stack changes, and the next linux_stack.py update or apply puts the release's own back.
+    `force` puts this copy in place even over a release's own proxy that reads grants (one that
+    does not yet hand access per run, task 191), when the running one is not this very copy."""
     current = proxy_current()
+    if force and current and running_proxy() and running_proxy()[0] != (LIB / "keyproxy.py").read_text():
+        current = False
     if current:
         print("The running key proxy reads these grants already. Nothing to do.")
         return 0
@@ -1033,14 +1166,16 @@ def main(argv: list[str]) -> int:
             return show_used(int(args[1]) if len(args) == 2 and args[1].isdigit() else 40)
         elif args[:1] == ["jobs-key"]:
             return jobs_key_cmd(args[1:])
+        elif args[:1] == ["standing"]:
+            return standing_cmd(args[1:])
         elif args[:1] == ["login"]:
             login_cmd(args[1:])
         elif args == ["summary"]:
             return summary()
         elif args == ["prune"]:
             prune()
-        elif args[:1] == ["keyproxy"] and args[1:] in ([], ["--check"]):
-            return keyproxy(args[1:] == ["--check"])
+        elif args[:1] == ["keyproxy"] and args[1:] in ([], ["--check"], ["--force"]):
+            return keyproxy(args[1:] == ["--check"], args[1:] == ["--force"])
         else:
             print(USAGE, file=sys.stderr)
             return 2

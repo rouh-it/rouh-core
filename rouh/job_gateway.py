@@ -122,6 +122,9 @@ class Scope:
     work_id: int | None = None
     #: The heartbeat's beat this job is (`policy.BEAT`, `rouh/heartbeat_jobs.py`), or None.
     beat_id: int | None = None
+    #: Whether the job showed its own run token, which the one program vouched for
+    #: (`run_access.verify`): only then may it be Unrestricted (`unrestricted.for_job`).
+    verified: bool = False
 
 
 # --- whom a job works for ---------------------------------------------------------------------
@@ -767,12 +770,26 @@ async def call(scope: Scope, name: str, args) -> dict:
         return {"ok": False, "text": f"{name} did not finish within {CALL_SECONDS:.0f} seconds."}
 
 
-async def act(job: str, action: str, tool: str = "", args=None) -> dict:
-    """One request of a job's MCP server, answered as a dict. Never raises."""
+async def act(job: str, action: str, tool: str = "", args=None, run_token: str = "") -> dict:
+    """One request of a job's MCP server, answered as a dict. Never raises.
+
+    `run_token` is the run's own token from the one program (`rouh/worker_mcp.py`). A token that
+    is another run's is refused, and trips the tripwire (191-01 weak spot 2); with none, the job is
+    served as before but is never Unrestricted.
+    """
     try:
+        from . import run_access
+
+        checked = await run_access.verify(job, run_token)
+        if checked == "other":
+            await asyncio.to_thread(run_access.trip, f"a run used a token that is not job {job}'s",
+                                    by="the job gateway", run=job)
+            return {"ok": False, "text": "That token is not this job's own, so Rouh does nothing "
+                                         "for it."}
         scope, why = await asyncio.to_thread(scope_of, job)
         if scope is None:
             return {"ok": False, "text": why}
+        scope.verified = checked == "ok"
         if action == "list":
             return {"ok": True, "scope": scope.kind, "tools": await tools_for(scope)}
         if action == "call":

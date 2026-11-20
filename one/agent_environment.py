@@ -12,7 +12,7 @@ import os
 SAFE_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 #: The worker's own settings a run is given as they are (`_clean_env`).
 PASSED_ON = ("HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy",
-             "ROUH_WORKER_KEY_FILE", "ROUH_LAND_THROUGH")
+             "ROUH_WORKER_KEY_FILE", "ROUH_LAND_THROUGH", "ONE_SOCKET")
 #: The protected core's commands, in the containers (guard/README.md).
 GUARD_BIN = "/opt/rouh-guard/bin"
 #: `bin/` of the repository this file is in: Rouh's commands for a workspace.

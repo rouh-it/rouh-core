@@ -7978,6 +7978,11 @@ async def startup() -> None:
     # takes the work they hand it (`rouh/workspace_follow.py`); off on the server, where land.sh
     # moves it.
     workspace_follow.start()
+    # Which runs the switch opens the five rouh-open items for, written for the key proxy every
+    # few seconds, and the tripwire read (`rouh/run_access.py`, task 191). In the containers only.
+    from . import run_access
+
+    run_access.start()
     # And `_tasks.md` written out of the rows again whenever Rouh changes the
     # tree, on every machine, saved or not (`rouh/tasklist.py`).
     from . import objecttree, tasklist

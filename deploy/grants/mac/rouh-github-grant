@@ -44,7 +44,7 @@ ssh_clean() {
   env "${u[@]}" "$@"
 }
 remote() { ssh_clean ssh "${SSH_OPTS[@]}" -p "$PORT" -o ConnectTimeout=20 "$HOST" "sudo -n /usr/local/sbin/rouh-grant $*"; }
-usage() { sed -n '4,7p' "$0" | sed 's/^# //'; exit 2; }
+usage() { sed -n '4,7p' "$0" | sed 's/^# //'; echo "rouh-github-grant standing [--token | off | status]   GitHub for the switch's Unrestricted runs only, with no end"; exit 2; }
 
 say_quietly() {  # the set's one line, or nothing when ROUH_GRANT_QUIET=1; a failure is always said
   local out rc
@@ -57,6 +57,19 @@ hours=8; pasted=no
 case "${1:-}" in
   status) [ "${2:-}" = --details ] && { remote github status --details; exit; }; remote github status; exit ;;
   revoke) remote github revoke; exit ;;
+  # Standing GitHub for the switch (task 191): the owner's Unrestricted runs only, no end time.
+  standing)
+    case "${2:-}" in
+      --token)
+        if [ -t 0 ]; then IFS= read -rs -p "Paste the GitHub token (it is not shown): " token; echo
+          printf '%s\n' "$token" | remote standing github; rc=$?; unset token; exit $rc
+        else remote standing github; exit; fi ;;
+      off) remote standing revoke github; exit ;;
+      status) remote standing status; exit ;;
+      "") command -v gh >/dev/null && gh auth token >/dev/null 2>&1 || { echo "gh is not signed in here: gh auth login, or use --token"; exit 1; }
+          gh auth token | remote standing github; exit ;;
+      *) echo "rouh-github-grant standing [--token | off | status]"; exit 2 ;;
+    esac ;;
   -h|--help|help) usage ;;
 esac
 for a in "$@"; do

@@ -77,6 +77,28 @@ read, as pair grants.
 Every address is looked up once and the connection made to the address that was
 checked, so a name cannot answer one address to the check and another to the connection.
 
+**Per run, from the switch (task 191, 20 November 2026).** The one program gives every run a
+password of its own, which the run never sees: its run door adds it to each request as
+``Proxy-Authorization`` (one/rundoor.py), and Rouh's core writes the hash of each, with what that
+run may have, into ``keyproxy_runs.json`` (rouh/run_access.py). Once that file is there:
+
+- a run the core marks ``free`` (the owner's own live run while the switch on the Permissions page
+  is Unrestricted) gets what it is given: ``internet`` (any public server, any port), ``github``
+  (the owner's standing token, ``github_standing.json``) and the logins of the owner's standing
+  servers (``standing_access.json``: rouh.land, the relay, the host), each by its item;
+- the owner's own runs and the program keep the owner's timed grants, as before;
+- any other run - a contact's, a mail's, a process's, a beat's - and anything with no password of a
+  live run gets the standing rules only: no timed grant, no token, no standing server;
+- the owner's standing servers are reached by nothing else, even with a timed grant or a listed
+  pair, and a run that is not the owner's trying one trips the tripwire;
+- **the tripwire**: a planted credential (a canary, whose hash is in the runs file) used by
+  anything, or a stranger's run at the owner's servers, is a trip. From a trip until the core says
+  it saw it (``ack``), nothing gets anything past the standing rules, and the core drops the switch
+  to Restricted (``GET /trips``).
+
+Without ``keyproxy_runs.json`` (a Rouh whose core does not write it yet) everything is as before,
+but a standing server is still reached only while rouh-open's timed login for it is open.
+
 Nothing here ever writes a key or a header to the log.
 """
 from __future__ import annotations
@@ -112,6 +134,15 @@ GRANTS_FILE = "keyproxy_grants.json"
 #: Which grants file this proxy reads; rouh-grant on the machine looks for this line to know
 #: whether the running proxy understands the grants it writes.
 ROUH_GRANTS_FORMAT = 2
+#: Per run (task 191): what the core says each run's password may have, and the standing access.
+RUNS_FILE = "keyproxy_runs.json"
+STANDING_FILE = "standing_access.json"
+GITHUB_STANDING_FILE = "github_standing.json"
+LOGINS_FILE = "server_logins.json"
+#: The kinds of run the core names, and the ones that are never the owner's.
+OWNER_KINDS = {"owner", "program"}
+#: The five things the switch hands an Unrestricted run of the owner's (rouh/run_access.ITEMS).
+ITEMS = ("internet", "github", "rouh-land", "relay", "host")
 #: The ssh ports an ``ssh`` grant opens.
 SSH_PORTS = {22, 222, 2022, 2222, 22022}
 #: Which grant is named in the log when several would let a connection through: the narrowest.
@@ -351,15 +382,255 @@ def in_lan(address: str, lan: dict) -> bool:
     return any(a in net for net in lan["nets"])
 
 
+# --- per run (task 191) ------------------------------------------------------------------------
+
+def _load_json(name: str, cache: dict) -> dict | None:
+    path = os.path.join(KEYS_DIR, name)
+    try:
+        st = os.stat(path)
+    except OSError:
+        cache.update(stamp=None, data=None)
+        return None
+    stamp = (st.st_ino, st.st_mtime_ns, st.st_size)
+    if stamp == cache.get("stamp"):
+        return cache.get("data")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            raw = json.loads(fh.read(4 * 1024 * 1024))
+    except (OSError, ValueError):
+        return cache.get("data")
+    data = raw if isinstance(raw, dict) else {}
+    cache.update(stamp=stamp, data=data)
+    return data
+
+
+_runs_cache: dict = {}
+_standing_cache: dict = {}
+_logins_cache: dict = {}
+
+
+class Who:
+    """Whose request this is, by the run password the run door added (or none)."""
+
+    def __init__(self, kind: str = "none", run: str = "", free: bool = False, gets=()) -> None:
+        self.kind, self.run, self.free, self.gets = kind, run, free, frozenset(gets)
+
+    def label(self) -> str:
+        return f"run {self.run}" if self.run else self.kind
+
+    def owners(self) -> bool:
+        return self.kind in OWNER_KINDS
+
+    def strangers(self) -> bool:
+        return self.kind not in OWNER_KINDS and self.kind not in ("none", "unknown")
+
+
+NOBODY = Who()
+
+
+def runs_data() -> dict | None:
+    """The core's word on each run, or None when there is no such file (everything as before)."""
+    return _load_json(RUNS_FILE, _runs_cache)
+
+
+def strict() -> bool:
+    return runs_data() is not None
+
+
+def _hash(text: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()
+
+
+def _credentials(headers) -> list[str]:
+    """Every secret a request carries in its headers, to be checked against the canaries."""
+    out = []
+    for name, value in headers:
+        if name.lower() not in ("proxy-authorization", "authorization"):
+            continue
+        kind, _, rest = value.strip().partition(" ")
+        rest = rest.strip()
+        if kind.lower() == "basic":
+            with contextlib.suppress(ValueError, UnicodeDecodeError):
+                pair = base64.b64decode(rest, validate=False).decode("utf-8", "replace")
+                out.append(pair.partition(":")[2])
+                out.append(pair.partition(":")[0])
+        elif rest:
+            out.append(rest)
+    return [c for c in out if c]
+
+
+#: Trips seen since this proxy started: {at, what, run, kind, target}. The core reads them.
+TRIPS: list[dict] = []
+
+
+def trip(what: str, who: "Who", target: str = "") -> None:
+    TRIPS.append({"at": time.time(), "what": what, "run": who.run, "kind": who.kind, "target": target})
+    del TRIPS[:-100]
+    log.warning("TRIP %s by %s at %s", what, who.label(), target)
+
+
+def tripped() -> bool:
+    """Whether a trip happened that the core has not said it saw: then nobody gets more."""
+    data = runs_data() or {}
+    try:
+        ack = float(data.get("ack") or 0)
+    except (TypeError, ValueError):
+        ack = 0.0
+    return any(t["at"] > ack for t in TRIPS)
+
+
+def identify(headers, now: float | None = None) -> Who:
+    """Who sent this request, by its run password; checks the canaries as it goes."""
+    data = runs_data()
+    creds = _credentials(headers)
+    if data is not None and creds:
+        canaries = {str(c) for c in data.get("canaries") or []}
+        if canaries and any(_hash(c) in canaries for c in creds):
+            who = Who("unknown")
+            trip("a planted credential was used", who)
+            return who
+    if data is None:
+        return NOBODY
+    auth = next((v for n, v in headers if n.lower() == "proxy-authorization"), "")
+    if not auth:
+        return NOBODY
+    kind, _, rest = auth.strip().partition(" ")
+    if kind.lower() != "basic":
+        return Who("unknown")
+    try:
+        pair = base64.b64decode(rest.strip(), validate=False).decode("utf-8", "replace")
+    except ValueError:
+        return Who("unknown")
+    password = pair.partition(":")[2]
+    moment = time.time() if now is None else now
+    try:
+        fresh = float(data.get("until") or 0) > moment
+    except (TypeError, ValueError):
+        fresh = False
+    entry = (data.get("runs") or {}).get(_hash(password)) if fresh and password else None
+    if not isinstance(entry, dict):
+        return Who("unknown")
+    # Only ever the owner's own run, whatever the file says: a second lock on the core's word.
+    free = bool(entry.get("free")) and str(entry.get("kind")) == "owner" and not tripped()
+    try:
+        if free and entry.get("until") and float(entry["until"]) <= moment:
+            free = False
+    except (TypeError, ValueError):
+        free = False
+    return Who(str(entry.get("kind") or "unknown"), str(entry.get("run") or ""), free,
+               [g for g in entry.get("gets") or [] if g in ITEMS] if free else ())
+
+
+def standing_servers() -> list[dict]:
+    """The owner's servers whose login is standing: [{name, item, addresses, ports}]."""
+    data = _load_json(STANDING_FILE, _standing_cache) or {}
+    out = []
+    for e in data.get("servers") or []:
+        if not isinstance(e, dict) or not e.get("name"):
+            continue
+        ports = set()
+        for p in e.get("ports") or []:
+            with contextlib.suppress(TypeError, ValueError):
+                ports.add(int(p))
+        out.append({"name": str(e["name"]).lower(), "item": str(e.get("item") or e["name"]).lower(),
+                    "addresses": _addresses(e.get("addresses")), "ports": ports or SSH_PORTS,
+                    "off": bool(e.get("off"))})
+    return out
+
+
+def timed_login_open(name: str, now: float | None = None) -> bool:
+    data = _load_json(LOGINS_FILE, _logins_cache) or {}
+    moment = time.time() if now is None else now
+    for e in data.get("logins") or []:
+        with contextlib.suppress(TypeError, ValueError, KeyError):
+            if str(e["name"]).lower() == name and float(e["until"]) > moment:
+                return True
+    return False
+
+
+def github_standing() -> dict | None:
+    path = os.path.join(KEYS_DIR, GITHUB_STANDING_FILE)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            got = json.load(fh)
+        token = str(got["token"]).strip()
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not TOKEN_SHAPE.fullmatch(token):
+        return None
+    return {"token": token, "login": str(got.get("login") or "")}
+
+
 def name_covers(name: str, host: str) -> bool:
     return host == name or host.endswith("." + name)
 
 
-def decide(host: str, port: int) -> tuple[str | None, str | None, str]:
+def _guarded(host: str, port: int, who: Who) -> tuple[str | None, str | None, str] | None:
+    """For one of the owner's standing servers on one of its ports: the answer; None otherwise.
+    Reached by the owner's Unrestricted runs that were given it; by the owner's own runs while
+    rouh-open's timed login for it is open (and, with no runs file, by any run then, as before);
+    and by nothing else, whatever grant or listed pair is open."""
+    servers = standing_servers()
+    if not servers:
+        return None
+    addresses = lookup(host) if not _is_ip(host) else [host]
+    ips = set()
+    for a in addresses:
+        with contextlib.suppress(ValueError):
+            ips.add(ipaddress.ip_address(a))
+    for e in servers:
+        if not (ips & e["addresses"]) or port not in e["ports"]:
+            continue
+        address = next(a for a in addresses if ipaddress.ip_address(a) in e["addresses"])
+        if who.free and e["item"] in who.gets and not e["off"]:
+            return address, f"switch {who.label()} {e['item']}", ""
+        if timed_login_open(e["name"]) and (who.owners() or not strict()):
+            if _timed_path(host, port, address, who):
+                return address, f"login {e['name']}", ""
+            return None, None, f"port {port} is not open for the timed login of {e['name']}\n"
+        if strict() and who.strangers():
+            trip(f"a run that is not the owner's tried {e['name']}'s login", who, f"{host}:{port}")
+        return None, None, (f"{e['name']} is one of the owner's own servers: only the owner's own "
+                            "runs reach it, while the switch is Unrestricted\n")
+    return None
+
+
+def _is_ip(text: str) -> bool:
+    try:
+        ipaddress.ip_address(text)
+        return True
+    except ValueError:
+        return False
+
+
+def _timed_path(host: str, port: int, address: str, who: Who) -> bool:
+    """Whether the timed grants (or a listed pair) open the network path to this server."""
+    if listed(host, port) or port in PORTS:
+        return True
+    grants, data = open_grants()
+    ip = ipaddress.ip_address(address)
+    for g in grants:
+        if g["kind"] == "all" or (g["kind"] == "ssh" and port in SSH_PORTS):
+            return True
+        if g["kind"] == "name" and name_covers(g["name"], host):
+            return True
+        if g["kind"] == "pair" and g["host"] == host and g["port"] == port:
+            return True
+        if g["kind"] == "servers" and any(e["name"] == host or ip in e["addresses"] for e in data["servers"]):
+            return True
+    return False
+
+
+def decide(host: str, port: int, who: Who = NOBODY) -> tuple[str | None, str | None, str]:
     """Whether a worker may reach host:port, and how: (the one address to connect to, the grant that
     let it through or None for the standing rules, why not). The host is looked up once here, and
-    the connection is made to the very address checked."""
+    the connection is made to the very address checked. `who` is the run, by its password."""
     host = host.strip("[]").lower()
+    guarded = _guarded(host, port, who)
+    if guarded is not None:
+        return guarded
     if listed(host, port):
         address = resolve(host, anywhere=True)
         return (address, None, "") if address else (None, None, f"{host} does not resolve")
@@ -369,6 +640,8 @@ def decide(host: str, port: int) -> tuple[str | None, str | None, str]:
     address = addresses[0]
     grants, data = open_grants()
     if not is_public(host, addresses):
+        if strict() and not who.owners():
+            grants = []
         if any(g["kind"] == "lan" for g in grants) and in_lan(address, data["lan"]):
             return address, "lan", ""
         if any(g["kind"] == "lan" for g in grants):
@@ -376,6 +649,11 @@ def decide(host: str, port: int) -> tuple[str | None, str | None, str]:
         return None, None, "that address is not on the public internet\n"
     if port in PORTS:
         return address, None, ""
+    if who.free and "internet" in who.gets:
+        return address, f"switch {who.label()}", ""
+    if strict() and not who.owners():
+        return None, None, (f"port {port} is not one the workers may reach, and only the owner's "
+                            "own runs get what is open past it\n")
     ip = ipaddress.ip_address(address)
     found = set()
     for g in grants:
@@ -453,7 +731,7 @@ async def splice(a_reader, a_writer, b_reader, b_writer) -> None:
             w.close()
 
 
-async def tunnel(reader, writer, target: str) -> None:
+async def tunnel(reader, writer, target: str, who: Who = NOBODY) -> None:
     """``CONNECT host:port``: a plain tunnel to a public address, nothing added."""
     host, _, port_text = target.rpartition(":")
     host = host.strip("[]")
@@ -461,7 +739,7 @@ async def tunnel(reader, writer, target: str) -> None:
         port = int(port_text)
     except ValueError:
         return await answer(writer, "400 Bad Request", "not host:port\n")
-    address, grant, why = await asyncio.to_thread(decide, host, port)
+    address, grant, why = await asyncio.to_thread(decide, host, port, who)
     if address is None:
         return await answer(writer, "403 Forbidden", why)
     if grant:
@@ -475,7 +753,7 @@ async def tunnel(reader, writer, target: str) -> None:
     await splice(reader, writer, up_reader, up_writer)
 
 
-async def forward_plain(reader, writer, first: str, headers, url: str) -> None:
+async def forward_plain(reader, writer, first: str, headers, url: str, who: Who = NOBODY) -> None:
     """A plain-http request in absolute form: passed on as it is, nothing added."""
     parts = urlsplit(url)
     host, port = parts.hostname or "", parts.port or 80
@@ -483,7 +761,7 @@ async def forward_plain(reader, writer, first: str, headers, url: str) -> None:
     # browser asks for an http page this way, never with CONNECT.
     if parts.scheme != "http":
         return await answer(writer, "403 Forbidden", "not a port the workers may reach\n")
-    address, grant, why = await asyncio.to_thread(decide, host, port)
+    address, grant, why = await asyncio.to_thread(decide, host, port, who)
     if address is None:
         return await answer(writer, "403 Forbidden", why)
     if grant:
@@ -572,16 +850,27 @@ def github_credential(host: str, token: str) -> tuple[str, str]:
     return "Authorization", f"Bearer {token}"
 
 
-async def github(reader, writer, method: str, host: str, path: str, version: str, headers) -> None:
+async def github(reader, writer, method: str, host: str, path: str, version: str, headers,
+                 who: Who = NOBODY) -> None:
     """A worker's request to one of GitHub's names, sent on over https with the owner's token
-    added while a grant is open. Whatever credential the worker sent is taken off first, always."""
-    grant, state = github_grant()
+    added: the standing one for the owner's Unrestricted runs, the timed one while a grant is open
+    for the owner's own runs (for every run when the core writes no runs file). Whatever credential
+    the worker sent is taken off first, always."""
+    standing = github_standing() if who.free and "github" in who.gets else None
+    if standing:
+        grant, state = {"token": standing["token"], "until": time.time() + 3600,
+                        "login": standing["login"]}, "standing"
+    else:
+        grant, state = github_grant()
+        if grant and strict() and not who.owners():
+            grant, state = None, "not for this run"
     kept = [(n, v) for n, v in headers if n.lower() not in HOP and n.lower() not in GITHUB_STRIP]
     kept.append(("Host", host))
     if grant:
         kept.append(github_credential(host, grant["token"]))
         when = datetime.fromtimestamp(grant["until"], timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        note = ("X-Rouh-GitHub-Grant", f"open until {when}" + (f" as {grant['login']}" if grant["login"] else ""))
+        note = ("X-Rouh-GitHub-Grant", (f"standing, for this run" if state == "standing" else f"open until {when}")
+                + (f" as {grant['login']}" if grant["login"] else ""))
     else:
         note = ("X-Rouh-GitHub-Grant", state)
     kept.append(("Connection", "close"))
@@ -613,22 +902,28 @@ async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> 
         if len(parts) != 3:
             return await answer(writer, "400 Bad Request", "not an HTTP request\n")
         method, target, _ = parts
+        who = identify(headers)
         if method == "CONNECT":
-            log.info("CONNECT %s", target)
-            return await tunnel(reader, writer, target)
+            log.info("CONNECT %s (%s)", target, who.label())
+            return await tunnel(reader, writer, target, who)
         if target.startswith("http://"):
             parts = urlsplit(target)
             if (parts.hostname or "").lower() in GITHUB_HOSTS and (parts.port or 80) == 80:
                 path = (parts.path or "/") + (f"?{parts.query}" if parts.query else "")
                 return await github(reader, writer, method, parts.hostname.lower(), path,
-                                    first.split(" ", 2)[2], headers)
+                                    first.split(" ", 2)[2], headers, who)
             log.info("%s %s", method, parts.netloc)
-            return await forward_plain(reader, writer, first, headers, target)
+            return await forward_plain(reader, writer, first, headers, target, who)
         asked = host_name(next((v for n, v in headers if n.lower() == "host"), ""))
         if target.startswith("/") and asked in GITHUB_HOSTS:
-            return await github(reader, writer, method, asked, target, first.split(" ", 2)[2], headers)
+            return await github(reader, writer, method, asked, target, first.split(" ", 2)[2], headers,
+                                who)
         if target in ("/health", "/healthz"):
             return await answer(writer, "200 OK", "ok\n")
+        if target == "/trips":
+            # What tripped, for the core's tripwire (rouh/run_access.py). Reasons only, no secret.
+            return await answer(writer, "200 OK", {"trips": TRIPS[-50:], "format": 1,
+                                                   "strict": strict()})
         for prefix, route in ROUTES.items():
             if target == prefix or target.startswith(prefix + "/"):
                 log.info("%s %s%s", method, route["name"], urlsplit(target).path[len(prefix):])

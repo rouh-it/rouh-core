@@ -61,6 +61,10 @@ async def page(request: HttpRequest):
 
     try:
         await asyncio.to_thread(press)
+        # The key proxy hears the switch at once, not at its next look (`rouh/run_access.py`).
+        from rouh import run_access
+
+        await run_access.now()
     except unrestricted.NotAPress as exc:
         return refuse(str(exc), 403)
     except ValueError as exc:

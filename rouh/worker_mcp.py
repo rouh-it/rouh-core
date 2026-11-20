@@ -528,8 +528,44 @@ def outbox_url() -> str:
     return DEFAULT_URL
 
 
+def run_token() -> str:
+    """This run's own token, from the one program's control socket, or "".
+
+    The program answers with the token of the run this very process descends from, asked of
+    the kernel, whatever this process says (one/rundoor.py, task 191): so a run can only ever
+    show Rouh its own token, and Rouh believes a job is the run it names only with it. Asked
+    afresh for every call, because a program that starts again makes new ones. Never in the
+    environment or a file, which every run can read.
+    """
+    import socket as _socket
+
+    path = (os.environ.get("ONE_SOCKET") or os.environ.get("ROUH_ONE_SOCKET")
+            or "/run/one/one.sock").strip()
+    try:
+        with _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM) as s:
+            s.settimeout(3.0)
+            s.connect(path)
+            fh = s.makefile("rwb")
+            fh.write(b'{"t": "hello", "id": 0}\n{"t": "run_token", "id": 1}\n')
+            fh.flush()
+            for _ in range(20):
+                line = fh.readline()
+                if not line:
+                    break
+                said = json.loads(line)
+                if said.get("re") == 1:
+                    return str(said.get("token") or "") if said.get("t") == "ok" else ""
+    except (OSError, ValueError):
+        return ""
+    return ""
+
+
 def _post(url: str, payload: dict, timeout: float = 15.0) -> tuple[int, dict]:
     """POST one JSON object to Rouh and read its answer, never through a proxy."""
+    if payload.get("job") and "run_token" not in payload:
+        token = run_token()
+        if token:
+            payload = {**payload, "run_token": token}
     request = urllib.request.Request(
         url, data=json.dumps(payload).encode("utf-8"), method="POST",
         headers={"Content-Type": "application/json", "Accept": "application/json",

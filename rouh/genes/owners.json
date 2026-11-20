@@ -390,7 +390,9 @@
     ".mcp.json",
     ".claude/settings.json",
     "rouh/one_client.py",
-    "rouh/one_jobs.py"
+    "rouh/one_jobs.py",
+    "one/peers.py",
+    "one/rundoor.py"
    ]
   },
   "account": {
@@ -3628,6 +3630,8 @@
     "rouh/web/permissions.py",
     "rouh/static/permissionspage.*",
     "rouh/migrations/0266_permission_mode.py",
+    "rouh/run_access.py",
+    "rouh/migrations/0267_permission_mode_seal.py",
     "rouh/genes/manifests/unrestricted-mode.json",
     "rouh/selfcheck/unrestricted.py"
    ]

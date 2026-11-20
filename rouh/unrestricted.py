@@ -31,8 +31,10 @@ scope is decided by Rouh from its run register (`job_gateway.scope_of`), never f
 says; on top of that a run gets Unrestricted only while it is live in the register and only when
 Rouh itself recorded words of the owner's behind it (`his_word.words_of_scope`, which includes what
 they typed to it in the one program), so an id of an ended run, or of one nobody of theirs started,
-gets nothing. A per-run token (191-02 package 2.1) would need the one program to hand each run a
-secret that other runs as the same Linux user cannot read; that is wave 2.
+gets nothing. Since 20 November 2026 (run b631957c) a run must also show Rouh its own token, which
+only the one program holds, in memory, and hands to the run's own processes as the kernel's process
+tree says (`one/rundoor.py`, `rouh/run_access.verify`); a run with no token, or another run's,
+never gets Unrestricted (`scope.verified`).
 
 **Still asked, even in Unrestricted** (`STILL_ASKS`, `still_asks`): money above the owner's own
 payment caps, deleting their data for good, and giving credentials or account access to people
@@ -43,12 +45,16 @@ outside. One small list, here, to change later.
 Cloudflare keeps each record as it was before a change (`UNDO`, `cloudflare.ZoneAPI`), so a DNS
 change, a deletion or Email Routing switched on or off can be put back.
 
-**rouh-open.** The switch does not open the key proxy's grants (`deploy/grants/README.md`). Those
-are written on the host by commands the owner runs from their Mac, with keys that are never on the
-server, so nothing that breaks into Rouh can open GitHub as them or their servers' logins; and the
-key proxy cannot tell one run from another, so a grant the switch opened would reach a stranger's
-run as much as theirs. The Permissions page shows what rouh-open has open and until when, read from
-the keys volume (`grants_open`), and the one command to run for the same hours.
+**rouh-open.** Since 20 November 2026 the switch covers all five of rouh-open's items, per run
+(`rouh/run_access.py`): while it is Unrestricted, the owner's own live runs get the internet on
+any port, GitHub as the owner, and the logins of rouh.land, the relay and the host, from standing
+access the host keeps in the keys volume; nothing else gets any of them. rouh-open's own timed
+grants still open for some hours, now for the owner's own runs only (`grants_open` reads them).
+
+**The seal.** `flip` writes the mode with a seal made with this Rouh's own key (`run_access.seal`);
+`current` opens it, and a mode row that says Unrestricted without the seal of its own press is
+taken for what it is, something other than the owner's press, and trips the tripwire back to
+Restricted (`run_access.trip`).
 """
 from __future__ import annotations
 
@@ -202,6 +208,13 @@ def current(who, now: float | None = None) -> Mode:
         return Mode()
     if row is None or row.mode != UNRESTRICTED:
         return Mode(set_at=getattr(row, "set_at", 0.0) or 0.0, set_by=getattr(row, "set_by", "") or "")
+    from . import run_access
+
+    if not run_access.seal_ok(row):
+        # Unrestricted with no seal of the owner's press: something else wrote it (task 191).
+        run_access.trip("the mode said Unrestricted, but the owner's press did not write it",
+                        by="the mode's seal", who=who)
+        return Mode(set_at=time.time(), set_by="the tripwire")
     moment = time.time() if now is None else now
     if row.how == HOURS and (not row.until or row.until <= moment):
         return Mode(set_at=row.until or row.set_at, set_by="its hours ended")
@@ -313,10 +326,14 @@ def flip(press: OwnerPress, mode: str, how: str = "", hours: float | None = None
     was = current(who)
     now = time.time()
     by = "the owner on the Permissions page"
+    from . import run_access
+
+    whose = _whose(who)
+    sealed = run_access.seal(whose["org_id"], whose["user_id"], mode, how, until, now)
     with transaction.atomic():
         PermissionMode.objects.update_or_create(
-            **_whose(who), defaults={"mode": mode, "how": how, "until": until, "set_at": now,
-                                     "set_by": by})
+            **whose, defaults={"mode": mode, "how": how, "until": until, "set_at": now,
+                               "set_by": by, "seal": sealed})
         PermissionModeFlip.objects.create(**_whose(who), was=was.mode, now=mode, how=how,
                                           until=until, at=now, by=by, agent=press.agent)
     log.info("the mode was switched from %s to %s (%s%s) by the owner's press", was.mode, mode,
@@ -356,6 +373,9 @@ async def for_job(scope) -> str:
 
     if scope is None or scope.kind != policy.OWNER:
         return "only the owner's own runs get Unrestricted"
+    if not getattr(scope, "verified", False):
+        # The run showed no token of its own that the one program vouches for (rouh/run_access.py).
+        return "this run's identity could not be checked with the one program"
     mode = await asyncio.to_thread(current, scope.who)
     if not mode.unrestricted:
         return "the mode is Restricted"

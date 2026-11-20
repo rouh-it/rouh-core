@@ -54,12 +54,16 @@ def _owner():
 
 def _set_mode(who, mode: str, how: str = "until_back", until=None) -> None:
     """The mode written straight into the row, as only a check may: a press is tested apart."""
+    from rouh import run_access
     from rouh.models import PermissionMode
 
+    at, how = time.time(), how if mode == "unrestricted" else ""
+    uid, org = str(who.user_id), str(who.org_id or "")
+    # Sealed as a press seals it (task 191), or the tripwire would take it for a forged mode.
     PermissionMode.objects.update_or_create(
-        user_id=str(who.user_id), org_id=str(who.org_id or ""),
-        defaults={"mode": mode, "how": how if mode == "unrestricted" else "", "until": until,
-                  "set_at": time.time(), "set_by": "a check"})
+        user_id=uid, org_id=org,
+        defaults={"mode": mode, "how": how, "until": until, "set_at": at, "set_by": "a check",
+                  "seal": run_access.seal(org, uid, mode, how, until, at)})
 
 
 def _run(run_id: str, who, *, made_by: str = "", words: str = "Fix the sign-in mail of "
@@ -110,11 +114,11 @@ def _gateway_call(scope, name, args, names=("cloudflare", "slack_send", "send_ma
         job_gateway.hooks.registry = before
 
 
-def _scope(who, run_id, kind=None):
+def _scope(who, run_id, kind=None, verified=True):
     from rouh import job_gateway, job_policy as policy
 
     return job_gateway.Scope(kind or policy.OWNER, who, run_id, f"check {run_id}", (), frozenset(),
-                             "", [run_id])
+                             "", [run_id], verified=verified)
 
 
 # --- 1. The switch is the owner's press, and nothing else --------------------------------------

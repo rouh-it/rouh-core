@@ -14,6 +14,12 @@
 #   rouh-jobs-keys close NAME  that key's line taken out now, and its open sessions ended
 #   rouh-jobs-keys prune       what the timer runs every 5 minutes: every jobs' key line whose
 #                              time has passed, or that has no end at all, taken out
+#   rouh-jobs-keys standing NAME FROM KEYTYPE KEYBODY [COMMENT]
+#                              a standing key (task 191) for NAME: one line with no end, from FROM
+#                              only, kept in /etc/rouh-jobs-keys/standing/NAME.pub, which open,
+#                              close and prune never touch. Rouh's key proxy lets only the owner's
+#                              own runs, while their switch is Unrestricted, reach this server.
+#   rouh-jobs-keys unstanding NAME   that standing line taken out, and its sessions ended
 #
 # Only a line holding one of the jobs' own keys (kept in /etc/rouh-jobs-keys/NAME.pub, and the
 # account it is for in NAME.user) is ever written or taken out; every other line of that
@@ -94,6 +100,8 @@ watched() {
 fingerprints() {
   local f pats; pats=$(mktemp)
   names | while read -r n; do body_of "$n"; done > "$pats"
+  # A standing key's own line is Rouh's on purpose too (task 191), so it is left out the same way.
+  for f in "$CONF"/standing/*.pub; do [ -f "$f" ] && awk '{print $2}' "$f" >> "$pats"; done
   watched | sort -u | while read -r f; do
     [ -f "$f" ] || continue
     # The same way for every file, with or without a jobs' line in it, so open and close agree.
@@ -259,5 +267,50 @@ case "$cmd" in
     done
     rm -f "$pats"
     ;;
-  *) sed -n '7,18p' "$0" | sed 's/^# //'; exit 2 ;;
+  standing)
+    [ $# -ge 5 ] || die "standing NAME FROM KEYTYPE KEYBODY [COMMENT]"
+    name=$2 from=$3 ktype=$4 kbody=$5 comment=${6:-rouh-jobs-standing-$2}
+    [[ "$name" =~ ^[a-z0-9][a-z0-9.-]*$ ]] || die "Not a name: $name"
+    [[ "$from" =~ ^[0-9a-fA-F:.,/]+$ ]] || die "Not a list of addresses: $from"
+    [[ "$ktype" =~ ^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ecdsa-sha2-nistp521)$ ]] || die "Not a key type: $ktype"
+    [[ "$kbody" =~ ^[A-Za-z0-9+/]+=*$ ]] || die "Not a key: $kbody"
+    [[ "$comment" =~ ^[A-Za-z0-9@._-]+$ ]] || die "Not a key comment: $comment"
+    user=${ROUH_JOBS_KEYS_USER:-root}
+    [[ "$user" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "Not an account: $user"
+    for n in $(names); do [ "$(body_of "$n")" != "$kbody" ] || die "That key is kept as the timed $n key."; done
+    mkdir -p "$CONF/standing"; chmod 755 "$CONF" "$CONF/standing"
+    printf '%s %s %s\n' "$ktype" "$kbody" "$comment" > "$CONF/standing/$name.pub"
+    printf '%s\n' "$user" > "$CONF/standing/$name.user"
+    AK=$(ak_for_user "$user"); OWNER_USER=$user
+    keep=$(mktemp); [ -f "$AK" ] && cp -p "$AK" "$keep"
+    before=$({ grep -vF "$kbody" "$AK" 2>/dev/null || true; } | sha256sum)
+    [ -f "$AK.before-rouh-open" ] || { [ -f "$AK" ] && cp -p "$AK" "$AK.before-rouh-open"; } || true
+    mkdir -p "$(dirname "$AK")"; chmod 700 "$(dirname "$AK")"
+    tmp=$(mktemp "$AK.new.XXXXXX")
+    { grep -vF "$kbody" "$AK" 2>/dev/null || true
+      printf 'from="%s",no-agent-forwarding,no-X11-forwarding %s %s %s\n' "$from" "$ktype" "$kbody" "$comment"; } > "$tmp"
+    [ -n "$TEST" ] || chown "$OWNER_USER:" "$tmp" "$(dirname "$AK")"
+    chmod 600 "$tmp"; mv -f "$tmp" "$AK"
+    if [ "$({ grep -vF "$kbody" "$AK" 2>/dev/null || true; } | sha256sum)" != "$before" ]; then
+      [ -s "$keep" ] && cp -p "$keep" "$AK"; rm -f "$keep"
+      die "Stopped: writing would have changed a key that is not the standing one. $OWNER_USER's keys are as they were."
+    fi
+    rm -f "$keep"
+    install_self
+    say "The standing $name key may log in as $user from $from, with no end, until unstanding."
+    ;;
+  unstanding)
+    name=${2:-}
+    [ -n "$name" ] && [ -f "$CONF/standing/$name.pub" ] || { say "No standing ${name:-?} key here."; exit 0; }
+    kbody=$(awk '{print $2}' "$CONF/standing/$name.pub")
+    user=$(cat "$CONF/standing/$name.user" 2>/dev/null || echo root)
+    AK=$(ak_for_user "$user"); OWNER_USER=$user
+    tmp=$(mktemp "$AK.new.XXXXXX")
+    { grep -vF "$kbody" "$AK" 2>/dev/null || true; } > "$tmp"
+    [ -n "$TEST" ] || chown "$OWNER_USER:" "$tmp"
+    chmod 600 "$tmp"; mv -f "$tmp" "$AK"
+    rm -f "$CONF/standing/$name.pub" "$CONF/standing/$name.user"
+    say "The standing $name key is out of $user's keys."
+    ;;
+  *) sed -n '7,25p' "$0" | sed 's/^# //'; exit 2 ;;
 esac

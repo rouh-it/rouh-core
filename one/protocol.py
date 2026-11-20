@@ -101,10 +101,14 @@ def public_device(dev: dict[str, Any]) -> dict[str, Any]:
 
 class Client:
     def __init__(self, program: "Program", send: Callable[[dict], Awaitable[None]], *,
-                 local: bool, device: dict[str, Any] | None = None, at: str = "") -> None:
+                 local: bool, device: dict[str, Any] | None = None, at: str = "",
+                 peer: str = "") -> None:
         self.p = program
         self._send = send
         self.local = local
+        #: Whose process is at the other end, asked of the kernel (one/peers.py): a run's id, or
+        #: one of peers.NOT_RUNS. Empty when nobody asked (a page through Rouh).
+        self.peer = peer
         #: The address this connection came from, as nginx forwarded it. Empty
         #: for the socket, which is this machine by definition.
         self.at = at
@@ -196,6 +200,19 @@ class Client:
             self.push({"t": "err", "re": rid, "why": "something went wrong inside the program"})
 
     def _hello(self, message: dict[str, Any]) -> dict[str, Any]:
+        from . import peers
+
+        if self.peer and self.peer not in peers.NOT_RUNS:
+            # A run's own process: its own token and nothing else, whatever it says hello with.
+            if message.get("token"):
+                self.p.door.note_attempt("a run said hello with a device token", run=self.peer)
+            self.device = {"id": f"run:{self.peer}", "name": "a run", "surface": "run"}
+            self.surface = "run"
+            return {"device": self.device["id"], "surface": "run", "run": self.peer,
+                    "allowed": sorted(rules.ALLOWED["run"])}
+        if self.peer == peers.UNKNOWN:
+            raise rules.Refused("this process belongs to no run the program started, and the "
+                                "program answers only its own runs, Rouh and the machine")
         token = message.get("token")
         if token:
             dev = self.p.views.device_for_token_hash(hash_token(str(token)))
@@ -220,6 +237,27 @@ class Client:
                 # here, so a page offers it only when it can be done.
                 "codex_api": self.p.api_key.available(),
                 "n": self.p.list.last_n, "attach": self.attach_command()}
+
+    # -- run identity (one/rundoor.py) ---------------------------------------------
+
+    async def _do_run_token(self, message: dict[str, Any]) -> dict[str, Any]:
+        """A run's own token, for the run whose process asked: never another run's."""
+        return {"run": self.peer, "token": self.p.door.token(self.peer)}
+
+    async def _do_run_token_check(self, message: dict[str, Any]) -> dict[str, Any]:
+        """Rouh asking which run a token was given to, and whether that run is still there."""
+        run = self.p.door.check(str(message.get("token") or ""))
+        if not run:
+            return {"run": "", "live": False}
+        return {"run": run, "live": self.p.terminals.alive(run)}
+
+    async def _do_run_doors(self, message: dict[str, Any]) -> dict[str, Any]:
+        """The hashes of the live runs' proxy passwords, for Rouh to tell the key proxy."""
+        return {"doors": self.p.door.hashes(), "door": self.p.door.address(),
+                "started_at": self.p.door.started_at}
+
+    async def _do_door_attempts(self, message: dict[str, Any]) -> dict[str, Any]:
+        return {"attempts": self.p.door.attempts(float(message.get("since") or 0))}
 
     def attach_command(self) -> dict[str, Any]:
         """How to take a run over in a real terminal, from where this

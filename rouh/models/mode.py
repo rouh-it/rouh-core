@@ -22,6 +22,10 @@ class PermissionMode(models.Model):
     set_at = models.FloatField(default=0)
     #: Who pressed it, in words: "the owner on the Permissions page".
     set_by = models.TextField(blank=True, default="")
+    #: The row sealed with this Rouh's own key by the press that wrote it (`run_access.seal`): an
+    #: Unrestricted row whose seal does not open to itself was written some other way, and trips
+    #: the tripwire back to Restricted.
+    seal = models.TextField(blank=True, default="")
 
     class Meta:
         db_table = "permission_mode"

@@ -582,7 +582,25 @@ def _access_section() -> dict:
                  "The owner opens more with rouh-open on their Mac.")
     else:
         human = "Opened for the runs by the owner: " + "; ".join(f"{f['what']} until {f['until_clock']}" for f in found) + "."
-    return {"open": found, "human": human}
+    # The switch (task 191): the five rouh-open items for the owner's own runs while Unrestricted,
+    # from standing access, per run (`rouh/run_access.py`). rouh-open's timed grants above reach
+    # the owner's own runs only.
+    switch: dict = {}
+    try:
+        from . import run_access, unrestricted
+
+        mode = unrestricted.owner_mode()
+        ready = [i["name"] for i in run_access.items(None) if i["ready"]]
+        missing = [f"{i['name']} ({i['why']})" for i in run_access.items(None) if not i["ready"]]
+        switch = {"mode": mode.said(), "ready": ready, "not_ready": missing,
+                  "last_write": run_access.last()}
+        human += (f" The switch is {mode.said()}: while it is Unrestricted the owner's own live runs "
+                  "get " + (", ".join(ready) if ready else "none of rouh-open's items yet")
+                  + (" (not yet: " + "; ".join(missing) + ")" if missing else "")
+                  + "; nobody else's run gets any of them.")
+    except Exception:  # noqa: BLE001 - said without it
+        log.exception("the switch's access could not be read")
+    return {"open": found, "human": human, "switch": switch}
 
 
 def _until_words(end: float) -> str:

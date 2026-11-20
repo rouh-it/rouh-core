@@ -1941,7 +1941,8 @@ async def job_tools_tool(request: HttpRequest):
 
     body = body_of(request)
     return answer(await job_gateway.act(str(body.get("job") or ""), str(body.get("action") or ""),
-                                        str(body.get("tool") or ""), body.get("args") or {}))
+                                        str(body.get("tool") or ""), body.get("args") or {},
+                                        run_token=str(body.get("run_token") or "")))
 
 
 @only("GET")

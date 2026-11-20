@@ -448,13 +448,26 @@ class _Socket:
                     await self.accept()
                     await self.close(code=4401)
                     return
+                # A run's own process may not drive the program with a device's token it read
+                # from a file: every run is the same Linux user (one/peers.py, task 191).
+                from . import peers
+
+                pid = await asyncio.to_thread(peers.tcp_peer_pid, self.scope.get("client"),
+                                              self.scope.get("server"))
+                whose = program.door.whose(pid) if pid else peers.OUTSIDE
+                if whose == peers.UNKNOWN or whose not in peers.NOT_RUNS:
+                    program.door.note_attempt("a run opened the program's socket with a device's "
+                                              "token", run=whose)
+                    await self.accept()
+                    await self.close(code=4403)
+                    return
                 await self.accept()
 
                 async def send(message: dict) -> None:
                     await self.send(text_data=json.dumps(message, default=str))
 
                 self.client = Client(program, send, local=False, device=dev,
-                                     at=came_from(self.scope))
+                                     at=came_from(self.scope), peer=whose)
                 program.clients.add(self.client)
 
             async def receive(self, text_data=None, bytes_data=None) -> None:
@@ -539,7 +552,11 @@ async def serve_socket(program: "Program", path: str) -> SocketServer:
             writer.write((json.dumps(message, default=str) + "\n").encode("utf-8"))
             await writer.drain()
 
-        client = Client(program, send, local=True)
+        from . import peers
+
+        pid = peers.peer_pid(writer.get_extra_info("socket"))
+        client = Client(program, send, local=True,
+                        peer=program.door.whose(pid) if pid else peers.OUTSIDE)
         program.clients.add(client)
         try:
             while True:
