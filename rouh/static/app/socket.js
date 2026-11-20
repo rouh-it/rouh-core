@@ -14,7 +14,7 @@ import { applyTree, noteServerClock, ORB_SOUND, orbExpand, orbFromServer, setSta
 import { addTurnFromElsewhere, askaiSaid, closeEmptyAssistant, endTurnOnScreen, markStopped,
   noteTurnSign, onDelta, onDone, onTaskRefs, onExchange, onPermissionAsk, onPermissionDone, onRecallMessage, onRetract, onTrace,
   onRetryStart, onStt, onSteerTaken, onToolEnd, onToolStart, onToolUpdate, onTurnEnd, onVersionPicked,
-  olderFrom, openTheStream, pickUpRunningTurn, setBusy, showStop, turnIsRunning, branchFocus } from 'app/transcript.js';
+  catchUp, olderFrom, openTheStream, pickUpRunningTurn, seenMissed, seenSet, seenUpTo, setBusy, showStop, turnIsRunning, branchFocus } from 'app/transcript.js';
 import { askSaid, cardFiled, cardsEarly, composeKept, composeSaid, contactNoteSaid, inboxChanged, inboxLost,
   inboxSaid, notedConflicts, onConflictDone, pickSaid, renderCard, taskAnswerHere,
   taskAnswerSettled, taskPageRenamed } from 'app/cards.js';
@@ -573,6 +573,10 @@ function handleMessage(m) {
       // kept when the page opened, and it waits for the real one.
       var heard = !!S.ws && S.ws.readyState === WebSocket.OPEN;
       var moved = !!onScreen && onScreen !== CHATS.active;
+      // And whether something was written into it while this socket was away:
+      // a run's report, an answer finished in another tab (`catchUp`). Read
+      // back from the record then, as a reload would.
+      if (heard && S.readyOnce && !ADDR.front && seenMissed(S.sessionId || '', m.last_id)) moved = true;
       // What was sent before this is held off the screen while the
       // conversation is drawn, and goes into it below (`earlyFlush`).
       earlyLift();
@@ -584,6 +588,11 @@ function handleMessage(m) {
         // that came back under a conversation left as it was goes on from where
         // that had got to.
         if (redrawn) olderFrom(S.sessionId || '', m.older || '');
+        // What this page is up to in it now (`catchUp`).
+        if (heard && (redrawn || m.last_id != null)) {
+          if (redrawn) seenSet(S.sessionId || '', m.last_id);
+          else seenUpTo(S.sessionId || '', m.last_id);
+        }
       }
       if (heard) S.turnCut = false;
       // What the picture controls may offer here, if anything.
@@ -947,9 +956,12 @@ function handleMessage(m) {
       // of them, so it belongs on this screen now and not only after a
       // reload.
       addTurnFromElsewhere(m);
+      seenUpTo(m.chat || '', m.id);
       break;
     case 'state':
       noteTurnSign(m.turn_id);
+      // The end of a turn says how far the chat now goes, and this page saw it all.
+      if (m.value === 'idle') seenUpTo(CHATS && CHATS.active || '', m.last_id);
       // A turn starting is the one thing that clears the stop: from here on
       // what arrives belongs to the next question and is drawn.
       if (m.value === 'thinking') S.stopped = false;
@@ -977,6 +989,7 @@ function handleMessage(m) {
       // about the state, because by then it was not the turn on the front of
       // the screen: it was cancelled, or replaced by the next question.
       onTurnEnd(m.turn_id);
+      seenUpTo(CHATS && CHATS.active || '', m.last_id);
       break;
     case 'stt':
       noteTurnSign(m.turn_id);

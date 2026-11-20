@@ -14,7 +14,7 @@ import { handleMessage, heldMoved, holdMessages, S, send } from 'app/socket.js';
 import { stopPlayback } from 'app/playback.js';
 import { setState } from 'app/orb.js';
 import { drawTranscriptInto, drawWords, editTurn, hideTyping, endTurnOnScreen, pickUpRunningTurn, restoreTranscript, setBusy,
-  olderBack, olderFrom, olderLearn, olderMoved, showStop, T, transcriptEl, turnIsRunning, updateJump, wipeTranscript } from 'app/transcript.js';
+  catchUp, olderBack, olderFrom, olderLearn, olderMoved, seenSet, showStop, T, transcriptEl, turnIsRunning, updateJump, wipeTranscript } from 'app/transcript.js';
 import { CARDS, cardsAdriftSay, cardWaysSay, frameLoad, projectSaidIt, resetCanvas,
   resetStreamCards, taskSaidIt, WORKSPACE_ROUTE } from 'app/cards.js';
 import { detachAsk, FIND, findAsk, findShow } from 'app/search.js';
@@ -773,6 +773,8 @@ function onChatSwitched(m) {
     // And where what came before it begins, for reading it back as the reader scrolls up.
     if (m.local) olderMoved(chat.id || '');
     else olderFrom(chat.id || '', m.older || '');
+    // What the page is up to in it, read with it (`catchUp`).
+    if (!m.local) seenSet(chat.id || '', m.last_id);
   } else if (!same) olderBack(chat.id || '');
   // The server's answer to a move the page made itself says it for a chat
   // the page had no mark for.
@@ -784,7 +786,8 @@ function onChatSwitched(m) {
   // does not move" (`rouh/forks.py`).
   var within = FORKS.within;
   FORKS.within = 0;
-  if (resumed) { cardWaysSay(); cardsAdriftSay(); }
+  // A chat put back as it was kept may have been written into since (`catchUp`).
+  if (resumed) { cardWaysSay(); cardsAdriftSay(); if (!same) setTimeout(function () { catchUp(true); }, 0); }
   else if (within) { resetStreamCards(); cardsAdriftSay(); }
   else resetCanvas();
   // Whatever was being written belonged to the thread that was on screen a

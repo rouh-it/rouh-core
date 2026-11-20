@@ -388,6 +388,24 @@ async def transcript_page(request: HttpRequest):
     chat = (request.GET.get("chat") or "").strip()
     if not chat:
         return refuse("no chat was asked for", 400)
+    if not request.GET.get("before"):
+        # No mark: the newest page, as a tab that was away catches up with it
+        # (`catchUp` in app/transcript.js). It comes with the chat's newest row,
+        # which is how the page tells whether it missed anything, and with the
+        # turn being answered there, if there is one (`Turn.picture`).
+        def newest():
+            if rt.memory.chat(chat) is None:
+                return None
+            rows, older = rt.memory.transcript_page(chat, rt.TRANSCRIPT_PAGE)
+            return rows, older, rt.memory.last_message_id(chat)
+        got = await asyncio.to_thread(newest)
+        if got is None:
+            return refuse("That chat is not there any more.", 404)
+        rows, older, last_id = got
+        turn = rt.Turns.of(chat)
+        return answer({"chat": chat, "transcript": rows, "older": older, "last_id": last_id,
+                       "running": turn.picture() if turn is not None else None},
+                      headers=NO_STORE)
     try:
         exchange, row = (int(x) for x in (request.GET.get("before") or "").split(".", 1))
         limit = max(1, min(int(request.GET.get("limit") or rt.TRANSCRIPT_PAGE), 200))

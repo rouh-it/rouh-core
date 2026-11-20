@@ -17,7 +17,7 @@
 
 /** Every message the server sends, by type, with its fields (PROTOCOL.md, "Server to client"). */
 export interface ServerMessages {
-  ready: { session_id: any; voice: any; ears: any; state: any; running: any; tools: any; transcript: any; active_chat: any; answering: any; conflicts: any; one_deploying: any; assets: string;
+  ready: { /** The chat's newest row, which the page is up to (`catchUp`). */ last_id?: number | null; session_id: any; voice: any; ears: any; state: any; running: any; tools: any; transcript: any; active_chat: any; answering: any; conflicts: any; one_deploying: any; assets: string;
     /** When this Rouh started (ms), and whether the one before it stopped on purpose (`rouh/restarts.py`). */
     started?: number; planned?: boolean; orb: any; browser: any; now: any;
     /** Not in PROTOCOL.md's row until 5 October 2026, sent all along. */
@@ -32,8 +32,8 @@ export interface ServerMessages {
     /** Only on a copy of a handshake from before 23 October 2026, when the lists came with it. */
     chats?: any; folders?: any; objects?: any; tasks?: any; workspace?: any; };
   mode: { voice_reply: any; };
-  state: { value: any; turn_id?: any; chat?: any; };
-  turn_end: { turn_id: any; chat: any; };
+  state: { value: any; turn_id?: any; chat?: any; /** On `idle`: the chat's newest row once the turn is written. */ last_id?: number; };
+  turn_end: { turn_id: any; chat: any; /** As on `state`. */ last_id?: number; };
   stt: { text: any; final: any; turn_id?: any; };
   assistant_delta: { text: any; turn_id: any; chat: any; };
   assistant_done: { text: any; usage: any; spent: any; turn_id: any; chat: any; };
@@ -102,7 +102,7 @@ export interface ServerMessages {
   chats: { chats: any[]; folders: any[]; active_chat: any; draft: any; forks: any; /** General's chat id. */ general?: string; /** The chats with a turn running. */ answering?: string[];
     /** The newest `ask` of this tab's the tab's chat and strip in this message were worked out after; older than the page's newest, they are behind it. */ asked?: number; };
   workspace: { tasks: any[]; };
-  chat_switched: { chat: any; transcript: any; running: any; forks: any; /** As on `ready`. */ older?: string;
+  chat_switched: { chat: any; transcript: any; running: any; forks: any; /** As on `ready`. */ last_id?: number | null; /** As on `ready`. */ older?: string;
     /** Never on the wire: a move along the strip the page made itself (`stripGo` in app/chats.js). */ local?: boolean;
     /** As on `chats`. */ asked?: number;
     /** The chat already on the tab, drawn again from the top: a branch of its conversation (`branch_redraw`). */ redraw?: boolean;

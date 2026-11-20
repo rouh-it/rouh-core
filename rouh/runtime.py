@@ -3453,12 +3453,13 @@ async def switch_chat(chat_id: str, tabs, tip: str | None = None, *,
         unread = bool((memory.chat(chat_id) or {}).get("unread"))
         active = memory.set_active_chat(chat_id)
         transcript, older = memory.transcript_page(active, TRANSCRIPT_PAGE)
-        return active, memory.chat(active) or {"id": active}, transcript, older, unread
+        return (active, memory.chat(active) or {"id": active}, transcript, older, unread,
+                memory.last_message_id(active))
 
     got = await asyncio.to_thread(opened)
     if got is None:
         return tabs[0].session_id if tabs else await asyncio.to_thread(memory.active_chat)
-    active, row, transcript, older, was_unread = got
+    active, row, transcript, older, was_unread, last_id = got
     # A turn already running in the chat being opened, so a page that walks
     # back into one shows it still running, with what it has written so far,
     # and goes on receiving the rest of it live.
@@ -3482,7 +3483,7 @@ async def switch_chat(chat_id: str, tabs, tip: str | None = None, *,
         with contextlib.suppress(Exception):
             said = {"type": "chat_switched", "chat": row,
                     "transcript": transcript, "older": older, "running": running,
-                    "forks": laid, "asked": tab.asked}
+                    "last_id": last_id, "forks": laid, "asked": tab.asked}
             if redraw:
                 said["redraw"] = True
                 if focus:
@@ -4827,10 +4828,19 @@ class Turn:
         """
         self.state = "idle"
         own_state()
+        # The chat's newest row now that everything of this turn is written,
+        # so every tab that watched it knows it is up to date and none of them
+        # reads it back again when it next catches up (`catchUp` in
+        # app/transcript.js). Left out when it cannot be read.
+        ended: dict = {}
+        with contextlib.suppress(Exception):
+            last = await asyncio.to_thread(memory.last_message_id, self.chat)
+            if last is not None:
+                ended["last_id"] = last
         if was_the_current_one:
-            await self.emit({"type": "state", "value": "idle"})
+            await self.emit({"type": "state", "value": "idle", **ended})
         else:
-            await self.emit({"type": "turn_end"})
+            await self.emit({"type": "turn_end", **ended})
 
     async def cancel(self) -> None:
         """End this turn where it stands, because something replaced it.
@@ -5968,9 +5978,10 @@ class Session:
             # The version marks are not read at all: the page has drawn
             # nothing from them since 13 October 2026, and reading them was
             # up to four seconds of git and of a socket to the one program.
-            head, (transcript, older) = await asyncio.gather(
+            head, (transcript, older), last_id = await asyncio.gather(
                 asyncio.to_thread(conversation_snapshot, self.session_id, self.tip),
                 asyncio.to_thread(memory.transcript_page, self.session_id, TRANSCRIPT_PAGE),
+                asyncio.to_thread(memory.last_message_id, self.session_id),
             )
             # A tab that opens on a strip of forks is shown the turns of every
             # chat of it, as a tab that moved onto one is (`Turn.tabs`).
@@ -6014,6 +6025,11 @@ class Session:
                     # before as the person scrolls up to it (`/api/transcript`),
                     # or "" when this is all of it.
                     "older": older,
+                    # The newest row of the chat, which this page is now up to:
+                    # anything newer it finds later was written while it was
+                    # not listening, and is read back (`catchUp` in
+                    # app/transcript.js).
+                    "last_id": last_id,
                     # Which chat this transcript belongs to, its row, its forks
                     # and General's id (`conversation_snapshot`). The lists of
                     # every chat and folder come next, in `chats`.

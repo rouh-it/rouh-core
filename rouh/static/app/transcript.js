@@ -9,6 +9,7 @@ import { $, browserTakes, el, linkTo, now } from 'app/helpers.js';
 import { cfg } from 'app/settings.js';
 import { notify } from 'app/notices.js';
 import { S, send } from 'app/socket.js';
+import { ADDR } from 'app/address.js';
 import { PB, readAloud, stopPlayback } from 'app/playback.js';
 import { ANSWER_HELD, answerHeldGo, cardsUnpark, footnotes, goToAddress, renderBlock, resetCanvas, resetStreamCards, svgEl } from 'app/cards.js';
 import { copyText, growToLines } from 'app/runs.js';
@@ -1454,6 +1455,71 @@ function openTheStream(entries, cut) {
   resetCanvas();
 }
 
+/* Catching up with what was said while this page was not listening.
+
+   Every tab standing in a chat is sent what is said in it as it is said
+   (`Turn.tabs`, `Hub.mirror`), but only while its socket is open. A tab left
+   in the background is throttled or frozen by the browser, a laptop sleeps,
+   a phone locks, Rouh restarts for a deploy: the socket goes and comes back,
+   and whatever was written into the chat in between - a run's report, an
+   answer finished in another tab - was never drawn, because a reconnect
+   draws nothing over a conversation already on the screen (`openTheStream`).
+   Only a reload showed it (20 November 2026).
+
+   So the page keeps, for each chat, the newest row it is up to (`last_id` on
+   `ready`, on `chat_switched` and at the end of every turn it watched), and
+   when the socket comes back, when the tab is shown again and when the window
+   is focused, it compares that with the record. Anything newer is read back
+   from the record, as a reload would draw it, with the reader kept where they
+   were; nothing newer draws nothing, so the tab that asked never sees an
+   answer twice. Not while a turn is running here: that one is arriving live. */
+var SEEN = { at: /** @type {Record<string, number>} */ ({}), gen: 0, last: 0 };
+//: How soon after one catch-up another may be asked for, in milliseconds: focus and visibility come together.
+var SEEN_GAP = 2000;
+
+/** The record says this chat is up to `id` and the page has drawn it all. @param {string} chat @param {any} id */
+function seenSet(chat, id) {
+  if (chat) SEEN.at[chat] = typeof id === 'number' ? id : 0;
+}
+
+/** The page has been sent everything up to `id` in this chat, live. @param {string} chat @param {any} id */
+function seenUpTo(chat, id) {
+  if (!chat || typeof id !== 'number' || SEEN.at[chat] === undefined) return;
+  if (id > SEEN.at[chat]) SEEN.at[chat] = id;
+}
+
+/** Whether the record holds something newer than this page drew. @param {string} chat @param {any} id */
+function seenMissed(chat, id) {
+  return !!chat && typeof id === 'number' && SEEN.at[chat] !== undefined && id > SEEN.at[chat];
+}
+
+/** Ask the record whether anything was written here while this page was away, and draw it. @param {boolean} [now_] */
+function catchUp(now_) {
+  var chat = CHATS && CHATS.active;
+  if (!chat || ADDR.front || HOST.el || SEEN.at[chat] === undefined || turnIsRunning()) return;
+  if (document.visibilityState === 'hidden') return;
+  var t = now();
+  if (!now_ && t - SEEN.last < SEEN_GAP) return;
+  SEEN.last = t;
+  var gen = ++SEEN.gen;
+  fetch('/api/transcript?chat=' + encodeURIComponent(chat), { credentials: 'same-origin', cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (data) {
+      if (!data || gen !== SEEN.gen || chat !== CHATS.active || HOST.el || turnIsRunning()) return;
+      if (!seenMissed(chat, data.last_id)) return;
+      openTheStream(data.transcript, true);
+      olderFrom(chat, data.older || '');
+      seenSet(chat, data.last_id);
+      if (data.running) pickUpRunningTurn(data.running);
+    })
+    .catch(function () { /* the next focus, or the next socket, asks again */ });
+}
+
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible') catchUp();
+});
+window.addEventListener('focus', function () { catchUp(); });
+
 // Take everything off the transcript and leave it as it was when the page
 // opened. Two things ask for this: the Clear button, and switching to
 // another chat, which is the same act - what is on the screen is one chat's
@@ -2820,5 +2886,5 @@ export { actBtn, branchFocus, onTaskRefs, hideTyping, drawTranscriptInto, addPar
   onSteerTaken, onTrace,
   onPermissionAsk, onPermissionDone, onRetract, onRetryStart, onStt, onToolEnd, onToolStart,
   onToolUpdate, onTranscriptScroll, onTurnEnd, onVersionPicked, openTheStream,
-  keepEnd, olderBack, olderFrom, olderLearn, olderMoved, pickUpRunningTurn, readerHand, restoreTranscript, scrollDown, setBusy, showStop,
+  keepEnd, catchUp, seenMissed, seenSet, seenUpTo, olderBack, olderFrom, olderLearn, olderMoved, pickUpRunningTurn, readerHand, restoreTranscript, scrollDown, setBusy, showStop,
   stillSpeaking, stopTheTurn, T, transcriptEl, turnIsRunning, updateJump, watchTheTurn, wipeTranscript };
