@@ -958,11 +958,13 @@ def _with_his_words(d: dict) -> dict:
 
 
 def _within(words: str, said: str) -> bool:
-    """Whether `words` were said in `said`, ignoring case, spacing and punctuation."""
-    def norm(text: str) -> str:
-        return " ".join(re.findall(r"[\w']+", str(text or "").lower()))
-    w = norm(words)
-    return bool(w) and w in norm(said)
+    """Whether `words` are the person's own in `said`: whole words, ignoring case, spacing and
+    punctuation, and never just after a negation (`own_words.found`, 191-01 weak spot 11). A
+    quote that is itself a no ("no", "don't send it") is still their answer, and the answer
+    given with it says which way."""
+    from . import own_words
+
+    return own_words.found(words, said)
 
 
 #: What a grant's level lets its contact do, as the `delegate` tool says it.
@@ -993,6 +995,25 @@ def _contact_name(turn) -> str:
                    .values_list("name", flat=True).first() or "")
     except Exception:  # noqa: BLE001 - only how the brief names them
         return ""
+
+
+def _calendar_reader():
+    """(user id, org id, silos) for a turn whose reader is limited to some of the person's silos,
+    or None for the person themselves (`silos.limit_now`): calendars are read through it
+    (191-01 weak spot 16)."""
+    from . import silos
+
+    limit = silos.limit_now()
+    if limit is None:
+        return None
+    turn = mail_turn.now()
+    if turn is not None:
+        return str(turn.user_id), str(turn.org_id), limit
+    from .tenancy import speaker
+
+    me = speaker()
+    # A limit with nobody to read it for shows nothing rather than everything.
+    return (str(me.user_id), str(me.org_id), limit) if me is not None else ("", "", frozenset())
 
 
 def _jobs_on_their_side(rows: list[dict]) -> list[dict]:
@@ -5168,7 +5189,9 @@ class ToolRegistry:
             "(interval_minutes, daily_cap in dollars across every beat, hours, wakes, skip, "
             "messages, and the duties: duty_on and duty_off by id, add_duty with its text, "
             "or duties as the whole list, and extra, ‹his› own words); answer (an approval: "
-            "id, its decision's number, and yes or no); approvals (what waits for ‹his› yes, "
+            "id, its decision's number, yes or no, and his_words, what ‹he› said in this "
+            "conversation that is this answer: it goes the way the decisions tool answers, and "
+            "only ‹his› own words answer it); approvals (what waits for ‹his› yes, "
             "each by its decision's number); "
             "delete_approval (ids: the decisions' numbers to delete, only when ‹owner› asks: gone for good, "
             "neither a yes nor a no, so nothing it describes runs). Its page is Settings, "
@@ -5199,6 +5222,10 @@ class ToolRegistry:
                 "ids": {"type": "array", "items": {"type": "integer"},
                         "description": "delete_approval: their decisions' numbers."},
                 "answer": {"type": "string", "enum": ["yes", "no"]},
+                "his_words": {"type": "string", "description": "answer: what ‹he› said last in "
+                              "this conversation that is this answer, quoted exactly."},
+                "confirmed_risk": {"type": "string", "description": "answer: the risk ‹he› "
+                                   "confirmed in plain words, when the answer said to confirm it."},
             }, "required": ["action"]},
             self._heartbeat, brief="The heartbeat: status, pause, resume, a beat now, its "
                                    "settings and duties, and approvals", **area)
@@ -5537,8 +5564,13 @@ class ToolRegistry:
                 found = await asyncio.to_thread(heartbeat.approval_ids_of, who, [number])
                 if not found:
                     return f"There is no Decision {number} in the heartbeat's queue."
-                return await beater.answer(who, next(iter(found.values())), word == "yes",
-                                           on="screen")
+                # One answer path (191-02 package 1.4): the decisions tool's, so only the
+                # person's own words answer it, its risk is confirmed and it has its undo
+                # window. A model turn alone never says yes to a queued send or payment.
+                return await self._decisions(
+                    {"action": "answer", "id": number, "choice": [word],
+                     "his_words": args.get("his_words") or "",
+                     "confirmed_risk": args.get("confirmed_risk") or ""}, emit)
             if action == "approvals":
                 rows = await asyncio.to_thread(heartbeat.waiting, who)
                 if not rows:
@@ -11332,6 +11364,12 @@ class ToolRegistry:
         except Exception as exc:
             return _google_trouble(exc)
         account = self.google.address() or "The connected Google account"
+        reader = await asyncio.to_thread(_calendar_reader)
+        if reader is not None:
+            from . import silos
+
+            found = await asyncio.to_thread(lambda: [
+                one for one in found if silos.calendar_fits(*reader[:2], one.get("id"), reader[2])])
         if not found:
             return f"{account} has no calendars on its list."
         lines = [f"{account} can see {len(found)} calendar" + ("s" if len(found) != 1 else "")
@@ -11366,6 +11404,12 @@ class ToolRegistry:
                                           limit=_an_int(args.get("limit"), 50))
         except Exception as exc:
             return _google_trouble(exc)
+        reader = await asyncio.to_thread(_calendar_reader)
+        if reader is not None:
+            from . import silos
+
+            found = await asyncio.to_thread(silos.hide_calendars, reader[0], reader[1], found,
+                                            reader[2])
         return _calendar_listing(found, begin, finish, text, zone)
 
     async def _read_calendar_event(self, args, emit):
@@ -11381,6 +11425,14 @@ class ToolRegistry:
             event = await calendar.event(where, event_id)
         except Exception as exc:
             return _google_trouble(exc)
+        reader = await asyncio.to_thread(_calendar_reader)
+        if reader is not None:
+            from . import silos
+
+            if not await asyncio.to_thread(silos.calendar_fits, reader[0], reader[1],
+                                           event.get("calendar_id") or where, reader[2]):
+                return untrusted.ours("That event is on a calendar this conversation may not "
+                                      "read. Nothing of it can be said here.")
         return _calendar_event_whole(event)
 
     async def _create_calendar_event(self, args, emit):
@@ -12335,6 +12387,11 @@ class ToolRegistry:
             # What goes on the person's own words stored with the scheduled work takes
             # them as his_words (`protected.OWN_WORDS`).
             defs = [_with_his_words(d) for d in defs]
+        elif turn is not None and turn.from_owner:
+            # The person's own email: a rule is changed on words quoted from it
+            # (`protected.rule_held`), so the rule tools take them.
+            defs = [_with_his_words(d) if d.get("name") == "agent_instructions" else d
+                    for d in defs]
         # A beat of the heartbeat, or a note answered in its chat: only what it may do by
         # itself is offered, and `call` refuses the rest (`rouh/heartbeat.py`). Outside
         # one, its own tools are not offered at all.

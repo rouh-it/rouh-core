@@ -107,7 +107,8 @@
     "rouh/models/youtube.py",
     "PROTOCOL.md",
     "rouh/static/app/protocol.d.ts",
-    "rouh/reddit.py"
+    "rouh/reddit.py",
+    "rouh/own_words.py"
    ],
    "needed_by": [
     "account",
@@ -3637,7 +3638,8 @@
     "rouh/genes/manifests/unrestricted-mode.json",
     "rouh/selfcheck/unrestricted.py",
     "rouh/selfcheck/undo_191.py",
-    "rouh/selfcheck/tools_191.py"
+    "rouh/selfcheck/tools_191.py",
+    "rouh/selfcheck/protections_191.py"
    ]
   }
  }

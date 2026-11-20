@@ -171,9 +171,11 @@ def _plain(text: str) -> str:
 
 
 def within(words: str, said: str) -> bool:
-    """Whether `words` were said in `said`, ignoring case, spacing and punctuation."""
-    w = _plain(words)
-    return bool(w) and w in _plain(said)
+    """Whether `words` were said in `said` as whole words, ignoring case, spacing and
+    punctuation, and not just after a negation (`own_words.found`, 191-01 weak spot 11)."""
+    from . import own_words
+
+    return own_words.found(words, said)
 
 
 def words_refused(words: str, said: list[str], *, scheduled: bool) -> str:
@@ -196,6 +198,12 @@ def words_refused(words: str, said: list[str], *, scheduled: bool) -> str:
     if not asks_to_buy(words):
         return ("Those words do not ask to buy anything (order, buy, purchase, pay). Ask ‹owner› "
                 "whether ‹he› wants it ordered, and quote ‹his› answer.")
+    from . import own_words
+
+    if own_words.negated(words, BUYS):
+        # "don't buy it" asks for nothing to be bought (191-01 weak spot 11).
+        return ("Those words say not to buy it. Ask ‹owner› whether ‹he› wants it ordered, and "
+                "quote ‹his› answer.")
     return ""
 
 

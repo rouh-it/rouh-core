@@ -861,6 +861,45 @@ def read_answer(said: str) -> dict:
     return got if isinstance(got, dict) else {}
 
 
+#: A job asking leave to do something, rather than for something only the person has: "May I
+#: ...?", "Should I withdraw ...?", "Is it OK to ...?" (191-02 package 1.5). Until 20 November
+#: 2026 seven of these on the Decisions page were the person's to answer. Leave is never put to
+#: the person as a question of its own: the call itself is ruled on where it is made (a call that
+#: needs their yes is queued as one decision, with its reason; one their words or mode cover
+#: runs), and the job is told so.
+_ASKS_LEAVE = re.compile(
+    r"^\W*(?:please\W+)?(?:may|can|could|shall|should)\s+(?:i|we)\b|"
+    r"\bis\s+it\s+(?:ok|okay|alright|all\s+right|fine|safe)\s+(?:to|if)\b|"
+    r"\b(?:do|would)\s+(?:i|we)\s+(?:have|need|get)\s+(?:your\s+|the\s+person'?s\s+|their\s+)?"
+    r"(?:permission|approval|go-?ahead|ok)\b|\bam\s+i\s+allowed\b|"
+    r"\b(?:asking|ask)\s+(?:for\s+)?(?:permission|approval)\b", re.IGNORECASE)
+
+LEAVE_TEXT = (
+    "That asks leave to do something, and Rouh does not put leave to the person as a question of "
+    "its own. If a tool of yours does it, call it: through Rouh a call that needs their yes is "
+    "queued for them as one decision, with your reason, and one their own words or their mode "
+    "already cover runs at once. If it is plainly within the work you were given and needs no "
+    "tool of Rouh's, do it; if it is not, leave it out and say so in your report.")
+
+
+def asks_leave(need: str) -> bool:
+    """Whether a request is a job asking leave rather than for something (`_ASKS_LEAVE`)."""
+    return bool(_ASKS_LEAVE.search(str(need or "")))
+
+
+def _asked_already(who) -> list[tuple[str, str]]:
+    """(gap, question) of what jobs have asked the person and still waits, so the same need
+    asked again in other words is one ask (191-02 package 1.5)."""
+    from .models import HeartbeatApproval
+
+    rows = (HeartbeatApproval.objects.filter(user_id=str(who.user_id),
+                                             org_id=str(who.org_id or ""), state="waiting",
+                                             duty__startswith=DUTY, tool="")
+            .order_by("-id")[:30])
+    return [(str((r.args or {}).get("gap") or ""), " ".join(str(r.what or "").split())[:200])
+            for r in rows if (r.args or {}).get("gap")]
+
+
 def _request_words(args: dict) -> tuple[str, str, str]:
     """The job's three request fields, normalized and bounded for storage and the model."""
     need = " ".join(str(args.get("need") or "").split())[:2000]
@@ -870,7 +909,7 @@ def _request_words(args: dict) -> tuple[str, str, str]:
 
 
 def _request_prompt(scope: Scope, listed: list[dict], need: str, why: str,
-                    meanwhile: str) -> tuple[set[str], str]:
+                    meanwhile: str, asked: list[tuple[str, str]] = ()) -> tuple[set[str], str]:
     """The available tool names and the scoped request sent to the model."""
     names = {t["name"] for t in listed}
     menu = "\n".join(f"- {t['name']}: {_first_line(t['description'])}" for t in listed
@@ -879,8 +918,11 @@ def _request_prompt(scope: Scope, listed: list[dict], need: str, why: str,
              policy.PROCESS: "work one of Rouh's own processes started",
              policy.CONTACT: "a trusted contact's work, so it reaches only that contact's "
                              "conversation"}[scope.kind]
+    waiting = "".join(f"\n- {gap}: {question}" for gap, question in asked if gap)
     asked = (f"The job does {whose}.\n\nIts tools through Rouh:\n{menu}\n\n"
-             f"Its request:\nNeed: {need}\nWhy: {why or '(not said)'}\n"
+             + (f"Already asked of the person by jobs, and waiting, by gap: when this request "
+                f"is the same need, give the same gap:{waiting}\n\n" if waiting else "")
+             + f"Its request:\nNeed: {need}\nWhy: {why or '(not said)'}\n"
              f"Meanwhile: {meanwhile or '(not said)'}")
     return names, asked
 
@@ -896,7 +938,8 @@ async def request(scope: Scope, args: dict) -> dict:
     row = await asyncio.to_thread(_row, scope, kind="need", need=need, why=why,
                                   meanwhile=meanwhile)
     listed = await tools_for(scope)
-    names, asked = _request_prompt(scope, listed, need, why, meanwhile)
+    already = await asyncio.to_thread(_asked_already, scope.who)
+    names, asked = _request_prompt(scope, listed, need, why, meanwhile, already)
     try:
         got = await llm.ask(USE, system=ASK_SYSTEM, messages=asked, max_tokens=600,
                             who=scope.who, subject=f"job {scope.run}", read_only=True,
@@ -917,11 +960,16 @@ async def request(scope: Scope, args: dict) -> dict:
     if outcome == "tool" and (tool not in names or tool in (policy.REQUEST, policy.REQUEST_STATUS)):
         outcome, said["reason"] = "cannot", (said.get("reason") or
                                             f"The tool it named, {tool!r}, is not one of yours.")
+    leave = outcome == "owner" and asks_leave(need)
     if outcome == "tool":
         text = (f"Rouh has a tool for this that you already have: {tool}. "
                 f"{' '.join(str(said.get('how') or '').split())} Call it through this server; a "
                 "call that needs the person's yes is queued as a decision and answered pending.")
         fields = {"outcome": "tool", "tool": tool}
+    elif leave:
+        # Leave, not a need: never the person's question (191-02 package 1.5).
+        text = LEAVE_TEXT
+        fields = {"outcome": "cannot"}
     elif outcome == "owner" and str(said.get("question") or "").strip():
         question = " ".join(str(said["question"]).split())[:600]
         hands_on = said.get("hands_on") is True

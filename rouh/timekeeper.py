@@ -783,8 +783,10 @@ class Timekeeper:
         # task takes a copy of this context, and the record is the same object.
         phone_ready = bool(self.telegram and self.telegram.configured())
         # The person's own words stored with it, the only ones on which its turn may give
-        # or take a contact's authority (`tools.ToolRegistry._delegate`).
-        handling = reminders.Handling(asked=reminders.asked_of(row))
+        # or take a contact's authority (`tools.ToolRegistry._delegate`). A trusted contact's
+        # item has none, whatever its row says: its words are the contact's, never the
+        # person's go-ahead (191-01 weak spot 13).
+        handling = reminders.Handling(asked=[] if theirs is not None else reminders.asked_of(row))
         handling_was = reminders.HANDLING.set(handling)
         # The reminder's own title and words are the person's, so automatic recall looks up what they name,
         # as it does for a message of theirs (Petar, 10 October 2026: "I think Clockwork should also use the
@@ -793,8 +795,10 @@ class Timekeeper:
 
         words_was = autorecall.WORDS.set(
             " ".join(w for w in (reminders.title_of(row), reminders.details_of(row)) if w))
-        # A contact's "do" item works with the tools of the grants it uses and nothing else, held
-        # like a case's work, so no hard limit is in reach (`clockwork_grants.turn_for`).
+        # A contact's item, "do" or "remind", works with the tools of the grants it uses and
+        # nothing else, held like a case's work, so no hard limit is in reach and it is never
+        # the owner's own turn, nor Unrestricted (`clockwork_grants.turn_for`,
+        # `unrestricted.for_chat`; 191-01 weak spot 13).
         from . import mail_turn
 
         held_was = mail_turn.CURRENT.set(theirs["turn"]) if theirs and theirs.get("turn") \
@@ -896,7 +900,7 @@ class Timekeeper:
             await self.tell(who)
             return None
         out = {"to_them": cw.to_them(row), "line": "", "contact": contact,
-               "turn": cw.turn_for(row, contact, tree, who) if row.kind == "do" else None}
+               "turn": cw.turn_for(row, contact, tree, who)}
         if row.kind == "remind" and cw.to_them(row):
             words = getattr(row, "message", "") or "\n".join(
                 w for w in (reminders.title_of(row), reminders.details_of(row)) if w)

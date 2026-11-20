@@ -119,6 +119,20 @@ async def answer_one(request: HttpRequest):
     word = str(body.get("answer") or "").strip().lower()
     if word not in ("yes", "no"):
         return refuse("answer is yes or no.", 400)
+    from rouh import heartbeat
+
+    # An approval that is a decision is answered the one way every decision is (191-02 package
+    # 1.4, `heartbeat.answer_as_decision`): a risk it carries confirmed, then its undo window.
+    held = await asyncio.to_thread(heartbeat.decision_holding, me, body.get("id"))
+    if held is not None:
+        got = await heartbeat.answer_as_decision(
+            me, held, word == "yes", channel="screen", confirm=str(body.get("confirm") or ""),
+            approval_id=body.get("id"))
+        if not got["ok"]:
+            return refuse(got["said"] + (" Answer it on its decision's page, which asks you to "
+                                         "confirm that." if got["confirm"] else ""), 409,
+                          **(await _page(me)))
+        return answer({"ok": True, "said": got["said"], **(await _page(me))}, headers=NO_STORE)
     said = await _pulse().answer(me, body.get("id"), word == "yes", on="screen")
     return answer({"ok": True, "said": said, **(await _page(me))}, headers=NO_STORE)
 

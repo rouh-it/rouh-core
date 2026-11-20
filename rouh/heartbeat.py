@@ -1050,6 +1050,53 @@ def approval_ids_of(who, numbers) -> dict[int, int]:
     return {number: int(sid) for number, sid in rows if str(sid).isdigit()}
 
 
+def decision_holding(who, approval_id):
+    """The decision still answerable that holds this approval, as its own question or as one
+    call of a job's bundle (`decision_sources.ApprovalSource`), or None when none does."""
+    from . import decisions
+
+    try:
+        ident = str(int(str(approval_id).strip().lstrip("#")))
+    except (TypeError, ValueError):
+        return None
+    rows = _models().Decision.objects.filter(**_whose(who), source="approval",
+                                             status__in=decisions.ANSWERABLE).order_by("-id")
+    for row in rows:
+        if str(row.source_id) == ident or any(
+                isinstance(p, dict) and str(p.get("approval") or "") == ident
+                for p in row.prepared or []):
+            return row
+    return None
+
+
+async def answer_as_decision(who, row, yes: bool, *, channel: str, confirm: str = "",
+                             approval_id=None) -> dict:
+    """The owner's yes or no to a heartbeat or job approval, given the one way every answer is
+    (`decisions.answer`, 191-02 package 1.4): its risk confirmed when it spends, sends,
+    publishes or cannot be undone, and its undo window before anything runs. One call of a
+    bundle is answered as that item alone. {"ok", "said", "confirm": risk or ""}."""
+    from . import decision_desk, decisions
+
+    word = "yes" if yes else "no"
+    item = str(approval_id) if approval_id is not None and row.items and any(
+        str(i.get("id")) == str(approval_id) for i in row.items) else ""
+    kw = ({"items": {item: word}} if item else {"choice": [word]})
+    desk = decision_desk.LIVE
+    try:
+        if desk is not None:
+            got = await desk.answer(who, row.id, confirm=confirm, channel=channel, **kw)
+        else:
+            got = await asyncio.to_thread(lambda: decisions.answer(
+                who, row.id, confirm=confirm, channel=channel, **kw))
+    except decisions.NeedsConfirm as exc:
+        return {"ok": False, "confirm": exc.risk,
+                "said": f"{decisions.name_of(row)} not answered: {exc}"}
+    except decisions.Refused as exc:
+        return {"ok": False, "confirm": "", "said": f"{decisions.name_of(row)}: {exc}"}
+    return {"ok": True, "confirm": "",
+            "said": f"{decisions.name_of(row)}: " + (got.get("said") or "Answered.")}
+
+
 def _name_of(a) -> str:
     """How an approval is named to the owner: its decision, "Decision 351", or "Approval 16"
     when it is no decision yet."""
@@ -2734,15 +2781,25 @@ class Heartbeat:
         # "yes 42", "yes #42", "yes decision 42": the approval's decision, by its number
         # (`decision_numbers`), the only number he is shown. Until 29 October 2026 a bare
         # number here was the queue's own id, so "yes 16" meant Decision 351.
-        found = re.fullmatch(r"(yes|no|y|n)[\s,:#]+(.+)", low)
+        found = re.fullmatch(r"(yes|no|y|n)[\s,:#]+(.+?)(?:[\s,]+(confirm(?:ed)?))?", low)
         if found:
             from . import decisions
 
             ident = await asyncio.to_thread(decisions.source_of_ref, who, found.group(2),
                                             "approval")
-            if ident is not None:
-                return await self.answer(who, ident, found.group(1).startswith("y"),
-                                         on="telegram")
+            row = (await asyncio.to_thread(decision_holding, who, ident)
+                   if ident is not None else None)
+            if row is not None:
+                # Through `decisions.answer`, as a press on its page or its own buttons is
+                # (191-02 package 1.4): a risk named and confirmed, then its undo window.
+                yes = found.group(1).startswith("y")
+                got = await answer_as_decision(
+                    who, row, yes, channel="telegram",
+                    confirm=row.risk if found.group(3) else "")
+                if got["confirm"]:
+                    return (got["said"] + f" To confirm that, write: yes {row.number} confirm. "
+                            "Or answer it on its page.")
+                return got["said"]
         if "heartbeat" not in low:
             return None
         if re.search(r"\b(pause|stop|hold|halt|turn off|switch off)\b", low):

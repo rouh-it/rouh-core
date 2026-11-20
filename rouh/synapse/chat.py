@@ -568,7 +568,15 @@ def edit(args, emit=None):
     item = _find(ds, str(args.get("item") or ""))
     if not item:
         return "No item matches that."
-    changes = {k: v for k, v in args.items() if k not in ("item", "thread", "dataset", "silos")
+    from .. import protected
+    if item.get("kind") == "rule":
+        # A rule is the person's: changed in a turn they are not in only on their own words
+        # (191-01 weak spot 6, `protected.rule_held`).
+        held = protected.rule_held("Editing a rule", args)
+        if held:
+            return held
+    changes = {k: v for k, v in args.items() if k not in ("item", "thread", "dataset", "silos",
+                                                           "his_words")
                and v not in (None, "")}
     labelled = ""
     if args.get("silos") is not None:
@@ -585,7 +593,6 @@ def edit(args, emit=None):
         if not changes:
             return labelled
     changes.pop("why", None)
-    from .. import protected
     if protected.away() and int(datasets.settings(ds).version_days or 0) < 1:
         # Nobody is watching: an edit is fine only because the old version is
         # kept (D27); a dataset that keeps none would lose it for good.
