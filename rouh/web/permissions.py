@@ -1,7 +1,8 @@
 """Anatomy, Behaviour, Permissions, at /anatomy/behaviour/permissions (`rouh/unrestricted.py`).
 
     GET  /api/permissions        the mode now and when it ends, the flips, What Rouh did, what is
-                                 still asked in every mode, and what rouh-open has open
+                                 still asked in every mode, what rouh-open has open, and what the
+                                 switch opens for the runs (`rouh/run_access.py`)
     POST /api/permissions        {mode, how, hours}: the owner's own press of the switch
     POST /api/permissions/undo   {id}: one row of What Rouh did put back, where its service allows
 
@@ -23,6 +24,19 @@ log = logging.getLogger("rouh.web.permissions")
 NO_STORE = {"Cache-Control": "no-store"}
 
 
+def _access(me) -> list[dict]:
+    """What the switch opens for the owner's runs (`rouh/run_access.py`): the five rouh-open
+    items, each in Restricted and in Unrestricted, and whether its standing access is ready.
+    An empty list when it cannot be read, which the page says."""
+    try:
+        from rouh import run_access
+
+        return [dict(one) for one in run_access.items(me)]
+    except Exception:  # noqa: BLE001 - the page says it could not be read
+        log.exception("what the switch opens could not be read")
+        return []
+
+
 def _page(me, most: int = 100) -> dict:
     from rouh import unrestricted
 
@@ -30,7 +44,8 @@ def _page(me, most: int = 100) -> dict:
     return {"mode": mode.as_dict(), "flips": unrestricted.flips(me),
             "did": unrestricted.feed(me, most), "did_total": unrestricted.feed_total(me),
             "still_asks": list(unrestricted.STILL_ASKS.values()),
-            "grants": unrestricted.grants_open(), "most_hours": unrestricted.MOST_HOURS,
+            "grants": unrestricted.grants_open(), "access": _access(me),
+            "most_hours": unrestricted.MOST_HOURS,
             "can_change": bool(getattr(me, "is_admin", False)) and unrestricted._is_owner(me)}
 
 
@@ -89,7 +104,8 @@ async def undo(request: HttpRequest):
         ident = int(body_of(request).get("id"))
     except (TypeError, ValueError):
         return refuse("Which one?", 400)
-    got = await asyncio.to_thread(unrestricted.undo, me, ident)
+    # The server's own loop goes with it: Google's, iCloud's and Slack's clients are run there.
+    got = await asyncio.to_thread(unrestricted.undo, me, ident, asyncio.get_running_loop())
     page_now = await asyncio.to_thread(_page, me)
     if not got["ok"]:
         return refuse(got["said"], 400, **page_now)

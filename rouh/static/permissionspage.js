@@ -3,9 +3,11 @@
 
    Petar, 20 November 2026 (task 191): "I want to see toggle for unrestricted mode." One switch,
    Restricted or Unrestricted, for what his own chats and runs may do without asking; for some hours,
-   until he switches it back, or permanently. Under it, what still asks him in every mode, What Rouh
-   did while it was on (each with Undo where the service allows), what rouh-open has open, and every
-   flip. Only his own press here changes it: the server refuses anything else.
+   until he switches it back, or permanently; while it is on, its length is changed in place, which
+   is one more flip and never a switch off first. Under it, what still asks him in every mode, What
+   Rouh did while it was on (each with Undo where the service allows), what the switch opens for his
+   runs (the five rouh-open items, `rouh/run_access.py`), and every flip. Only his own press here
+   changes it: the server refuses anything else.
 
    The chip: "Restricted" quietly, or Unrestricted in the warning colour with its end ("Unrestricted
    until 18:30"); pressing it opens this page. It reads the mode on load, every minute, when the page comes back
@@ -15,10 +17,11 @@
   'use strict';
 
   var ROUTE = '/anatomy/behaviour/permissions';
-  /* data: the last answer. hours: the hours picked. how: the length picked. busy: a press waiting.
-     said: what the last press did. fail: the page could not be read. undoing: the row being undone. */
-  var S = { open: false, data: null, seq: 0, hours: 4, how: 'hours', busy: false, said: '', bad: '',
-            fail: '', undoing: 0, undoSaid: {}, most: 100 };
+  /* data: the last answer. hours: the hours picked. how: the length picked. busy: a press waiting,
+     pressing: which. said: what the last press did. fail: the page could not be read. undoing: the
+     row being undone. lenFor: the switch whose length the choice was last set from. */
+  var S = { open: false, data: null, seq: 0, hours: 4, how: 'hours', busy: false, pressing: '', said: '',
+            bad: '', fail: '', undoing: 0, undoSaid: {}, most: 100, lenFor: -1 };
   /* The length last picked, kept on this device so the next switch is the chip and one press. */
   var KEEP = 'rouh.permissions.length';
   try {
@@ -56,6 +59,8 @@
   var HAND = ['M12 3l8 4v5c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V7z', 'M12 8v5', 'M12 16h.01'];
   var BACK = ['M9 14 4 9l5-5', 'M4 9h10.5a5.5 5.5 0 0 1 0 11H11'];
   var KEY = ['M14 10a4 4 0 1 0-4 4', 'M13 13l7 7', 'M17 17l2-2'];
+  var CHECK = ['M5 12.5l4.5 4.5L19 7.5'];
+  var WAIT = ['M12 3a9 9 0 1 0 0.01 0', 'M12 7.5V12l3 2'];
 
   function csrfToken() {
     var found = /(?:^|;\s*)rouh_csrftoken=([^;]+)/.exec(document.cookie || '');
@@ -146,22 +151,25 @@
 
   /* ---- pressing ---- */
 
-  function press(mode) {
+  /* which: "length" when the length is changed while it is on, which is one more switch to
+     Unrestricted and keeps it on. */
+  function press(mode, which) {
     if (S.busy || !(S.data && S.data.can_change)) return;
     var body = { mode: mode };
     if (mode === 'unrestricted') { body.how = S.how; if (S.how === 'hours') body.hours = S.hours; }
-    S.busy = true; S.said = ''; S.bad = '';
+    S.busy = true; S.said = ''; S.bad = ''; S.pressing = which || mode;
     draw();
     call('POST', '/api/permissions', body).then(function (got) {
       S.busy = false;
       if (got && got.ok) {
-        S.said = mode === 'unrestricted' ? 'Switched. ' + modeWords(got.body.mode) + '.'
+        S.said = which === 'length' ? 'Changed. ' + modeWords(got.body.mode) + '.'
+          : mode === 'unrestricted' ? 'Switched. ' + modeWords(got.body.mode) + '.'
           : 'Switched back. Rouh asks you again where it used to.';
       } else {
         S.bad = (got && got.body && got.body.error) || 'That could not be saved.';
       }
       draw();
-      var back = document.querySelector('#permissionsBody .pm-main');
+      var back = document.querySelector('#permissionsBody ' + (which === 'length' ? '.pm-length' : '.pm-main'));
       if (back) back.focus({ preventScroll: true });
     });
   }
@@ -199,52 +207,72 @@
     return p;
   }
 
+  /* For how long: picked before switching on, and changed while it is on (`flip` again). */
+  function lengths(d, on) {
+    var how = el('fieldset', 'pm-how');
+    how.appendChild(el('legend', 'pm-legend', on ? 'Change how long, without switching it off' : 'For how long'));
+    [['hours', 'For some hours'], ['until_back', 'Until I switch it back'], ['permanent', 'Permanently']].forEach(function (o) {
+      var row = el('div', 'pm-opt' + (S.how === o[0] ? ' picked' : ''));
+      var lab = el('label', 'pm-opt-label');
+      var r = el('input');
+      r.type = 'radio'; r.name = 'pmHow'; r.value = o[0]; r.checked = S.how === o[0];
+      r.disabled = !d.can_change || S.busy;
+      r.addEventListener('change', function () { S.how = o[0]; keepLength(); draw(); focusSoon('input[name="pmHow"][value="' + o[0] + '"]'); });
+      lab.appendChild(r);
+      lab.appendChild(el('span', '', o[1] + (on && d.mode.how === o[0] ? ' (now)' : '')));
+      row.appendChild(lab);
+      if (o[0] === 'hours') {
+        var hl = el('label', 'pm-hide', 'Hours');
+        hl.setAttribute('for', 'pmHours');
+        var n = el('select', 'pm-hours');
+        n.id = 'pmHours';
+        [1, 2, 4, 8, 12, 24, 48, 72].filter(function (x) { return x <= (d.most_hours || 72); }).forEach(function (x) {
+          var opt = el('option', '', x + (x === 1 ? ' hour' : ' hours'));
+          opt.value = String(x);
+          if (x === S.hours) opt.selected = true;
+          n.appendChild(opt);
+        });
+        n.disabled = !d.can_change || S.busy || S.how !== 'hours';
+        n.addEventListener('change', function () { S.hours = parseInt(n.value, 10) || 4; keepLength(); draw(); focusSoon('#pmHours'); });
+        row.appendChild(hl);
+        row.appendChild(n);
+      }
+      how.appendChild(row);
+    });
+    return how;
+  }
+
   function switchCard(d) {
     var on = d.mode.mode === 'unrestricted';
     var sec = el('section', 'hb-sec pm-switch' + (on ? ' on' : ''));
     sec.setAttribute('aria-labelledby', 'pmSwitchH');
-    var h = el('h3', 'hb-h', on ? 'Switch back' : 'Switch to Unrestricted');
+    var h = el('h3', 'hb-h', on ? 'How long, or switch back' : 'Switch to Unrestricted');
     h.id = 'pmSwitchH';
     sec.appendChild(h);
     if (!d.can_change) {
       sec.appendChild(el('p', 'pm-note', 'Only the owner of this Rouh can switch its mode, so this cannot be pressed here.'));
     }
-    if (!on) {
-      var how = el('fieldset', 'pm-how');
-      how.appendChild(el('legend', 'pm-legend', 'For how long'));
-      [['hours', 'For some hours'], ['until_back', 'Until I switch it back'], ['permanent', 'Permanently']].forEach(function (o) {
-        var row = el('div', 'pm-opt' + (S.how === o[0] ? ' picked' : ''));
-        var lab = el('label', 'pm-opt-label');
-        var r = el('input');
-        r.type = 'radio'; r.name = 'pmHow'; r.value = o[0]; r.checked = S.how === o[0];
-        r.disabled = !d.can_change || S.busy;
-        r.addEventListener('change', function () { S.how = o[0]; keepLength(); draw(); focusSoon('input[name="pmHow"][value="' + o[0] + '"]'); });
-        lab.appendChild(r);
-        lab.appendChild(el('span', '', o[1]));
-        row.appendChild(lab);
-        if (o[0] === 'hours') {
-          var hl = el('label', 'pm-hide', 'Hours');
-          hl.setAttribute('for', 'pmHours');
-          var n = el('select', 'pm-hours');
-          n.id = 'pmHours';
-          [1, 2, 4, 8, 12, 24, 48, 72].filter(function (x) { return x <= (d.most_hours || 72); }).forEach(function (x) {
-            var opt = el('option', '', x + (x === 1 ? ' hour' : ' hours'));
-            opt.value = String(x);
-            if (x === S.hours) opt.selected = true;
-            n.appendChild(opt);
-          });
-          n.disabled = !d.can_change || S.busy || S.how !== 'hours';
-          n.addEventListener('change', function () { S.hours = parseInt(n.value, 10) || 4; keepLength(); draw(); focusSoon('#pmHours'); });
-          row.appendChild(hl);
-          row.appendChild(n);
-        }
-        how.appendChild(row);
-      });
-      sec.appendChild(how);
+    if (on && S.lenFor !== d.mode.set_at) {
+      // While it is on, the length starts at the one it has, once after each switch.
+      S.lenFor = d.mode.set_at;
+      if (['hours', 'until_back', 'permanent'].indexOf(d.mode.how) >= 0) S.how = d.mode.how;
     }
+    sec.appendChild(lengths(d, on));
     var row = el('div', 'pm-acts');
-    var b = el('button', 'ctl pm-main' + (on ? '' : ' primary'), S.busy ? 'Saving…'
-      : on ? 'Switch back to Restricted' : 'Switch to Unrestricted');
+    if (on) {
+      // A second switch to Unrestricted with the new length: one more flip, and it stays on.
+      var same = S.how === d.mode.how && S.how !== 'hours';
+      var len = el('button', 'ctl pm-main pm-length', S.busy && S.pressing === 'length' ? 'Saving…'
+        : same ? (S.how === 'permanent' ? 'It is permanent already' : 'It is until you switch it back already')
+        : S.how === 'hours' ? 'Make it ' + S.hours + (S.hours === 1 ? ' hour' : ' hours') + ' from now'
+        : S.how === 'permanent' ? 'Make it permanent' : 'Make it until I switch it back');
+      len.type = 'button';
+      len.disabled = !d.can_change || S.busy || same;
+      len.addEventListener('click', function () { press('unrestricted', 'length'); });
+      row.appendChild(len);
+    }
+    var b = el('button', 'ctl pm-main' + (on ? ' pm-back' : ' primary'),
+      S.busy && S.pressing !== 'length' ? 'Saving…' : on ? 'Switch back to Restricted' : 'Switch to Unrestricted');
     b.type = 'button';
     b.disabled = !d.can_change || S.busy;
     b.addEventListener('click', function () { press(on ? 'restricted' : 'unrestricted'); });
@@ -318,7 +346,7 @@
     if (!rows.length) {
       var empty = el('div', 'pm-empty');
       empty.appendChild(icon(BACK));
-      empty.appendChild(el('p', '', 'Nothing yet. Whatever runs because the mode is Unrestricted is listed here, with Undo wherever the service keeps what was there before, as Cloudflare does.'));
+      empty.appendChild(el('p', '', 'Nothing yet. Whatever runs because the mode is Unrestricted is listed here, with Undo wherever the service keeps what was there before: Cloudflare, Drive, your calendar, Gmail’s labels and bin, iCloud contacts and what Rouh posted in Slack.'));
       sec.appendChild(empty);
       return sec;
     }
@@ -371,6 +399,46 @@
     p.appendChild(el('code', 'pm-code', 'rouh-open ' + (timed ? hoursForOpen(d) : 72)));
     p.appendChild(document.createTextNode(timed ? ' on your Mac.' : ' on your Mac, and again when it ends.'));
     sec.appendChild(p);
+    return sec;
+  }
+
+  /* What the switch opens for the owner's runs: the five rouh-open items (`rouh/run_access.py`),
+     each with what it does in Restricted and in Unrestricted, the mode in force marked "now",
+     and whether its standing access is ready, said in words beside its sign. */
+  function opens(d) {
+    var on = (d.mode || {}).mode === 'unrestricted';
+    var items = d.access || [];
+    var sec = el('section', 'hb-sec');
+    sec.setAttribute('aria-labelledby', 'pmOpensH');
+    var h = el('h3', 'hb-h', 'What the switch opens for your runs');
+    h.id = 'pmOpensH';
+    var ready = items.filter(function (x) { return x.ready; }).length;
+    h.appendChild(el('span', 'hb-h-sub', ready === items.length ? 'All ' + items.length + ' ready'
+      : ready + ' of ' + items.length + ' ready'));
+    sec.appendChild(h);
+    var ul = el('ul', 'pm-opens');
+    items.forEach(function (x) {
+      var li = el('li', 'pm-open');
+      var top = el('div', 'pm-open-top');
+      top.appendChild(el('span', 'pm-open-name', x.name || x.key));
+      var tag = el('span', 'pm-ready' + (x.ready ? ' yes' : ''));
+      tag.appendChild(icon(x.ready ? CHECK : WAIT));
+      tag.appendChild(document.createTextNode(x.ready
+        ? (x.until ? 'Ready, until ' + clockOf(x.until) : 'Ready') : 'Not ready'));
+      top.appendChild(tag);
+      li.appendChild(top);
+      var both = el('div', 'pm-open-modes');
+      [['Restricted', x.restricted, !on], ['Unrestricted', x.unrestricted, on]].forEach(function (m) {
+        var cell = el('p', 'pm-open-mode' + (m[2] ? ' now' : ''));
+        cell.appendChild(el('span', 'pm-open-label', m[0] + (m[2] ? ', now' : '')));
+        cell.appendChild(el('span', '', m[1] || ''));
+        both.appendChild(cell);
+      });
+      li.appendChild(both);
+      if (!x.ready && x.why) li.appendChild(el('p', 'pm-open-why', x.why));
+      ul.appendChild(li);
+    });
+    sec.appendChild(ul);
     return sec;
   }
 
@@ -433,7 +501,8 @@
     top.appendChild(stillAsks(d));
     page.appendChild(top);
     page.appendChild(did(d));
-    page.appendChild(grants(d));
+    // What the switch opens; what rouh-open has open is shown only when that cannot be read.
+    page.appendChild((d.access || []).length ? opens(d) : grants(d));
     page.appendChild(flips(d));
     body.appendChild(page);
   }

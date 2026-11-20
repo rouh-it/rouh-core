@@ -75,6 +75,30 @@
 .pm-empty svg { margin-top: 2px; color: var(--dimmer); }
 .pm-empty p { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--dim); }
 
+/* While Unrestricted: the length's own press beside Switch back, both plain, neither primary. */
+.pm-length:disabled { opacity: 0.55; }
+
+/* What the switch opens for your runs: one row per rouh-open item, ready said in words with its
+   sign, the mode in force marked "now" in words and by the stronger ink, never colour alone. */
+.pm-opens { margin: 0; padding: 0; list-style: none; }
+.pm-open { padding: 10px 0; border-top: 1px solid var(--line-soft); display: grid; gap: 6px; min-width: 0; }
+.pm-open:first-child { border-top: 0; padding-top: 2px; }
+.pm-open-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+.pm-open-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.pm-ready {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 8px; border-radius: 999px;
+  border: 1px solid var(--line); font-size: 12.5px; font-weight: 600; color: var(--dim); white-space: nowrap;
+}
+.pm-ready.yes { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+.pm-ready svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.pm-open-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 6px 16px; }
+.pm-open-mode { margin: 0; display: grid; gap: 2px; font-size: 13px; line-height: 1.45; color: var(--dim); overflow-wrap: anywhere; }
+.pm-open-mode.now { color: var(--text); }
+.pm-open-label { font-size: 12px; font-weight: 600; color: var(--dim); }
+.pm-open-mode.now .pm-open-label { color: var(--text); }
+.pm-open-why { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--dim); overflow-wrap: anywhere; }
+
 .pm-more { width: auto; margin-top: 6px; min-height: 44px; }
 .pm-flips { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
 .pm-flips summary { min-height: 44px; display: flex; align-items: center; padding: 0 16px; cursor: pointer;
