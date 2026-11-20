@@ -429,6 +429,7 @@ def make(parent_id: str, before: int | None = None, *,
         if chosen:
             Chat.objects.filter(id=chat_id).update(model_choice=chosen)
         reading = _closest_parent_only(chat_id, reading)
+        reading = _general_off(chat_id, parent_id, reading)
         if reading:
             Chat.objects.filter(id=chat_id).update(reading=reading)
     log.info("chat %s forked into %s after message %s%s", parent_id, chat_id, at,
@@ -453,6 +454,28 @@ def _closest_parent_only(chat_id: str, reading: dict) -> dict:
     out = dict(reading or {})
     out.pop("fork_history", None)
     out["parents"] = {p: i == 0 for i, p in enumerate(chain)}
+    return out
+
+
+def _general_off(chat_id: str, parent_id: str, reading: dict) -> dict:
+    """A fork split straight off General starts with General's history turned off in its Included content
+    (Petar, 20 November 2026: "when you split a conversation from the main Rouh general chat, can you by
+    default turn off parent context"). General is the one endless chat for everything, so its history is
+    rarely what a fork is about. Only as the fork is made, and only for General: the person turns it on in
+    the fork's Chat Options by hand, a fork of any other chat carries its parent as it always has, and a fork
+    of this fork inherits the choice with the rest of its options."""
+    if parent_id != conversations.GENERAL:
+        return reading
+    from . import reading as reading_mod
+
+    chain = [p for p, _at in carried_chain(chat_id)]
+    if conversations.GENERAL not in chain:
+        return reading
+    out = dict(reading or {})
+    mine = {p: reading_mod.parent_on(out, p) for p in chain}
+    mine[conversations.GENERAL] = False
+    out.pop("fork_history", None)
+    out["parents"] = mine
     return out
 
 
