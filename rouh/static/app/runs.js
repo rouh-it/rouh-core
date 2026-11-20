@@ -17781,25 +17781,29 @@ window.RouhReceiptsHost = { close: receiptsClose };
 /* ------------------------------------------------------------------ handholding
 
    The guided way into Rouh for someone who has never seen it (`rouh/handholding.py`), at
-   `/handholding`, and one of its lessons at `/handholding/lessons/<id>`, drawn by
-   `handholdingpage.js`. This is the layer's side, as with the receipts: opening and closing it,
-   its row under Now, its address, and the three things the page asks of the rest of Rouh:
-   putting a phrase in the message box, pressing one of Rouh's own controls (the orb, Voice), and
-   going to an address. */
+   `/handholding/<page>`, and each lesson's own page at `/handholding/lesson/<id>`, with `?from=`
+   saying where it was opened from, drawn by `handholdingpage.js`. This is the layer's side, as
+   with the receipts: opening and closing it, its address, and going to an address. Nothing here
+   puts words in the message box or opens the chat: Petar, 20 November 2026, on the first
+   version's Try saying, "it opens in a chat people don't know how to get to the next time". */
 
-var HOLD = { open: false, page: '', lesson: '', gave: '' };
+var HOLD = { open: false, page: '', lesson: '', from: '' };
 
 function handholdingViewing() { return HOLD.open; }
 
 /** @param {string} [page] one of the section's pages, or '' for its first
-    @param {string} [lesson] one lesson's id, on the Lessons page */
-function handholdingOpen(page, lesson) {
+    @param {string} [lesson] one lesson's id, for its own page
+    @param {string} [from] where the lesson was opened from: a page's id, or lesson-<id> */
+function handholdingOpen(page, lesson, from) {
   if (ORBX.open) orbExpand(false);
-  var wantPage = page || '', wantLesson = lesson || '';
-  var moved = HOLD.page !== wantPage || HOLD.lesson !== wantLesson;
+  var wantLesson = lesson || '';
+  var wantPage = wantLesson ? '' : (page || '');
+  var wantFrom = wantLesson ? (from || '') : '';
+  var moved = HOLD.page !== wantPage || HOLD.lesson !== wantLesson || HOLD.from !== wantFrom;
   HOLD.page = wantPage;
   HOLD.lesson = wantLesson;
-  if (window.RouhHandholding) window.RouhHandholding.shown(HOLD.page, HOLD.lesson);
+  HOLD.from = wantFrom;
+  if (window.RouhHandholding) window.RouhHandholding.shown(HOLD.page, HOLD.lesson, HOLD.from);
   if (!HOLD.open || $('handholdingView').hidden || settingsViewing()) {
     HOLD.open = true;
     showLayer('handholdingView');
@@ -17819,34 +17823,22 @@ function handholdingClose() {
   addrTouch();
 }
 
-// What `handholdingpage.js` is handed. `say` puts a phrase in the message box, ready to send or
-// change, and never sends it: what the box already held stays, unless it is the last phrase this
-// page put there, which the new one replaces. On a phone the conversation comes forward.
+/** The address of what Handholding shows: a page, or a lesson with where it came from. */
+function handholdingAddress() {
+  if (HOLD.lesson) return '/handholding/lesson/' + HOLD.lesson + (HOLD.from ? '?from=' + encodeURIComponent(HOLD.from) : '');
+  return '/handholding' + (HOLD.page ? '/' + HOLD.page : '');
+}
+
+// What `handholdingpage.js` is handed.
 window.RouhHandholdingHost = {
   close: handholdingClose,
   go: function (href) { return goToAddress(href); },
-  /** The page says which of its pages, and which lesson, it is showing, for the address. */
-  place: function (page, lesson) { HOLD.page = page || ''; HOLD.lesson = lesson || ''; addrTouch(); },
-  /** @param {string} text */
-  say: function (text) {
-    if (narrow()) setPane('chat'); else chatIsWanted();
-    var was = input.value.trim();
-    input.value = !was || was === HOLD.gave ? text : was + '\n\n' + text;
-    HOLD.gave = input.value.trim();
-    growInput();
-    input.focus();
-    input.setSelectionRange(input.value.length, input.value.length);
-  },
-  /** @param {string} what one of Rouh's own controls: 'orb', 'voice' or 'input' */
-  press: function (what) {
-    if (what === 'orb') { orbExpand(true); return; }
-    if (narrow()) setPane('chat'); else chatIsWanted();
-    if (what === 'voice') {
-      var v = $('voiceMenuBtn');
-      if (v) { v.focus(); v.click(); }
-      return;
-    }
-    input.focus();
+  /** The page says which of its pages, or which lesson and from where, it is showing. */
+  place: function (page, lesson, from) {
+    HOLD.page = lesson ? '' : (page || '');
+    HOLD.lesson = lesson || '';
+    HOLD.from = lesson ? (from || '') : '';
+    addrTouch();
   }
 };
 
@@ -18459,7 +18451,7 @@ oneConnect();
 export { applyObjects, applyWorkspace, ASK, askDelete, askFromPage, askPageNow, BRIEF, briefClose, briefOpen,
   WORK, workClose, workOpen, workViewing,
   DECIDE, decisionsClose, decisionsHeard, decisionsOpen, decisionsViewing, ACTS, actionsClose, actionsOpen, actionsViewing,
-  HOLD, handholdingClose, handholdingOpen, handholdingViewing,
+  HOLD, handholdingAddress, handholdingClose, handholdingOpen, handholdingViewing,
   receiptsClose, receiptsOpen, receiptsViewing, HOME, homeClose, homeOpen, homeViewing, SOURCES, sourcesClose, sourcesOpen, sourcesViewing,
   APPROVALS, approvalsClose, approvalsOpen, approvalsViewing,
   EVO, evolutionClose, evolutionOpen, evolutionViewing, incubatorHeard,

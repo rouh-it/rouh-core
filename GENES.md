@@ -65,14 +65,14 @@ The boxes stand in this order, top to bottom, always; nothing reorders them, by 
 Each group's glyph is in the registry beside its name (`GROUP_ICONS` in `rouh/genes/__init__.py`), held to the same contract as a gene's icon: Now a dot in a circle, Work a stack, Time a clock, Memory a few nodes joined into a network, Evolution a fork, Anatomy a pair of lungs.
 The fifth group was Machine, under a cog, until 13 October 2026, when Petar renamed it (fr_d3dbbd554a2a): "we're not a robot. We're a living thing"; its memory glyph, a spark, went the same day, because "our memory is made up of interconnected nodes".
 Only its name changed: its id is still `machine`, in every manifest, shared gene, count of presses and remembered group.
-Handholding was added right after Now on 20 November 2026 (Petar: "Actually, don't put it in NOW. Make it its own section."), the guided way into Rouh: its box reads Hand-holding over two lines (`GROUP_LABELS`), and its links are one gene drawn as its sub-pages (`nav.as` "handholding"), listed in the data file `rouh/handholding.json`, so a page is added, renamed or reordered there alone, each at `/handholding/<page>`.
+Handholding was added right after Now on 20 November 2026 (Petar: "Actually, don't put it in NOW. Make it its own section."), the guided way into Rouh: its box reads Hand-holding over two lines (`GROUP_LABELS`), and its links are one gene drawn as its sub-pages (`nav.as` "handholding"), listed in the data file `rouh/handholding.json`, so a page is added, renamed or reordered there alone, each at `/handholding/<page>`; every lesson has its own page at `/handholding/lesson/<id>`.
 Evolution was added right before Anatomy on 13 October 2026 (task 94, step 94-08: "an extra tab box in the navigation that is called evolution right before anatomy ... Evolution will have an icon of forking"), with exactly two links, Parameters and the Gene library; the deck, Decide later, mutations, questions and learning are views inside the library, never links of their own.
 On 14 October 2026 Petar made the Gene Pool a third link of its own and renamed the Gene library Mutations (fr_a982710d30c7): "So gene pool need to be its own item in evolution. Gene library competes as name so it should be renamed to mutations."
 
 | Group | What is in it | Its links today |
 |---|---|---|
 | `now` | What needs the owner now | Decisions, Morning brief, Live browser (while a browser is open) |
-| `handholding` | The guided way into Rouh, for someone who has never seen it (`rouh/handholding.py`) | Its sub-pages, from `pages` in `rouh/handholding.json`: Next steps, Start here, What Rouh is, Journey, Connections, Lessons |
+| `handholding` | The guided way into Rouh, for someone who has never seen it (`rouh/handholding.py`) | Its sub-pages, from `pages` in `rouh/handholding.json`: Your path, Enabling Rouh, Pro tips |
 | `work` | The work | Task browser (with New task), Control room, Goals, Quests |
 | `time` | What happens at a time | Clockwork |
 | `memory` | What is kept | Thoughts, Rules, Trusted contacts, Synapse (lab), Receipts (lab, behind its switch), Boxes (lab) |

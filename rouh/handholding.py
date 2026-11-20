@@ -1,15 +1,22 @@
 """Handholding, at /handholding: the guided way into Rouh for someone who has never seen it.
 
 Petar, 20 November 2026: "I want to be able to put a person that has never seen rouh and step by
-step the guide should lead him to using the absolute maximum of rouh." So one page under Now holds
-what Rouh is, a path of seven stages of steps from saying hello to Rouh running work for you, and a
-library of short lessons (`rouh/static/handholdingpage.js`).
+step the guide should lead him to using the absolute maximum of rouh." It is a section of the
+navigation of its own (`rouh/static/handholdingpage.js`).
+
+**One source: a lesson is a step** (Petar, the same day, reviewing the first version: "for each
+action there is a step ... this way we won't have two sources that go to one place"). A path of seven
+stages, each a list of lessons; every lesson has one id, one entry in the data file, a card form, and a
+full page at `/handholding/lesson/<id>` that ends with the next lesson on the path.
 
 - **The words** are a data file, `rouh/handholding.json`, so they are edited and translated without
-  touching code: every concept, stage, step and lesson, and every phrase to try and page to see.
-- **What is done** is kept per person, in `user_settings` under `NAME`: `{step id: when}`, and an
-  optional step the person said is not for them as minus when, which counts as done. Both ids are in
-  every query (AGENTS.md, "Whose data is it").
+  touching code: every stage and lesson, its pictures (`rouh/static/handholding/`), the things you can
+  say and the page to open.
+- **What is done** is kept per person, in `user_settings` under `NAME`: `{lesson id: when}`, and an
+  optional lesson the person said is not for them as minus when, which counts as done. Both ids are in
+  every query (AGENTS.md, "Whose data is it"). Ticks kept under an id the data file has since renamed
+  (`renamed`, the first version's step ids) are read under the new one, and written back that way the
+  next time the person ticks anything, so nobody loses progress.
 - **What Rouh can see for itself** is ticked by itself and marked Detected (`detected`): a
   connection that is live, a first task, a rule of the person's own, a reminder. Each is a small
   read of the database, never a call to a service, and one that cannot be read is simply not
@@ -50,35 +57,87 @@ def content() -> dict:
     return got
 
 
-#: Where the section's pages live: `/handholding/<page>`, and one lesson at `/handholding/lessons/<id>`.
+#: Where the section's pages live: `/handholding/<page>`, and one lesson at `/handholding/lesson/<id>`.
 ROOT = "/handholding"
+#: The word in a lesson's address, which no page may be called.
+LESSON = "lesson"
 
 
 def pages() -> list[dict]:
     """The section's sub-pages, in the order the navigation lists them (`pages` in the data file):
     each an id, a name, a glyph and the views it draws."""
-    return [p for p in content().get("pages", []) if isinstance(p, dict) and p.get("id") and p.get("name")]
-
-
-def lessons_page() -> str:
-    """The page whose address a lesson's is under: the first that draws the lessons."""
-    return next((p["id"] for p in pages() if "lessons" in (p.get("views") or [])), "")
+    return [p for p in content().get("pages", []) if isinstance(p, dict) and p.get("id") and p.get("name")
+            and p["id"] != LESSON]
 
 
 def page_route(page: str) -> str:
     return f"{ROOT}/{page}"
 
 
-def step_ids(data: dict | None = None) -> set[str]:
+def lesson_route(lesson: str) -> str:
+    return f"{ROOT}/{LESSON}/{lesson}"
+
+
+def lessons(data: dict | None = None) -> list[dict]:
+    """Every lesson, in the order of the path."""
     data = data if data is not None else content()
-    return {st["id"] for stage in data.get("stages", []) for st in stage.get("steps", [])}
+    return [les for stage in data.get("stages", []) for les in stage.get("lessons", []) if les.get("id")]
+
+
+def step_ids(data: dict | None = None) -> set[str]:
+    """Every lesson's id: a lesson is a step, and its id is what a tick is kept under."""
+    return {les["id"] for les in lessons(data)}
+
+
+def renamed() -> dict:
+    """{old id: the lesson's id now}, for ticks and addresses from before a lesson was renamed."""
+    got = content().get("renamed") or {}
+    return got if isinstance(got, dict) else {}
+
+
+def page_now(page: str) -> str:
+    """A sub-page by its id, or by the id it had before (`old_pages`); '' for none."""
+    ids = {p["id"] for p in pages()}
+    if page in ids:
+        return page
+    moved = (content().get("old_pages") or {}).get(page, "")
+    return moved if moved in ids else ""
+
+
+def lesson_now(lesson: str, old_library: bool = False) -> str:
+    """A lesson by its id, or by an id it had before: a step's (`renamed`), or with `old_library`
+    a lesson of the first version's separate library (`old_lessons`); '' for none."""
+    ids = step_ids()
+    if lesson in ids:
+        return lesson
+    if old_library:
+        got = (content().get("old_lessons") or {}).get(lesson, "")
+        if got in ids:
+            return got
+    got = renamed().get(lesson, "")
+    return got if got in ids else ""
+
+
+def _migrated(held: dict) -> dict:
+    """The ticks under today's ids: a renamed one moves to its new id. Where two old ids became one
+    lesson, a tick wins over a Not for me, and the earlier tick is kept."""
+    moves = renamed()
+    out: dict = {}
+    for k, v in held.items():
+        if not isinstance(v, (int, float)):
+            continue
+        k = moves.get(k, k)
+        was = out.get(k)
+        if was is None or (v > 0 and (was < 0 or v < was)):
+            out[k] = v
+    return out
 
 
 # --- what the person ticked --------------------------------------------------------------------
 
 
 def progress(who) -> dict:
-    """{step id: when it was ticked}, for the steps the data file still has."""
+    """{lesson id: when it was ticked}, for the lessons the data file has, old ids read as new ones."""
     from .models import UserSetting
 
     value = (UserSetting.objects.filter(user_id=str(who.user_id), org_id=str(who.org_id or ""), name=NAME)
@@ -90,11 +149,11 @@ def progress(who) -> dict:
     if not isinstance(held, dict):
         return {}
     known = step_ids()
-    return {k: v for k, v in held.items() if k in known and isinstance(v, (int, float))}
+    return {k: v for k, v in _migrated(held).items() if k in known}
 
 
 def optional_ids() -> set[str]:
-    return {st["id"] for stage in content().get("stages", []) for st in stage.get("steps", []) if st.get("optional")}
+    return {les["id"] for les in lessons() if les.get("optional")}
 
 
 def mark(who, step: str, done: bool, skip: bool = False) -> dict:
@@ -104,10 +163,11 @@ def mark(who, step: str, done: bool, skip: bool = False) -> dict:
 
     from .models import UserSetting
 
-    if step not in step_ids():
-        raise ValueError("There is no such step.")
+    step = lesson_now(step)
+    if not step:
+        raise ValueError("There is no such lesson.")
     if skip and step not in optional_ids():
-        raise ValueError("Only an optional step can be left out.")
+        raise ValueError("Only an optional lesson can be left out.")
     with transaction.atomic():
         row = (UserSetting.objects.select_for_update()
                .filter(user_id=str(who.user_id), org_id=str(who.org_id or ""), name=NAME).first())
@@ -117,6 +177,7 @@ def mark(who, step: str, done: bool, skip: bool = False) -> dict:
             held = {}
         if not isinstance(held, dict):
             held = {}
+        held = _migrated(held)
         if done and skip:
             held[step] = -time.time()
         elif done:
@@ -277,33 +338,31 @@ def _meetings(who) -> dict:
 
 
 def detected(who, connections: dict | None = None) -> dict:
-    """{step id: why Rouh ticked it}, for every step the data file says Rouh can see."""
-    data = content()
+    """{lesson id: why Rouh ticked it}, for every lesson the data file says Rouh can see."""
     checks = _checks(who)
     out: dict = {}
     seen: dict = {}
-    for stage in data.get("stages", []):
-        for st in stage.get("steps", []):
-            what = st.get("detect") or ""
-            if not what:
-                continue
-            if what.startswith("connection:"):
-                key = what.split(":", 1)[1]
-                s = (connections or {}).get(key) or {}
-                if s.get("kind") == "live":
-                    out[st["id"]] = "Rouh sees it connected."
-                continue
-            if what not in checks:
-                continue
-            if what not in seen:
-                read, why = checks[what]
-                try:
-                    seen[what] = why if read() else ""
-                except Exception:  # noqa: BLE001 - a step that cannot be read is simply not detected
-                    log.exception("handholding: %s could not be read", what)
-                    seen[what] = ""
-            if seen[what]:
-                out[st["id"]] = seen[what]
+    for st in lessons():
+        what = st.get("detect") or ""
+        if not what:
+            continue
+        if what.startswith("connection:"):
+            key = what.split(":", 1)[1]
+            s = (connections or {}).get(key) or {}
+            if s.get("kind") == "live":
+                out[st["id"]] = "Rouh sees it connected."
+            continue
+        if what not in checks:
+            continue
+        if what not in seen:
+            read, why = checks[what]
+            try:
+                seen[what] = why if read() else ""
+            except Exception:  # noqa: BLE001 - a lesson that cannot be read is simply not detected
+                log.exception("handholding: %s could not be read", what)
+                seen[what] = ""
+        if seen[what]:
+            out[st["id"]] = seen[what]
     return out
 
 

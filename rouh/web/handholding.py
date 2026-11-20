@@ -5,8 +5,10 @@
     POST /api/handholding/progress   {step, done, skip?}: tick a step, or take the tick off; skip marks
                                      an optional step not for this person; answers the
                                      ticks as they now are, or 400 with the words to show
-    GET  /handholding/<page>         one of the section's sub-pages (the data file's `pages`), and
-    GET  /handholding/<page>/<id>    one lesson, under the page that holds the lessons; not found otherwise
+    GET  /handholding/<page>         one of the section's sub-pages (the data file's `pages`); a page's
+                                     old id (`old_pages`: next, learn) is sent on to the page it is now
+    GET  /handholding/lesson/<id>    one lesson, its full page; an old id is sent on to the lesson it is now
+    GET  /handholding/learn/<id>     the first version's lesson library: sent on to the lesson holding it
 
 Only the signed-in person's own ticks are read or written: every query names their user and
 organisation.
@@ -50,6 +52,14 @@ async def progress(request: HttpRequest):
     return answer({"progress": got}, headers=NO_STORE)
 
 
+def _moved(request: HttpRequest, to: str):
+    """Sent on to where a place is now, with the query it came with (`?from=`, `?chat=`)."""
+    from django.http import HttpResponseRedirect
+
+    query = request.META.get("QUERY_STRING", "")
+    return HttpResponseRedirect(to + (("?" + query) if query else ""))
+
+
 async def address(request: HttpRequest, page: str):
     """A sub-page of the section by its address; one the data file does not have is not found."""
     from django.http import Http404
@@ -58,20 +68,34 @@ async def address(request: HttpRequest, page: str):
 
     from .views import index
 
-    if page not in {p["id"] for p in handholding.pages()}:
+    now = handholding.page_now(page)
+    if not now:
         raise Http404("There is no such page in Handholding.")
+    if now != page:
+        return _moved(request, handholding.page_route(now))
     return await index(request)
 
 
 async def lesson_address(request: HttpRequest, page: str, lesson: str):
-    """One lesson, under the page that holds the lessons: `/handholding/learn/<lesson>`."""
+    """One lesson's own page, `/handholding/lesson/<id>`; and the first version's addresses of a lesson
+    (`/handholding/learn/<id>`, a lesson of its library), sent on to the lesson that holds it now."""
     from django.http import Http404
 
     from rouh import handholding
 
     from .views import index
 
-    if page != handholding.lessons_page() or \
-            lesson not in {x.get("id") for x in handholding.content().get("lessons", [])}:
+    if page == handholding.LESSON:
+        now = handholding.lesson_now(lesson)
+    elif handholding.page_now(page):
+        now = handholding.lesson_now(lesson, old_library=True)
+    else:
+        now = ""
+    if not now and page == handholding.LESSON:
+        # The page draws its own "There is no such lesson", with the way to the path.
+        return await index(request)
+    if not now:
         raise Http404("There is no such lesson.")
+    if page != handholding.LESSON or now != lesson:
+        return _moved(request, handholding.lesson_route(now))
     return await index(request)

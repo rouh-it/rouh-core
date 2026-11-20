@@ -985,12 +985,13 @@
   },
   "handholding": {
    "name": "Handholding",
-   "what": "The guided way into Rouh for someone who has never seen it: what Rouh is as a diagram of its parts, a path of seven stages of steps from saying hello to Rouh running work for you (each with a phrase to try, the page to see and Done, ticked by itself when Rouh can see it), a card for every connection with its live state, and a library of short lessons, each at its own address.",
+   "what": "The guided way into Rouh for someone who has never seen it: a path of seven stages of lessons, from what Rouh is to Rouh running work for you, where a lesson is a step: a card that opens into its own page at its own address, with pictures of the real screen, the things you can say, Mark done (ticked by itself when Rouh can see it), and the next lesson at its foot; every connection with its live state, the switches, and pro tips.",
    "files": [
     "rouh/handholding.py",
     "rouh/handholding.json",
     "rouh/web/handholding.py",
     "rouh/static/handholdingpage.*",
+    "rouh/static/handholding/*",
     "rouh/genes/manifests/handholding.json"
    ]
   },

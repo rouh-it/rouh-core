@@ -1,7 +1,7 @@
 {
   "id": "handholding",
   "name": "Handholding",
-  "title": "Handholding: your path to everything Rouh can do, step by step, with lessons",
+  "title": "Handholding: your path to everything Rouh can do, one lesson at a time",
   "aliases": [
     "onboarding",
     "getting started",
@@ -36,6 +36,6 @@
       "user_settings"
     ],
     "jobs": [],
-    "remove": "Delete rouh/handholding.py, rouh/handholding.json, rouh/web/handholding.py, handholdingpage.js/.css, its article in index.html, its block in app/runs.js and its lines in app/address.js and app/cards.js, its routes in urls.py, the handholding group and `as` in rouh/genes/__init__.py, and this manifest. Delete the user_settings rows named handholding_done."
+    "remove": "Delete rouh/handholding.py, rouh/handholding.json, rouh/web/handholding.py, handholdingpage.js/.css and the pictures in rouh/static/handholding/, its article in index.html, its block in app/runs.js and its lines in app/address.js and app/cards.js, its routes in urls.py, the handholding group and `as` in rouh/genes/__init__.py, and this manifest. Delete the user_settings rows named handholding_done."
   }
 }

@@ -14,7 +14,7 @@ import { endTurnOnScreen, wipeTranscript } from 'app/transcript.js';
 import { CARDVIEW, cardViewing, clearTheCards, standingDown, WORKSPACE_ROUTE } from 'app/cards.js';
 import { JOBVIEW, jobViewing, taskRecs, webOpen, webViewing } from 'app/tasks.js';
 import { BRIEF, briefOpen, briefViewing, CANVAS, canvasDoc, controlOpen, controlViewing, CRUMB_HOME,
-  WORK, workOpen, workViewing, DECIDE, decisionsOpen, decisionsViewing, ACTS, actionsOpen, actionsViewing, HOLD, handholdingOpen, handholdingViewing, receiptsOpen,
+  WORK, workOpen, workViewing, DECIDE, decisionsOpen, decisionsViewing, ACTS, actionsOpen, actionsViewing, HOLD, handholdingAddress, handholdingOpen, handholdingViewing, receiptsOpen,
   receiptsViewing, homeOpen, homeViewing, APPROVALS, approvalsOpen, approvalsViewing, SOURCES, sourcesOpen, sourcesViewing, THOUGHTS, thoughtsOpen, thoughtsViewing,
   EVO, evolutionOpen, evolutionViewing,
   BOX, boxOpen, boxViewing,
@@ -204,7 +204,7 @@ var ADDR_WORK = '/quests';
 var ADDR_DECISIONS = '/decisions';
 // Your part (`rouh/actions.py`), and one action by its number.
 var ADDR_ACTIONS = '/actions';
-// Handholding (`rouh/handholding.py`), and one of its lessons.
+// Handholding (`rouh/handholding.py`): its pages, and each lesson's own page at /handholding/lesson/<id>.
 var ADDR_HANDHOLDING = '/handholding';
 //: Receipts, every receipt and invoice in the mail by month (`addressing.RECEIPTS`).
 var ADDR_RECEIPTS = '/receipts';
@@ -360,8 +360,10 @@ function addrReadPlace(path, query) {
   if (parts.length === 2 && '/' + parts[0] === ADDR_HANDHOLDING && /^[a-z0-9-]+$/.test(parts[1])) {
     return { kind: '', id: '', chat: chat, handholding: parts[1] };
   }
-  if (parts.length === 3 && '/' + parts[0] === ADDR_HANDHOLDING && /^[a-z0-9-]+$/.test(parts[1]) && /^[a-z0-9-]+$/.test(parts[2])) {
-    return { kind: '', id: '', chat: chat, handholding: parts[1], lesson: parts[2] };
+  // A lesson's own page, and where it was opened from (`?from=`), which its Back goes to.
+  if (parts.length === 3 && '/' + parts[0] === ADDR_HANDHOLDING && parts[1] === 'lesson' && /^[a-z0-9-]+$/.test(parts[2])) {
+    var came = /[?&]from=([a-z0-9-]+)/.exec(String(query || ''));
+    return { kind: '', id: '', chat: chat, handholding: '', lesson: parts[2], from: came ? came[1] : '' };
   }
   if (parts.length === 1 && '/' + parts[0] === ADDR_RECEIPTS) {
     return { kind: '', id: '', chat: chat, receipts: true };
@@ -564,7 +566,7 @@ function addrOnCanvas() {
   if (workViewing()) return ADDR_WORK + (WORK.id ? '/' + WORK.id : '');
   if (decisionsViewing()) return ADDR_DECISIONS + (DECIDE.id ? '/' + DECIDE.id : '');
   if (actionsViewing()) return ADDR_ACTIONS + (ACTS.id ? '/' + ACTS.id : '');
-  if (handholdingViewing()) return ADDR_HANDHOLDING + (HOLD.page ? '/' + HOLD.page + (HOLD.lesson ? '/' + HOLD.lesson : '') : '');
+  if (handholdingViewing()) return handholdingAddress();
   if (receiptsViewing()) return ADDR_RECEIPTS;
   if (homeViewing()) return ADDR_HOME;
   if (memoryViewing()) return memoryAddress();
@@ -1010,7 +1012,7 @@ function addrAsk() {
   if (want.handholding !== undefined) {
     ADDR.wanted = null;
     ADDR.asked = false;
-    handholdingOpen(want.handholding, want.lesson || '');
+    handholdingOpen(want.handholding, want.lesson || '', want.from || '');
     if (want.chat) chatIsWanted();
     return;
   }
