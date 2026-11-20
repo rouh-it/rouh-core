@@ -119,6 +119,7 @@ def main() -> int:
     import django
 
     django.setup()
+    migrated = []
     if not why:
         from django.core.management import call_command
 
@@ -126,13 +127,18 @@ def main() -> int:
             call_command("migrate", "--noinput", verbosity=0)
         except Exception as e:  # noqa: BLE001 - every check that needs it then says so
             print(f"note: the database did not migrate before the checks: {type(e).__name__}: {e}")
+            # A failure of its own, first: every check after it fails on a table that is not there, and
+            # only this says why (20 November 2026: a Mac's catch-up was refused three times with
+            # "relation app_state does not exist" while the cause, two last migrations, was only a note).
+            migrated = [{"name": "the database migrates from empty", "group": "security",
+                         "why": f"{type(e).__name__}: {str(e)[:1200]}"}]
     import check
     import security  # noqa: F401 - registers the checks
 
     report = check.run(db_ready=not why)
     for gap in KNOWN_GAPS:
         print(f"gap   {gap}")
-    return result(report.passed, report.failed)
+    return result(report.passed, migrated + list(report.failed))
 
 
 if __name__ == "__main__":

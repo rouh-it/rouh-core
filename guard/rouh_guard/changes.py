@@ -258,7 +258,11 @@ class Changes:
             finally:
                 self.busy = ""
             if not checked["ok"]:
-                names = "; ".join(f"{f['name']}: {f['why']}"[:300] for f in checked["failed"][:6])
+                # The database's migration first: when it fails every check after it fails on a missing
+                # table, and only it says why (20 November 2026).
+                ranked = sorted(checked["failed"], key=lambda f: 0 if "migrat" in str(f.get("name", "")).lower() else 1)
+                names = "; ".join(f"{f['name']}: {f['why']}"[:600 if "migrat" in str(f.get("name", "")).lower() else 300]
+                                  for f in ranked[:6])
                 said = f"{commit[:12]} did not pass its checks, so it does not run. What failed: {names}"
                 if self.head() == commit and cur:
                     kept = self._set_aside("refused")

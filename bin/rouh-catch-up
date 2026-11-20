@@ -46,6 +46,10 @@ rouh-guard undo N; then, if the database must go back too, rouh-backup restore <
               refuses that, the release with only its own new files is handed it as a second choice.
               Whatever of its own is left out is named, and stays in its history. The protected core's
               copies of an update step are released content, never counted as its own.
+              An own new migration that would leave its app two last migrations beside the release's
+              is left out before anything is proposed (nothing would migrate, and every check would
+              fail on a missing table); if the core still refuses, the third choice is the release
+              alone. Every failure the core gives is printed, the database's migration first.
 Settings: ROUH_SITE_URL (https://rouh.land), ROUH_CODE_RELEASE_URL (its /mac/code/release.json),
 ROUH_CODE_TARBALL ({org} and {commit} filled in), ROUH_APP_DIR (/code), ROUH_GUARD_BIN
 (/opt/rouh-guard/bin).
@@ -235,6 +239,37 @@ def released_versions(work: Path, local: str, head: str) -> tuple[set, dict]:
     return found, seen
 
 
+MIGRATION_DEP = re.compile(r"""\(\s*["'](\w+)["']\s*,\s*["'](\w+)["']\s*\)""")
+
+
+def migration_misfits(work: Path, release: str) -> list[str]:
+    """This Rouh's own new migrations that would leave their app with two last migrations beside the
+    release's: Django then refuses to migrate at all, and every check of the result fails on a table
+    that is not there (20 November 2026: a Mac's own 0249 beside the release's 0265). Read from the
+    files, nothing run."""
+    added = [f for f in out("diff", "--cached", "--name-only", "--diff-filter=A", "--no-renames", release,
+                            cwd=work).splitlines()
+             if "/migrations/" in f and f.endswith(".py") and not f.endswith("__init__.py")]
+    out_ = []
+    for folder in sorted({str(Path(f).parent) for f in added}):
+        names = {p.stem: p for p in (work / folder).glob("*.py") if p.stem != "__init__"}
+        used = set()
+        for p in names.values():
+            used |= {m.group(2) for m in MIGRATION_DEP.finditer(p.read_text(errors="replace")) if m.group(2) in names}
+        leaves = set(names) - used
+        if len(leaves) > 1:
+            out_ += [f for f in added if str(Path(f).parent) == folder]
+    return sorted(out_)
+
+
+def failures(answer: dict) -> list[str]:
+    """Every failure the protected core gave, one line each, the database's migration first: when it
+    fails, every check after it fails on a table that is not there, and only it says why."""
+    got = [f"{f.get('name', 'a check')}: {f.get('why', '')}" for f in answer.get("failed") or []]
+    got.sort(key=lambda l: 0 if "migrat" in l.lower() else 1)
+    return got or [str(answer.get("refused") or answer.get("error") or "it did not say why")]
+
+
 def blob_at(work: Path, rev: str, f: str) -> str:
     got = git("rev-parse", "-q", "--verify", f"{rev}:{f}", cwd=work)
     return got.stdout.strip() if got.returncode == 0 else ""
@@ -344,7 +379,8 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
             "-m", f"{TRAILER}: {commit}", cwd=work, check=True)
         local_release = out("rev-parse", "HEAD", cwd=work)
         git("checkout", "-q", "-B", "catch-up", head, cwd=work, check=True)
-        kept, carried, dropped, plain, left_out = [], [], [], "", []
+        kept, carried, dropped, plain, left_out, misfit = [], [], [], "", [], []
+        local_release_commit = ""
         if head == b["local"]:
             merged = local_release
         else:
@@ -405,6 +441,11 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
             if dropped:
                 msg.append("The release's file, because this Rouh's own lines did not fit beside it (they are in its "
                            "history, before this commit):\n" + "\n".join(f"- {f}" for f in dropped))
+            misfit = migration_misfits(work, local_release) if stuck else []
+            if misfit:
+                git("rm", "-q", "--", *misfit, cwd=work, check=True)
+                msg.append("Its own migrations left out, because beside the release's they would give the app two last "
+                           "migrations and nothing would migrate (they are in its history):\n" + "\n".join(f"- {f}" for f in misfit))
             git("commit", "-q", "--no-edit", "-m", msg[0], "-m", "\n\n".join(msg[1:]), cwd=work, check=True)
             merged = out("rev-parse", "HEAD", cwd=work)
             if stuck:
@@ -420,6 +461,7 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
                     cwd=work, check=True)
                 plain = out("rev-parse", "HEAD", cwd=work)
                 left_out = [f for f in out("diff", "--name-only", "--no-renames", plain, merged, cwd=work).splitlines() if f]
+        local_release_commit = local_release
         name = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
         git("fetch", "-q", str(work), f"+{merged}:refs/rouh/update/{name}", f"+{local_release}:refs/rouh/release/{name}",
             *([f"+{plain}:refs/rouh/update/{name}-plain"] if plain else []), cwd=CODE, check=True)
@@ -432,22 +474,41 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
     if dropped:
         say("the release's version, because this Rouh's own lines did not fit beside the release's (still in its "
             "history): " + ", ".join(dropped[:20]))
+    if misfit:
+        say("its own migrations left out, because beside the release's they would leave two last migrations and "
+            "nothing would migrate (still in its history): " + ", ".join(misfit[:20]))
     before = point.get("n")
     say(f"handing {merged[:12]} to the protected core; its checks take a minute or a few")
     why = f"Rouh's update to Rouh {commit[:8]} of {when}, once, by rouh-catch-up" + (
         f", {own} own change{'s' if own != 1 else ''} kept" if own else "")
     answer = guard("propose", merged, why)
     if not answer.get("ok") and plain and plain != merged:
-        say("the protected core refused it: " + str(answer.get("refused") or answer.get("error") or "")[:400])
+        say("the protected core refused it. What failed, the database's migration first:")
+        for line in failures(answer)[:30]:
+            say("  - " + line[:900])
         say(f"handing the second choice, {plain[:12]}: the release with only this Rouh's own new files")
         left = sorted(set(left_out) | set(dropped))
         answer = guard("propose", plain, why + "; its own lines in the release's files left out")
         if answer.get("ok"):
             merged, dropped, carried = plain, left, []
             say("this Rouh's own lines in these files were left out (they are in its history): " + ", ".join(left[:20]))
+    if not answer.get("ok") and stuck and local_release_commit and local_release_commit not in (merged, plain):
+        # The third choice: the release alone, exactly as a fresh install of it has it. Everything of this
+        # Rouh's own is left out of the code that runs, and stays in its history.
+        say("the protected core refused that too. What failed, the database's migration first:")
+        for line in failures(answer)[:30]:
+            say("  - " + line[:900])
+        say(f"handing the third choice, {local_release_commit[:12]}: the release alone, as a fresh install has it")
+        answer = guard("propose", local_release_commit, why + "; the release alone, its own changes left out")
+        if answer.get("ok"):
+            merged, carried, dropped = local_release_commit, [], sorted(set(left_out) | set(dropped) | set(misfit))
+            say("every change of this Rouh's own is left out of the code that runs (it is in its history)")
     if not answer.get("ok"):
+        say("the protected core did not make it live. What failed, the database's migration first:")
+        for line in failures(answer)[:30]:
+            say("  - " + line[:900])
         raise Refused("the protected core did not make it live, so the code is as it was: "
-                      + str(answer.get("refused") or answer.get("error") or "it did not say why")[:1500])
+                      + failures(answer)[0][:1500])
     n = (answer.get("point") or {}).get("n")
     say(f"done: undo point {n} is Rouh {commit[:12]} of {when}"
         + (f" with this Rouh's {own} own change{'s' if own != 1 else ''}" if own else "")
