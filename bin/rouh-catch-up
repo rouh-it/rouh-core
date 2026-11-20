@@ -35,7 +35,12 @@ rouh-guard undo N; then, if the database must go back too, rouh-backup restore <
               could not adapt, and the fixes for that behind it too). The same, from the release its
               code was installed from (or brought by an earlier catch-up), with the changes its updates
               took and its own merged on top. Its update then counts every change up to the release
-              as taken (rouh/code_evolution.py, caught_up), and goes on from there.
+              as taken (rouh/code_evolution.py, caught_up), and goes on from there. A file it has as
+              shared main once had it is not its own (earlier updates left such versions, some by
+              commits with no Rouh-master-change: line): the release's version wins, conflict or not;
+              shared main's history is fetched for this, its trees only (ROUH_CODE_MASTER). Its own
+              commits are listed first. On 20 November 2026 a Mac kept five such files, urls.py among
+              them, and the protected core refused the result: it did not import.
 Settings: ROUH_SITE_URL (https://rouh.land), ROUH_CODE_RELEASE_URL (its /mac/code/release.json),
 ROUH_CODE_TARBALL ({org} and {commit} filled in), ROUH_APP_DIR (/code), ROUH_GUARD_BIN
 (/opt/rouh-guard/bin).
@@ -60,6 +65,9 @@ CODE = Path(os.environ.get("ROUH_APP_DIR", "/code"))
 SITE = (os.environ.get("ROUH_SITE_URL") or "https://rouh.land").strip().rstrip("/")
 RELEASE_URL = os.environ.get("ROUH_CODE_RELEASE_URL") or f"{SITE}/mac/code/release.json"
 TARBALL = os.environ.get("ROUH_CODE_TARBALL") or "https://codeload.github.com/rouh-land/rouh-core/tar.gz/{commit}"
+#: Shared main, whose history (its trees only, never a file's contents) tells a version of a file main once
+#: had from an edit of this Rouh's own (--stuck).
+MAIN = os.environ.get("ROUH_CODE_MASTER") or "https://github.com/rouh-land/rouh-core.git"
 GUARD = Path(os.environ.get("ROUH_GUARD_BIN", "/opt/rouh-guard/bin")) / "rouh-guard"
 #: As rouh-code-install and rouh/code_update.py: release tools a Rouh never runs.
 LEFT_OUT = ("guard", "mac", ".github", "deploy/container")
@@ -195,6 +203,39 @@ def day(iso: str) -> str:
     return f"{int(m.group(3))} {months[int(m.group(2)) - 1]} {m.group(1)}"
 
 
+def released_versions(work: Path, local: str, head: str) -> set:
+    """The files this Rouh's commits changed whose version at head is one shared main once had."""
+    touched = [f for f in out("diff", "--name-only", "--no-renames", local, head, cwd=work).splitlines() if f]
+    if not touched:
+        return set()
+    r = git("fetch", "-q", "--filter=blob:none", "--no-tags", MAIN, "+refs/heads/main:refs/rouh/catch-up-main", cwd=work)
+    if r.returncode:
+        raise Refused("shared main's history could not be read, so its versions of this Rouh's files cannot be told "
+                      "from its own edits: " + (r.stderr or r.stdout).strip()[-300:] + ". Nothing was changed.")
+    seen: dict = {}
+    for start in range(0, len(touched), 200):
+        log_ = out("log", "--raw", "--no-abbrev", "--no-renames", "--format=", "refs/rouh/catch-up-main", "--",
+                   *touched[start:start + 200], cwd=work)
+        for line in log_.splitlines():
+            meta, _, path = line.partition("\t")
+            parts = meta.split()
+            if len(parts) >= 4 and path:
+                seen.setdefault(path, set()).update(x for x in parts[2:4] if set(x) != {"0"})
+    found = set()
+    for f in touched:
+        got = git("rev-parse", "-q", "--verify", f"{head}:{f}", cwd=work)
+        if got.returncode == 0 and got.stdout.strip() in seen.get(f, set()):
+            found.add(f)
+    return found
+
+
+def own_commits(local: str, head: str) -> list[str]:
+    """This Rouh's commits since the release it came from that are not released changes its updates
+    took (Rouh-master-change:), as "<sha> <subject>"."""
+    return [l for l in out("log", "--no-merges", "--invert-grep", "--grep=^Rouh-master-change:", "--format=%h %s",
+                           f"{local}..{head}", cwd=CODE).splitlines() if l]
+
+
 def catch_up(dry: bool, stuck: bool = False) -> int:
     if not (CODE / ".git").exists():
         raise Refused(f"{CODE} is not a Rouh's code (no git repository).")
@@ -213,6 +254,8 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
     commit = rel["commit"]
     say(f"this Rouh came from Rouh {b['release'][:12]} ({b['how']}), with {own} change"
         f"{'' if own == 1 else 's'} of its own; the newest release is {commit[:12]} of {day(rel.get('released_at'))}.")
+    for line in own_commits(b["local"], head)[:20]:
+        say(f"  its own: {line}")
     if commit == b["release"]:
         say("it already has that release; nothing to do.")
         return 0
@@ -270,17 +313,25 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
             clashes = [f for f in out("diff", "--name-only", "--diff-filter=U", cwd=work).splitlines() if f]
             if r.returncode and not clashes:
                 raise Refused("its own changes could not be laid over the release: " + (r.stderr or r.stdout).strip()[-300:])
-            for f in clashes:
-                mine = out("log", "--format=%H", "--no-merges", "--invert-grep", "--grep=^Rouh-master-change:",
-                           f"{b['local']}..{head}", "--", f, cwd=work)
-                if stuck and not mine:
-                    # Only released changes its update took touched it: the release has them, and more.
-                    if git("cat-file", "-e", f":3:{f}", cwd=work).returncode == 0:
-                        git("checkout", "-q", "--theirs", "--", f, cwd=work, check=True)
+            released = released_versions(work, b["local"], head) if stuck else {}
+            if stuck:
+                # A file this Rouh has as shared main once had it is not its own: earlier updates took
+                # changes out of order and left such versions; the release's version wins, conflict or
+                # not. Only a version main never had is an edit of this Rouh's own (20 November 2026: a
+                # Mac kept five such files, urls.py among them, and the result did not import).
+                for f in sorted(released):
+                    if git("cat-file", "-e", f"{local_release}:{f}", cwd=work).returncode == 0:
+                        git("checkout", "-q", local_release, "--", f, cwd=work, check=True)
                         git("add", "--", f, cwd=work, check=True)
                     else:
-                        git("rm", "-q", "--", f, cwd=work, check=True)
-                    continue
+                        git("rm", "-q", "--ignore-unmatch", "--", f, cwd=work, check=True)
+                    if f in clashes:
+                        clashes.remove(f)
+                if released:
+                    say(f"took the release's version of {len(released)} file{'' if len(released) == 1 else 's'} this Rouh "
+                        "had as shared main once had it (left by earlier updates, not edits of its own): "
+                        + ", ".join(sorted(released)[:12]) + (" and more" if len(released) > 12 else ""))
+            for f in clashes:
                 if git("cat-file", "-e", f":2:{f}", cwd=work).returncode == 0:
                     git("checkout", "-q", "--ours", "--", f, cwd=work, check=True)
                     git("add", "--", f, cwd=work, check=True)
