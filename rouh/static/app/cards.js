@@ -4633,6 +4633,8 @@ function askRoute(path) {
   // A name's .ai and .com now, and its trade mark screening run, for the
   // owner only (`rouh/web/name_checks.py`; task 149, step 149-02).
   if (path === '/api/checks') return '/api/name-checks';
+  // A list the page shares among everybody who may change it (`rouh/sharedlist.py`).
+  if (path === '/api/list') return '/api/page-list';
   // The page's history, and the options kept over it (`rouh/pagehistory.py`).
   if (path === '/api/history') return ASK_ROUTE + 'history';
   if (path === '/api/keep') return ASK_ROUTE + 'keep';

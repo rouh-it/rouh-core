@@ -269,12 +269,12 @@ def where(rel: str, root=None, *, tree: dict | None = None,
 def _referenced() -> set[str]:
     """Every path a share, a comment or a page's Ask AI rows name."""
     from .models import (AskEdit, AskThread, PageComment, PageDefinition, PageGuest,
-                         PageHighlight, PageOption, PagePlace, PageState, PublicPage)
+                         PageHighlight, PageOption, PagePlace, PageSharedList, PageState, PublicPage)
 
     rels: set[str] = set()
     for model, field in ((PublicPage, "rel"), (PageGuest, "rel"), (PageComment, "rel"),
                          (PageHighlight, "rel"), (PageDefinition, "rel"), (PageState, "rel"),
-                         (AskThread, "doc"),
+                         (PageSharedList, "rel"), (AskThread, "doc"),
                          (AskEdit, "doc"), (PageOption, "doc")):
         rels.update(model.objects.values_list(field, flat=True).distinct())
     # A page its owner has opened, so the time they opened it follows the
@@ -289,13 +289,13 @@ def _referenced() -> set[str]:
 def _names(rel: str) -> bool:
     """Whether any share, comment or Ask AI row names this path."""
     from .models import (AskEdit, AskThread, PageComment, PageDefinition, PageGuest,
-                         PageHighlight, PageOption, PageState, PublicPage)
+                         PageHighlight, PageOption, PageSharedList, PageState, PublicPage)
 
     return any(model.objects.filter(**{field: rel}).exists()
                for model, field in ((PublicPage, "rel"), (PageGuest, "rel"),
                                     (PageComment, "rel"), (PageHighlight, "rel"),
                                     (PageDefinition, "rel"), (PageState, "rel"),
-                                    (AskThread, "doc"),
+                                    (PageSharedList, "rel"), (AskThread, "doc"),
                                     (AskEdit, "doc"), (PageOption, "doc")))
 
 
@@ -316,7 +316,7 @@ def _repoint(old: str, new: str, root=None) -> dict:
     from django.db import transaction
 
     from .models import (AskEdit, AskThread, PageComment, PageDefinition, PageGuest,
-                         PageHighlight, PageOption, PagePlace, PageState, PublicPage)
+                         PageHighlight, PageOption, PagePlace, PageSharedList, PageState, PublicPage)
 
     found = identity(root, new)
     counts: dict[str, int] = {}
@@ -343,6 +343,9 @@ def _repoint(old: str, new: str, root=None) -> dict:
         # A person's settings on the page, unless they already have some at the new path.
         counts["page_states"] = PageState.objects.filter(rel=old).exclude(
             user_id__in=PageState.objects.filter(rel=new).values("user_id")).update(rel=new)
+        # A page's shared list (`rouh/sharedlist.py`), unless the new path has that list already.
+        counts["page_shared_lists"] = PageSharedList.objects.filter(rel=old).exclude(
+            key__in=PageSharedList.objects.filter(rel=new).values("key")).update(rel=new)
         counts["askai_threads"] = AskThread.objects.filter(doc=old).update(doc=new)
         counts["askai_edits"] = AskEdit.objects.filter(doc=old).update(doc=new)
         counts["page_options"] = PageOption.objects.filter(doc=old).update(doc=new)

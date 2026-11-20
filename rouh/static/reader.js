@@ -110,6 +110,10 @@
     // (`rouh/pagehistory.py`). Its history is the owner's, so there is no
     // route here for that.
     if (path === '/api/option') return 'option';
+    // The list the page shares, and a name's .ai and .com, for a person it is
+    // shared with (`rouh/web/sharedlist.py`; task 149, step 149-04).
+    if (path === '/api/list') return 'list';
+    if (path === '/api/checks') return 'checks';
     var one = THREAD.exec(path);
     return one ? 'threads/' + one[1] : '';
   }

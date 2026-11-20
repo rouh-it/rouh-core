@@ -63,7 +63,7 @@ from rouh.web import (apple, assets, auth, boxes, brief, changes as changes_web,
                       signatures, sources, vocabulary,
                       
                       page_gdoc as page_gdoc_web, page_listen as page_listen_web, name_checks as name_checks_web, read_aloud as read_aloud_web, page_pdf as page_pdf_web,
-                      pagestate as pagestate_web,
+                      pagestate as pagestate_web, sharedlist as sharedlist_web,
                       since_read as since_read_web,
                       doc_on_page as doc_on_page_web, meeting_attach as meeting_attach_web, task_docs as task_docs_web, to_send as to_send_web, open_items as open_items_web, task_time as task_time_web, not_arrived as not_arrived_web, away_after as away_after_web, new_number as new_number_web, new_address as new_address_web, new_company as new_company_web, told_address as told_address_web, card_call as card_call_web, card_directions as card_directions_web, new_title as new_title_web, sig_address as sig_address_web, rouh_invited as rouh_invited_web, access_asked as access_asked_web, comment_asks as comment_asks_web, card_share as card_share_web, their_files as their_files_web, renewal as renewal_web, payment_failed as payment_failed_web, bank_changed as bank_changed_web, sign_request as sign_request_web, objecttreeapi, taskapi, telegram_account, service_keys as service_keys_web, trusted, views)
 
@@ -295,6 +295,8 @@ urlpatterns = [
     path("api/definitions", definitions.for_owner),
     # A page's own settings, the person's choices on it (`rouh/web/pagestate.py`).
     path("api/page-state", pagestate_web.for_owner),
+    # A list a page shares among everybody who may change it (`rouh/sharedlist.py`).
+    path("api/page-list", sharedlist_web.for_owner),
     # Every page's checked sources, and his word that one holds (`rouh/web/sources.py`).
     path("api/sources", sources.for_owner),
     # A page as a printable PDF from its own PDF button, and the notice when it is ready
@@ -479,6 +481,10 @@ urlpatterns = [
     # And the passages explained on it, for the same people again.
     path("shared/<str:token>/definitions", definitions.for_shared),
     path("shared/<str:token>/option", guests.SHARED["option"]),
+    # The page's shared list, and a name's checks, for a person it is shared with
+    # (`rouh/web/sharedlist.py`). Not under `/p/`: a link's visitor has no list.
+    path("shared/<str:token>/list", sharedlist_web.for_shared),
+    path("shared/<str:token>/checks", sharedlist_web.checks_shared),
 
     # --- Gene therapy: feedback and feature requests (requests, settings first: see the
     # docstring). Under `api/feedback` as well, its name until 12 October 2026, so a page

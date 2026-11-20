@@ -1106,6 +1106,35 @@ class PageState(models.Model):
                                                name="page_states_one")]
 
 
+class PageSharedList(models.Model):
+    """One list on one workspace page that everybody who may change the page shares.
+
+    `PageState` is one person's; this is the page's own, for a page that asks for it
+    in its head (`rouh/sharedlist.py`, task 149, step 149-04: Petar, "my brother sees
+    his words, I see mine. this needs to share a common db"). ``items`` is the list,
+    ``answers`` what was found out about its entries (such as a domain's .ai and .com),
+    ``removed`` every entry taken off, with who and when, and ``log`` each change.
+    Changed one entry at a time under a row lock, and ``version`` counts the changes,
+    so two people adding at once never overwrite each other.
+    """
+
+    id = models.BigAutoField(primary_key=True)
+    org_id = models.TextField()
+    rel = models.TextField()
+    key = models.TextField()
+    items = models.JSONField(default=list)
+    answers = models.JSONField(default=dict)
+    removed = models.JSONField(default=list)
+    log = models.JSONField(default=list)
+    version = models.BigIntegerField(default=0)
+    updated_at = models.FloatField()
+
+    class Meta:
+        db_table = "page_shared_lists"
+        constraints = [models.UniqueConstraint(fields=["org_id", "rel", "key"],
+                                               name="page_shared_lists_one")]
+
+
 # --- A share that ends by itself (`rouh/share_ends.py`) ---------------------
 
 class ShareEnd(models.Model):

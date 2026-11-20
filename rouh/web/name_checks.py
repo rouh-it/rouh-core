@@ -36,6 +36,11 @@ async def for_owner(request: HttpRequest):
     try:
         if what == "domains":
             said = await name_checks.domains(asked.get("spellings"))
+            # Kept for everybody on the page's shared list too (`rouh/sharedlist.py`).
+            from rouh import sharedlist
+
+            page = await asyncio.to_thread(askai.resolve, config.assistant_repo, place.rel)
+            await asyncio.to_thread(sharedlist.record_domains, me.org_id, place.rel, page, said)
         elif what == "trademark":
             said = await name_checks.trademark(me, root, place.rel, asked.get("word"),
                                                asked.get("spellings"))
