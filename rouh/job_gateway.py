@@ -786,6 +786,14 @@ async def act(job: str, action: str, tool: str = "", args=None, run_token: str =
                                     by="the job gateway", run=job)
             return {"ok": False, "text": "That token is not this job's own, so Rouh does nothing "
                                          "for it."}
+        if checked == "none":
+            return {"ok": False, "text": "This job showed Rouh no run token of its own, so Rouh "
+                                         "cannot tell it is the run it names and does nothing for "
+                                         "it. Rouh's tools come with the token in a run the one "
+                                         "program started: start the work as a new run."}
+        if checked == "unchecked":
+            return {"ok": False, "text": "Rouh could not check this job's run token with the one "
+                                         "program just now. Try again in a minute."}
         scope, why = await asyncio.to_thread(scope_of, job)
         if scope is None:
             return {"ok": False, "text": why}

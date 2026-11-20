@@ -62,7 +62,11 @@ def _port() -> int:
 
 
 def gh_socket() -> str:
-    """The unix socket gh talks over (bin/rouh-github keeps the same path)."""
+    """The unix socket gh talks over (bin/rouh-github keeps the same path); ``ONE_DOOR_GH_SOCKET``
+    names another (a test world's own, so it never takes the worker's), and "off" none."""
+    said = os.environ.get("ONE_DOOR_GH_SOCKET", "").strip()
+    if said:
+        return "" if said == "off" else said
     home = os.environ.get("HOME") or "/home/rouh"
     path = os.path.join(home, ".cache", "rouh-github", "gh.sock")
     if len(path) > 100:
@@ -170,6 +174,9 @@ class Door:
             log.warning("run door: port %s could not be opened (%s)", self.port, exc)
             return
         path = gh_socket()
+        if not path:
+            log.info("run door open on 127.0.0.1:%s", self.port)
+            return
         try:
             os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
             with contextlib.suppress(FileNotFoundError):

@@ -183,22 +183,61 @@ def _proxy_url() -> str:
 _checked: dict[str, tuple[str, float]] = {}
 
 
+#: How long after the one program first handed out tokens a run started before it may still
+#: call Rouh's tools without one: the runs already going when this was deployed (a run lasts at
+#: most six hours, ONE_RUN_LIFETIME).
+GRACE = 6 * 3600.0
+
+
+async def _door_started(client) -> float:
+    if _state.get("door_started"):
+        return float(_state["door_started"])
+    got = await asyncio.wait_for(client.ask("run_doors"), 5)
+    _state["door_started"] = float(got.get("started_at") or 0)
+    return _state["door_started"]
+
+
+def _run_started(job: str) -> float:
+    from .models import Run
+
+    got = Run.objects.filter(id=job).values_list("started_at", flat=True).first()
+    return float(got or 0)
+
+
 async def verify(job: str, token: str) -> str:
-    """"ok" when the token is this job's own; "none" when no token came; "unchecked" when the
-    program could not be asked; "other" when it is another run's or none of the program's."""
+    """Whether a job is the run it names, by its own run token:
+
+    "ok"        the token is this job's own, the one program says
+    "other"     it is another run's, or none of the program's: refused, and the tripwire
+    "none"      no token, from a run the program could have given one: refused
+    "legacy"    no token, from a run started before the program handed out tokens, within
+                `GRACE`: served, never Unrestricted
+    "noprogram" no one program here at all (a test world, the server): served as before, never
+                Unrestricted
+    "unchecked" the program could not be asked: refused, said plainly
+    """
+    from .one_client import OneClient
+
     token = str(token or "").strip()
+    client = OneClient()
+    if not client.configured:
+        return "noprogram"
     if not token:
+        try:
+            started = await _door_started(client)
+        except Exception:  # noqa: BLE001
+            return "unchecked"
+        if not started:
+            return "legacy"            # a program that hands out no tokens yet
+        begun = await asyncio.to_thread(_run_started, job)
+        if begun and begun < started and time.time() < started + GRACE:
+            return "legacy"
         return "none"
     cached = _checked.get(token)
     if cached and time.time() - cached[1] < 300:
         run = cached[0]
     else:
         try:
-            from .one_client import OneClient
-
-            client = OneClient()
-            if not client.configured:
-                return "unchecked"
             got = await asyncio.wait_for(client.ask("run_token_check", token=token), 5)
         except Exception:  # noqa: BLE001
             log.exception("a run's token could not be checked")
@@ -312,6 +351,7 @@ async def sync_once() -> dict:
         if client.configured:
             got = await asyncio.wait_for(client.ask("run_doors"), 10)
             doors = got.get("doors") or []
+            _state["door_started"] = float(got.get("started_at") or 0)
             with_attempts = await asyncio.wait_for(
                 client.ask("door_attempts", since=_state["seen_attempt"]), 10)
             attempts = with_attempts.get("attempts") or []
