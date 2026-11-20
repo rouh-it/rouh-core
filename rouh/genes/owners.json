@@ -3491,6 +3491,123 @@
     "rouh/rouh_log.py",
     "rouh/models/connections.py"
    ]
+  },
+  "n49-mail-placeholder": {
+   "name": "A placeholder left in an email",
+   "what": "Before Rouh sends or drafts an email, a placeholder still in it (\"[Name]\", \"{{first_name}}\", \"<insert date>\", \"XXX\") holds it, and Rouh puts the real words in before it goes.",
+   "switch": "mail_placeholder",
+   "signals": {
+    "events": {
+     "held": "You asked Rouh to send or draft an email that still had a placeholder in it, and it was held and filled in before it went"
+    }
+   },
+   "files": [
+    "rouh/mail_placeholder.py"
+   ]
+  },
+  "n49-greeting-name": {
+   "name": "A greeting to somebody not on the email",
+   "what": "Before Rouh sends or drafts an email, a greeting naming somebody it does not go to (\"Hi Maria,\" to Anna) holds it, and Rouh writes it again with the right name.",
+   "switch": "greeting_name",
+   "signals": {
+    "events": {
+     "held": "You asked Rouh to send or draft an email whose greeting named somebody it does not go to, and it was held and put right before it went"
+    }
+   },
+   "files": [
+    "rouh/greeting_name.py"
+   ]
+  },
+  "n49-bank-changed": {
+   "name": "Bank details that changed",
+   "what": "An email whose sender gives a bank account they never gave before is told at once in a notice, with the account they gave before and what to do: confirm it by phone before paying.",
+   "switch": "bank_changed",
+   "signals": {
+    "events": {
+     "opened": "You pressed Open the email on a notice that a sender's bank details changed"
+    },
+    "runs": {
+     "told": "A sender's email gave a bank account they had not given before, and it was told in a notice"
+    }
+   },
+   "files": [
+    "rouh/bank_changed.py",
+    "rouh/web/bank_changed.py",
+    "rouh/iban_read.py"
+   ]
+  },
+  "n49-sign-request": {
+   "name": "A document waiting for your signature",
+   "what": "A signing service's request (DocuSign, Adobe Acrobat Sign, Dropbox Sign, PandaDoc, Yousign, Evrotrust) is told at once in a notice: who asks, the document and when it expires; an email that only looks like one is named as not from it.",
+   "switch": "sign_request",
+   "signals": {
+    "events": {
+     "opened": "You pressed Open the email on a notice that a document waits for your signature"
+    },
+    "runs": {
+     "told": "A signing service asked for a signature, and it was told in a notice",
+     "fake": "An email looked like a signing service's and was not from it, and it was named in a notice"
+    }
+   },
+   "files": [
+    "rouh/sign_request.py",
+    "rouh/web/sign_request.py"
+   ]
+  },
+  "n49-file-no-copy": {
+   "name": "Kept from being passed on",
+   "what": "Asked, Rouh sets one Drive file so that people who may only view or comment cannot download, print or copy it, and its editors cannot share it on; asked again, it gives both back.",
+   "switch": "file_no_copy",
+   "signals": {
+    "events": {
+     "kept": "You asked Rouh to keep a Drive file from being downloaded or shared on, and it was set so",
+     "allowed": "You asked Rouh to let a Drive file be downloaded or shared again, and it was set so"
+    }
+   },
+   "files": [
+    "rouh/file_no_copy.py"
+   ]
+  },
+  "n49-guest-list": {
+   "name": "A meeting's guest list hidden",
+   "what": "Asked, Rouh hides a meeting's guest list from its guests, or keeps them from inviting others, when it books the meeting or later, quietly and with no email to anybody.",
+   "switch": "guest_list",
+   "signals": {
+    "events": {
+     "kept": "You asked Rouh to hide a meeting's guest list or keep its guests from inviting others, and it was set so",
+     "allowed": "You asked Rouh to show a meeting's guest list again or let its guests invite others, and it was set so"
+    }
+   },
+   "files": [
+    "rouh/guest_list.py"
+   ]
+  },
+  "n49-bank-copy": {
+   "name": "Pay an invoice from the inbox card",
+   "what": "An email opened on the inbox card that gives a bank account shows who is to be paid, the account checked by its own sum, the amount and the reference, each with Copy.",
+   "switch": "bank_copy",
+   "signals": {
+    "events": {
+     "copied": "You pressed Copy on the bank account, amount or reference of an email opened on the inbox card"
+    }
+   },
+   "files": [
+    "rouh/bank_copy.py",
+    "rouh/iban_read.py"
+   ]
+  },
+  "n49-mail-button": {
+   "name": "The button in an email",
+   "what": "An email opened on the inbox card that asks you to confirm, verify, reset a password, accept an invitation or sign in shows that button at the top, only when its link goes to the sender's own domain.",
+   "switch": "mail_button",
+   "signals": {
+    "events": {
+     "pressed": "You pressed the button an email asked for (confirm, verify, reset, accept, sign in) at the top of the inbox card"
+    }
+   },
+   "files": [
+    "rouh/mail_button.py"
+   ]
   }
  }
 }

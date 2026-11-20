@@ -1879,6 +1879,24 @@ class MailAlerts:
                                                    signed_up=signed_up or "")
                 if failed:
                     log.info("mail alert %s: %s", message_id, failed)
+            # Bank details that changed (night 49, `rouh/bank_changed.py`): a sender's email giving a bank
+            # account they never gave before is told at once; the first one is only remembered.
+            from . import bank_changed
+
+            if await asyncio.to_thread(bank_changed.on, who):
+                alert = await self._db(self.store.alert, user_id, org_id)
+                changed = await bank_changed.seen(who, message, mailbox=str(alert.get("mailbox") or ""))
+                if changed:
+                    log.info("mail alert %s: %s", message_id, changed)
+            # A document waiting for your signature (night 49, `rouh/sign_request.py`): a signing service's
+            # request is told before it is passed over as a machine's mail, and a fake one named.
+            from . import sign_request
+
+            if await asyncio.to_thread(sign_request.on, who):
+                alert = await self._db(self.store.alert, user_id, org_id)
+                asked = await sign_request.seen(who, message, mailbox=str(alert.get("mailbox") or ""))
+                if asked:
+                    log.info("mail alert %s: %s", message_id, asked)
             # Away, after Rouh wrote (night 38, `rouh/away_after.py`): an out-of-office reply to
             # Rouh's own email is told to the person, then passed over as junk all the same.
             from . import away_after

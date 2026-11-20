@@ -278,6 +278,11 @@ def _drive_routes(app, world, seen, note, made_up, file_named, drive_named, hold
             found["contentRestrictions"] = held
             note("file locked" if any(o.get("readOnly") for o in held) else "file unlocked",
                  {"id": file_id, "name": found.get("name")})
+        for rule in ("copyRequiresWriterPermission", "writersCanShare"):
+            # Kept from being passed on (night 49, `rouh/file_no_copy.py`): Drive keeps both as it is told.
+            if rule in body:
+                found[rule] = bool(body[rule])
+                note("file rule changed", {"id": file_id, "name": found.get("name"), rule: found[rule]})
         if body.get("trashed"):
             found["trashed"] = True
             note("file binned", {"id": file_id, "name": found["name"]})

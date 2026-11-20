@@ -445,6 +445,14 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `gene.payment-failed` | A payment that did not go through | untested | works | a service's email that a charge failed is read for what, how much and by when; a receipt is not | not checked |
 | `gene.file-lock` | Lock a Drive file | untested | works | Drive's content restriction is read as locked, by whom and why; one lifted as open | not checked |
 | `gene.mail-code` | The code in an email | untested | works | the code an email carries is found, alone on its line or after the words that name it, with how long it lasts; an order number is not | not checked |
+| `gene.mail-placeholder` | A placeholder left in an email | untested | works | "[Name]" and "<insert date>" are found in an email's own words; a bracketed label and a quoted reply are not | not checked |
+| `gene.greeting-name` | A greeting to somebody not on the email | untested | works | a greeting naming nobody the email goes to is found; a right name, a short form and an address with no name are not | not checked |
+| `gene.bank-changed` | Bank details that changed | untested | works | an IBAN is found by its own sum and remembered per sender's domain; the notice says only its last four | not checked |
+| `gene.sign-request` | A document waiting for your signature | untested | works | a signing service's request is read for who, the document and the day it expires; a look-alike is named; a finished one is not told | not checked |
+| `gene.file-no-copy` | Kept from being passed on | untested | works | Drive's copyRequiresWriterPermission and writersCanShare are read and asked for in plain words | not checked |
+| `gene.guest-list` | A meeting's guest list hidden | untested | works | guestsCanSeeOtherGuests and guestsCanInviteOthers are asked for and said in plain words | not checked |
+| `gene.bank-copy` | Pay an invoice from the inbox card | untested | works | an invoice's account, amount and reference are offered for Copy; an email with no IBAN offers nothing | not checked |
+| `gene.mail-button` | The button in an email | untested | works | the email's own confirm link to the sender's domain is offered; one to another domain is not | not checked |
 | `core.commands-open-credentials` | A command run in the core beside Rouh (`docker compose exec core python manage.py ...`) opens what Rouh sealed | broken | works | with Google connected, Python in the core opens the sealed refresh token with the key from the keys volume (`ROUH_ENCRYPTION_KEY_FILE`), and Google is still connected after. It was broken: only the core's start put the key in Rouh's environment, so a command beside it made a key of its own in `/data`, could open no credential, and marked the owner's Google to be connected again | not checked |
 
 ## Rouh on Windows

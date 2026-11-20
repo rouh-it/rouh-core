@@ -1004,6 +1004,26 @@ class Mailroom:
             code = None
         if code:
             shown = dict(shown, mail_code=code)
+        # Pay an invoice from the inbox card (night 49, `rouh/bank_copy.py`): the account, amount and reference.
+        from . import bank_copy
+
+        try:
+            pay = await asyncio.to_thread(bank_copy.shown, self._owner(sealed), found)
+        except Exception as exc:  # noqa: BLE001 - the message opens all the same
+            log.info("the bank details in the email could not be read: %s", exc)
+            pay = None
+        if pay:
+            shown = dict(shown, bank_copy=pay)
+        # The button in an email (night 49, `rouh/mail_button.py`): confirm, verify, reset or accept, one press.
+        from . import mail_button
+
+        try:
+            button = await asyncio.to_thread(mail_button.shown, self._owner(sealed), found)
+        except Exception as exc:  # noqa: BLE001 - the message opens all the same
+            log.info("the button in the email could not be read: %s", exc)
+            button = None
+        if button:
+            shown = dict(shown, mail_button=button)
         # Call them from their email (night 41, `rouh/call_sender.py`): the sender's number, one press.
         from . import call_sender
 
@@ -1101,6 +1121,26 @@ class Mailroom:
         if not await asyncio.to_thread(mail_code.on, who):
             return Answer(False, why="The code in an email is switched off.")
         await asyncio.to_thread(mail_code.copied, who, service)
+        return Answer(True, said={"counted": True})
+
+    async def bank_copy(self, what: str, sealed: dict | None) -> Answer:
+        """A Copy pressed on an email's To pay row: only counted; the page copies it."""
+        from . import bank_copy
+
+        who = self._owner(sealed)
+        if not await asyncio.to_thread(bank_copy.on, who):
+            return Answer(False, why="Pay an invoice from the inbox card is switched off.")
+        await asyncio.to_thread(bank_copy.copied, who, what)
+        return Answer(True, said={"counted": True})
+
+    async def mail_button(self, label: str, sealed: dict | None) -> Answer:
+        """The button in an email pressed: only counted; the page opens the link."""
+        from . import mail_button
+
+        who = self._owner(sealed)
+        if not await asyncio.to_thread(mail_button.on, who):
+            return Answer(False, why="The button in an email is switched off.")
+        await asyncio.to_thread(mail_button.pressed, who, label)
         return Answer(True, said={"counted": True})
 
     async def call_sender(self, how: str, sealed: dict | None) -> Answer:
@@ -1395,7 +1435,8 @@ def serve(room: Mailroom) -> None:
 #: What the page may ask of a card.
 ASKS = {"list", "open", "archive", "unarchive", "read", "unread", "compose", "send",
         "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch", "know_them",
-        "save_sender", "card_in_mail", "call_sender", "invite_answer", "mail_code"}
+        "save_sender", "card_in_mail", "call_sender", "invite_answer", "mail_code", "bank_copy",
+        "mail_button"}
 
 
 async def press(msg: dict, who) -> Answer:
@@ -1432,7 +1473,7 @@ async def press(msg: dict, who) -> Answer:
         return Answer(False, why="Say which message.")
     if theirs and what not in ("list", "open", "unsubscribe", "remind", "meeting_soon", "watch", "waiting_too", "answer_watch",
                                "know_them", "save_sender", "card_in_mail", "call_sender", "invite_answer",
-                               "mail_code"):
+                               "mail_code", "bank_copy", "mail_button"):
         # The person's own inbox is connected read-only (`rouh/inboxes.py`):
         # the card has no such button, and a page that asks anyway is told why.
         return Answer(False, why="This inbox is connected read-only, so it can be read "
@@ -1477,6 +1518,11 @@ async def press(msg: dict, who) -> Answer:
         if what == "mail_code":
             # Counted only: the page puts the code on the clipboard, and nothing in the mailbox changes.
             done = await ROOM.mail_code(str(msg.get("when") or ""), sealed)
+            done.chat = chat
+            return done
+        if what in ("bank_copy", "mail_button"):
+            # Counted only: the page copies the detail or opens the link, and nothing in the mailbox changes.
+            done = await getattr(ROOM, what)(str(msg.get("when") or ""), sealed)
             done.chat = chat
             return done
         if what == "call_sender":

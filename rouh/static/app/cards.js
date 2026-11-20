@@ -2959,6 +2959,14 @@ function inboxBlock(b) {
   // carries, set large at the top with Copy the code, so it is not hunted for in the service's words.
   var codeRow = el('div', 'ib-code');
   codeRow.hidden = true;
+  // Pay an invoice from the inbox card (night 49, rouh/bank_copy.py): who is to be paid, the account
+  // checked by its own sum, the amount and the reference, each with its own Copy.
+  var payRow = el('div', 'ib-pay');
+  payRow.hidden = true;
+  // The button in an email (night 49, rouh/mail_button.py): confirm, verify, reset or accept, the
+  // email's own link to the sender's own domain, one press from the top of the card.
+  var buttonRow = el('div', 'ib-step');
+  buttonRow.hidden = true;
   // Answer the invitation from the email (night 45, rouh/invite_answer.py): the meeting, the answer
   // so far, and Yes, Maybe and No, each answering it in the calendar in one press.
   var inviteRow = el('div', 'ib-remind ib-invite');
@@ -2973,6 +2981,8 @@ function inboxBlock(b) {
   mail.appendChild(subject);
   mail.appendChild(heads);
   mail.appendChild(codeRow);
+  mail.appendChild(buttonRow);
+  mail.appendChild(payRow);
   mail.appendChild(soonRow);
   mail.appendChild(tooRow);
   mail.appendChild(knowRow);
@@ -3168,6 +3178,8 @@ function inboxBlock(b) {
     drawCardInMail(msg);
     drawCallSender(msg);
     drawCode(msg);
+    drawPay(msg);
+    drawButton(msg);
     drawInvite(msg);
   }
 
@@ -3325,6 +3337,64 @@ function inboxBlock(b) {
     codeRow.appendChild(code);
     codeRow.appendChild(copy);
     codeRow.appendChild(done);
+  }
+
+  /** @param {any} msg */
+  function drawPay(msg) {
+    payRow.textContent = '';
+    var p = msg && msg.bank_copy;
+    payRow.hidden = !(p && p.rows && p.rows.length);
+    if (!p || !p.rows || !p.rows.length) return;
+    payRow.appendChild(el('div', 'ib-pay-said', p.said || 'To pay'));
+    var list = el('dl', 'ib-pay-rows');
+    var done = el('div', 'ib-pay-done');
+    done.setAttribute('role', 'status');
+    p.rows.forEach(function (/** @type {any} */ row) {
+      var item = el('div', 'ib-pay-row');
+      item.appendChild(el('dt', 'ib-pay-label', row.label));
+      var value = el('dd', 'ib-pay-value');
+      value.appendChild(el('span', 'ib-pay-figures' + (row.what === 'account' ? ' is-account' : ''), String(row.value)));
+      var copy = el('button', 'ib-btn ib-pay-copy', 'Copy');
+      copy.type = 'button';
+      copy.setAttribute('aria-label', 'Copy ' + String(row.label));
+      copy.addEventListener('click', function () {
+        copyText(String(row.copy || row.value)).then(function () {
+          done.textContent = row.label + ' copied';
+          copy.textContent = 'Copied';
+          setTimeout(function () { copy.textContent = 'Copy'; }, 2500);
+        }, function () {
+          done.textContent = 'This browser would not copy it: select it and copy it by hand.';
+        });
+        // Counted only; what is copied never leaves the page.
+        inboxAsk(token, 'bank_copy', { id: msg.id, when: row.what || '' }, function () {});
+      });
+      value.appendChild(copy);
+      item.appendChild(value);
+      list.appendChild(item);
+    });
+    payRow.appendChild(list);
+    payRow.appendChild(done);
+  }
+
+  /** @param {any} msg */
+  function drawButton(msg) {
+    buttonRow.textContent = '';
+    var b = msg && msg.mail_button;
+    buttonRow.hidden = !(b && b.href);
+    if (!b || !b.href) return;
+    var said = el('span', 'ib-step-said', b.said || b.label);
+    var go = /** @type {HTMLAnchorElement} */ (el('a', 'ib-btn ib-step-go', b.label));
+    go.href = String(b.href);
+    go.target = '_blank';
+    go.rel = 'noopener noreferrer';
+    var host = el('span', 'ib-step-host', 'Opens ' + String(b.host || '') + ', the address this email came from.');
+    go.addEventListener('click', function () {
+      // Counted only; the link opens in a new tab, as pressing it in the email would.
+      inboxAsk(token, 'mail_button', { id: msg.id, when: b.label || '' }, function () {});
+    });
+    buttonRow.appendChild(said);
+    buttonRow.appendChild(go);
+    buttonRow.appendChild(host);
   }
 
   /** @param {any} msg */

@@ -980,6 +980,29 @@ class Calendar:
                                 json_body=body)
         return _an_event(made, await self.about(calendar_id), self.zone)
 
+    async def guest_rights(self, calendar_id: str, event_id: str, rules: dict) -> dict:
+        """A guest list hidden, or guests kept from inviting others (night 49, `rouh/guest_list.py`).
+
+        `rules` by Google's names (guestsCanSeeOtherGuests, guestsCanInviteOthers). Changed quietly,
+        with no email to the guests, and only what differs. {"before", "after", "changed",
+        "organiser", "title"}: `before` and `after` are both settings as Google says them.
+        """
+        raw = await self._raw(calendar_id, event_id)
+
+        def state(one: dict) -> dict:
+            return {key: one.get(key) is not False for key in ("guestsCanSeeOtherGuests", "guestsCanInviteOthers")}
+
+        before = state(raw)
+        organiser = bool((raw.get("organizer") or {}).get("self")) or not raw.get("organizer")
+        change = {k: bool(v) for k, v in rules.items() if before.get(k) != bool(v)}
+        after = before
+        if change and organiser:
+            made = await self._call("PATCH", self._event_path(calendar_id, event_id),
+                                    params=self._send(False), json_body=change)
+            after = state(made)
+        return {"before": before, "after": after, "changed": list(change) if organiser else [],
+                "organiser": organiser, "title": raw.get("summary") or ""}
+
     async def event(self, calendar_id: str, event_id: str) -> dict:
         """One event, whole: its guests and their answers, its call, its words."""
         raw = await self._raw(calendar_id, event_id)

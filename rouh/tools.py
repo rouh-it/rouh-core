@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 
 from . import (apple_contacts, artifacts, asking, browser_handoff, browsing, calendar_away, clock, demo,
                composing, conversations, filing, imaging, inbox, inbox_grants, inboxes,
-               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, past_guard, open_files, share_twice, share_address, share_until, weekday_check, file_lock, take_off, link_access, rouh_invited, no_company, sent_twice, same_contact, draft_twice, contact_card, pets, forward_twice, contact_changes, relationships, postal_address, related_people, meeting_hours, meet_link, no_place,
+               inside_files, instructions, mail_invites, free_busy, busy_guard, holiday_guard, not_twice, past_guard, open_files, share_twice, share_address, share_until, weekday_check, file_lock, file_no_copy, guest_list, mail_placeholder, greeting_name, take_off, link_access, rouh_invited, no_company, sent_twice, same_contact, draft_twice, contact_card, pets, forward_twice, contact_changes, relationships, postal_address, related_people, meeting_hours, meet_link, no_place,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer, reply_times,
                their_clock, their_hours, unread_lists, their_language, promised_to_you,
                calendar_link, address_check, attach_promised, public_holidays, away_replies, not_arrived, to_answer,
@@ -6477,6 +6477,10 @@ class ToolRegistry:
                     "even_if_sent": sent_twice.FIELD,
                     # A day and its date that disagree (night 48, `rouh/weekday_check.py`).
                     "days_checked": weekday_check.FIELD,
+                    # A placeholder left in an email (night 49, `rouh/mail_placeholder.py`).
+                    "placeholders_checked": mail_placeholder.FIELD,
+                    # A greeting to somebody not on the email (night 49, `rouh/greeting_name.py`).
+                    "greeting_checked": greeting_name.FIELD,
                 },
             },
             self._send_mail,
@@ -6601,6 +6605,10 @@ class ToolRegistry:
                     "even_if_drafted": draft_twice.FIELD,
                     # A day and its date that disagree (night 48, `rouh/weekday_check.py`).
                     "days_checked": weekday_check.FIELD,
+                    # A placeholder left in an email (night 49, `rouh/mail_placeholder.py`).
+                    "placeholders_checked": mail_placeholder.FIELD,
+                    # A greeting to somebody not on the email (night 49, `rouh/greeting_name.py`).
+                    "greeting_checked": greeting_name.FIELD,
                 },
                 "required": ["body"],
             },
@@ -7026,6 +7034,9 @@ class ToolRegistry:
                     # Lock a Drive file (night 48, `rouh/file_lock.py`).
                     "lock": file_lock.FIELD,
                     "lock_reason": file_lock.REASON,
+                    # Kept from being passed on (night 49, `rouh/file_no_copy.py`).
+                    "viewers_can_copy": file_no_copy.VIEWERS,
+                    "editors_can_share": file_no_copy.EDITORS,
                 },
                 "required": ["file_id"],
             },
@@ -7585,6 +7596,9 @@ class ToolRegistry:
                     "even_if_past": past_guard.FIELD,
                     # A mistyped address caught when inviting (night 47, `rouh/share_address.py`).
                     "address_checked": share_address.FIELD,
+                    # A meeting's guest list hidden from its guests (night 49, `rouh/guest_list.py`).
+                    "guests_see_guests": guest_list.SEE,
+                    "guests_invite_others": guest_list.INVITE,
                 },
                 "required": ["title", "start"],
             },
@@ -7641,6 +7655,9 @@ class ToolRegistry:
                     "even_if_busy": busy_guard.FIELD,
                     # Not booked in the past (night 45, `rouh/past_guard.py`).
                     "even_if_past": past_guard.FIELD,
+                    # A meeting's guest list hidden from its guests (night 49, `rouh/guest_list.py`).
+                    "guests_see_guests": guest_list.SEE,
+                    "guests_invite_others": guest_list.INVITE,
                 },
                 "required": ["event_id"],
             },
@@ -8863,6 +8880,16 @@ class ToolRegistry:
             stop = await self._weekday_check(subject, body, verb)
             if stop:
                 return untrusted.ours(stop)
+        if (body or subject) and not args.get("placeholders_checked"):
+            # A placeholder left in an email (night 49, `rouh/mail_placeholder.py`): held before it goes.
+            stop = await self._mail_placeholder(subject, body, verb)
+            if stop:
+                return untrusted.ours(stop)
+        if body and (to or cc) and not args.get("greeting_checked"):
+            # A greeting to somebody not on the email (night 49, `rouh/greeting_name.py`): held before it goes.
+            stop = await self._greeting_name(body, to, cc, verb)
+            if stop:
+                return untrusted.ours(stop)
         if not sending and not args.get("even_if_drafted"):
             # Not drafted twice (night 40, `rouh/draft_twice.py`): the same draft is already in Drafts.
             stop = await self._draft_twice(to, cc, bcc, subject, body)
@@ -8945,6 +8972,36 @@ class ToolRegistry:
                 said = str(result) + away
                 return untrusted.ours(said) if isinstance(result, untrusted.Ours) else said
         return result
+
+    async def _mail_placeholder(self, subject: str, body: str, verb: str) -> str:
+        """A placeholder left in an email (night 49, `rouh/mail_placeholder.py`): why it is held, when
+        "[Name]" or "{{first_name}}" is still in it; "" when it is off or there is none."""
+        who = self.google.person()
+        if not await asyncio.to_thread(mail_placeholder.on, who):
+            return ""
+        stop = mail_placeholder.check(subject, body, verb=verb)
+        if stop:
+            from . import evolution
+
+            first = mail_placeholder.found(subject, body)[0]
+            await asyncio.to_thread(evolution.used, mail_placeholder.SWITCH, "held", who=who,
+                                    detail=first[:200])
+        return stop
+
+    async def _greeting_name(self, body: str, to: str, cc: str, verb: str) -> str:
+        """A greeting to somebody not on the email (night 49, `rouh/greeting_name.py`): why it is held,
+        when the greeting's name is nobody's it goes to; "" when it is off or the name is right."""
+        who = self.google.person()
+        if not await asyncio.to_thread(greeting_name.on, who):
+            return ""
+        stop = greeting_name.check(body, to, cc, verb=verb)
+        if stop:
+            from . import evolution
+
+            missing = greeting_name.wrong(body, to, cc)[0]
+            await asyncio.to_thread(evolution.used, greeting_name.SWITCH, "held", who=who,
+                                    detail=", ".join(missing)[:200])
+        return stop
 
     async def _weekday_check(self, subject: str, body: str, verb: str) -> str:
         """A day and its date that disagree (night 48, `rouh/weekday_check.py`): why it is held, when a
@@ -10395,6 +10452,10 @@ class ToolRegistry:
         if lock is not None:
             # Lock a Drive file (night 48, `rouh/file_lock.py`): alone, before anything else is asked of it.
             return await self._file_lock(drive, file_id, lock, str(args.get("lock_reason") or "").strip())
+        rules = file_no_copy.wanted(args)
+        if rules:
+            # Kept from being passed on (night 49, `rouh/file_no_copy.py`): alone, like a lock.
+            return await self._file_no_copy(drive, file_id, rules)
         try:
             if args.get("trash"):
                 gone = await drive.trash(file_id)
@@ -10426,6 +10487,65 @@ class ToolRegistry:
             return "Nothing was asked for, so that file is unchanged."
         said = "In Drive: " + ", ".join(did) + f" - {kind} id {file_id}"
         self.google.wrote("manage_drive_file", file_id, said)
+        return said
+
+    async def _guest_list(self, calendar, calendar_id: str, event_id: str, rules: dict) -> str:
+        """A meeting's guest list hidden from its guests (night 49, `rouh/guest_list.py`): set as asked,
+        quietly, and said as Google says it after."""
+        done = await calendar.guest_rights(calendar_id, event_id, rules)
+        if not done["organiser"]:
+            return ("Who may see the guest list and invite others is the organiser's to choose, and this "
+                    "calendar is not the organiser's, so that was not changed.")
+        if not done["changed"]:
+            return f"Its guest settings were already that way, so they were not changed: {guest_list.words(done['after'])}."
+        from . import evolution
+
+        detail = f"{done['title']}: {', '.join(done['changed'])}"[:200]
+        if any(done["after"][k] is False for k in done["changed"]):
+            await asyncio.to_thread(evolution.used, guest_list.SWITCH, "kept", who=self.google.person(), detail=detail)
+        else:
+            await asyncio.to_thread(evolution.used, guest_list.SWITCH, "allowed", who=self.google.person(),
+                                    detail=detail)
+        return f"Its guest settings were changed quietly, with no email to the guests: {guest_list.words(done['after'])}."
+
+    async def _file_no_copy(self, drive, file_id: str, rules: dict) -> str:
+        """Kept from being passed on (night 49, `rouh/file_no_copy.py`): whether viewers may download,
+        print and copy one file, and whether its editors may share it, set as asked and said as Drive says it."""
+        who = self.google.person()
+        if not await asyncio.to_thread(file_no_copy.on, who):
+            return untrusted.ours("Keeping a file from being downloaded or shared on is switched off (Kept from "
+                                  "being passed on, in Mutations), so nothing was changed.")
+        try:
+            now = await drive.copy_rules(file_id)
+            if now["folder"]:
+                return untrusted.ours(f"{now['name'] or file_id!r} is a folder: Drive keeps download, print and "
+                                      "copy, and sharing by editors, for each file in it, so say which file. "
+                                      "Nothing was changed.")
+            was = file_no_copy.state_of(now["raw"])
+            change = {k: v for k, v in rules.items() if was[k] != v}
+            if "editors_can_share" in change and (now["shared_drive"] or not now["owned"]):
+                return untrusted.ours(
+                    f"Only the owner of {now['name'] or file_id!r} can choose whether its editors may share it"
+                    + (", and in a shared drive the drive's own settings decide it" if now["shared_drive"] else
+                       ", and this account is not its owner") + "; nothing was changed.")
+            if "viewers_can_copy" in change and not now["can_viewers"]:
+                return untrusted.ours(f"This account may not change who can download {now['name'] or file_id!r}: "
+                                      "only somebody who may edit it can. Nothing was changed.")
+            if not change:
+                return untrusted.ours(file_no_copy.said(now["name"], file_id, was, []))
+            after = await drive.set_copy_rules(file_id, **change)
+        except Exception as exc:
+            return _google_trouble(exc)
+        state = file_no_copy.state_of(after)
+        said = untrusted.ours(file_no_copy.said(after.get("name") or now["name"], file_id, state, list(change)))
+        self.google.wrote("manage_drive_file", file_id, said)
+        from . import evolution
+
+        detail = f"{now['name'] or file_id}: {', '.join(change)}"[:200]
+        if any(v is False for v in change.values()):
+            await asyncio.to_thread(evolution.used, file_no_copy.SWITCH, "kept", who=who, detail=detail)
+        else:
+            await asyncio.to_thread(evolution.used, file_no_copy.SWITCH, "allowed", who=who, detail=detail)
         return said
 
     async def _file_lock(self, drive, file_id: str, lock: bool, reason: str) -> str:
@@ -11195,6 +11315,10 @@ class ToolRegistry:
             return untrusted.ours(refused)
         repeats = str(args.get("repeats") or "").strip()
         notify = args.get("notify") is not False and not _in_case()
+        rights = guest_list.wanted(args)
+        if rights and not await asyncio.to_thread(guest_list.on, self.google.person()):
+            # A meeting's guest list hidden from its guests (night 49, `rouh/guest_list.py`).
+            return untrusted.ours(guest_list.OFF)
         calendar = self.google.services().calendar
         named = str(args.get("calendar") or "").strip()
         try:
@@ -11262,6 +11386,10 @@ class ToolRegistry:
                 description=str(args.get("description") or "").strip(),
                 guests=guests, repeats=[repeats] if repeats else [],
                 video=video, notify=notify)
+            rights_said = ""
+            if rights:
+                # A meeting's guest list hidden from its guests (night 49, `rouh/guest_list.py`).
+                rights_said = await self._guest_list(calendar, made["calendar_id"], made["id"], rights)
         except CannotDoThat as exc:
             return untrusted.ours(str(exc))
         except Exception as exc:
@@ -11284,7 +11412,11 @@ class ToolRegistry:
                 + (f" - {made['link']}" if made["link"] else "")
                 + (f". {checked}" if checked else "")
                 + ((" " if checked.endswith(".") else ". ") + meet_link.NOTE
-                   if linked and made.get("video") else ""))
+                   if linked and made.get("video") else "")
+                )
+        if rights_said:
+            # A meeting's guest list hidden from its guests (night 49, `rouh/guest_list.py`).
+            said += (" " if said.endswith(".") else ". ") + rights_said
         self.google.wrote("create_calendar_event", made["id"], said)
         if _in_case():
             # A contact's ask done under a grant that lifts the limit: the event is its handle.
@@ -11431,6 +11563,10 @@ class ToolRegistry:
             return untrusted.ours(refused)
         notify = args.get("notify") is not False and not _in_case()
         whole = bool(args.get("whole_series"))
+        rights = guest_list.wanted(args)
+        if rights and not await asyncio.to_thread(guest_list.on, self.google.person()):
+            # A meeting's guest list hidden from its guests (night 49, `rouh/guest_list.py`).
+            return untrusted.ours(guest_list.OFF)
         calendar = self.google.services().calendar
 
         def said_or_none(name):
@@ -11467,6 +11603,12 @@ class ToolRegistry:
                     after = await calendar.move_to(where, after["id"], destination,
                                                    notify=notify)
                     changes.append(f"moved it to the calendar {after['calendar']}")
+            if rights:
+                # A meeting's guest list hidden from its guests (night 49, `rouh/guest_list.py`).
+                rights_said = await self._guest_list(calendar, after["calendar_id"], after["id"], rights)
+                if not changes:
+                    return untrusted.ours(f"{before['title']!r} on {before['calendar']}: {rights_said}")
+                changes.append(rights_said[:1].lower() + rights_said[1:].rstrip("."))
         except CannotDoThat as exc:
             return untrusted.ours(str(exc))
         except Exception as exc:

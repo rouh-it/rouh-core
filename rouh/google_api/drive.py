@@ -558,6 +558,34 @@ class Drive:
                 "can_lock": (found.get("capabilities") or {}).get("canModifyContentRestriction") is not False,
                 **locked_of(found)}
 
+    async def copy_rules(self, file_id: str) -> dict:
+        """Kept from being passed on (night 49, `rouh/file_no_copy.py`): what one file is set to now.
+
+        {"name", "link", "folder", "owned", "shared_drive", "can_viewers", "raw"}; `raw` is Drive's answer.
+        """
+        found = await self._clients.call(
+            self._who, "GET", self._url("/files/" + urllib.parse.quote(file_id)),
+            params={"fields": "id,name,mimeType,webViewLink,ownedByMe,driveId,copyRequiresWriterPermission,"
+                              "writersCanShare,capabilities/canChangeCopyRequiresWriterPermission", **self.SHARED})
+        return {"name": found.get("name") or "", "link": found.get("webViewLink") or "",
+                "folder": (found.get("mimeType") or "") == "application/vnd.google-apps.folder",
+                "owned": found.get("ownedByMe") is not False, "shared_drive": bool(found.get("driveId")),
+                "can_viewers": (found.get("capabilities") or {}).get("canChangeCopyRequiresWriterPermission")
+                is not False, "raw": found}
+
+    async def set_copy_rules(self, file_id: str, *, viewers_can_copy: bool | None = None,
+                             editors_can_share: bool | None = None) -> dict:
+        """Change one or both: Drive's answer about the file after."""
+        body: dict = {}
+        if viewers_can_copy is not None:
+            body["copyRequiresWriterPermission"] = not viewers_can_copy
+        if editors_can_share is not None:
+            body["writersCanShare"] = bool(editors_can_share)
+        return await self._clients.call(
+            self._who, "PATCH", self._url("/files/" + urllib.parse.quote(file_id)),
+            params={"fields": FILE_FIELDS + ",copyRequiresWriterPermission,writersCanShare", **self.SHARED},
+            json_body=body)
+
     async def move(self, file_id: str, folder_id: str) -> dict:
         """Into another folder. Drive moves by changing parents, not by copying.
 

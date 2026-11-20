@@ -3624,3 +3624,122 @@ print(json.dumps({"code": mail_code.code_of("Your Stack verification code", "You
 """))
     expect('"code": "482913"' in out and '"alone": "735 201"' in out and '"order": ""' in out
            and '"lasts": 10' in out, f"the code in an email was not found as it should be: {out[-500:]}")
+
+
+@check("gene.mail-placeholder")
+def mail_placeholder(s: Stack) -> None:
+    """A placeholder left in an email is found; a bracketed label and a quoted reply are not."""
+    out = core_py(s, _owner_py("""
+from rouh import mail_placeholder
+print(json.dumps({"found": mail_placeholder.found("Intro", "Hi [Name],\\nSee you on <insert date>."),
+                  "clean": mail_placeholder.found("Re: deck", "Hi Anna, the [PDF] is attached.\\n\\nOn Mon Bob wrote:\\n> Hi [Name]")}))
+"""))
+    expect('"found": ["[Name]", "<insert date>"]' in out and '"clean": []' in out,
+           f"a placeholder left in an email was not found as it should be: {out[-500:]}")
+
+
+@check("gene.greeting-name")
+def greeting_name(s: Stack) -> None:
+    """A greeting naming nobody the email goes to is found; a right one, a short form and info@ are not."""
+    out = core_py(s, _owner_py("""
+from rouh import greeting_name
+print(json.dumps({"wrong": greeting_name.wrong("Hi Maria,\\nThe deck.", "Anna Smith <anna.smith@northwind.test>")[0],
+                  "right": greeting_name.wrong("Hi Alex,\\nok", "alexander.k@northwind.test")[0],
+                  "nobody": greeting_name.wrong("Hi Maria,\\nok", "info@northwind.test")[0]}))
+"""))
+    expect('"wrong": ["Maria"]' in out and '"right": []' in out and '"nobody": []' in out,
+           f"a greeting to somebody not on the email was not found as it should be: {out[-500:]}")
+
+
+@check("gene.bank-changed")
+def bank_changed(s: Stack) -> None:
+    """An IBAN is found by its own sum, remembered per sender's domain, and said by its last four only."""
+    out = core_py(s, _owner_py("""
+from rouh import bank_changed, iban_read
+got = bank_changed.accounts_in({"subject": "Invoice", "body": "IBAN: BG80 BNBG 9661 1020 3456 78, order 123456789012345"})
+title, body = bank_changed.words("Northwind", "dana@northwind.test", "Invoice 118", ["BG95UNCR70001523456789"],
+                                 {"BG80BNBG96611020345678": {"first": "2026-10-03", "subject": "Invoice 101"}})
+print(json.dumps({"got": got, "key": bank_changed.sender_of("Dana <dana@northwind.test>")[0],
+                  "bad": iban_read.valid("BG80BNBG96611020345679"), "whole": "BG95UNCR" in body, "end": "6789" in body}))
+"""))
+    expect('"got": ["BG80BNBG96611020345678"]' in out and '"key": "northwind.test"' in out and '"bad": false' in out
+           and '"whole": false' in out and '"end": true' in out,
+           f"bank details that changed were not read as they should be: {out[-500:]}")
+
+
+@check("gene.sign-request")
+def sign_request(s: Stack) -> None:
+    """A signing service's request is read for who, what and when; a look-alike is named; a finished one is not told."""
+    out = core_py(s, _owner_py("""
+from datetime import date
+from rouh import sign_request
+m = {"from": "Dana Reed via DocuSign <dse@docusign.net>", "subject": "Please DocuSign: Northwind agreement.pdf",
+     "body": "Dana Reed sent you a document to review and sign. This envelope expires on 27 November 2026.", "at": 0}
+got = sign_request.read(m, date(2026, 11, 20))
+fake = sign_request.read(dict(m, **{"from": "DocuSign <x@docu-sign.test>"}), date(2026, 11, 20))
+done = sign_request.read(dict(m, subject="Completed: Northwind agreement.pdf"), date(2026, 11, 20))
+print(json.dumps({"asker": got["asker"], "doc": got["document"], "expires": str(got["expires"]), "real": got["real"],
+                  "fake": fake["real"], "done": done}))
+"""))
+    expect('"asker": "Dana Reed"' in out and '"expires": "2026-11-27"' in out and '"real": true' in out
+           and '"fake": false' in out and '"done": null' in out,
+           f"a request to sign was not read as it should be: {out[-500:]}")
+
+
+@check("gene.file-no-copy")
+def file_no_copy(s: Stack) -> None:
+    """Drive's two settings are read as viewers may copy and editors may share, and asked for by plain words."""
+    out = core_py(s, _owner_py("""
+from rouh import file_no_copy
+print(json.dumps({"state": file_no_copy.state_of({"copyRequiresWriterPermission": True}),
+                  "wanted": file_no_copy.wanted({"viewers_can_copy": False, "editors_can_share": "no"})}))
+"""))
+    expect('"viewers_can_copy": false, "editors_can_share": true' in out
+           and '"wanted": {"viewers_can_copy": false, "editors_can_share": false}' in out,
+           f"keeping a file from being passed on was not read as it should be: {out[-500:]}")
+
+
+@check("gene.guest-list")
+def guest_list(s: Stack) -> None:
+    """A meeting's guest settings are asked for by Google's own names and said in plain words."""
+    out = core_py(s, _owner_py("""
+from rouh import guest_list
+print(json.dumps({"wanted": guest_list.wanted({"guests_see_guests": False}),
+                  "said": guest_list.words(guest_list.state_of({"guestsCanSeeOtherGuests": False}))}))
+"""))
+    expect('"wanted": {"guestsCanSeeOtherGuests": false}' in out and "cannot see who else is invited" in out
+           and "they can invite others" in out,
+           f"a meeting's guest list settings were not read as they should be: {out[-500:]}")
+
+
+@check("gene.bank-copy")
+def bank_copy(s: Stack) -> None:
+    """An invoice's account, amount and reference are offered for Copy; an email with no IBAN offers nothing."""
+    out = core_py(s, _owner_py("""
+from rouh import bank_copy
+bank_copy.on = lambda who: True
+got = bank_copy.shown(None, {"from": "Northwind <accounts@northwind.test>", "subject": "Invoice 118",
+                             "body": "Amount due: EUR 1,250.00\\nIBAN: BG80 BNBG 9661 1020 3456 78\\nPayment reference: INV-118"})
+print(json.dumps({"rows": {r["what"]: r["copy"] for r in got["rows"]},
+                  "none": bank_copy.shown(None, {"from": "a@b.test", "subject": "hi", "body": "order 123456"})}))
+"""))
+    expect('"account": "BG80BNBG96611020345678"' in out and '"reference": "INV-118"' in out and '"amount": "1250.00"' in out
+           and '"none": null' in out,
+           f"paying an invoice from the inbox card was not offered as it should be: {out[-500:]}")
+
+
+@check("gene.mail-button")
+def mail_button(s: Stack) -> None:
+    """The email's own confirm link to the sender's domain is offered; one to another domain is not."""
+    out = core_py(s, _owner_py("""
+import time
+from rouh import mail_button
+mail_button.on = lambda who: True
+m = {"from": "Acme <no-reply@mail.acme.test>", "subject": "Confirm your email address", "at": time.time(), "body": "",
+     "html": '<a href="https://acme.test/confirm?t=1">Confirm email</a>'}
+got = mail_button.shown(None, m)
+other = mail_button.shown(None, dict(m, html='<a href="https://acme-login.test/confirm?t=1">Confirm email</a>'))
+print(json.dumps({"label": got["label"], "host": got["host"], "other": other}))
+"""))
+    expect('"label": "Confirm your email"' in out and '"host": "acme.test"' in out and '"other": null' in out,
+           f"the button in an email was not offered as it should be: {out[-500:]}")
