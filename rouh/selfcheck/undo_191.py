@@ -227,6 +227,8 @@ def switch_releases_waiting() -> None:
     try:
         _set_mode(who, "unrestricted")
         let = unrestricted.after_flip(who, unrestricted.Mode(), unrestricted.current(who))
+        # Only this check's own calls are judged: another group's live runs may have left theirs.
+        let = [i for i in let if i in [post, pay, *kept]]
         expect(let == [post], f"the switch let through {let}, not only the owner's Slack post {post}")
         d = next(d for d in Decision.objects.filter(user_id=mine[0], source="approval")
                  .order_by("-id") if any(p.get("approval") == post for p in d.prepared or []))
