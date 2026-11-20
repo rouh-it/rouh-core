@@ -21,6 +21,13 @@ makes the group if there is none, puts the crew user and every `--member` in
 it, and gives the whole tree to it: every directory 2750, every file 640, each
 in the group. It changes nothing else, and running it again changes nothing.
 
+**One user, no group** (20 November 2026). In the containers the core, its
+workers and the one program's runs are all the one user `rouh` (10001), there is
+no root and no group can be made, and none is needed: the tree is that user's
+own. There, with every member that very user, the command says so, and
+`--apply` only sets the modes, which needs no root. The group is for a server
+where the readers are other users.
+
 A user added to a group has it in every process started after that, so a run
 or a worker started afterwards can read the tree; one already running cannot.
 New files need nothing: Rouh gives each one the group as it writes it, and the
@@ -58,6 +65,16 @@ class Command(BaseCommand):
                 pwd.getpwnam(user)
             except KeyError:
                 raise CommandError(f"There is no user called {user} on this machine.")
+        if attachments.one_user(members):
+            # The containers: the readers are this very user, so the tree is theirs already.
+            self.stdout.write(f"Every reader of the attachments is this process's own user "
+                              f"({', '.join(members) or 'no other'}), so no group is needed and "
+                              f"none is made: {name} is for a server whose readers are other "
+                              "users.")
+            if opts["apply"]:
+                self._modes(root, attachments.DIR_MODE, attachments.FILE_MODE)
+                self._modes(filestore.root(), filestore.DIR_MODE, filestore.FILE_MODE)
+            return
         if opts["apply"]:
             if os.geteuid() != 0:
                 raise CommandError("Changing groups needs root: run it with sudo.")
@@ -95,6 +112,20 @@ class Command(BaseCommand):
             if info.st_gid != gid or stat.S_IMODE(info.st_mode) != mode:
                 changed += 1
         self.stdout.write(f"Gave {changed} paths under {root} to {name}.")
+
+    def _modes(self, root: str, dir_mode: int, file_mode: int) -> None:
+        """The tree's modes alone, for one user who owns it all: no group, no root."""
+        os.makedirs(root, exist_ok=True)
+        changed = 0
+        for path in self._tree(root):
+            info = os.lstat(path)
+            if stat.S_ISLNK(info.st_mode) or info.st_uid != os.geteuid():
+                continue
+            mode = dir_mode if stat.S_ISDIR(info.st_mode) else file_mode
+            if stat.S_IMODE(info.st_mode) != mode:
+                os.chmod(path, mode)
+                changed += 1
+        self.stdout.write(f"Set the modes of {changed} paths under {root}.")
 
     def _report(self, name: str, root: str) -> None:
         try:

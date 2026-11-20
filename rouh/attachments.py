@@ -432,6 +432,23 @@ def log_once(message: str, *args) -> None:
     log.warning(message, *args)
 
 
+def one_user(users) -> bool:
+    """Whether every user a file is handed to is the very user this process runs as, as in the
+    containers, where the core and the worker both run as `rouh` (10001): then the tree is
+    theirs already, and no group is needed or can be made (there is no root there)."""
+    me = os.geteuid()
+    names = [u for u in users or () if u]
+    if not names:
+        return True
+    for name in names:
+        try:
+            if pwd.getpwnam(name).pw_uid != me:
+                return False
+        except KeyError:
+            return False
+    return True
+
+
 def _gid_of(user: str | None, group: str | None = None) -> int | None:
     """The group the attachment tree is given to, or None to leave it alone.
 
@@ -445,9 +462,12 @@ def _gid_of(user: str | None, group: str | None = None) -> int | None:
         try:
             return grp.getgrnam(group).gr_gid
         except KeyError:
-            log_once("no group called %r on this machine, so the one program's runs "
-                     "cannot open attachments; `python manage.py attachments_access` "
-                     "makes it", group)
+            # One user for everything (the containers): the files are that user's own, so
+            # nothing is shut out and nothing needs saying (`one_user`).
+            if not one_user([user]):
+                log_once("no group called %r on this machine, so the one program's runs "
+                         "cannot open attachments; `python manage.py attachments_access` "
+                         "makes it", group)
     if not user:
         return None
     try:

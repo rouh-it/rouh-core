@@ -349,6 +349,14 @@ class Settings:
     #: containers - its holder reads what the run holds and ends it over this
     #: instead (holder.Holder._watch).
     run_memory_max: int = field(default_factory=lambda: _size("ONE_RUN_MEMORY_MAX", 4 << 30))
+    #: The most a run that pays by the token may spend, in dollars at list price, before it is
+    #: stopped (`costcap.py`; 191-01 weak spot 21, 20 November 2026: "a run that keeps going stops
+    #: at its cost cap"). It is told at ``run_cost_warn`` of it, so it can save and report first,
+    #: as a run near the memory cap is. A run on a subscription costs nothing by the token and is
+    #: not counted. 0 is no cap.
+    run_cost_max: float = field(default_factory=lambda: _num("ONE_RUN_COST_MAX", 50.0))
+    #: The share of ``run_cost_max`` at which the run is told it is near it.
+    run_cost_warn: float = field(default_factory=lambda: _num("ONE_RUN_COST_WARN", 0.8))
 
     # --- Questions and the phone ------------------------------------------------
     #: Claude Code waits at most ten minutes for a hook. A question is closed

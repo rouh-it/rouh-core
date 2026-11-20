@@ -43,6 +43,9 @@ REAPED = "reaped"
 #: The ``how`` of a run its holder ended for holding more memory than one run
 #: may (``holder.Holder._watch``). It ends ``failed``, with the reason on it.
 OVER_MEMORY = "over-memory"
+#: The ``how`` of a run the program stopped for spending more than one run may
+#: (``costcap.CostCap``). It ends ``failed``, with the reason on it.
+OVER_COST = "over-cost"
 
 #: **The signals that mean something stopped this run**, as against the run
 #: breaking. A hangup is what a machine going down sends to whatever is in a
@@ -165,7 +168,7 @@ def ended_state(run: dict[str, Any], how: str, code: int | None, signal: int | N
         # finishing nor the run breaking. What it left behind is still on the
         # run (``left``), and every screen says it beside the word.
         return "reaped"
-    if how in ("failed-to-start", OVER_MEMORY):
+    if how in ("failed-to-start", OVER_MEMORY, OVER_COST):
         return "failed"
     state = "failed"
     if how not in BY_ITSELF:

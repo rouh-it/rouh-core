@@ -47,7 +47,7 @@ from . import agents, billing, codex_signin, codexhome, drops, rules, sealed, su
 from .documents import DocumentsError
 from .hookbodies import CLOSING_TEXT
 from .terminals import read_exit, session_alive
-from .views import ENDED, OVER_MEMORY, delivered, ended_state, work_left
+from .views import ENDED, OVER_COST, OVER_MEMORY, delivered, ended_state, work_left
 
 if TYPE_CHECKING:  # pragma: no cover
     from .program import Program
@@ -589,6 +589,8 @@ class Runs(_RunInteraction):
         self.finish_asks: dict[str, int] = {}
         #: Runs being stopped on purpose, and how.
         self.stopping: dict[str, str] = {}
+        #: Why the program stopped a run, said on it when it ends (`costcap.CostCap`).
+        self.stopped_why: dict[str, str] = {}
         #: The one task asking each run to leave, while it is still asking.
         #: Not one of ``_tasks``: the program waits for these as it stops, so
         #: a deploy does not cut a stop short (``_finish_closing``).
@@ -2104,6 +2106,11 @@ class Runs(_RunInteraction):
             # (holder.Holder._watch, where there is no cgroup to hold it to).
             # Never started again: it would only grow to the same place.
             await self._end(run, how=OVER_MEMORY, code=code, sig=sig, forced=forced, why=over)
+            return
+        if how == OVER_COST:
+            # Stopped at its cost cap (`costcap.CostCap`): never started again either.
+            await self._end(run, how=how, code=code, sig=sig, forced=forced,
+                            why=self.stopped_why.pop(run_id, None))
             return
         # The one rule for what an ended run is called, so the list, every
         # screen and what the person is told all say the same thing. A run

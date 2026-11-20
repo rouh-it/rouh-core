@@ -85,6 +85,7 @@ from typing import TYPE_CHECKING
 
 from rouh import browser_handoff
 
+from .costcap import CostCap
 from .listfile import epoch
 from .reaper import Reaper
 from .runs import hours
@@ -310,6 +311,8 @@ class Scheduler:
         #: lives because this is the one loop that is already running when
         #: nothing else is, and sweeping is exactly a thing to do between runs.
         self.reaper = Reaper(program)
+        #: Each paying run's spend against its cap (`costcap.py`), checked once a minute.
+        self.costcap = CostCap(program)
         self._wake = asyncio.Event()
         self._task: asyncio.Task | None = None
 
@@ -346,6 +349,7 @@ class Scheduler:
                 await self.archive_succeeded()
                 await self.forget_due()
                 await self.close_overdue()
+                await self.costcap.check()
                 await self.end_stale_pauses()
                 if time.monotonic() - tidied > self.TIDY_EVERY or not tidied:
                     tidied = time.monotonic()
