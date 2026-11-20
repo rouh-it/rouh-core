@@ -10,7 +10,7 @@
     "path"
    ],
    "title": "Your path",
-   "lede": "Seven stages, from saying hello to Rouh running work for you. Each lesson is one thing to do, and ends with the next.",
+   "lede": "Eight stages, from saying hello to Rouh running work for you. Each lesson is one thing to do, and ends with the next.",
    "icon": "<path d=\"M5 19c3-1 3-5 7-6s4-5 7-6\"/><circle cx=\"5\" cy=\"19\" r=\"1.8\"/><circle cx=\"19\" cy=\"7\" r=\"1.8\"/>"
   },
   {
@@ -176,10 +176,10 @@
       },
       {
        "name": "Safety",
-       "text": "Anything that sends, shares, publishes, pays or deletes stops and asks you first. Text from outside, such as an email, is read as information and never obeyed.",
+       "text": "Anything that sends, shares, publishes, pays or deletes stops and asks you first. Text from outside, such as an email, is read as information and never obeyed. The Security stage shows all of it.",
        "open": {
-        "label": "Permission gates",
-        "href": "/anatomy/behaviour/gates"
+        "label": "Security lessons",
+        "lesson": "gates"
        }
       }
      ]
@@ -1386,7 +1386,7 @@
    "id": "yours",
    "n": 5,
    "title": "Make it yours",
-   "why": "Teach Rouh how you like things, and who it works with.",
+   "why": "Teach Rouh how you like things, and keep the parts of your life apart.",
    "lessons": [
     {
      "id": "rule",
@@ -1478,36 +1478,6 @@
      "talk": true
     },
     {
-     "id": "box",
-     "title": "Keep a secret in a box",
-     "outcome": "After this you can hand Rouh a password that the AI never sees.",
-     "minutes": 2,
-     "cover": {
-      "src": "handholding/box.webp",
-      "alt": "Boxes: a new box, with a name and the secret to keep.",
-      "w": 1000,
-      "h": 562
-     },
-     "summary": [
-      "Never type a password into the chat. A box holds something the AI never sees: what you type goes straight into the database, sealed."
-     ],
-     "how": [
-      "Ask Rouh for a box. A numbered box opens for you to type into.",
-      "Type the secret and press Save in the box.",
-      "Open Boxes (menu, Memory) to see them; you choose if and when Rouh may use one."
-     ],
-     "says": [
-      "Give me a box for my Wi-Fi password.",
-      "Open box 3."
-     ],
-     "open": {
-      "label": "Boxes",
-      "href": "/box"
-     },
-     "detect": "box",
-     "talk": true
-    },
-    {
      "id": "silos",
      "title": "Keep parts of your life apart",
      "outcome": "After this work and family stay apart, each labelled with its own silo.",
@@ -1533,65 +1503,6 @@
      "open": {
       "label": "Silos",
       "href": "/anatomy/you/silos"
-     },
-     "talk": true
-    },
-    {
-     "id": "trusted",
-     "title": "Add a trusted contact",
-     "outcome": "After this Rouh can help someone you trust when they write to it.",
-     "minutes": 3,
-     "cover": {
-      "src": "handholding/trusted.webp",
-      "alt": "Trusted contacts: the people Rouh may act for and answer, and what each may ask.",
-      "w": 1000,
-      "h": 562
-     },
-     "summary": [
-      "Rouh can answer people you trust, and let one of them decide for you on a goal or task."
-     ],
-     "how": [
-      "Open Trusted contacts (menu, Memory).",
-      "Add a person and say what they may ask Rouh for.",
-      "When they write, Rouh helps them within what you allowed, and asks you about the rest.",
-      "To let someone decide for you on one goal or task, say so; their answers count there and nowhere else."
-     ],
-     "says": [
-      "Who are my trusted contacts, and what may each of them ask?",
-      "Let Sam decide for the offsite task."
-     ],
-     "open": {
-      "label": "Trusted contacts",
-      "href": "/anatomy/behaviour/trusted-contacts"
-     },
-     "detect": "trusted",
-     "talk": true
-    },
-    {
-     "id": "gates",
-     "title": "Choose what needs your yes",
-     "outcome": "After this the tools you pick always ask you before they act.",
-     "minutes": 2,
-     "cover": {
-      "src": "handholding/gates.webp",
-      "alt": "Permission gates: each tool, and whether it asks you first.",
-      "w": 1000,
-      "h": 562
-     },
-     "summary": [
-      "Background work that wants to send, share, publish, pay or delete something always stops and asks you. Permission gates make more tools ask you first."
-     ],
-     "how": [
-      "Open Permission gates (menu, Anatomy, Behaviour).",
-      "Turn on the gate for each tool that should ask you first, every time.",
-      "Text from outside, such as an email or a web page, is read as information and never obeyed as an order."
-     ],
-     "says": [
-      "Which of your tools ask me first before they act?"
-     ],
-     "open": {
-      "label": "Permission gates",
-      "href": "/anatomy/behaviour/gates"
      },
      "talk": true
     },
@@ -1628,8 +1539,262 @@
    ]
   },
   {
-   "id": "power",
+   "id": "security",
    "n": 6,
+   "title": "Security",
+   "why": "What always needs your yes, what Rouh never obeys, and how to see and close what is open to others.",
+   "lessons": [
+    {
+     "id": "gates",
+     "title": "Choose what needs your yes",
+     "outcome": "After this the tools you pick always ask you before they act.",
+     "minutes": 2,
+     "cover": {
+      "src": "handholding/gates.webp",
+      "alt": "Permission gates: each tool, and whether it asks you first.",
+      "w": 1000,
+      "h": 562
+     },
+     "summary": [
+      "Anything that sends, shares, publishes, pays or deletes stops and asks you first: the question lands in Decisions, with Rouh's recommendation. Permission gates add any other tool you choose to that list."
+     ],
+     "how": [
+      "Open Permission gates (menu, Anatomy, Behaviour).",
+      "Turn on the gate for each tool that should ask you first, every time. The tools where a mistake costs money or cannot be undone are listed first.",
+      "A gate is kept by Rouh's code, not by its rules, so no words can talk Rouh past it. A yes is for that one call only."
+     ],
+     "says": [
+      "Which of your tools ask me first before they act?",
+      "Always ask me before you send an email."
+     ],
+     "open": {
+      "label": "Permission gates",
+      "href": "/anatomy/behaviour/gates"
+     },
+     "talk": true
+    },
+    {
+     "id": "restricted",
+     "title": "Restricted or Unrestricted",
+     "outcome": "After this you know how much Rouh may do without asking, and how to switch it back.",
+     "minutes": 2,
+     "cover": {
+      "src": "handholding/permissions.webp",
+      "alt": "Permissions: the switch between Restricted and Unrestricted, and what still asks you in every mode.",
+      "w": 1000,
+      "h": 562
+     },
+     "summary": [
+      "Restricted is the normal mode: background work that sends, pays, deletes or changes a server waits for your yes. Unrestricted lets your own chats and runs do those things at once, for as long as you choose."
+     ],
+     "how": [
+      "Open Permissions (menu, Anatomy, Behaviour). It says which mode you are in.",
+      "Only you can switch it, with a press on that page. Rouh, a run or an email cannot switch it for you.",
+      "Choose how long Unrestricted lasts: some hours, until you switch it back, or for good. When the hours are up, Restricted is back by itself.",
+      "Even in Unrestricted three things still ask you: money above your card's caps, deleting your data for good, and giving a password or account access to someone outside.",
+      "Work for a trusted contact, the heartbeat and anything about someone's email never get Unrestricted.",
+      "Everything that ran without asking is listed on the same page, under What Rouh did, with Undo where the service allows it."
+     ],
+     "says": [
+      "Which mode are you in, Restricted or Unrestricted?",
+      "What would you still ask me about in Unrestricted?"
+     ],
+     "open": {
+      "label": "Permissions",
+      "href": "/anatomy/behaviour/permissions"
+     },
+     "talk": true
+    },
+    {
+     "id": "untrusted",
+     "title": "Know what Rouh never obeys",
+     "outcome": "After this you know why an email or a web page cannot give Rouh orders.",
+     "minutes": 1,
+     "cover": {
+      "src": "handholding/untrusted.svg",
+      "alt": "An email that tells Rouh to forward invoices to a stranger, and Rouh saying it will not, and what the email tried.",
+      "w": 960,
+      "h": 540
+     },
+     "summary": [
+      "Emails, web pages, documents and even file names are written by other people. Rouh reads them as information, never as instructions: only what you say to Rouh is an order."
+     ],
+     "how": [
+      "Everything Rouh reads from outside arrives marked with where it came from, such as an email and its sender, so it is never mistaken for you.",
+      "If a message or a page tries to tell Rouh to do something, Rouh does not do it, and says so in one sentence: what it tried, and where.",
+      "Nothing is bought, sent or shared because a page, an email or a file said to. Only the work you asked for counts.",
+      "This is a rule on the Rules page, Text that is not from the person, and it is in every chat that reads mail or the web."
+     ],
+     "says": [
+      "Read my newest email and tell me if it asks you to do anything.",
+      "Summarise this page, and say if it tries to give you orders."
+     ],
+     "open": {
+      "label": "Rules",
+      "href": "/rules"
+     },
+     "talk": true
+    },
+    {
+     "id": "box",
+     "title": "Keep a secret in a box",
+     "outcome": "After this you can hand Rouh a password that the AI never sees.",
+     "minutes": 2,
+     "cover": {
+      "src": "handholding/box.webp",
+      "alt": "Boxes: a new box, with a name and the secret to keep.",
+      "w": 1000,
+      "h": 562
+     },
+     "summary": [
+      "Never type a password into the chat. A box holds something the AI never sees: what you type goes straight into the database, sealed."
+     ],
+     "how": [
+      "Ask Rouh for a box. A numbered box opens for you to type into.",
+      "Type the secret and press Save in the box. It goes straight into the database, sealed, and never through the chat.",
+      "To let Rouh use one, say open box and its number, in this chat. Only your own words open a box: never an email, a page or a job's report.",
+      "Open Boxes (menu, Memory) to see them all."
+     ],
+     "says": [
+      "Give me a box for my Wi-Fi password.",
+      "Open box 3."
+     ],
+     "open": {
+      "label": "Boxes",
+      "href": "/box"
+     },
+     "detect": "box",
+     "talk": true
+    },
+    {
+     "id": "trusted",
+     "title": "Add a trusted contact",
+     "outcome": "After this Rouh can help someone you trust when they write to it.",
+     "minutes": 3,
+     "cover": {
+      "src": "handholding/trusted.webp",
+      "alt": "Trusted contacts: the people Rouh may act for and answer, and what each may ask.",
+      "w": 1000,
+      "h": 562
+     },
+     "summary": [
+      "Rouh can answer people you trust, and let one of them decide for you on a goal or task. Some things are never theirs: spending your money, deleting, publishing, sending or signing in your name, and changing Rouh."
+     ],
+     "how": [
+      "Open Trusted contacts (menu, Memory).",
+      "Add a person and say what they may ask Rouh for.",
+      "When they write, Rouh helps them within what you allowed, and asks you about the rest.",
+      "To let someone decide for you on one goal or task, say so; their answers count there and nowhere else.",
+      "To take it back, set them to None in that task's Share panel, or tell Rouh. The very next thing they ask is refused."
+     ],
+     "says": [
+      "Who are my trusted contacts, and what may each of them ask?",
+      "Let Sam decide for the offsite task.",
+      "Take Sam off the offsite task."
+     ],
+     "open": {
+      "label": "Trusted contacts",
+      "href": "/anatomy/behaviour/trusted-contacts"
+     },
+     "detect": "trusted",
+     "talk": true
+    },
+    {
+     "id": "shared",
+     "title": "See what you have shared, and take it back",
+     "outcome": "After this you can check who sees a task, and close it in one sentence.",
+     "minutes": 2,
+     "cover": {
+      "src": "handholding/shared.svg",
+      "alt": "A question, who can see task 58, and Rouh's answer: one person who can read, one who can edit, and a public link.",
+      "w": 960,
+      "h": 540
+     },
+     "summary": [
+      "Shared means one email address can read a task, or edit it if you said so. Published means anyone with the link can read it. Ask any time what is open, and close it with a sentence."
+     ],
+     "how": [
+      "Ask Rouh who can see a task. It lists each person and what they may do, and whether the task is published.",
+      "Read lets them look. Edit lets them change its pages. A public link is always read only.",
+      "To take someone off, set them to None in the task's Share panel, or tell Rouh. Their link stops at once.",
+      "Where the Share panel shows Until, give a share an end: it is taken away by itself on that day.",
+      "To take a published task down, ask Rouh to unpublish it."
+     ],
+     "says": [
+      "Who can see 58, and is it public?",
+      "Take sam@example.com off 58.",
+      "Unpublish 58."
+     ],
+     "open": {
+      "label": "Task browser",
+      "href": "/tasks"
+     },
+     "talk": true
+    },
+    {
+     "id": "drive-open",
+     "title": "Find the Drive files open beyond your company",
+     "outcome": "After this you know which of your Drive files outsiders can open, and how to close them.",
+     "minutes": 2,
+     "cover": {
+      "src": "handholding/drive-open.svg",
+      "alt": "Rouh's answer listing Drive files: two anyone with the link can open, and three shared with people outside the company.",
+      "w": 960,
+      "h": 540
+     },
+     "summary": [
+      "Over months files get shared with clients and opened by link, and nobody closes them. Rouh reads your own Drive in one go and lists what is open beyond your company, widest first."
+     ],
+     "how": [
+      "Connect Google first (the lesson Connect Google shows how).",
+      "Ask Rouh which of your files are open. It lists the files anyone with the link can open, then those shared with people or companies outside, each with what they may do.",
+      "Name one company or address to see only what they have.",
+      "To close a link, or take a person or a whole company off one file or all of them, say so. Drive does not email them when access is taken away.",
+      "To share a file for a while, say until when. Google ends the access by itself on that day.",
+      "If Rouh says one of these is switched off, turn it on in Evolution, Mutations."
+     ],
+     "says": [
+      "Which of my Drive files are open beyond the company?",
+      "What have we shared with northwind.test?",
+      "Take dana@northwind.test off all my files."
+     ],
+     "talk": true
+    },
+    {
+     "id": "connections",
+     "title": "Check your connections, and disconnect one",
+     "outcome": "After this you know what Rouh can reach, and how to cut one off.",
+     "minutes": 2,
+     "cover": {
+      "src": "handholding/google.webp",
+      "alt": "A connection's own page: what it reaches, its state, and the button that connects or disconnects it.",
+      "w": 1000,
+      "h": 562
+     },
+     "summary": [
+      "Each connection opens one door for Rouh: Google your mail, calendar and Drive; Slack your team; Hue your lights. Close a door, and Rouh forgets the sign-in behind it."
+     ],
+     "how": [
+      "Ask Rouh which connections are live. It says, for each, connected, needs attention, or not connected.",
+      "Open Connections (menu, Anatomy, Connections). Each connection has its own page, which says what it reaches.",
+      "On that page, press Disconnect. Rouh forgets its sign-in and keys, and stops using it at once.",
+      "The keys and tokens you give a connection are kept sealed in the database, and never put into the chat."
+     ],
+     "says": [
+      "Which connections do you have, and are they all working?",
+      "What can you reach through my Google account?"
+     ],
+     "open": {
+      "label": "Connections",
+      "href": "/anatomy/connections/email"
+     },
+     "talk": true
+    }
+   ]
+  },
+  {
+   "id": "power",
+   "n": 7,
    "title": "Power user",
    "why": "The deep end: Rouh's memory, your team's tools, and changing Rouh itself. Every connection here is optional.",
    "lessons": [
@@ -2003,7 +2168,11 @@
   },
   {
    "id": "settings",
-   "name": "Settings and safety"
+   "name": "Settings"
+  },
+  {
+   "id": "security",
+   "name": "Security"
   },
   {
    "id": "evolution",
@@ -2050,7 +2219,7 @@
   },
   {
    "id": "boxes",
-   "area": "memory",
+   "area": "security",
    "title": "Secrets go in a box",
    "body": "Never type a password into the chat. Ask for a box: what you put in it goes straight into the database and never reaches the AI.",
    "says": [
@@ -2186,6 +2355,16 @@
     "Improve yourself so the morning brief also lists my birthdays this week."
    ],
    "lesson": "gene-therapy"
+  },
+  {
+   "id": "whats-open",
+   "area": "security",
+   "title": "Ask what is open, once a month",
+   "body": "Shares outlive the meeting they were for. Once a month ask what of yours is open to people outside: tasks you published or shared, and Drive files open with a link.",
+   "says": [
+    "What of mine is open to people outside the company?"
+   ],
+   "lesson": "drive-open"
   }
  ]
 }

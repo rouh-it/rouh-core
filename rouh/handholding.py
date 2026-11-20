@@ -5,7 +5,7 @@ step the guide should lead him to using the absolute maximum of rouh." It is a s
 navigation of its own (`rouh/static/handholdingpage.js`).
 
 **One source: a lesson is a step** (Petar, the same day, reviewing the first version: "for each
-action there is a step ... this way we won't have two sources that go to one place"). A path of seven
+action there is a step ... this way we won't have two sources that go to one place"). A path of eight
 stages, each a list of lessons; every lesson has one id, one entry in the data file, a card form, and a
 full page at `/handholding/lesson/<id>` that ends with the next lesson on the path.
 

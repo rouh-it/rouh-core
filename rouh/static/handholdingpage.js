@@ -8,7 +8,7 @@
    which put words in a chat nobody could find again; pictures in every lesson.
 
    Three pages, from the data file's `pages`:
-   - Your path: Continue (how far, and the current lesson's card), then the seven stages, each
+   - Your path: Continue (how far, and the current lesson's card), then the eight stages, each
      opening into its lessons' cards.
    - Enabling Rouh: every lesson that is a connection, as the same card with its live badge, and
      the real switches.
