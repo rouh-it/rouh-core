@@ -11,6 +11,7 @@ with words that should bring it on and words that should not.
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import time
 import urllib.parse
@@ -3490,6 +3491,218 @@ def rouh_link(s: Stack) -> None:
     expect(code == 404 and "error" in sent, f"a cursor for a space that is not here answered {code}: {sent}")
     code, sent = _send(s, "/api/link/spaces/no-such-space/cursor", {"cv": -1}, cookie=False)
     expect(code in (401, 403), f"a cursor was taken from somebody not signed in ({code}): {sent}")
+
+
+# The Live page (Rouh Link, kind `html`, step 189-08): the frame's policy as `link/livepage.js` sets it.
+LIVE_PAGE_POLICY = ("default-src 'none'", "script-src 'unsafe-inline'", "style-src 'unsafe-inline'",
+                    "img-src data: blob:", "font-src data:", "media-src data: blob:", "connect-src 'none'",
+                    "frame-src 'none'", "child-src 'none'", "worker-src 'none'", "form-action 'none'",
+                    "base-uri 'none'", "object-src 'none'", "manifest-src 'none'")
+
+
+def _live_pasted(url: str) -> str:
+    """A pasted page that tries to reach Rouh from inside its frame, and says what happened."""
+    return ("<!doctype html>\n<html><head><title>Stack live page</title></head><body>\n"
+            "<h1>Stack pasted heading</h1>\n<p id=\"said\">The stack test's first words.</p>\n"
+            "<p id=\"net\">not tried</p>\n<script>\nvar n = document.getElementById('net');\n"
+            f"try {{ fetch({json.dumps(url + '/healthz')}).then(function () {{ n.textContent = 'network reached'; }},"
+            " function () { n.textContent = 'network refused'; }); } catch (e) { n.textContent = 'network refused'; }\n"
+            "</script>\n</body></html>\n")
+
+
+def _live_page_in_chromium(s: Stack, sid: str) -> None:
+    """The live page's own address in a real Chromium: the page drawn in a frame with the sandbox and
+    the strict policy, its own script running and refused the network, and no cookie of Rouh's in it."""
+    from playwright.sync_api import sync_playwright
+
+    host = s.url.split("://", 1)[1].split("/", 1)[0].split(":")[0]
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        try:
+            ctx = b.new_context()
+            ctx.add_cookies([{"name": k, "value": v, "domain": host, "path": "/"}
+                             for k, v in (c.strip().split("=", 1) for c in s.cookie.split(";") if "=" in c)])
+            pg = ctx.new_page()
+            errors, reached = [], []
+            pg.on("pageerror", lambda e: errors.append(str(e)))
+            pg.on("request", lambda r: reached.append(r.url) if "/healthz" in r.url else None)
+            answer = pg.goto(f"{s.url}/link/space/{sid}", wait_until="load", timeout=60000)
+            expect(answer is not None and answer.status == 200 and "/login" not in pg.url,
+                   f"the live page's address answered {answer.status if answer else 'nothing'} at {pg.url}")
+            pg.wait_for_selector("#frames iframe", state="attached", timeout=30000)
+            frame_el = pg.locator("#frames iframe").last
+            sandbox = frame_el.get_attribute("sandbox") or ""
+            csp = frame_el.get_attribute("csp") or ""
+            expect(sandbox.split() == ["allow-scripts"], f"the live page's frame has the sandbox {sandbox!r}")
+            missing = [d for d in LIVE_PAGE_POLICY if d not in csp]
+            expect(not missing, f"the live page's frame policy lacks {missing}: {csp!r}")
+            frame, end = None, time.time() + 30
+            while time.time() < end and frame is None:
+                for f in pg.frames:
+                    try:
+                        if f is not pg.main_frame and "Stack pasted heading" in (f.content() or ""):
+                            frame = f
+                            break
+                    except Exception:  # noqa: BLE001 - a frame being swapped for a newer one
+                        pass
+                pg.wait_for_timeout(300)
+            expect(frame is not None, "the pasted page was never drawn in the live page's frame")
+            doc = frame.content()
+            missing = [d for d in LIVE_PAGE_POLICY if d not in doc]
+            expect('http-equiv="Content-Security-Policy"' in doc and not missing,
+                   f"the frame's own document does not carry the whole policy (lacks {missing})")
+            said, end = "", time.time() + 15
+            while time.time() < end:
+                said = frame.evaluate("document.getElementById('net') && document.getElementById('net').textContent") or ""
+                if said != "not tried":
+                    break
+                pg.wait_for_timeout(300)
+            expect(said == "network refused", f"the page's own script in the frame said {said!r}, not refused")
+            expect(not reached, f"a request left the frame for Rouh: {reached[:2]}")
+            cookie = frame.evaluate("(() => { try { return 'read: ' + document.cookie; } catch (e) { return 'none'; } })()")
+            expect(cookie == "none", f"the frame could read cookies: {cookie[:120]!r}")
+            expect(not errors, f"the live page's own script failed: {errors[:2]}")
+        finally:
+            b.close()
+
+
+@check("page.live-page")
+def live_page(s: Stack) -> None:
+    """The Live page (Rouh Link, kind `html`, step 189-08): started blank and from pasted HTML; drawn
+    in a sealed frame with the sandbox and the strict policy; a find-and-replace edit lands and is kept
+    in history; bringing it back is refused for anyone but the owner; past 2 MB is refused.
+
+    A Rouh takes part in Rouh Link only once born, and the stack's Rouh is free (`page.birthday`), so
+    this check gives it a test birth for its own length (`rouh_link test-birth`, a loopback public
+    address only) and takes it, and the spaces it made, away again afterwards."""
+    was_born = bool(api(s, "/api/link", "born")["born"])
+    had_self = "1" in core_py(s, _owner_py("from rouh.models import LinkSelf\n"
+                                           "print(int(LinkSelf.objects.filter(org_id=str(u.org_id)).exists()))"))
+    if not was_born:
+        r = s.run("core", "cd /code && python manage.py rouh_link test-birth", env={"ROUH_LINK_TEST_BIRTH": "1"})
+        expect(r.returncode == 0 and "born for the test" in r.stdout, f"the test birth failed: {(r.stderr or r.stdout)[-400:]}")
+    made: list[str] = []
+    try:
+        # Started from blank, and from pasted HTML.
+        blank = post(s, "/api/link/spaces", {"kind": "html", "title": "Stack blank live page"})
+        made.append(blank["space_id"])
+        expect(blank.get("url") == f"/link/space/{blank['space_id']}", f"a blank live page: {blank}")
+        got = api(s, f"/api/link/spaces/{blank['space_id']}", "space", "doc")
+        expect(got["space"]["kind"] == "html" and got["space"]["mine"] and "Stack blank live page" in got["doc"]["html"]["text"]
+               and "data-rouh-id" in got["doc"]["html"]["text"],
+               f"the blank live page is not a stamped page of its own: {json.dumps(got['space'])[:300]}")
+        pasted = post(s, "/api/link/spaces", {"kind": "html", "title": "Stack pasted live page", "html": _live_pasted(s.url)})
+        sid = pasted["space_id"]
+        made.append(sid)
+        got = api(s, f"/api/link/spaces/{sid}", "space", "doc")
+        h = got["doc"]["html"]
+        expect("Stack pasted heading" in h["text"] and "first words" in h["text"], f"the pasted page is not the space's: {h['text'][:300]}")
+
+        # Drawn in the sealed frame.
+        page(s, f"/link/space/{sid}", "Live page")
+        _live_page_in_chromium(s, sid)
+
+        # A person's own edit of the source lands, and history keeps what it said before.
+        before_seq = int(got["seq"])
+        code, said = _send(s, f"/api/link/spaces/{sid}/act",
+                           {"act": "source", "html": h["text"].replace("first words", "second words"), "base": h["v"]})
+        expect(code == 200 and said.get("accepted") and not said.get("refused"), f"a person's source edit ({code}): {json.dumps(said)[:300]}")
+        now = api(s, f"/api/link/spaces/{sid}", "doc")["doc"]["html"]["text"]
+        expect("second words" in now and "first words" not in now, f"the person's edit did not land: {now[:300]}")
+        then = api(s, f"/api/link/spaces/{sid}/history?seq={before_seq}", "doc", "marks")
+        expect("first words" in then["doc"]["html"]["text"], "history does not keep the page as it was before the edit")
+
+        # Past 2 MB is refused, pasted or edited.
+        huge = "<!doctype html><html><body><p>" + "x" * 2_100_000 + "</p></body></html>"
+        code, said = _send(s, "/api/link/spaces", {"kind": "html", "title": "Stack too big", "html": huge})
+        expect(code == 400 and "2 MB" in str(said.get("error")), f"a pasted page past 2 MB was not refused ({code}): {str(said)[:300]}")
+        code, said = _send(s, f"/api/link/spaces/{sid}/act", {"act": "source", "html": huge, "base": -1})
+        expect(code == 400 and "2 MB" in str(said.get("error")), f"an edit past 2 MB was not refused ({code}): {str(said)[:300]}")
+
+        # Bringing it back: the owner passes the owner's gate (this page has no file to go to);
+        # nobody signed in, nobody, another organisation and a Rouh that does not hold the space do not.
+        code, said = _send(s, f"/api/link/spaces/{sid}/act", {"act": "bring_back"})
+        expect(code == 400 and "did not start from a page in your workspace" in str(said.get("error")),
+               f"the owner's Bring back answered ({code}): {str(said)[:300]}")
+        code, said = _send(s, f"/api/link/spaces/{sid}/act", {"act": "bring_back"}, cookie=False)
+        expect(code in (401, 403), f"Bring back was taken from somebody not signed in ({code}): {str(said)[:200]}")
+
+        # Your Rouh's own find-and-replace edit (the doer's half of `pagework`, the reader being a model)
+        # on a page of its own, then the owner's gate for anyone else, all in the core.
+        out = core_py(s, _owner_py(f"""
+import copy, uuid
+from rouh.link import pagein, pagework, pageout, spaces, htmldoc, me as _me
+org = str(u.org_id)
+mine = _me.me(org)
+made = pagein.start(org, who, html={json.dumps(_live_pasted(s.url))}, title="Stack Rouh's live page")
+sid = made["space_id"]
+print("SID", sid)
+async def go():
+    live = await spaces.get(org, sid)
+    seq0 = live.seq
+    plan = {{"intent": "Change the words", "steps": [{{"say": "New words", "el": "",
+            "edits": [{{"find": "The stack test's first words.", "replace": "Words your Rouh wrote."}}]}}]}}
+    steps, dropped, claims = pagework.to_steps(plan, live.doc, f"rouh:{{mine.label}}")
+    bad = pagework._replace(htmldoc.text(live.doc), [{{"find": "words that are nowhere", "replace": "x"}}])
+    ops = [op for _say, step in steps for op in step]
+    got = await spaces.change(org, sid, ops)
+    after = htmldoc.text(live.doc)
+    hist = await spaces.history(org, sid, seq0)
+    marks = await spaces.history(org, sid, live.seq)
+    return {{"steps": len(steps), "dropped": dropped, "accepted": len(got["accepted"]), "refused": got["refused"],
+            "after": "Words your Rouh wrote." in after and "first words" not in after,
+            "then": "first words" in hist["doc"]["html"]["text"],
+            "rouh_mark": any(m["actor"] == f"rouh:{{mine.label}}" for m in marks["marks"]),
+            "not_found": bad[1], "seq0": seq0}}
+said = asyncio.run(go())
+refusals = {{}}
+other = Identity(user_id=str(uuid.uuid4()), org_id=str(uuid.uuid4()), email="someone@stack-other.test")
+for name, person in (("nobody", None), ("another organisation", other)):
+    try:
+        pageout.bring_back(org, sid, who=person)
+        refusals[name] = "brought back"
+    except Exception as e:
+        refusals[name] = str(e)
+from rouh.models import LinkSpace
+LinkSpace.objects.filter(org_id=org, space_id=sid).update(mine=False)
+try:
+    pageout.bring_back(org, sid, who=who)
+    refusals["a Rouh that does not hold it"] = "brought back"
+except Exception as e:
+    refusals["a Rouh that does not hold it"] = str(e)
+LinkSpace.objects.filter(org_id=org, space_id=sid).update(mine=True)
+said["refusals"] = refusals
+print("SAID", json.dumps(said))
+"""))
+        m = re.search(r"^SID (\w+)$", out, re.M)
+        if m:
+            made.append(m.group(1))
+        m2 = re.search(r"^SAID (.*)$", out, re.M)
+        expect(m and m2, f"the core's live page did not answer: {out[-600:]}")
+        said = json.loads(m2.group(1))
+        expect(said["steps"] == 1 and not said["dropped"] and said["accepted"] >= 1 and not said["refused"] and said["after"],
+               f"your Rouh's find-and-replace edit did not land: {json.dumps(said)[:500]}")
+        expect(said["then"] and said["rouh_mark"], f"history does not keep your Rouh's edit: {json.dumps(said)[:500]}")
+        expect("not in the page" in said["not_found"], f"an edit whose text is not there was not refused: {said['not_found']!r}")
+        wrong = {k: v for k, v in said["refusals"].items() if "Only the owner" not in v}
+        expect(not wrong, f"bringing it back was not refused for anyone but the owner: {wrong}")
+        # The server reads the same history from what the core stored.
+        hist = api(s, f"/api/link/spaces/{m.group(1)}/history?seq={said['seq0']}", "doc", "marks")
+        expect("first words" in hist["doc"]["html"]["text"] and any(k["actor"].startswith("rouh:") for k in hist["marks"]),
+               f"Rouh's history of the page does not keep the edit: {json.dumps(hist['marks'])[:300]}")
+    finally:
+        core_py(s, _owner_py(f"""
+from rouh.models import LinkOp, LinkSelf, LinkSpace, RouhBirth
+org = str(u.org_id)
+made = {json.dumps(made)}
+LinkOp.objects.filter(org_id=org, space_id__in=made).delete()
+LinkSpace.objects.filter(org_id=org, space_id__in=made).delete()
+if {not was_born!r}:
+    RouhBirth.objects.filter(org_id=org).delete()
+if {not had_self!r}:
+    LinkSelf.objects.filter(org_id=org).delete()
+print("cleared")
+"""))
 
 
 @check("gene.share-address")
