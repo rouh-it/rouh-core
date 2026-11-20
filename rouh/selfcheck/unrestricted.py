@@ -138,6 +138,15 @@ def switch_is_the_owners() -> None:
         rel = path.relative_to(CODE).as_posix()
         if rel in ("rouh/unrestricted.py", "rouh/web/permissions.py") or rel.startswith("rouh/selfcheck/"):
             continue
+        if rel == "rouh/migrations/0267_permission_mode_seal.py":
+            continue                    # it only seals the rows already there
+        if rel == "rouh/run_access.py":
+            # The tripwire, which may only ever write Restricted (task 191).
+            text = path.read_text(encoding="utf-8", errors="replace")
+            writes = re.findall(r"PermissionMode\.objects\.filter\([^)]*\)\.update\(\s*([^,]+),", text)
+            expect(writes and all(w.strip() == "mode=unrestricted.RESTRICTED" for w in writes),
+                   f"the tripwire writes the mode to something other than Restricted: {writes}")
+            continue
         text = path.read_text(encoding="utf-8", errors="replace")
         if re.search(r"unrestricted\.flip\(|OwnerPress\.of\(|PermissionMode\.objects\.(update|create|"
                      r"update_or_create|bulk|filter\([^)]*\)\.update)", text):
@@ -403,3 +412,144 @@ def every_tool_classified() -> None:
                        ("comments_by", {}), ("trials", {"action": "list"}), ("payments", {}),
                        ("cloudflare", {"action": "email_routing_status"})):
         expect(policy.classify(name, args) == policy.READ, f"{name} is not a read")
+
+
+# --- the five rouh-open items, per run (task 191, rouh/run_access.py) --------------------------
+
+
+@check("unrestricted", "a stranger's or a process's run never gets any of the five",
+       "with the switch Unrestricted, the runs file Rouh writes for the key proxy marks only the "
+       "owner's own live run with their words free, with the five items; a run a trusted contact's "
+       "mail started, a run a process started, an ended run and one with no words get none; and the "
+       "key proxy itself refuses them past ports 80 and 443, GitHub's token and the owner's servers",
+       needs_db=True)
+def five_items_only_for_the_owner() -> None:
+    import importlib.util
+    import base64
+    import hashlib
+    import json
+    import os
+    import sys
+    import tempfile
+
+    from rouh import job_policy as policy, run_access
+    from rouh.models import MailAsk, MailCase
+
+    who = _owner()
+    _set_mode(who, "unrestricted")
+    _run("check-five-owner", who)
+    _run("check-five-process", who, made_by="process:check")
+    _run("check-five-ended", who, state="done")
+    _run("check-five-nowords", who, words="")
+    _run("check-five-mail", who)
+    whose = {"user_id": str(who.user_id), "org_id": str(who.org_id or "")}
+    case, _ = MailCase.objects.get_or_create(key="rouh-check-five", defaults={
+        **whose, "message_id": "<five@rouh-check.example>", "thread_id": "five-thread",
+        "sender": "someone@outside.example", "sender_name": "Someone"})
+    MailAsk.objects.get_or_create(case=case, ident="five", defaults={
+        **whose, "work": [{"kind": "job", "ref": "check-five-mail"}]})
+    doors = [{"run": r, "who": "run", "hash": hashlib.sha256(r.encode()).hexdigest()}
+             for r in ("check-five-owner", "check-five-process", "check-five-ended",
+                       "check-five-nowords", "check-five-mail")]
+    got = asyncio.run(run_access.entries(doors))
+    by_run = {e["run"]: e for e in got.values()}
+    expect(by_run["check-five-owner"]["free"] and
+           by_run["check-five-owner"]["gets"] == list(run_access.ITEMS),
+           f"the owner's own live run is not free with the five items: {by_run['check-five-owner']}")
+    for run in ("check-five-process", "check-five-ended", "check-five-nowords", "check-five-mail"):
+        expect(not by_run[run]["free"] and not by_run[run].get("gets"),
+               f"{run} got something of the switch's: {by_run[run]}")
+    expect(by_run["check-five-mail"]["kind"] == policy.CONTACT,
+           f"a mail run is not a contact's: {by_run['check-five-mail']}")
+    expect(by_run["check-five-process"]["kind"] == policy.PROCESS,
+           f"a process's run is not a process's: {by_run['check-five-process']}")
+
+    # The key proxy, with that file: only the owner's free run gets past the standing rules.
+    keys = tempfile.mkdtemp(prefix="rouh-check-keys-")
+    path = CODE / "guard" / "rouh_guard" / "keyproxy.py"
+    before = os.environ.get("ROUH_KEYS_DIR")
+    os.environ["ROUH_KEYS_DIR"] = keys
+    try:
+        spec = importlib.util.spec_from_file_location("rouh_check_keyproxy", path)
+        kp = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(kp)
+    finally:
+        if before is None:
+            os.environ.pop("ROUH_KEYS_DIR", None)
+        else:
+            os.environ["ROUH_KEYS_DIR"] = before
+    now = time.time()
+    # Passwords stand in as the run ids themselves, hashed as the program hashes its own.
+    with open(os.path.join(keys, "keyproxy_runs.json"), "w") as fh:
+        json.dump({"until": now + 60, "ack": 0, "canaries": [], "runs": got}, fh)
+    with open(os.path.join(keys, "standing_access.json"), "w") as fh:
+        json.dump({"servers": [{"name": "check-host", "item": "host", "addresses": ["192.0.2.10"],
+                                "ports": [2222]}]}, fh)
+    with open(os.path.join(keys, "github_standing.json"), "w") as fh:
+        json.dump({"token": "gho_rouhcheckstandingtoken", "login": "check"}, fh)
+    with open(os.path.join(keys, "keyproxy_grants.json"), "w") as fh:
+        json.dump({"grants": [{"kind": "all", "until": now + 600}], "servers": [], "lan": {}}, fh)
+    kp.ALLOW_PRIVATE.update({"192.0.2.10", "192.0.2.20"})
+    kp.lookup = lambda host: [host]
+
+    def who_is(run):
+        pair = base64.b64encode(f"run-{run}:{run}".encode()).decode()
+        return kp.identify([("Proxy-Authorization", f"Basic {pair}")])
+
+    owner = who_is("check-five-owner")
+    expect(owner.free and kp.decide("192.0.2.10", 2222, owner)[0] is not None,
+           "the owner's free run does not reach the owner's server")
+    expect(kp.decide("192.0.2.20", 2200, owner)[0] is not None,
+           "the owner's free run does not reach any port")
+    for run in ("check-five-process", "check-five-mail", "check-five-nowords"):
+        w = who_is(run)
+        expect(not w.free, f"the key proxy took {run} for free")
+        expect(kp.decide("192.0.2.10", 2222, w)[0] is None, f"{run} reached the owner's server")
+        if run != "check-five-nowords":
+            # The owner's own run with no words is still the owner's: rouh-open's timed grants
+            # reach it, as they reach every run of the owner's. A stranger's never.
+            expect(kp.decide("192.0.2.20", 2200, w)[0] is None,
+                   f"{run} reached a port past 80 and 443 through the owner's timed grant")
+    nobody = kp.identify([])
+    expect(kp.decide("192.0.2.20", 2200, nobody)[0] is None,
+           "a request with no run password reached a port past 80 and 443")
+    expect(any(t["what"].startswith("a run that is not the owner's") for t in kp.TRIPS),
+           "a stranger's run at the owner's server did not trip the tripwire")
+
+
+@check("unrestricted", "a mode written behind the press trips back to Restricted",
+       "a mode row that says Unrestricted without the seal of the owner's press reads as Restricted, "
+       "is written back as Restricted, and leaves a flip by the tripwire", needs_db=True)
+def forged_mode_trips() -> None:
+    from rouh import unrestricted
+    from rouh.models import PermissionMode, PermissionModeFlip
+
+    who = _owner()
+    _set_mode(who, "unrestricted")
+    expect(unrestricted.current(who).unrestricted, "a sealed Unrestricted does not read as one")
+    PermissionMode.objects.filter(user_id=str(who.user_id)).update(seal="", set_by="not the press")
+    expect(not unrestricted.current(who).unrestricted, "a forged Unrestricted was believed")
+    row = PermissionMode.objects.get(user_id=str(who.user_id), org_id=str(who.org_id or ""))
+    expect(row.mode == unrestricted.RESTRICTED, "the tripwire did not write Restricted back")
+    expect(PermissionModeFlip.objects.filter(user_id=str(who.user_id), by="the tripwire").exists(),
+           "the tripwire left no flip")
+
+
+@check("unrestricted", "a run cannot name another run",
+       "the job gateway refuses a call whose run token is another run's, before anything runs",
+       needs_db=True)
+def another_runs_token() -> None:
+    from rouh import job_gateway, run_access
+
+    async def other(job, token):
+        return "other"
+
+    real = run_access.verify
+    run_access.verify = other
+    try:
+        got = asyncio.run(job_gateway.act("check-five-owner", "call", "cloudflare",
+                                          {"action": "zones"}, run_token="check-b.mac"))
+    finally:
+        run_access.verify = real
+    expect(not got.get("ok") and "not this job's own" in str(got.get("text")),
+           f"a call with another run's token was not refused: {got}")
