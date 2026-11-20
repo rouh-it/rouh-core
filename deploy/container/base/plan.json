@@ -1,13 +1,13 @@
 {
- "level": "1.0.20",
+ "level": "1.0.21",
  "line": "1.0",
- "from_level": "1.0.19",
+ "from_level": "1.0.20",
  "changed": true,
  "changes": [
   {
    "what": "Protected core",
-   "from": "1.1.0",
-   "to": "1.1.1"
+   "from": "1.1.1",
+   "to": "1.1.1, with the key proxy deciding per run (task 191)"
   }
  ],
  "security": [],
