@@ -93,7 +93,8 @@ def _slides_routes(app, world, seen, note, file_named):
     @app.post("/v1/presentations/{deck_id}:batchUpdate")
     async def batch_update(deck_id: str, request: Request):
         """Enough of the Slides batchUpdate to be read back: replaceAllText (all slides or some),
-        and deleteText and insertText on a slide's speaker notes (Written into a deck,
+        deleteText and insertText on a slide's speaker notes, and createSlide, duplicateObject,
+        updateSlidesPosition and deleteObject (Written into a deck,
         `rouh/slide_write.py`). Each really changes the deck held here."""
         deck = world["decks"].get(deck_id)
         if deck is None:
@@ -116,6 +117,55 @@ def _slides_routes(app, world, seen, note, file_named):
                         changed += slide[field].count(find) if find else 0
                         slide[field] = slide[field].replace(find, put) if find else slide[field]
                 replies.append({"replaceAllText": {"occurrencesChanged": changed}})
+            elif "createSlide" in one:
+                ask = one["createSlide"]
+                made = {"id": str(ask.get("objectId") or f"p{len(deck['slides']) + 1}x"), "title": "",
+                        "text": "", "notes": ""}
+                for m in ask.get("placeholderIdMappings") or []:
+                    kind = (m.get("layoutPlaceholder") or {}).get("type")
+                    made["boxes"] = {**made.get("boxes", {}), str(m.get("objectId")): "title" if kind == "TITLE" else "text"}
+                at = ask.get("insertionIndex")
+                at = len(deck["slides"]) if at is None else int(at)
+                if not 0 <= at <= len(deck["slides"]):
+                    return JSONResponse({"error": {"code": 400, "message": "Invalid requests: insertionIndex out of range."}},
+                                        status_code=400)
+                deck["slides"].insert(at, made)
+                replies.append({"createSlide": {"objectId": made["id"]}})
+            elif "duplicateObject" in one:
+                ask = one["duplicateObject"]
+                src = next((x for x in deck["slides"] if x["id"] == ask.get("objectId")), None)
+                if src is None:
+                    return JSONResponse({"error": {"code": 400, "message": "Invalid requests: the object could not be found."}},
+                                        status_code=400)
+                made = {**src, "id": str((ask.get("objectIds") or {}).get(src["id"]) or src["id"] + "_copy"), "boxes": {}}
+                deck["slides"].insert(deck["slides"].index(src) + 1, made)
+                replies.append({"duplicateObject": {"objectId": made["id"]}})
+            elif "updateSlidesPosition" in one:
+                ask = one["updateSlidesPosition"]
+                ids = list(ask.get("slideObjectIds") or [])
+                at = int(ask.get("insertionIndex") or 0)
+                moving = [x for x in deck["slides"] if x["id"] in ids]
+                if len(moving) != len(ids) or not 0 <= at <= len(deck["slides"]):
+                    return JSONResponse({"error": {"code": 400, "message": "Invalid requests: updateSlidesPosition."}},
+                                        status_code=400)
+                before = sum(1 for x in deck["slides"][:at] if x["id"] in ids)
+                rest = [x for x in deck["slides"] if x["id"] not in ids]
+                deck["slides"] = rest[:at - before] + sorted(moving, key=lambda x: ids.index(x["id"])) + rest[at - before:]
+                replies.append({})
+            elif "deleteObject" in one:
+                target = one["deleteObject"].get("objectId")
+                if not any(x["id"] == target for x in deck["slides"]):
+                    return JSONResponse({"error": {"code": 400, "message": "Invalid requests: the object could not be found."}},
+                                        status_code=400)
+                deck["slides"] = [x for x in deck["slides"] if x["id"] != target]
+                replies.append({})
+            elif "insertText" in one and any(str(one["insertText"].get("objectId")) in (x.get("boxes") or {})
+                                             for x in deck["slides"]):
+                ask = one["insertText"]
+                box = str(ask.get("objectId"))
+                slide = next(x for x in deck["slides"] if box in (x.get("boxes") or {}))
+                slide[slide["boxes"][box]] += str(ask.get("text") or "")
+                replies.append({})
             elif "deleteText" in one or "insertText" in one:
                 ask = one.get("deleteText") or one.get("insertText")
                 target = str(ask.get("objectId") or "")

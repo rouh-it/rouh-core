@@ -2761,6 +2761,12 @@ class ToolRegistry:
         if getattr(self.cfg, "enable_youtube", True):
             self._youtube_tools()
 
+        # Reddit's posts, through its own API (`rouh/reddit.py`, task 191): a job's browser is
+        # turned away by Reddit, Rouh's own HTTP (with the owner's Reddit app, if need be) is not.
+        from . import reddit
+
+        self._own("reddit_search", reddit.DESCRIPTION, reddit.SCHEMA, self._reddit_search)
+
         if self.apify is not None:
             self._linkedin_tools()
 
@@ -3079,7 +3085,12 @@ class ToolRegistry:
             "Cloudflare emails it a verification link its owner must click, and no rule delivers there "
             "until then - say so. email_routing_rule (zone, from, to, catch_all?): forward an address of "
             "the zone (from, such as noreply@example.com) or, with catch_all true, everything else, to a "
-            "verified destination (to); made, or changed if that address has a rule already.",
+            "verified destination (to); made, or changed if that address has a rule already. "
+            "email_routing_rules (zone): every rule with its id, and the catch-all; reads only. "
+            "email_routing_rule_delete (zone, from or rule_id): delete one rule, named by the address "
+            "it forwards or its id, and say it as it was so it can be made again; the catch-all is "
+            "never deleted. zone_settings (zone): every one of the zone's settings (cache, HTTP/3, "
+            "security level, and the rest) with its value; reads only.",
             {
                 "type": "object",
                 "properties": {
@@ -3088,7 +3099,10 @@ class ToolRegistry:
                                         "dns_delete", "settings_set", "origin_certificate",
                                         "origin_certificates", "email_routing_status",
                                         "email_routing_enable", "email_routing_disable",
-                                        "email_routing_destination", "email_routing_rule"]},
+                                        "email_routing_destination", "email_routing_rule",
+                                        "email_routing_rules", "email_routing_rule_delete",
+                                        "zone_settings"]},
+                    "rule_id": {"type": "string", "description": "For email_routing_rule_delete: the rule's id, as email_routing_rules lists it, instead of from."},
                     "replace_mx": {"type": "boolean",
                                    "description": "For email_routing_enable: remove the MX records and change the SPF record it named. Only once ‹owner› has agreed to exactly those."},
                     "email": {"type": "string", "description": "For email_routing_destination: the address mail is forwarded to."},
@@ -3131,7 +3145,7 @@ class ToolRegistry:
                 },
             },
             self._cloudflare, area="self",
-            brief="Cloudflare zones: whether a token is set (in Settings), open that page, DNS records read, set and one deleted, settings, origin certificates made and listed, Email Routing (mail forwarding)",
+            brief="Cloudflare zones: whether a token is set (in Settings), open that page, DNS records read, set and one deleted, settings read and set, origin certificates made and listed, Email Routing (mail forwarding) and its rules",
         )
 
         # Slack (`rouh/slack.py`, `rouh/slack_listen.py`). Petar, 16 October 2026: "I need you to
@@ -6933,7 +6947,9 @@ class ToolRegistry:
             "zip, a recording, an export - write_drive_file would have to pass the "
             "whole thing through you as text and would ruin it. Give path, the file's "
             "path on this machine. Give a whole folder's path instead and everything "
-            "inside it goes up, with matching folders made in Drive as it goes. It "
+            "inside it goes up, with matching folders made in Drive as it goes. A "
+            "background job gives a path in its own working folder, relative or whole: "
+            "the file is handed to Rouh as it is. It "
             "says how big what it sent was and gives back the link. Pass "
             "anyone_with_link or people to share it in the same breath, which is the "
             "same sharing share_drive_file does and carries the same warning: say what "
@@ -10364,20 +10380,36 @@ class ToolRegistry:
         blocked = self.google.not_ready_because()
         if blocked:
             return blocked
-        from .google_api import MAX_UPLOAD_BYTES, size_said, type_of
-
         asked = (args.get("path") or "").strip()
         if not asked:
             return "Say which file on this machine to upload, by its path."
         where = os.path.abspath(os.path.expanduser(asked))
         if not os.path.exists(where):
             return f"There is nothing at {asked} on this machine."
-        refused = _not_for_drive(where)
+        # A job's own file, put where Rouh can read it by the job's tools server
+        # (`worker_mcp._stage`): said by where it came from, and taken away once read.
+        staged = _staged(where)
+        if staged:
+            asked = str(args.get("staged_from") or asked)
+        refused = _not_for_drive(where) or (_not_for_drive(asked) if staged else "")
         if refused:
+            _unstage(staged)
             return refused
         drive = self.google.services().drive
         if os.path.isdir(where):
-            return await self._upload_a_tree(drive, asked, where, args)
+            try:
+                return await self._upload_a_tree(drive, asked, where, args)
+            finally:
+                _unstage(staged)
+        try:
+            return await self._upload_one(drive, asked, where, args)
+        finally:
+            _unstage(staged)
+
+    async def _upload_one(self, drive, asked: str, where: str, args) -> str:
+        """One file off this machine's disk into Drive (`_upload_drive_file`)."""
+        from .google_api import MAX_UPLOAD_BYTES, size_said, type_of
+
         size = os.path.getsize(where)
         if size > MAX_UPLOAD_BYTES:
             return (f"{asked} is {size_said(size)}, and the most I will put into Drive "
@@ -16424,6 +16456,12 @@ class ToolRegistry:
         return untrusted.ours(
             note + "\n" + untrusted.wrap(said, untrusted.source_for("youtube_transcript")))
 
+    async def _reddit_search(self, args, emit):
+        """Posts on Reddit matching a query (`rouh/reddit.py`)."""
+        from . import reddit
+
+        return await reddit.answer(args or {})
+
     async def _youtube_search(self, args, emit):
         """Videos matching a query. The API if there is a key, scraping if not."""
         from . import youtube
@@ -16757,7 +16795,8 @@ class ToolRegistry:
         if action in ("settings", "dns_set", "dns_delete", "settings_set", "origin_certificate",
                       "origin_certificates", "email_routing_status",
                       "email_routing_enable", "email_routing_disable", "email_routing_destination",
-                      "email_routing_rule"):
+                      "email_routing_rule", "email_routing_rules", "email_routing_rule_delete",
+                      "zone_settings"):
             zone = cloudflare.domain_of(args.get("zone"))
             if not zone:
                 return "Which zone? Give its domain name, such as example.com."
@@ -16772,10 +16811,18 @@ class ToolRegistry:
                         said = await asyncio.to_thread(api.email_disable)
                     elif action == "email_routing_destination":
                         said = await asyncio.to_thread(api.email_destination, args.get("email"))
+                    elif action == "email_routing_rules":
+                        said = await asyncio.to_thread(api.email_rules)
+                    elif action == "email_routing_rule_delete":
+                        said = await asyncio.to_thread(api.email_rule_delete, args.get("from") or "",
+                                                       args.get("rule_id") or "")
                     else:
                         said = await asyncio.to_thread(api.email_rule, args.get("from"), args.get("to"),
                                                        args.get("catch_all") is True)
                     return f"{zone}, Email Routing:\n" + "\n".join(said)
+                if action == "zone_settings":
+                    said = await asyncio.to_thread(api.all_settings)
+                    return f"{zone}'s settings ({len(said)}):\n" + "\n".join(said)
                 if action == "settings":
                     got = await asyncio.to_thread(api.settings)
                     return f"{zone}: " + "; ".join(
@@ -17136,6 +17183,24 @@ _GOOGLE_TYPE_FOR = {
     ".pptx": "application/vnd.google-apps.presentation",
     ".ppt": "application/vnd.google-apps.presentation",
 }
+
+
+def _staged(path: str) -> str:
+    """The staging folder a job's file was put in for Rouh to read (`worker_mcp._stage`), or ""."""
+    from . import filestore
+
+    base = os.path.join(os.path.realpath(filestore.root()), ".uploads")
+    real = os.path.realpath(path)
+    if not real.startswith(base + os.sep):
+        return ""
+    parts = os.path.relpath(real, base).split(os.sep)
+    return os.path.join(base, *parts[:2]) if len(parts) >= 3 else ""
+
+
+def _unstage(folder: str) -> None:
+    """Take a staged copy away once it has been read: the job still has its own."""
+    if folder:
+        shutil.rmtree(folder, ignore_errors=True)
 
 
 def _not_for_drive(path: str) -> str:

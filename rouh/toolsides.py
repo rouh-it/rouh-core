@@ -104,6 +104,7 @@ WORDS: dict[str, str] = {
     # Web, YouTube and LinkedIn (Rouh's own)
     "youtube_transcript": "reads a video's words", "youtube_search": "searches YouTube",
     "look_into": "researches a question", "linkedin_search": "searches LinkedIn", "linkedin_profile": "reads a profile",
+    "reddit_search": "searches Reddit",
     # Live browser
     "browser": "drives the live browser",
     # Background jobs

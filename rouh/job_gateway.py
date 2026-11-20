@@ -291,6 +291,15 @@ def _core_command_tool() -> dict:
 
 
 NATIVE_TOOLS.append(_core_command_tool())
+
+
+def _database_read_tool() -> dict:
+    from . import db_read
+
+    return db_read.tool_definition()
+
+
+NATIVE_TOOLS.append(_database_read_tool())
 NATIVE_BY_NAME = {t["name"]: t for t in NATIVE_TOOLS}
 
 #: What a tool that may need the owner's yes is told, after its own description.
@@ -356,8 +365,9 @@ async def _in_gateway(who, work, beat_id: int | None = None):
 
 async def tools_for(scope: Scope) -> list[dict]:
     """Every tool this job is listed, in MCP's shape: the gateway's own, then the registry's."""
-    native = [t for t in NATIVE_TOOLS if scope.kind != policy.CONTACT
-              or t["name"] in policy.CONTACT_MAY]
+    native = [t for t in NATIVE_TOOLS if (scope.kind != policy.CONTACT
+              or t["name"] in policy.CONTACT_MAY)
+              and (scope.kind == policy.OWNER or t["name"] not in policy.OWNER_ONLY)]
     if hooks.registry is None:
         return native
     if scope.kind == policy.CONTACT:
@@ -744,6 +754,10 @@ async def _native(scope: Scope, name: str, args: dict, why: str = "") -> dict:
         from . import core_commands
 
         return await core_commands.call(scope, args, why)
+    if name == policy.DATABASE_READ:
+        from . import db_read
+
+        return await db_read.call(scope, args, why)
     with speaking(scope.who):
         if name == policy.MAIL_FIND:
             return await job_mail.find(scope, args)

@@ -106,7 +106,8 @@
     "rouh/youtube_store.py",
     "rouh/models/youtube.py",
     "PROTOCOL.md",
-    "rouh/static/app/protocol.d.ts"
+    "rouh/static/app/protocol.d.ts",
+    "rouh/reddit.py"
    ],
    "needed_by": [
     "account",
@@ -724,7 +725,8 @@
     "rouh/his_word.py",
     "rouh/migrations/0225_his_word.py",
     "rouh/core_commands.py",
-    "rouh/management/commands/table_sizes.py"
+    "rouh/management/commands/table_sizes.py",
+    "rouh/db_read.py"
    ]
   },
   "runs": {
@@ -3634,7 +3636,8 @@
     "rouh/migrations/0267_permission_mode_seal.py",
     "rouh/genes/manifests/unrestricted-mode.json",
     "rouh/selfcheck/unrestricted.py",
-    "rouh/selfcheck/undo_191.py"
+    "rouh/selfcheck/undo_191.py",
+    "rouh/selfcheck/tools_191.py"
    ]
   }
  }

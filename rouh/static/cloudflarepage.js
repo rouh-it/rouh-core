@@ -150,7 +150,7 @@
 
   function aboutCard(d) {
     var s = card('Cloudflare', '', 'cf-about');
-    s.appendChild(el('p', 'settings-help', 'One API token for each zone, for Rouh’s own work on its DNS, ' +
+    s.appendChild(el('p', 'settings-help', 'An API token for each zone, or one for all of them, for Rouh’s own work on its DNS, ' +
       'certificates and settings. A token typed here goes straight to Rouh’s server, is checked with ' +
       'Cloudflare and kept sealed. No chat, model or log ever sees it, and this page shows only its last four.'));
     var perms = el('div', 'pay-perms cf-perms');
@@ -163,7 +163,8 @@
     opt.appendChild(el('span', 'pay-perm-name', 'Optional'));
     opt.appendChild(el('span', 'pay-perm-what', d.optional.join('; ')));
     perms.appendChild(opt);
-    perms.appendChild(el('p', 'settings-help', 'Zone Resources: Include, Specific zone, and that one zone only. ' +
+    perms.appendChild(el('p', 'settings-help', 'Zone Resources: Include, Specific zone, for one zone; or All zones ' +
+      'from an account, and Rouh keeps that one token for every zone on this list it passes for. ' +
       'In Cloudflare: My Profile, API Tokens, or Manage Account, API Tokens; then Create Token, Custom token. ' +
       'Rouh finds the zone ID with the token. For a token made under Manage Account, also paste the ' +
       'Account ID that page shows.'));

@@ -660,12 +660,123 @@ def gateway_call(name: str, arguments) -> tuple[str, bool]:
         _, why = _where(str(arguments.get("save_to") or ""), "attachment")
         if why:
             return why, True
+    if name in STAGED_TOOLS and arguments.get("path"):
+        arguments, why = _stage(arguments)
+        if why:
+            return why, True
     try:
         status, answer = _post(gateway_url(), {"job": job, "action": "call", "tool": name,
                                                "args": arguments}, timeout=GATEWAY_SECONDS)
     except OSError as error:
         return f"Rouh is not answering on this machine ({error}), so nothing was done.", True
     return _gateway_response(status, answer, arguments)
+
+
+#: Rouh's tools that read a file off disk by its path, run by Rouh where the job's own folder
+#: cannot be seen (20 November 2026, task 191: "the upload tool could not see this run's file").
+STAGED_TOOLS = frozenset({"upload_drive_file"})
+#: Where a run's file is put for Rouh to read: in Rouh's one store (`rouh/filestore.py`), which
+#: Rouh and every job see at the same path, under a folder Rouh empties once it has read it.
+STAGING = ".uploads"
+#: How long a staged file Rouh never read (a call the person said no to) is kept.
+STAGED_DAYS = 7
+#: The most staged in one call: as much as upload_drive_file takes in one go
+#: (`google_api.drive.MAX_TREE_FILES` and `MAX_TREE_BYTES`).
+STAGED_FILES, STAGED_BYTES = 200, 256 * 1024 * 1024
+#: Names secrets are kept under, never copied (the same as `workspace.SECRET_NAMES`; this
+#: process imports nothing of Rouh's).
+SECRET_NAMES = (".env*", "*.pem", "*.key", ".passphrase", "*.sqlite3", "*.sqlite3-*",
+                "id_rsa*", "id_ed25519*", "*.p12", "*.pfx", ".netrc")
+
+
+def _secret(name: str) -> bool:
+    import fnmatch
+
+    return name == ".git" or any(fnmatch.fnmatchcase(name.lower(), p) for p in SECRET_NAMES)
+
+
+def files_root() -> str:
+    """Rouh's one store as this job sees it, or "" where there is none to share."""
+    said = os.environ.get("ROUH_FILES_DIR", "").strip()
+    if said:
+        return said if os.path.isdir(said) else ""
+    folder = os.path.join(os.path.dirname(os.environ.get("ROUH_WORKER_KEY_FILE", "").strip() or KEY_FILE),
+                          "files")
+    return folder if os.path.isdir(folder) else ""
+
+
+def _stage(arguments: dict) -> tuple[dict, str]:
+    """A file or folder of this job's, given by a path Rouh may not see, put where Rouh sees it.
+
+    The path is read against this job's own working folder. In the containers Rouh runs in
+    another container, which sees Rouh's one store and not this job's checkout, so the file is
+    copied into the store's staging folder and the call names that copy, with `staged_from`
+    saying where it came from; Rouh removes the copy once it has read it. Where there is no
+    store to share (one machine), the path is only made whole, which Rouh then sees as it is.
+    Returns (the arguments to send, "") or ({}, why not)."""
+    import shutil
+    import time
+    import uuid
+
+    asked = str(arguments.get("path") or "").strip()
+    full = os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(asked)))
+    root = os.path.realpath(files_root()) if files_root() else ""
+    if not os.path.exists(full):
+        # Not this job's: Rouh looks for it where it runs, and says so if it is not there either.
+        return arguments, ""
+    if any(_secret(part) for part in full.split(os.sep) if part):
+        return {}, (f"{asked} is, or is inside, a name secrets or git's own files are kept under, so it "
+                    "never leaves this machine.")
+    if not root or full == root or full.startswith(root + os.sep):
+        return {**arguments, "path": full}, ""
+    files, total = [], 0
+    if os.path.isdir(full):
+        for here, folders, names in os.walk(full, followlinks=False):
+            folders[:] = sorted(f for f in folders if not _secret(f))
+            for n in sorted(names):
+                one = os.path.join(here, n)
+                if _secret(n) or os.path.islink(one):
+                    continue
+                files.append(one)
+                total += os.path.getsize(one)
+    else:
+        files, total = [full], os.path.getsize(full)
+    if len(files) > STAGED_FILES or total > STAGED_BYTES:
+        return {}, (f"{asked} is {len(files)} files and {total:,} bytes; the most one upload takes is "
+                    f"{STAGED_FILES} files and {STAGED_BYTES:,} bytes, so nothing was sent. Name a "
+                    "folder inside it, or zip it.")
+    staging = os.path.join(root, STAGING, _safe_name(job_id()) or "job")
+    try:
+        _sweep(os.path.join(root, STAGING), time.time() - STAGED_DAYS * 86400)
+        made = os.path.join(staging, uuid.uuid4().hex[:12])
+        target = os.path.join(made, os.path.basename(full.rstrip(os.sep)))
+        if os.path.isdir(full):
+            for one in files:
+                into = os.path.join(target, os.path.relpath(one, full))
+                os.makedirs(os.path.dirname(into), exist_ok=True)
+                shutil.copy2(one, into)
+        else:
+            os.makedirs(made, exist_ok=True)
+            shutil.copy2(full, target)
+    except OSError as error:
+        return {}, f"{asked} could not be put where Rouh can read it ({error}), so nothing was sent."
+    return {**arguments, "path": target, "staged_from": full}, ""
+
+
+def _sweep(folder: str, before: float) -> None:
+    """Staged copies older than `before`, which Rouh never read, taken away."""
+    import shutil
+
+    if not os.path.isdir(folder):
+        return
+    for job in os.listdir(folder):
+        for one in os.listdir(os.path.join(folder, job)) if os.path.isdir(os.path.join(folder, job)) else []:
+            path = os.path.join(folder, job, one)
+            try:
+                if os.path.getmtime(path) < before:
+                    shutil.rmtree(path, ignore_errors=True)
+            except OSError:
+                continue
 
 
 def _gateway_response(status: int, answer: dict, arguments: dict) -> tuple[str, bool]:

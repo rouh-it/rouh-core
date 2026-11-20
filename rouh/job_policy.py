@@ -75,7 +75,12 @@ MAIL_FIND, MAIL_FILE = "mail_find", "mail_file"
 REQUEST, REQUEST_STATUS = "request_from_rouh", "request_status"
 #: A management command run by Rouh's core, from a short allowlist (`rouh/core_commands.py`).
 CORE_COMMAND = "core_command"
-NATIVE = (MAIL_FIND, MAIL_FILE, REQUEST, REQUEST_STATUS, CORE_COMMAND)
+#: One SELECT of Rouh's own database, read only, credentials masked (`rouh/db_read.py`, 20 November
+#: 2026, task 191). The owner's own jobs only: refused to every other scope (`decide`).
+DATABASE_READ = "database_read"
+NATIVE = (MAIL_FIND, MAIL_FILE, REQUEST, REQUEST_STATUS, CORE_COMMAND, DATABASE_READ)
+#: The gateway's own tools a job gets only when it is the owner's own.
+OWNER_ONLY = frozenset({DATABASE_READ})
 
 #: The core's commands a job may name that only read: run at once, for the owner's and Rouh's
 #: own jobs.
@@ -88,8 +93,8 @@ CORE_MAINTENANCE = frozenset({"scrub_encrypted_reasoning", "code_release_publish
 
 #: Tools that only read, whatever their arguments.
 READS = frozenset({
-    # The gateway's own.
-    MAIL_FIND, MAIL_FILE, REQUEST, REQUEST_STATUS,
+    # The gateway's own. database_read reads in a transaction PostgreSQL holds read only.
+    MAIL_FIND, MAIL_FILE, REQUEST, REQUEST_STATUS, DATABASE_READ,
     # Mail: reading and saving a file into a task, never marking, moving or sending.
     "read_recent_mail", "read_mail", "read_mail_attachment",
     # Calendar.
@@ -115,6 +120,8 @@ READS = frozenset({
     "mail_alerts",
     # The public web, read with Rouh's own accounts.
     "youtube_search", "youtube_transcript", "linkedin_search", "linkedin_profile",
+    # Reddit's posts, read through its API (20 November 2026, task 191).
+    "reddit_search",
     # Reads that were in no table until 20 November 2026 (task 191, 191-02 package 1.7), so each
     # was unknown, and unknown always waited for the owner: 10 of the 50 decisions waiting on 19
     # November were one of these. Each reads and changes nothing.
@@ -133,8 +140,10 @@ READ_ACTIONS = {
     "link_person": frozenset({"show"}),
     # check writes back only the value it just read (`cloudflare._settings_edit`);
     # origin_certificates lists the zone's public certificates. dns_delete is not here: it is risky.
+    # zone_settings and email_routing_rules list what the zone has (20 November 2026, task 191);
+    # email_routing_rule_delete is not here: it is risky.
     "cloudflare": frozenset({"status", "check", "records", "settings", "origin_certificates",
-                             "email_routing_status"}),
+                             "email_routing_status", "email_routing_rules", "zone_settings"}),
     "hue": frozenset({"list"}),
     "vacuum": frozenset({"status"}),
     # What the heartbeat reads of Stripe (`heartbeat.STRIPE_READS`); "status" when not said.
@@ -279,7 +288,7 @@ HEARTBEAT_OWN = frozenset({"heartbeat_end", "heartbeat_ask", "heartbeat_brief", 
 #: its files (Rouh holds it to that conversation in `rouh/job_mail.py`), asking Rouh, and the
 #: public web.
 CONTACT_MAY = frozenset({MAIL_FIND, MAIL_FILE, REQUEST, REQUEST_STATUS,
-                         "youtube_search", "youtube_transcript"})
+                         "youtube_search", "youtube_transcript", "reddit_search"})
 
 #: Arguments only the gateway reads, taken off before a tool is run or queued.
 WHY_ARG = "rouh_why"
@@ -410,6 +419,10 @@ def decide(scope: str, name: str, args=None) -> Ruling:
         return Ruling(REFUSE, klass, (
             f"{str(args.get('command') or '')!r} is not on the core's list. The commands: "
             + ", ".join(sorted(CORE_READS | CORE_MAINTENANCE)) + "."))
+    if name in OWNER_ONLY and scope != OWNER:
+        return Ruling(REFUSE, klass, (
+            f"{name} is only for jobs from the owner's own words; this one is not, so Rouh does not "
+            "run it. Ask with request_from_rouh if the work truly needs it."))
     if scope == BEAT and name in HEARTBEAT_OWN:
         return Ruling(RUN, OWN)
     if klass == NEVER:
@@ -439,6 +452,6 @@ def decide(scope: str, name: str, args=None) -> Ruling:
     return Ruling(PENDING, klass)
 
 
-__all__ = ["SHELL_READS", "shell_read", "BEAT", "HEARTBEAT_OWN", "CONTACT", "CONTACT_MAY", "CORE_COMMAND", "CORE_MAINTENANCE", "CORE_READS", "NATIVE", "NEVER", "NEVERS", "OWN", "OWNER", "OWNS",
+__all__ = ["SHELL_READS", "shell_read", "BEAT", "HEARTBEAT_OWN", "CONTACT", "CONTACT_MAY", "CORE_COMMAND", "CORE_MAINTENANCE", "CORE_READS", "DATABASE_READ", "NATIVE", "OWNER_ONLY", "NEVER", "NEVERS", "OWN", "OWNER", "OWNS",
            "PENDING", "PROCESS", "READ", "READS", "READ_UNLESS", "REFUSE", "RISKS", "RISKY", "RUN",
            "Ruling", "SCOPES", "WHY_ARG", "classify", "decide", "known", "listed"]

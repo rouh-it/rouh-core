@@ -105,6 +105,18 @@ BOX_GONE_BY = 1.0
 
 #: Seconds between two looks at a run's processes, where there is no box.
 WATCH_EVERY = 2.0
+#: How much of its memory limit a run may hold before it is warned, once, in words typed into its
+#: own terminal, that it is near being ended and should commit what it has (20 November 2026, task
+#: 191: run 8da251bf was ended "for holding 4418 MB of memory, over the 4096 MB one run may hold"
+#: with its live cursors built and nothing committed, and was never told it was close).
+WARN_AT = 0.8
+#: The warning, as the run reads it. Typed by the holder, never by the person, so the program does
+#: not write it down as the owner's words.
+WARNING = ("[one] Memory warning from the one program, not from the person: this run and what it "
+           "started hold {used} of memory, {share}% of the {limit} one run may hold "
+           "(ONE_RUN_MEMORY_MAX). At {limit} the program ends the whole run at once. Now, before "
+           "anything else: commit what you have so far, and stop what you started that you no longer "
+           "need (test servers, browsers, watchers). Then carry on, holding less at a time.")
 
 
 def own_cgroup() -> str | None:
@@ -164,6 +176,10 @@ class Holder:
         self.watched_at = 0.0
         #: Why the holder ended the run itself, in a sentence, for exit.json.
         self.over_memory = ""
+        #: What the run was warned about its memory, once, before it was near its limit (`WARN_AT`).
+        self.memory_warned = ""
+        #: When the Enter after a typed warning is pressed: a moment after the paste, as a person would.
+        self.enter_at: float | None = None
         #: When the run's processes, told to go, are killed if still there.
         self.kill_procs_at: float | None = None
 
@@ -608,11 +624,16 @@ class Holder:
         if self.kill_procs_at is not None and now >= self.kill_procs_at:
             self.kill_procs_at = None
             procs.signal(signal.SIGKILL)
+        if self.enter_at is not None and now >= self.enter_at:
+            self.enter_at = None
+            self._type(b"\r")
         if not self.limit or self.over_memory or now - self.watched_at < WATCH_EVERY:
             return
         self.watched_at = now
         used = procs.memory()
         if used <= self.limit:
+            if used >= self.limit * WARN_AT and not self.memory_warned:
+                self._warn(used)
             return
         self.over_memory = (f"was ended for holding {_mb(used)} of memory, over the "
                             f"{_mb(self.limit)} one run may hold (ONE_RUN_MEMORY_MAX)")
@@ -625,6 +646,24 @@ class Holder:
         self._to_controller(b"o", said)
         procs.signal(signal.SIGTERM)
         self.kill_procs_at = now + runprocs.GRACE
+
+    def _type(self, data: bytes) -> None:
+        """Bytes into the run's terminal, as if typed, by the holder itself."""
+        if self.master_open and self.master >= 0:
+            self.pending_input += data
+            self._flush_input()
+
+    def _warn(self, used: int) -> None:
+        """Tell the run, in its own terminal, that it is near its memory limit: pasted as one
+        message, as the program pastes the person's words, and sent with Enter a moment later.
+        A run that is busy reads it once its turn is done, as anything typed then."""
+        self.memory_warned = WARNING.format(used=_mb(used), limit=_mb(self.limit),
+                                            share=int(round(100 * used / self.limit)))
+        sys.stderr.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} holder: the run holds {_mb(used)}, "
+                         f"near its {_mb(self.limit)}; warned it\n")
+        sys.stderr.flush()
+        self._type(b"\x1b[200~" + self.memory_warned.encode("utf-8") + b"\x1b[201~")
+        self.enter_at = time.monotonic() + 0.3
 
     def _end_the_procs(self) -> None:
         """Where there is no box: end every process the run still has, detached or not."""
@@ -643,6 +682,8 @@ class Holder:
         info = {"code": code, "signal": sig, "at": time.time()}
         if self.over_memory:
             info["over_memory"] = self.over_memory
+        if self.memory_warned:
+            info["memory_warned"] = True
         return info
 
     def _send_exit(self) -> None:

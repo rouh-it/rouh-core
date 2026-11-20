@@ -158,7 +158,7 @@ AREA_OF: dict[str, str] = {
     # Web, YouTube and LinkedIn
     "web_search": "research", "web_fetch": "research", "youtube_transcript": "research",
     "youtube_search": "research", "look_into": "research", "linkedin_search": "research",
-    "linkedin_profile": "research",
+    "linkedin_profile": "research", "reddit_search": "research",
     # Live browser
     "browser": "live_browser",
     # Pictures

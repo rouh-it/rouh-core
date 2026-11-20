@@ -88,9 +88,13 @@ async def token(request: HttpRequest):
                                       body.get("account_id") or "")
         last4 = next((z["token"]["last4"] for z in got["zones"] if z["zone"] == zone and z["token"]), "")
         why = got.pop("why", "")
+        also = got.get("also") or []
+        # An account-wide token is kept for the other zones on the list it passes for too.
+        more = (f" It sees {', '.join(also)} as well, so it is kept for "
+                f"{'that zone' if len(also) == 1 else 'those zones'} too." if also else "")
         if got.get("kept_failing"):
-            return got, f"Kept the {zone} token ending {last4}, sealed, but {why}"
-        return got, f"Saved the {zone} token ending {last4}: it passed every check."
+            return got, f"Kept the {zone} token ending {last4}, sealed, but {why}{more}"
+        return got, f"Saved the {zone} token ending {last4}: it passed every check.{more}"
     return await _do(request, go)
 
 

@@ -1,4 +1,10 @@
-"""Cloudflare: one API token per zone, typed into Settings and kept sealed.
+"""Cloudflare: an API token for each zone, typed into Settings and kept sealed.
+
+**One token for every zone** (20 November 2026, task 191): a token that sees several zones, made
+for the whole account, is no longer refused for it. Saved in one zone's row, it is checked and kept
+there, and then checked for each other zone on the organisation's list it sees and kept for every
+one it passes for (`_for_the_others`), so one paste serves them all; a zone whose own token passed
+keeps its own, and a zone the token sees that is not on the list is never touched.
 
 Petar, 12 October 2026: "create an input field where I can save the token in settings, so
 it doesn't pass through the LLM. Remember I have one cloudflare token for [the first Rouh's
@@ -323,11 +329,16 @@ def prove(token: str, zone: str, *, zone_id: str = "", account_id: str = "") -> 
         names = sorted(str(z.get("name") or "") for z in call(token, "GET", "/zones?per_page=50")["result"] or [])
     except CFError:
         names = [zone]
+    found["sees"] = names
     if names == [zone]:
         mark(f"Only {zone}", True, f"the token sees {zone} and no other zone")
     else:
-        mark(f"Only {zone}", False, f"the token sees {_and(names)}; in Cloudflare, set its Zone "
-             f"Resources to Include, Specific zone, {zone}")
+        # One token for every zone of the owner's (20 November 2026, task 191: three token saves for
+        # rouh.page were refused here because the token saw the owner's other zones too). It is
+        # kept for this zone, and for each other zone on this organisation's list it passes for
+        # (`save`); a zone it sees that is not on the list is never touched.
+        mark("Zones it sees", True, f"an account-wide token: it sees {_and(names)}; Rouh uses it for "
+             "each of them on this list that it passes the checks for", optional=True)
 
     zid = found["zone_id"]
     for name, path in ((DNS, f"/zones/{zid}/dns_records?per_page=1"),
@@ -483,21 +494,51 @@ def save(who, zone: str, token: str, account_id: str = "") -> dict:
     if not proved["ok"] and not fixable:
         log.info("a Cloudflare token for %s was refused (%s)", row.zone, ", ".join(proved["missing"]))
         raise Refused(_why_not(row.zone, proved), tried)
-    now = time.time()
-    _model().objects.filter(id=row.id, org_id=who.org_id).update(
-        token_sealed=_box().seal(token), last4=token[-4:], saved_at=now, saved_by=str(who.user_id),
-        source="settings", carried=True, checked_at=now, check_ok=proved["ok"], checks=proved["checks"],
-        zone_id=proved["zone_id"] or row.zone_id, account_id=proved["account_id"] or row.account_id,
-        status=proved["status"], updated_at=now)
+    _keep(who, row, token, proved)
     if fixable:
         log.info("a Cloudflare token for %s was kept, failing for want of %s, for org %s by user %s",
                  row.zone, ", ".join(proved["missing"]), who.org_id, who.user_id)
     else:
         log.info("a Cloudflare token for %s was checked and saved for org %s by user %s",
                  row.zone, who.org_id, who.user_id)
+    also = _for_the_others(who, row.zone, token, proved.get("sees") or [])
     token = ""
-    return {**public(who), "tried": tried, "kept_failing": fixable,
+    return {**public(who), "tried": tried, "kept_failing": fixable, "also": also,
             "why": _fix_then_check(row.zone, proved) if fixable else ""}
+
+
+def _keep(who, row, token: str, proved: dict) -> None:
+    """One zone's row given this token, sealed, with what its check found."""
+    now = time.time()
+    _model().objects.filter(id=row.id, org_id=who.org_id).update(
+        token_sealed=_box().seal(token), last4=token[-4:], saved_at=now, saved_by=str(who.user_id),
+        source="settings", carried=True, checked_at=now, check_ok=proved["ok"], checks=proved["checks"],
+        zone_id=proved["zone_id"] or row.zone_id, account_id=proved["account_id"] or row.account_id,
+        status=proved["status"], updated_at=now)
+
+
+def _for_the_others(who, zone: str, token: str, sees: list[str]) -> list[str]:
+    """An account-wide token, kept for the other zones of this organisation's list it sees too.
+
+    Each is checked on its own, exactly as a token typed into its row would be, and kept there only
+    when it passes (or fails for a missing permission alone, as `save` keeps one); a zone whose own
+    token passed is never given this one in its place, and a zone it sees that is not on the list is
+    left alone: adding a zone stays the administrator's. The zones it was kept for, by name."""
+    kept = []
+    for other in zones_of(who.org_id):
+        if other.zone == zone or other.zone not in sees or (other.token_sealed and other.check_ok is True):
+            continue
+        try:
+            proved = prove(token, other.zone, zone_id=other.zone_id, account_id=other.account_id)
+        except CFError:
+            continue
+        if not proved["ok"] and not only_permissions_missing(proved):
+            continue
+        _keep(who, other, token, proved)
+        log.info("the account-wide Cloudflare token saved for %s was kept for %s too, for org %s",
+                 zone, other.zone, who.org_id)
+        kept.append(other.zone)
+    return kept
 
 
 def only_permissions_missing(proved: dict) -> bool:
@@ -794,6 +835,9 @@ class ZoneAPI:
             elif do == "setting":
                 self.call("PATCH", f"/settings/{op['key']}", {"value": op["value"]})
                 said.append(f"{op['key']} is {op['value']} again")
+            elif do == "email_rule":
+                self._need(EMAIL_RULES, "POST", "/email/routing/rules", body)
+                said.append(f"the rule {_rule(body)} is back")
             elif do == "email_disable":
                 said += self.email_disable(keep_undo=False)
             elif do == "email_enable":
@@ -822,6 +866,20 @@ class ZoneAPI:
         except CFError as exc:
             out["status"] = f"unreadable ({exc})"
         return out
+
+    def all_settings(self) -> list[str]:
+        """Every setting of the zone, as Cloudflare lists them (`GET /zones/<id>/settings`, Zone
+        Settings Read), a line each: its name, its value, and whether it may be changed. Reads
+        only (20 November 2026, task 191: a job could read the five encryption settings and no
+        other, so "what is this zone's cache level" or "is HTTP/3 on" went to the owner)."""
+        got = self.call("GET", "/settings")["result"] or []
+        lines = []
+        for one in sorted((g for g in got if isinstance(g, dict)), key=lambda g: str(g.get("id") or "")):
+            value = one.get("value")
+            if isinstance(value, (dict, list)):
+                value = json.dumps(value, ensure_ascii=False, sort_keys=True)
+            lines.append(f"{one.get('id')}: {value}" + ("" if one.get("editable", True) else " (not editable)"))
+        return lines
 
     #: The encryption settings `settings_set` may change, and the values each may take (task
     #: 165, 2 November 2026: rouh.land goes to Full (strict) once its server has a Cloudflare
@@ -1198,6 +1256,45 @@ class ZoneAPI:
         except CFError:
             pass
         return said
+
+
+    def email_rules(self) -> list[str]:
+        """The zone's Email Routing rules, a line each with its id, and the catch-all. Reads only."""
+        rules = self._need(EMAIL_RULES, "GET", "/email/routing/rules?per_page=50")["result"] or []
+        lines = [f"{r.get('id') or r.get('tag')}: {_rule(r)}" + (f" ({r['name']})" if r.get("name") else "")
+                 for r in rules if isinstance(r, dict)
+                 and not any(m.get("type") == "all" for m in r.get("matchers") or [])]
+        catch = self._need(EMAIL_RULES, "GET", "/email/routing/rules/catch_all")["result"] or {}
+        return (lines or ["no rules"]) + ["catch-all: " + (_does(catch) if catch.get("enabled") else "off")]
+
+    def email_rule_delete(self, address: str = "", rule_id: str = "") -> list[str]:
+        """Delete one Email Routing rule, named by the address it matches or by its id, and keep
+        it as it was so it can be made again (What Rouh did's undo, or email_routing_rule). One
+        rule a call; the catch-all is never deleted (email_routing_rule with catch_all changes it)."""
+        address, rule_id = str(address or "").strip().lower(), str(rule_id or "").strip()
+        if not address and not rule_id:
+            raise CFError("say which rule: the address it forwards (from) or its id (rule_id); nothing was deleted")
+        if address and "@" not in address:
+            address = f"{address}@{self.zone}"
+        rules = self._need(EMAIL_RULES, "GET", "/email/routing/rules?per_page=50")["result"] or []
+        found = [r for r in rules if isinstance(r, dict)
+                 and not any(m.get("type") == "all" for m in r.get("matchers") or [])
+                 and ((rule_id and rule_id in (str(r.get("id") or ""), str(r.get("tag") or "")))
+                      or (address and any(m.get("type") == "literal" and str(m.get("value") or "").lower() == address
+                                          for m in r.get("matchers") or [])))]
+        if not found:
+            raise CFError(f"{self.zone} has no Email Routing rule for {address or rule_id}; nothing was deleted")
+        if len(found) > 1:
+            raise CFError(f"{len(found)} rules of {self.zone} match {address or rule_id}; give its id "
+                          f"(rule_id, from email_routing_rules); nothing was deleted")
+        r = found[0]
+        rid = r.get("id") or r.get("tag")
+        self._need(EMAIL_RULES, "DELETE", f"/email/routing/rules/{rid}")
+        was = {k: r[k] for k in ("actions", "matchers", "enabled", "name", "priority") if r.get(k) is not None}
+        self._undo({"do": "email_rule", "body": was})
+        log.info("cloudflare: deleted Email Routing rule %s of %s", rid, self.zone)
+        return [f"deleted the rule {_rule(r)} (id {rid})",
+                "as it was, to make it again: " + json.dumps(was, ensure_ascii=False)]
 
 
 _EMAIL = re.compile(r"^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")

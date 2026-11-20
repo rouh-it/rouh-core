@@ -209,6 +209,26 @@ def _check_brevo(v: dict) -> tuple[dict, str]:
     return v, f"the key works; letters come from {sender}"
 
 
+def _check_reddit(v: dict) -> tuple[dict, str]:
+    """A Reddit app's client id (and secret), asked for an app-only token (`rouh/reddit.py`)."""
+    import uuid
+
+    from . import reddit
+
+    cid, secret = v.get(reddit.CLIENT_ID, ""), v.get(reddit.CLIENT_SECRET, "")
+    data = ({"grant_type": "client_credentials"} if secret else
+            {"grant_type": "https://oauth.reddit.com/grants/installed_client", "device_id": uuid.uuid4().hex[:30]})
+    r = _http("POST", reddit.TOKEN_URL, data=data, auth=(cid, secret), headers={"User-Agent": reddit.USER_AGENT})
+    try:
+        ok = r.status_code == 200 and bool(r.json().get("access_token"))
+    except ValueError:
+        ok = False
+    if not ok:
+        raise Refused(f"Reddit did not accept that app (it answered {r.status_code}). Copy the id under the "
+                      "app's name at reddit.com/prefs/apps, and its secret for a script or web app.")
+    return v, "Reddit gave Rouh a token for that app"
+
+
 def _check_meetings(v: dict) -> tuple[dict, str]:
     url = re.sub(r"/api/v1/?$", "", v["MEETING_LIBRARY_URL"].strip().rstrip("/"))
     if not url.startswith("https://") and not url.startswith("http://127.0.0.1"):
@@ -295,6 +315,12 @@ SERVICES: tuple[Service, ...] = (
             steps=("In console.apify.com, open Settings, API & Integrations, and copy the personal API token.",),
             fields=(Field("APIFY_API_TOKEN", "API token", placeholder="apify_api_...", config="apify_api_token"),),
             check=_check_apify, after=_after_apify),
+    Service("reddit", "Reddit search", "Rouh searches Reddit when Reddit turns this server away.",
+            steps=("At reddit.com/prefs/apps, create an app of the kind script, with any redirect address.",
+                   "Paste the id under its name and its secret here."),
+            fields=(Field("REDDIT_CLIENT_ID", "Client id", secret=False, placeholder="Under the app's name"),
+                    Field("REDDIT_CLIENT_SECRET", "Secret", required=False)),
+            check=_check_reddit),
     Service("brevo", "Rouh's own letters (Brevo)", "Pages shared by email and password resets, sent from Rouh's address.",
             steps=("In app.brevo.com, open Settings, SMTP & API, API keys, and make one.",
                    "Add the address the letters come from as a sender there, then give it here."),

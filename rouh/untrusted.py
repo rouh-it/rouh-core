@@ -95,6 +95,8 @@ SOURCES = {
                            "spoken in it, written by whoever made it"),
     "youtube_search": ("YouTube search results, with each video's title and "
                        "description written by whoever made it"),
+    # Reddit's posts (`rouh/reddit.py`); a refusal is Rouh's own words (`ours`).
+    "reddit_search": "Reddit posts, each written by the person it names",
     # People on LinkedIn, and one person's whole profile and posts, which are
     # theirs only where labelled so: a repost is the original author's words
     # (`rouh/linkedin.py`, `relation`). Each tool boxes these itself inside

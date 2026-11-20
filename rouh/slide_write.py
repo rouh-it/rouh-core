@@ -21,7 +21,19 @@ Google account can edit, through the Slides API (`google_api/slides.py`, one `ba
 Before it writes it reads the deck (`decks.deck`) and refuses what would do nothing: a slide the
 deck does not have (saying how many it has), words found on none of the slides asked about. Its
 answer says, for each slide, what changed and what the notes said before, so a wrong change can
-be put back in words. Nothing else is touched: no slide is added, moved or deleted.
+be put back in words.
+
+**Slides added, copied, moved and deleted** (20 November 2026, task 191: "Rouh's tools for jobs can
+copy a deck and change words, not add, delete or move slides", so a deck assembled from ‹his›
+decks went back to ‹him›): `add_slides` makes a slide (`createSlide`, on one of Google's own
+layouts, with its title and words put in its placeholders) or copies one of the deck's own
+(`duplicateObject`); `move_slides` puts slides after another (`updateSlidesPosition`);
+`delete_slides` takes slides out (`deleteObject`). Every number in a call is the slide's number in
+the deck as it was read before the call, whatever else the call does, and everything goes in one
+batch, so either all of it happens or none. A deck is never left with no slide, and the answer
+names each deleted slide by its title, so one deleted by mistake can be found in the deck's own
+version history. A slide is taken from another deck by copying that deck (copy_drive_file) and
+deleting the rest, since Google's API copies slides within one deck only.
 
 **Whose.** The decks the connected Google account can edit (`org_id` and `user_id`). It writes
 only what ‹he› asked for in words, in a chat or a job of ‹his›; a deck's own words never ask for
@@ -51,8 +63,16 @@ DESCRIPTION = (
     "of {find, put, slides}: `find` the exact words as they stand on the slide, with their case, "
     "`put` what goes in their place, and `slides` the slide numbers to change, or left out for "
     "every slide. `notes` is a list of {slide, text, add}: the slide's number, the notes, and "
-    "`add` true to put them under what the notes say now rather than in their place. It never "
-    "adds, moves or deletes a slide. Say back what changed, and what the notes said before.")
+    "`add` true to put them under what the notes say now rather than in their place. "
+    "`add_slides` is a list of {after, layout, title, text, copy_of}: a new slide after slide "
+    "`after` (0 for the very first place, the end when left out), on the layout TITLE_AND_BODY "
+    "(the default when it has words), TITLE_ONLY or BLANK, with its title and words; or, with "
+    "`copy_of`, a copy of that slide of the deck (right after it unless `after` says). "
+    "`move_slides` is a list of {slides, after}: those slides put, in their order, after slide "
+    "`after` (0 for the start). `delete_slides` is the numbers of the slides to take out. Every "
+    "number is the slide's number before the call, and everything happens at once or not at all. "
+    "To take slides from another deck, copy that deck with copy_drive_file and delete the rest. "
+    "Say back what changed, and what the notes said before.")
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -70,6 +90,23 @@ SCHEMA = {
                                            "text": {"type": "string"},
                                            "add": {"type": "boolean"}},
                             "required": ["slide", "text"]}},
+        "add_slides": {"type": "array", "description": "Slides to add, or copies of the deck's own.",
+                       "items": {"type": "object",
+                                 "properties": {"after": {"type": "integer",
+                                                          "description": "The slide it comes after; 0 for the first place; the end when left out."},
+                                                "layout": {"type": "string", "enum": ["TITLE_AND_BODY", "TITLE_ONLY", "BLANK"]},
+                                                "title": {"type": "string"},
+                                                "text": {"type": "string"},
+                                                "copy_of": {"type": "integer",
+                                                            "description": "Copy this slide of the deck instead of making a new one."}}}},
+        "move_slides": {"type": "array", "description": "Slides to move.",
+                        "items": {"type": "object",
+                                  "properties": {"slides": {"type": "array", "items": {"type": "integer"}},
+                                                 "after": {"type": "integer",
+                                                           "description": "The slide they go after; 0 for the start."}},
+                                  "required": ["slides", "after"]}},
+        "delete_slides": {"type": "array", "items": {"type": "integer"},
+                          "description": "The numbers of the slides to take out."},
     },
     "required": ["deck"],
 }
@@ -108,8 +145,10 @@ def plan(read: dict, args: dict) -> tuple[list[dict], list[str], str]:
     count = len(slides)
     replace = [r for r in (args.get("replace") or []) if isinstance(r, dict)]
     notes = [n for n in (args.get("notes") or []) if isinstance(n, dict)]
-    if not replace and not notes:
-        return [], [], "Say what to change: words to replace (replace), or speaker notes (notes)."
+    shaping = any(args.get(k) for k in ("add_slides", "move_slides", "delete_slides"))
+    if not replace and not notes and not shaping:
+        return [], [], ("Say what to change: words to replace (replace), speaker notes (notes), or "
+                        "slides to add, move or delete (add_slides, move_slides, delete_slides).")
     if len(replace) > MOST or len(notes) > MOST:
         return [], [], f"At most {MOST} replacements and {MOST} notes in one go."
     requests: list[dict] = []
@@ -160,6 +199,165 @@ def plan(read: dict, args: dict) -> tuple[list[dict], list[str], str]:
         requests.append({"insertText": {"objectId": slide["notes_id"], "insertionIndex": 0, "text": after}})
         lines.append(f"slide {n}'s notes " + ("added to" if one.get("add") and before.strip() else "written")
                      + (f" (they said «{_clip(before)}»)" if before.strip() else " (they were empty)"))
+    if shaping:
+        more, said, why_not = shape(read, args)
+        if why_not:
+            return [], [], why_not
+        requests += more
+        lines += said
+    return requests, lines, ""
+
+
+#: The layouts a new slide may be made on, and the placeholders its title and words go into.
+LAYOUTS = {"TITLE_AND_BODY": ("TITLE", "BODY"), "TITLE_ONLY": ("TITLE", ""), "BLANK": ("", "")}
+
+
+def _new_id(taken: set) -> str:
+    import secrets
+
+    while True:
+        made = "rouh_" + secrets.token_hex(6)
+        if made not in taken:
+            taken.add(made)
+            return made
+
+
+def _named(slide: dict) -> str:
+    return f"slide {slide['n']}" + (f" («{_clip(slide.get('title'), 60)}»)" if slide.get("title") else "")
+
+
+def _moved(order: list, ids: list, at: int) -> None:
+    """`order` as Google leaves it after updateSlidesPosition puts `ids` at `at`, an index counted
+    on the order before the move, with the slides still in it."""
+    before = sum(1 for i in ids if order.index(i) < at)
+    rest = [i for i in order if i not in ids]
+    order[:] = rest[:at - before] + list(ids) + rest[at - before:]
+
+
+def _said_after(after) -> bool:
+    return after is not None and after != ""
+
+
+def shape(read: dict, args: dict) -> tuple[list[dict], list[str], str]:
+    """(the Slides requests, the lines saying what each does, why not) for slides added, copied,
+    moved and deleted. Every number is the slide's number in the deck as read; the deck's order is
+    followed here as each request changes it, so each request's index is right for the deck as it
+    is when Google reaches it. Adds go first, then moves, then deletes."""
+    slides = read.get("slides") or []
+    by_n = {s["n"]: s for s in slides}
+    count = len(slides)
+    order = [s["id"] for s in slides]
+    taken = set(order)
+    adds = [a for a in (args.get("add_slides") or []) if isinstance(a, dict)]
+    moves = [m for m in (args.get("move_slides") or []) if isinstance(m, dict)]
+    deletes = sorted(set(_numbers(args.get("delete_slides"))))
+    if len(adds) > MOST or len(moves) > MOST:
+        return [], [], f"At most {MOST} slides added and {MOST} moves in one go."
+
+    def no_slide(ns) -> str:
+        missing = [n for n in ns if n not in by_n]
+        return ("" if not missing else f"The deck has {count} slide{'s' if count != 1 else ''}; there is no slide "
+                + ", ".join(str(n) for n in missing) + ".")
+
+    def place(after) -> tuple[int, str]:
+        """Where "after slide n" is in the deck's order now, or why that is no place."""
+        if not _said_after(after):
+            return len(order), ""
+        try:
+            after = int(after)
+        except (TypeError, ValueError):
+            return 0, "Say after which slide, by its number (0 for the very first place)."
+        if after == 0:
+            return 0, ""
+        if after not in by_n:
+            return 0, no_slide([after])
+        return order.index(by_n[after]["id"]) + 1, ""
+
+    requests: list[dict] = []
+    lines: list[str] = []
+    why = no_slide(deletes)
+    if why:
+        return [], [], why
+    for one in adds:
+        after = one.get("after")
+        if _said_after(one.get("copy_of")):
+            try:
+                src = by_n.get(int(one.get("copy_of")))
+            except (TypeError, ValueError):
+                src = None
+            if src is None:
+                return [], [], no_slide([one.get("copy_of")]) or "Say which slide to copy, by its number."
+            made = _new_id(taken)
+            requests.append({"duplicateObject": {"objectId": src["id"], "objectIds": {src["id"]: made}}})
+            order.insert(order.index(src["id"]) + 1, made)
+            if _said_after(after):
+                at, why = place(after)
+                if why:
+                    return [], [], why
+                requests.append({"updateSlidesPosition": {"slideObjectIds": [made], "insertionIndex": at}})
+                _moved(order, [made], at)
+            lines.append(f"a copy of {_named(src)} added "
+                         + ((f"after slide {after}" if int(after or 0) else "at the start")
+                            if _said_after(after) else "after it"))
+            continue
+        title, text = str(one.get("title") or "").strip(), str(one.get("text") or "").strip()
+        layout = str(one.get("layout") or "").strip().upper() or (
+            "TITLE_AND_BODY" if text else "TITLE_ONLY" if title else "BLANK")
+        if layout not in LAYOUTS:
+            return [], [], f"A new slide's layout is one of {', '.join(LAYOUTS)}, not {layout}."
+        title_box, body_box = LAYOUTS[layout]
+        if (title and not title_box) or (text and not body_box):
+            return [], [], (f"A {layout} slide has no place for " + ("a title" if title and not title_box
+                                                                     else "words") + "; use TITLE_AND_BODY.")
+        at, why = place(after)
+        if why:
+            return [], [], why
+        made = _new_id(taken)
+        ask = {"objectId": made, "insertionIndex": at, "slideLayoutReference": {"predefinedLayout": layout}}
+        maps, fill = [], []
+        for kind, words in ((title_box, title), (body_box, text)):
+            if kind:
+                box = _new_id(taken)
+                maps.append({"layoutPlaceholder": {"type": kind, "index": 0}, "objectId": box})
+                if words:
+                    fill.append({"insertText": {"objectId": box, "insertionIndex": 0, "text": words}})
+        if maps:
+            ask["placeholderIdMappings"] = maps
+        requests.append({"createSlide": ask})
+        requests += fill
+        order.insert(at, made)
+        lines.append(f"a new {layout.lower().replace('_', ' ')} slide added "
+                     + ((f"after slide {after}" if int(after or 0) else "at the start") if _said_after(after)
+                        else "at the end")
+                     + (f", titled «{_clip(title, 60)}»" if title else ""))
+    for one in moves:
+        ns = _numbers(one.get("slides"))
+        if not ns:
+            return [], [], "Each move needs the numbers of the slides to move (slides)."
+        why = no_slide(ns)
+        if why:
+            return [], [], why
+        if any(n in deletes for n in ns):
+            return [], [], "A slide cannot be moved and deleted in the same call."
+        if one.get("after") in ns:
+            return [], [], "Slides cannot be moved after one of themselves."
+        at, why = place(one.get("after"))
+        if why:
+            return [], [], why
+        ids = sorted({by_n[n]["id"] for n in ns}, key=order.index)    # Google wants the deck's order
+        requests.append({"updateSlidesPosition": {"slideObjectIds": ids, "insertionIndex": at}})
+        _moved(order, ids, at)
+        lines.append(("slides " if len(ns) > 1 else "slide ") + ", ".join(str(n) for n in ns) + " moved "
+                     + ("to the end" if not _said_after(one.get("after")) else
+                        f"after slide {one.get('after')}" if int(one.get("after") or 0) else "to the start"))
+    if deletes:
+        gone = {by_n[n]["id"] for n in deletes}
+        if all(i in gone for i in order):
+            return [], [], "That would leave the deck with no slide, so nothing was changed."
+        requests += [{"deleteObject": {"objectId": by_n[n]["id"]}} for n in deletes]
+        order[:] = [i for i in order if i not in gone]
+        lines.append("deleted " + ", ".join(_named(by_n[n]) for n in deletes))
+    lines.append(f"the deck now has {len(order)} slide{'s' if len(order) != 1 else ''}")
     return requests, lines, ""
 
 

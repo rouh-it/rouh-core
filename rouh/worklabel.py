@@ -265,6 +265,13 @@ def _youtube_search(a):
     return what, (query if len(what) > WHAT_MAX else "")
 
 
+@_step("reddit_search")
+def _reddit_search(a):
+    query = _arg(a, "query", "q")
+    what = f'Searching Reddit for "{query}"' if query else "Searching Reddit"
+    return what, (query if len(what) > WHAT_MAX else "")
+
+
 @_step("linkedin_search")
 def _linkedin_search(a):
     name = " ".join(v for v in (_arg(a, "first_name"), _arg(a, "last_name")) if v)

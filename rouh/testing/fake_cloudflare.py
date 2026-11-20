@@ -45,6 +45,9 @@ the first zone's without either Email Routing permission, is for refusals.
 ``POST /_grant/<last four>/<permission>`` gives a token a permission it lacked, as fixing it at
 Cloudflare would.
 
+Since 20 November 2026 (task 191) it also lists every setting of a zone (``GET /zones/<id>/settings``)
+and deletes an Email Routing rule (``DELETE /zones/<id>/email/routing/rules/<rule>``).
+
 Point ``ROUH_CLOUDFLARE_API`` at it.
 
     python -m rouh.testing.fake_cloudflare --port 8098
@@ -326,6 +329,21 @@ async def setting(request: Request, zone_id: str, key: str):
     return _ok({"id": key, "value": SETTINGS[name].get(key, "off"), "editable": True})
 
 
+@app.get("/zones/{zone_id}/settings")
+async def settings_all(request: Request, zone_id: str):
+    """Every setting of the zone, as Cloudflare lists them, with Zone Settings Read."""
+    grant = _token(request)
+    if grant is None:
+        return _no(1000, "Invalid API Token", 401)
+    name = _zone(grant, zone_id)
+    if name is None or not {"settings", "settings_edit"} & set(grant["perms"]):
+        return _denied()
+    return _ok([{"id": k, "value": v, "editable": True} for k, v in SETTINGS[name].items()]
+               + [{"id": "cache_level", "value": "aggressive", "editable": True},
+                  {"id": "http3", "value": "on", "editable": True},
+                  {"id": "minify", "value": {"css": "off", "html": "off", "js": "off"}, "editable": False}])
+
+
 @app.patch("/zones/{zone_id}/settings/{key}")
 async def setting_change(request: Request, zone_id: str, key: str):
     """Change one setting: Zone Settings Edit only, as at Cloudflare."""
@@ -518,6 +536,18 @@ async def rule_set(request: Request, zone_id: str, rule_id: str):
         if r["id"] == rule_id:
             ROUTING[name]["rules"][i] = {**r, **body, "id": rule_id, "tag": rule_id}
             return _ok(ROUTING[name]["rules"][i])
+    return _no(2003, "Rule not found", 404)
+
+
+@app.delete("/zones/{zone_id}/email/routing/rules/{rule_id}")
+async def rule_delete(request: Request, zone_id: str, rule_id: str):
+    name, refused = _routable(request, zone_id)
+    if refused:
+        return refused
+    for i, r in enumerate(ROUTING[name]["rules"]):
+        if r["id"] == rule_id:
+            del ROUTING[name]["rules"][i]
+            return _ok(r)
     return _no(2003, "Rule not found", 404)
 
 
