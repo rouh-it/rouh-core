@@ -59,6 +59,7 @@
       "reply_to_task",
       "read_task_log",
       "what_task_changed",
+      "job_status",
       "tidy_tasks",
       "stop_task",
       "publish_task",

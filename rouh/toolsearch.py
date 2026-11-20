@@ -166,7 +166,7 @@ AREA_OF: dict[str, str] = {
     # Background jobs
     "assistant_job": "jobs", "delegate_task": "jobs", "check_tasks": "jobs",
     "look_at_task": "jobs", "reply_to_task": "jobs", "read_task_log": "jobs",
-    "what_task_changed": "jobs", "tidy_tasks": "jobs", "stop_task": "jobs",
+    "what_task_changed": "jobs", "job_status": "jobs", "tidy_tasks": "jobs", "stop_task": "jobs",
     "what_is_running": "jobs", "answer_conflict": "jobs",
     # The one program
     "one_runs": "one", "one_start": "one", "one_say": "one", "one_stop": "one",

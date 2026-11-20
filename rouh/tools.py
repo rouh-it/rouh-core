@@ -2753,6 +2753,7 @@ class ToolRegistry:
 
         self._clock_tools()
         self._heartbeat_tools()
+        self._declare_job_status()
 
         if self.cfg.enable_delegate and self.crew is not None:
             # The person's own assistant, in their workspace, when this machine
@@ -12135,6 +12136,25 @@ class ToolRegistry:
             self._check_tasks,
         )
 
+    def _declare_job_status(self) -> None:
+        """Declared on every Rouh: the register of runs is there whether or not a crew is."""
+        self._own(
+            "job_status",
+            "Everything about one job or one-program run in one call: its state with the times, "
+            "a question it waits on word for word with its choices, the last lines of its screen, "
+            "its commits with their messages and whether they are on main and in the build "
+            "running, the files it touched, its final report, and whether a 'called over' or "
+            "died notice about it was wrong. Use it first for 'what is going on with job X', "
+            "instead of check_tasks, look_at_task, read_task_log and what_task_changed.",
+            {
+                "type": "object",
+                "properties": {"job": {"type": "string", "description": (
+                    "The job's id, its first few characters, or words of its title. Leave it "
+                    "out for the newest job started from this chat, or the newest anywhere.")}},
+            },
+            self._job_status,
+        )
+
     def _declare_improve_myself(self) -> None:
         self._own(
             "improve_myself",
@@ -15533,6 +15553,134 @@ class ToolRegistry:
         # Whole rows are dropped, never a slice of the text, so what arrives is
         # always valid JSON.
         return json.dumps(answer)
+
+    async def _job_status(self, args, emit):
+        """`job_status`: one job, everything about it, in one short answer (`rouh/job_status.py`)."""
+        from . import job_status
+
+        rows = await self._job_rows(None)
+        rows = self._with_conflicts(rows)
+        rows = await asyncio.to_thread(_jobs_on_their_side, rows)
+        wanted = str(args.get("job") or args.get("id") or "").strip()
+        chat = ""
+        with contextlib.suppress(Exception):
+            chat = self.memory.answering_chat() or ""
+        row, others = job_status.pick(rows, wanted, chat)
+        if row is None:
+            near = ", ".join(f"{r.get('id')} \"{r.get('title')}\" ({r.get('status')})"
+                             for r in job_status._newest_first(rows)[:5])
+            return (f"No job matches \"{wanted}\". The newest are: {near}." if wanted
+                    else "There are no jobs on record here.")
+        job_id = str(row["id"])
+        running_sha = str(get_version().get("sha") or "")
+        code_repo = str(getattr(self.cfg, "app_dir", "") or "")
+        repos = [p for p in (code_repo, str(getattr(self.cfg, "assistant_repo", "") or ""))
+                 if p]
+        landed = await asyncio.to_thread(job_status.landings_of, job_id,
+                                         str(getattr(self.cfg, "land_dir", "") or ""))
+        shas = [s for _, group in landed for s in group]
+        facts: dict = {"question": "", "choices": [], "screen": "",
+                                 "screen_kind": "screen", "report": "", "landing_notes": [],
+                                 "files": [], "uncommitted": [], "mismatch": "", "extra": []}
+        if row.get("needs_a_decision") or row.get("parked"):
+            facts["question"] = str(row.get("detail") or "")
+            facts["choices"] = list(row.get("choices") or [])
+            facts["extra"].append(f"It is conflict {row.get('conflict')}; answer it with "
+                                  "answer_conflict, never by choosing for them.")
+        if self._is_one_run(job_id):
+            got, why = await self._one_ask("run", run=job_id, entries=400)
+            if got is None:
+                facts["extra"].append(f"The one program could not be asked: {why}")
+                got = {}
+            run = got.get("run") or {}
+            entries = got.get("entries") or []
+            if run:
+                row = {**row, "status": _one_word(run)} if not row.get("needs_a_decision") \
+                    else row
+            asked, _ = await self._one_ask("questions")
+            for q in (asked or {}).get("questions") or ():
+                if str(q.get("run") or "") == job_id and q.get("open", True):
+                    facts["question"] = str(q.get("text") or "")
+                    if q.get("detail"):
+                        facts["question"] += f" (the call: {q['detail']})"
+                    picks = q.get("choices") or {}
+                    facts["choices"] = [f"yes: {picks.get('yes', 'allow')}",
+                                        f"no: {picks.get('no', 'refuse')}"]
+                    facts["extra"].append(f"Answer it with one_answer, question {q.get('id')}.")
+            if not facts["question"] and row.get("status") == "waiting":
+                facts["question"] = str(run.get("question_text") or run.get("waiting_on_terminal")
+                                        or row.get("detail") or "")
+            handoff = browser_handoff.find(run.get("last_message"))
+            if handoff is not None and run.get("state") == "idle":
+                facts["question"] = handoff.line(400)
+            screen = str(got.get("screen") or "")
+            if screen.strip():
+                facts["screen"] = screen
+            else:
+                facts["screen"], facts["screen_kind"] = describe_entries(entries, limit=12), \
+                    "history"
+            facts["report"] = str(run.get("last_message") or "")
+            for e in entries:
+                if e.get("kind") != "work.landed":
+                    continue
+                b = e.get("body") or {}
+                if b.get("sha"):
+                    shas.append(str(b["sha"]))
+                said = str(b.get("deploy_reason") or b.get("reason") or "").strip()
+                facts["landing_notes"].append(
+                    f"Landed {str(b.get('sha') or '')[:7]} at {clock.clock(e.get('at'))}: "
+                    + ("deployed" if b.get("deployed") else "NOT live")
+                    + (f" ({' '.join(said.split())[:200]})" if said else ""))
+                facts["files"] += [str(f) for f in (b.get("files") or [])]
+            if run.get("land_reason") and not run.get("landed"):
+                facts["landing_notes"].append(f"Not saved to main: {run['land_reason']}")
+            if run.get("left"):
+                facts["landing_notes"].append(f"Left behind: {run['left']}")
+            facts["mismatch"] = job_status.one_mismatch(entries, run, [t for t, _ in landed])
+        elif self.crew is not None and self.crew.get(job_id) is not None:
+            mate = self.crew.get(job_id)
+            meta = dict(getattr(mate, "meta", None) or {})
+            try:
+                seen = await self.crew.describe(job_id, lines=60)
+            except Exception as exc:  # noqa: BLE001 - said, never raised into the turn
+                seen = {"screen_error": f"{type(exc).__name__}: {exc}"}
+            if seen.get("asking") and not facts["question"]:
+                facts["question"] = str(seen.get("question") or "")
+                facts["choices"] = [f"{o['number']} {o['label']}"
+                                    for o in (seen.get("options") or [])[:6]]
+            handoff = browser_handoff.from_dict(meta.get("handoff"))
+            if handoff is not None:
+                facts["question"] = handoff.line(400)
+            facts["screen"] = str(seen.get("screen") or "")
+            if not facts["screen"].strip():
+                with contextlib.suppress(Exception):
+                    facts["screen"] = await self.crew.tail_log(job_id, 40)
+                    facts["screen_kind"] = "log"
+            facts["report"] = str(meta.get("closing") or "")
+            if meta.get("page"):
+                facts["report"] += f" (its page: {meta.get('page_url') or meta['page']})"
+            try:
+                changed = await self.crew.changes(job_id)
+            except Exception:  # noqa: BLE001
+                changed = {}
+            if meta.get("landed_sha"):
+                shas.append(str(meta["landed_sha"]))
+            for line in changed.get("commits") or []:
+                sha = line.split(" ", 1)[0]
+                if sha:
+                    shas.append(sha)
+            facts["uncommitted"] = list(changed.get("uncommitted") or [])
+            facts["files"] += [f.split(" (")[0] for f in changed.get("files") or []]
+            if changed.get("gone"):
+                facts["landing_notes"].append(f"Its checkout: {changed['gone']}")
+            facts["mismatch"] = job_status.crew_mismatch(meta, str(row.get("status") or ""))
+            repos.append(str(getattr(mate, "workdir", "") or ""))
+        commits = await asyncio.to_thread(job_status.commit_facts, shas, repos, running_sha,
+                                          code_repo)
+        for c in commits:
+            facts["files"] = list(c.get("files") or []) + facts["files"]
+        return job_status.render(row, others=others, commits=commits, running_sha=running_sha,
+                                 **facts)
 
     @classmethod
     def _open(cls, row: dict) -> bool:

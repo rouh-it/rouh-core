@@ -807,6 +807,12 @@ def _log(a):
     return (f"Reading the log of job {job}" if job else "Reading a job's log", "")
 
 
+@_step("job_status")
+def _job_status(a):
+    job = _arg(a, "job")
+    return (f"Looking at how job {job} stands" if job else "Looking at how the newest job stands", "")
+
+
 @_step("what_task_changed")
 def _changed(a):
     job = _arg(a, "id")

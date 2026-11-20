@@ -109,7 +109,7 @@ WORDS: dict[str, str] = {
     # Background jobs
     "assistant_job": "starts a job", "delegate_task": "hands work to a job", "check_tasks": "lists jobs",
     "look_at_task": "looks at a job", "reply_to_task": "answers a job", "read_task_log": "reads a job's log",
-    "what_task_changed": "what a job changed", "tidy_tasks": "tidies jobs", "stop_task": "stops a job",
+    "what_task_changed": "what a job changed", "job_status": "how a job stands", "tidy_tasks": "tidies jobs", "stop_task": "stops a job",
     "what_is_running": "what is running", "answer_conflict": "settles a clash", "long_work": "long work",
     # The one program
     "one_runs": "lists runs", "one_start": "starts a run", "one_say": "talks to a run", "one_stop": "stops a run",

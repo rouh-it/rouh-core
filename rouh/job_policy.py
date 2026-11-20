@@ -105,7 +105,7 @@ READS = frozenset({
     "meeting_search", "meeting_read", "synapse_find", "synapse_query",
     # The workspace, the tasks and the runs, and anything Rouh made.
     "read_workspace", "read_card", "read_rouh_link", "check_tasks", "look_at_task",
-    "read_task_log", "what_task_changed", "one_runs", "what_is_running", "check_task_sharing",
+    "read_task_log", "what_task_changed", "job_status", "one_runs", "what_is_running", "check_task_sharing",
     "list_memory", "upcoming", "server_health",
     # Why something of Rouh's own failed, read by the core with every secret masked (19 November
     # 2026): its own log, which a job's worker cannot see.
