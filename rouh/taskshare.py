@@ -209,6 +209,9 @@ class _Base(str):
 
     goal = ""
     person = False
+    #: For a person a task was shared with to read: whether they may change one page of it all
+    #: the same, by its path (a page shared with them to change, `guests._for_guest`).
+    may_edit = None
 
 
 def _under(base: str, goal: str) -> "_Base":
@@ -277,15 +280,28 @@ def _subtask_lines(root, subs: list[dict], top: str, base: str) -> list[dict]:
 
 
 def _shell(body: str, title: str, owner: str, back: str = "", can_edit: bool = False,
-           home: str = "") -> bytes:
+           home: str = "", editable: int = 0) -> bytes:
     """The page around a level or a note: the task page's own look, who shared
     it, and what the reader may do with it. `home`, for a person signed in, is
-    their list of everything shared with them, which the line links back to."""
+    their list of everything shared with them, which the line links back to.
+    `editable` is how many of the pages here a reader of a task shared to read
+    may change all the same."""
+    if can_edit:
+        may = "you can change its pages with Ask AI"
+    elif editable:
+        may = ("read only, except the page marked You can edit" if editable == 1
+               else "read only, except the pages marked You can edit")
+    else:
+        may = "read only"
     said = (f'<p class="shared-by">Shared by {html.escape(owner or "somebody")} &middot; '
-            + ("you can change its pages with Ask AI" if can_edit else "read only")
+            + may
             + (f' &middot; <a href="{html.escape(home, quote=True)}">Everything shared with '
                'you</a>' if home else "") + "</p>")
     style = ("<style>.shared-by{margin:0 0 14px;font-size:12.5px;color:var(--mut,#8a93a3)}"
+             ".pedit{justify-self:start;display:inline-flex;align-items:center;gap:6px;"
+             "font-size:12.5px;font-weight:600;color:var(--primary);border-radius:999px;"
+             "padding:3px 10px;border:1px solid color-mix(in srgb,var(--primary) 45%,"
+             "var(--border));background:color-mix(in srgb,var(--primary) 8%,var(--panel))}"
              "body{min-height:100vh}</style>")
     return objectindex._shell(said + (back or "") + body + style, title, None)
 
@@ -340,8 +356,11 @@ def _level(root, top: str, level: str, base: str, owner: str,
     elif page:
         built = [{"rel": f"{level}/{page}", "step": shown, "about": "",
                   "title": here.get("title") or page}]
+    may_edit = getattr(base, "may_edit", None) if not can_edit else None
     for one in built:
         one["href"] = _link(base, _inside(top, one["rel"]) or "")
+        one["edit"] = bool(may_edit is not None and may_edit(one["rel"]))
+    editable = sum(1 for one in built if one["edit"])
     notes = _notes(held, page if page.lower() == docview.STEP_FILE else "")
     subs = _subtask_lines(root, objectindex._subtasks(root, tree, under, here, level),
                           top, base)
@@ -384,7 +403,7 @@ def _level(root, top: str, level: str, base: str, owner: str,
             'its notes and its subtasks are.</p>')
     title = here.get("title") or here.get("slug") or level.rsplit("/", 1)[-1]
     return _shell(head + ("".join(body) or '<p class="none">Nothing in this yet.</p>') + rest,
-                  title, owner, _back(root, base, top, level, tree), can_edit, home)
+                  title, owner, _back(root, base, top, level, tree), can_edit, home, editable)
 
 
 def _note(root, top: str, level: str, name: str, base: str, owner: str,
@@ -463,7 +482,8 @@ def page_at(root, rel: str, at: str, *, person: bool = False) -> str | None:
 
 
 def view(root, rel: str, at: str, base: str, owner: str = "",
-         can_edit: bool = False, home: str = "", person: bool = False) -> tuple[bytes, str]:
+         can_edit: bool = False, home: str = "", person: bool = False,
+         may_edit=None) -> tuple[bytes, str]:
     """What the share's link shows at `at`: a level, one of its pages, or one of its notes.
 
     `pages.Missing` or `pages.Refused` for anything else, which the caller
@@ -473,11 +493,14 @@ def view(root, rel: str, at: str, base: str, owner: str = "",
     opened in the reader's page (`page_at`), never served from here. `home` is
     the signed-in reader's list of what is shared with them, linked from every
     level (`_shell`); a link anybody can open has none. `person` is one person it
-    was shared with, whom a quest's goals are reached for too.
+    was shared with, whom a quest's goals are reached for too. `may_edit`, for
+    them, says by a page's path whether they may change it all the same when the
+    task is theirs to read: those pages are marked, and open to be changed.
     """
     top, level, rest = _place(root, rel, at, person=person)
     base = _under(base, goal_of(at)[0])
     base.person = person
+    base.may_edit = may_edit
     if not rest:
         return _level(root, top, level, base, owner, can_edit, home), pages.TYPES[".html"]
     held = objectindex._contents(root, level)

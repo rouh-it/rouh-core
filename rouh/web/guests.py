@@ -801,11 +801,14 @@ def _for_guest(request, token: str) -> Reader | None:
         found = taskshare.linked_goals(config.assistant_repo, taskshare.folder_of(rel)).get(goal)
         can_edit = bool(found) and sharing.can_edit(task_access.level_of_share(
             {**share, "rel": taskshare.PREFIX + found["folder"]}))
-    if taskshare.is_task(rel) and can_edit:
-        # A task shared with this person to change: `?at=` naming one of its
-        # pages, or one of its subtasks' (`taskshare.page_at`), is that page,
-        # read and changed with Ask AI exactly as one page shared to change
-        # is. Anywhere else in the task is the task's own view (`reader_view`).
+    if taskshare.is_task(rel):
+        # A task shared with this person: `?at=` naming one of its pages, or one of its
+        # subtasks' (`taskshare.page_at`), that they may change is that page, read and changed
+        # with Ask AI exactly as one page shared to change is. Their level on the page is the
+        # most specific grant, either way: a page shared with them to change inside a task
+        # shared to read is changed here, and a page that says less than a task shared to
+        # change is read here. In a task shared to read, a page they may only read, and
+        # anywhere else in the task, is the task's own view (`reader_view`).
         at = str(request.GET.get("at") or "")[:taskshare.AT_MAX]
         page = taskshare.page_at(config.assistant_repo, rel, at, person=True) if at else None
         try:
@@ -813,15 +816,23 @@ def _for_guest(request, token: str) -> Reader | None:
                 if page is not None else ""
         except (pages.Refused, OSError):
             page = None
-        if page is not None:
-            task, rel, title = f"/shared/{share['token']}", page, named or title
-            # A page of its own may say less than the task it is in: the most specific wins.
-            can_edit = sharing.can_edit(task_access.level_of_share({**share, "rel": page}))
+        on_page = sharing.can_edit(task_access.level_of_share({**share, "rel": page})) \
+            if page is not None else False
+        if page is not None and (can_edit or on_page):
+            task, rel, title, can_edit = f"/shared/{share['token']}", page, named or title, on_page
     return Reader(rel=rel, title=title, owner=owner, who=me,
                   can_edit=can_edit, base=f"/shared/{share['token']}/",
                   most_a_day=0 if not getattr(request.user, "is_guest", False) else GUEST_A_DAY,
                   guest=True, owner_id=str(share["owner_id"]), org_id=str(share["org_id"]),
                   comments=True, at=at if task else "", task=task)
+
+
+def _pages_to_edit(token: str):
+    """Whether the person a task was shared with may change one of its pages, by its path."""
+    from rouh import task_access
+
+    share = _store().find(token)
+    return task_access.pages_to_edit(share) if share else None
 
 
 def _for_link(token: str) -> Reader | None:
@@ -883,10 +894,13 @@ async def reader_view(request: HttpRequest, kind: str, token: str):
             # place in it under this same address (`rouh/taskshare.py`).
             from . import views
 
+            # Read only: the pages in it shared with them to change are marked, and open to
+            # be changed (`_for_guest`).
+            may_edit = None if reader.can_edit else await asyncio.to_thread(_pages_to_edit, token)
             response = await views._task_response(
                 {"rel": reader.rel, "owner_id": reader.owner_id},
                 request.GET.get("at", ""), reader.base.rstrip("/"), pages.HEADERS,
-                can_edit=reader.can_edit, home="/shared", person=True)
+                can_edit=reader.can_edit, home="/shared", person=True, may_edit=may_edit)
             response["X-Frame-Options"] = "DENY"
             return response
     if reader is None:

@@ -451,6 +451,24 @@ def level_of_share(share: dict) -> str:
     return found.of_rel(share.get("rel") or "") or role
 
 
+def pages_to_edit(share: dict):
+    """For the person a task share names: whether they may change one page of it by its
+    path, read through the one record once (`Access.of_rel`), so a page shared with them to
+    change inside a task shared to read is found (`taskshare._level`). None when nothing can be
+    read here."""
+    from .tenancy import Identity
+
+    try:
+        owner = Identity(user_id=str(share["owner_id"]), org_id=str(share["org_id"]))
+        found = for_email(owner, share.get("email") or "")
+    except Exception:  # noqa: BLE001 - the task is still read, with nothing marked
+        log.exception("task access: the pages a share may change could not be read")
+        return None
+    if found is None:
+        return None
+    return lambda rel: sharing.can_edit(found.of_rel(rel))
+
+
 #: How each kind of row on the contact's page is said: "Quest 128", "Step 19-17".
 KIND_WORD = {"task": "Task", "step": "Step", "quest": "Quest", "goal": "Goal"}
 

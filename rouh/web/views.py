@@ -1813,7 +1813,7 @@ def _owner_called(owner_id: str) -> str:
 
 async def _task_response(found: dict, at: str, base: str, headers: dict,
                          can_edit: bool = False, home: str = "",
-                         person: bool = False) -> HttpResponse:
+                         person: bool = False, may_edit=None) -> HttpResponse:
     """A shared task, at one place inside it, for somebody it lets in.
 
     What is shown and what never is, is `rouh/taskshare.py`. A place that is
@@ -1827,7 +1827,7 @@ async def _task_response(found: dict, at: str, base: str, headers: dict,
     try:
         body, kind = await asyncio.to_thread(taskshare.view, config.assistant_repo,
                                              found["rel"], str(at or ""), base, owner,
-                                             can_edit, home, person)
+                                             can_edit, home, person, may_edit)
     except (pages.Refused, OSError):
         log.info("sharing: a place in the shared task %s could not be read", found["rel"])
         return _page_response("Not found.", "text/plain", status=404, headers=headers)

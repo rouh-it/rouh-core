@@ -1786,13 +1786,18 @@ def _page_rows(built: list[dict], dots=None) -> str:
                  if one["about"] else "")
         num = (f'<span class="snum">{html.escape(one["step"])}</span>'
                if one["step"] else "")
+        # A page the reader of a task shared to read may change all the same, because it was
+        # shared with them to change (`taskshare._level`), says so where they look for it.
+        edit = one.get("edit")
+        mark = '<span class="pedit">You can edit this page</span>' if edit else ""
         rows.append(
             f'<a class="prow" href="{html.escape(one["href"], quote=True)}" '
             f'data-kind="page">'
             f'<span class="omark" aria-hidden="true">{KIND_MARKS["page"]}</span>'
             f'<span class="ptext"><span class="phead">{num}'
-            f'<span class="oname">{html.escape(one["title"])}</span></span>{about}</span>'
-            f'<span class="pgo">Open the page<span aria-hidden="true"> →</span></span>'
+            f'<span class="oname">{html.escape(one["title"])}</span></span>{mark}{about}</span>'
+            f'<span class="pgo">{"Open to edit" if edit else "Open the page"}'
+            f'<span aria-hidden="true"> →</span></span>'
             f'</a>')
         if dots is not None:
             rows[-1] = dots(rows[-1], one)
