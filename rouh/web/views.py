@@ -735,6 +735,12 @@ async def deploy_the_one_program(request: HttpRequest):
     """
     from rouh import one_deploy
 
+    # An administrator's button only (191-01 weak spot 15): on a server the deploy runs as root.
+    user = await request.auser()
+    if not (user.is_authenticated and not getattr(user, "is_guest", False)
+            and (user.is_staff or getattr(user, "is_org_admin", False))):
+        return answer({"ok": False, "error": "Only an administrator of this Rouh can deploy the "
+                                             "one program."}, status=403)
     rt = _rt()
     if not rt.one.configured():
         return answer({"ok": False, "error": "This Rouh is not paired with a one program, "

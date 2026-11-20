@@ -1002,24 +1002,64 @@ async def read_mail(who, row, args: dict) -> str:
     return untrusted.wrap(text, source=f"mail a service sent to {service.address}")
 
 
+#: The currency the night's cap is in, and the only one a night pays in (191-01 weak spot 17).
+NIGHT_CURRENCY = "USD"
+#: What a charge the night's own run voided says of itself: off the card's caps, as a purchase
+#: that never went through is, and still counted against the night's own cap.
+VOIDED_BY_NIGHT = "Voided by the nightly run; still counted against the night's cap."
+
+
+def night_spent(who, run_id: str) -> Decimal:
+    """What a night's run has spent against its own cap: every charge of its run that counts on
+    the caps, and every one it voided itself (191-01 weak spot 17). Until 20 November 2026 only a
+    charge still "filled" counted, so one pressed, or one the run voided, freed the cap to pay
+    again. A charge Rouh's own code voided because nothing was filled or pressed is not counted."""
+    from django.db.models import Q, Sum
+
+    from . import payments
+
+    if not run_id:
+        return Decimal(0)
+    found = _models().CardCharge.objects.filter(
+        Q(state__in=payments.COUNTED) | Q(state="void", outcome=VOIDED_BY_NIGHT),
+        **_whose(who), run_id=str(run_id)).aggregate(n=Sum("amount"))["n"]
+    return Decimal(found or 0)
+
+
+def _void_own(who, run_id: str, charge: int) -> bool:
+    """The run's void of a charge of its own: off the card's caps, never off the night's."""
+    from . import payments
+
+    if not _models().CardCharge.objects.filter(**_whose(who), id=charge,
+                                               run_id=run_id).exists():
+        return False
+    if not payments.void_charge(who, charge):
+        return False
+    _models().CardCharge.objects.filter(**_whose(who), id=charge).update(outcome=VOIDED_BY_NIGHT)
+    return True
+
+
 async def pay(who, row, args: dict) -> dict:
     """The card into the checkout in the run's browser, inside the night's cap; or a void."""
     from . import payments
 
     if str(args.get("action") or "").strip().lower() == "void":
         charge = int(args.get("charge") or 0)
-        ok = await asyncio.to_thread(
-            lambda: _models().CardCharge.objects.filter(
-                **_whose(who), id=charge, run_id=row.run_id).exists()
-            and payments.void_charge(who, charge))
-        return {"ok": bool(ok), "text": f"Charge #{charge} is void: it is off the caps."
+        ok = await asyncio.to_thread(_void_own, who, row.run_id, charge)
+        return {"ok": bool(ok), "text": f"Charge #{charge} is void: it is off the card's caps, and "
+                                        "it still counts against this night's own cap."
                 if ok else f"There is no charge #{charge} of this night's to void."}
+    currency = str(args.get("currency") or NIGHT_CURRENCY).strip().upper()
+    if currency != NIGHT_CURRENCY:
+        raise Refused(f"A night pays in {NIGHT_CURRENCY} only, the currency its cap is in: a price "
+                      f"in {currency[:8]} cannot be held to it. Choose the US dollar price if the "
+                      "service offers one; otherwise leave it, and say so in services.md.")
     service = await asyncio.to_thread(_service_of, who, row, args.get("service"), any_night=False)
     try:
         amount = Decimal(str(args.get("amount") or "0").replace("$", "").replace(",", "").strip())
     except Exception:
         raise Refused("amount is the price as a number, such as 20 or 9.99.") from None
-    spent = await asyncio.to_thread(payments.spent_by_run, who, row.run_id)
+    spent = await asyncio.to_thread(night_spent, who, row.run_id)
     if amount <= 0:
         raise Refused("amount is the price as a number, such as 20 or 9.99.")
     if spent + amount > NIGHT_CAP:
@@ -1028,7 +1068,7 @@ async def pay(who, row, args: dict) -> dict:
                       "filled.")
     got = await payments.fill_card_in_run(
         who, run_id=row.run_id, port=row.browser_port, amount=amount,
-        currency=str(args.get("currency") or "USD"),
+        currency=NIGHT_CURRENCY,
         merchant=str(args.get("merchant") or service.service),
         reason=f"Nightly feature run, night {row.number}: {service.service}. "
                + " ".join(str(args.get("reason") or "").split())[:300],

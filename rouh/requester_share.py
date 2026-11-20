@@ -19,9 +19,10 @@ edit, the moment Rouh first sees it:
 - **Who.** A task or a step whose meta is tagged `guest` (`trusted.GUEST_TAG`)
   names who asked in `"guest"`: an address, or a Telegram account linked to a
   trusted contact, whose own address is then used (`address_for`).
-  Only that person: never anybody they copied or named, never Petar's own
-  addresses or Rouh's, never a member of his organisation, who sees it anyway,
-  and never a contact he has switched off.
+  Only that person, and only when they are a trusted contact he has switched on:
+  never an address that is nobody's (since 20 November 2026, 191-01 weak spot 9:
+  jobs write task meta), never anybody they copied or named, never Petar's own
+  addresses or Rouh's, and never a member of his organisation, who sees it anyway.
 - **What.** The whole task, exactly as the Share panel shares it with a person to
   edit (`sharing.EDIT` on `_task/<folder>`, `rouh/taskshare.py`): its pages, its
   notes and its subtasks, each page changeable with Ask AI. A step made later
@@ -132,13 +133,13 @@ def requester(owner, meta: dict, contact=None) -> tuple[str, object]:
     if contact is None and raw:
         contact = next((c for c in trust.TrustStore().all(owner.user_id, owner.org_id)
                         if c.recognises(raw)), None)
-    if contact is not None:
-        if not contact.trusted:
-            return "", None
-        # `address_for` takes the address it was asked from when it is theirs.
-        address = address_for(contact, meta)
-    else:
-        address = sharing.clean_email(raw)
+    # Only a trusted contact the owner has switched on (191-01 weak spot 9): an address written
+    # in a task's meta that is nobody's, or a contact switched off, gets no share and no letter,
+    # since jobs write task meta and a job may have read anything.
+    if contact is None or not contact.trusted or getattr(contact, "implicit", False):
+        return "", None
+    # `address_for` takes the address it was asked from when it is theirs.
+    address = address_for(contact, meta)
     if not address or _ours(owner, address):
         return "", None
     return address, contact

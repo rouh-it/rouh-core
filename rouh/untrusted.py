@@ -137,7 +137,35 @@ SOURCES = {
     # A Slack case's reading of the owner's meetings, tasks and files (`rouh/slack_team.py`), boxed
     # by the tool itself.
     "find_for_them": "‹owner›'s meetings, tasks and files, which quote whoever wrote or said them",
+    # 191-01 weak spot 14 (20 November 2026): the strangers' text that came back unmarked.
+    # Meetings, in their guests' own words (`rouh/synapse/sources/meetings.py`).
+    "meeting_search": "meetings from the meeting library, what each person in them said",
+    "meeting_read": "a meeting from the meeting library, its transcript in each speaker's own words",
+    # The mail digests: lines read out of mail other people wrote.
+    "between_us": "what passed between the person and somebody, read out of mail they both wrote",
+    "to_answer": "mail waiting for an answer, written by whoever sent it",
+    "promised_to_you": "promises read out of mail, written by whoever sent it",
+    "unread_lists": "mailing lists and newsletters, written by whoever sends them",
+    "doc_changes": "changes to documents, written by whoever made each change",
+    "contact_changes": "changes to contacts, which anybody could have written",
+    # The task readers: a task's files and a run's log quote anything they read.
+    "look_at_task": "a task's files and pages, which may quote mail, pages and files written by others",
+    "read_task_log": "a run's log, which quotes what the run read: pages, mail, files and commands",
+    "what_task_changed": "what changed in a task's files, which may quote anything",
+    # Synapse, the person's memory, which holds mail, meetings, pages and messages of others.
+    "synapse_find": "items in the person's memory, which hold mail, meetings, pages and messages written by others",
+    "synapse_query": "what the person's memory holds, which quotes mail, meetings, pages and messages written by others",
+    # Anthropic's own web tools answer inside the model's response, where nothing of Rouh's can
+    # box them (`brain.py`): listed so the standing rule about boxed text is told whenever they
+    # are offered (`rule_needed`), and boxed wherever their result does pass through here.
+    "web_fetch": "a web page, written by whoever made the page",
+    "web_search": "web search results, written by whoever made each page",
 }
+
+#: What the Ask AI drawer and the comment pass are given besides the reader's question: the page
+#: as drawn and the notes of its task, which a guest who may edit it, or a mail it quotes, wrote
+#: as much as the person (`askai.build_prompt`).
+PAGE_SOURCE = "a page of the person's and the notes beside it, which guests who may edit it and mail it quotes wrote too"
 
 #: The standing rule, for the system prompt. Only worth sending when something
 #: in the request can actually produce a marked box.

@@ -685,6 +685,53 @@ def of_calendar(user_id, org_id, calendar_id) -> tuple[str, str]:
     return "", ""
 
 
+def calendar_fits(user_id, org_id, calendar_id, limit) -> bool:
+    """Whether a reader limited to `limit` (None for nobody's limit) may see a calendar's events:
+    the calendar is in one of their silos. A calendar in no silo fits no limit, as every thing
+    not known does (`fits`). 191-01 weak spot 16: until 20 November 2026 calendar reads ignored
+    silos everywhere."""
+    if limit is None:
+        return True
+    key, _why = of_calendar(user_id, org_id, calendar_id)
+    return fits(expand(user_id, org_id, key) if key else [], limit)
+
+
+#: What a calendar a limited reader may not see is called in what they are shown.
+HIDDEN_CALENDAR = "another calendar"
+
+
+def hide_calendars(user_id, org_id, found: dict, limit) -> dict:
+    """A calendar listing (`google_api.calendar.events`) as a reader limited to `limit` may see
+    it: the events of calendars outside their silos only as busy times, with no title, guests or
+    place and no calendar named, and those calendars left out of the ones it says it read. The
+    listing itself when there is no limit."""
+    if limit is None or not isinstance(found, dict):
+        return found
+    from datetime import datetime
+
+    keep = {}
+
+    def fits_(cid) -> bool:
+        cid = str(cid or "")
+        if cid not in keep:
+            keep[cid] = calendar_fits(user_id, org_id, cid, limit)
+        return keep[cid]
+
+    events, busy = [], []
+    for one in found.get("events") or []:
+        if fits_(one.get("calendar_id")):
+            events.append(one)
+        elif isinstance(one.get("start"), datetime) and isinstance(one.get("end"), datetime):
+            busy.append({"calendar": HIDDEN_CALENDAR, "calendar_id": "",
+                         "start": one["start"], "end": one["end"]})
+    for block in found.get("busy") or []:
+        busy.append(block if fits_(block.get("calendar_id")) else
+                    {**block, "calendar": HIDDEN_CALENDAR, "calendar_id": ""})
+    busy.sort(key=lambda b: b["start"])
+    return {**found, "events": events, "busy": busy,
+            "calendars": [c for c in found.get("calendars") or [] if fits_(c.get("id"))]}
+
+
 def of_inbox(user_id, org_id, inbox) -> str:
     return rule_map(user_id, org_id)["inbox"].get(str(inbox or "").strip().lower(), "")
 

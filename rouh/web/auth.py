@@ -319,16 +319,23 @@ def _passkey_in(request, got: dict):
     return row.user
 
 
+#: The account a passkey's failures are counted against: none, so only its address is.
+PASSKEY_NAME = ""
+
+
 async def passkey_verify(request: HttpRequest) -> HttpResponse:
     if request.method != "POST":
         return HttpResponse(status=405)
     back = next_page(request.GET.get("next", ""))
-    locked = await _locked(request, "passkey")
+    # Counted against the address alone (191-01 weak spot 19): a passkey names no account until
+    # it signs one in, and until 20 November 2026 every failure was counted against the one
+    # name "passkey", so anybody could lock everybody out of passkey sign-in.
+    locked = await _locked(request, PASSKEY_NAME)
     if locked:
         return JsonResponse({"error": locked}, status=429)
     user = await asyncio.to_thread(_passkey_in, request, _json(request))
     if user is None:
-        await _refused(request, "passkey")
+        await _refused(request, PASSKEY_NAME)
         return JsonResponse({"error": "That passkey did not sign anybody in here. Send yourself a link instead."},
                             status=401)
     await asyncio.to_thread(accounts.forget_failures, client_ip(request), user.username)

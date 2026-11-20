@@ -402,10 +402,14 @@ def locked_for(ip: str, username: str, now: float | None = None) -> float:
     by_ip, by_user = recent_failures(ip, username, now)
     if max(by_ip, by_user) < LOCKOUT_AFTER:
         return 0.0
+    # No account named is no account counted: an empty name would otherwise match every
+    # failure that named none, from any address.
+    name = (username or "").strip()[:64]
+    which = Q(ip=(ip or "")[:64]) if ip else Q(pk__in=[])
+    if name:
+        which |= Q(username__iexact=name)
     newest = SignInFailure.objects.filter(
-        Q(ts__gte=now - FAILURE_WINDOW)
-        & (Q(ip=(ip or "")[:64]) | Q(username__iexact=(username or "").strip()[:64]))
-    ).aggregate(m=Max("ts"))["m"] or now
+        Q(ts__gte=now - FAILURE_WINDOW) & which).aggregate(m=Max("ts"))["m"] or now
     return max(0.0, newest + LOCKOUT_SECONDS - now)
 
 

@@ -147,7 +147,7 @@ NIGHTLY = [
      "action void, with charge, takes a purchase that never went through off the caps.",
      {"service": {"type": "string"},
       "amount": {"type": "string", "description": "The price as shown, such as 20 or 9.99."},
-      "currency": {"type": "string", "description": "USD unless the checkout says otherwise."},
+      "currency": {"type": "string", "description": "USD, the only currency a night pays in."},
       "merchant": {"type": "string"},
       "reason": {"type": "string", "description": "What it pays for, and why the feature needs it."},
       "press": {"type": "string", "description": "The words on the button that pays."},

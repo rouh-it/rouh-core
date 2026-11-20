@@ -43,6 +43,23 @@ PATTERNS: tuple[re.Pattern[str], ...] = (
     # (`rouh/linkedin.py`). It goes in a header there and never in an address;
     # this is the net under that.
     re.compile(r"apify_api_[A-Za-z0-9]{8,}"),
+    # The model and service providers' own keys (191-01 weak spot 20, 20 November 2026): until
+    # then only the reader of the log masked these (`rouh_log`), and the main logs kept them as
+    # they came. Anthropic, OpenAI, Stripe, Slack, GitHub, AWS, ElevenLabs, and a bearer token.
+    re.compile(r"sk-ant-[A-Za-z0-9_-]{10,}"),
+    re.compile(r"\bsk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}"),
+    re.compile(r"\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{10,}"),
+    re.compile(r"\bwhsec_[A-Za-z0-9]{10,}"),
+    re.compile(r"\bxox[abposr]-[A-Za-z0-9-]{10,}"),
+    re.compile(r"\bxapp-[A-Za-z0-9-]{10,}"),
+    re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}"),
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"\bsk_[a-f0-9]{40,}\b"),
+    re.compile(r"(?i)\bbearer\s+(?!\[redacted\])[A-Za-z0-9._~+/=-]{16,}"),
+    # A key carried in a header by name: x-api-key, xi-api-key, api-key.
+    re.compile(r"(?i)((?<![A-Za-z0-9_-])(?:x-api-key|xi-api-key|api[_-]?key|apikey)"
+               r"['\"]?\s*[=:]\s*['\"]?)(?!\[redacted\])([^\s,&'\"}\];]{8,})"),
     # A key carried in an address, as Google's APIs take one (`?key=AIza...`): httpx logs every
     # address it calls at INFO, and YouTube's search sends its key that way (`rouh/youtube.py`).
     re.compile(r"([?&](?:key|api_key|token|access_token)=)(?!\[redacted\])([^&\s\"']{6,})"),
