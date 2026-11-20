@@ -194,6 +194,55 @@ def runs_proxy_grant(s: Stack) -> None:
     expect(r.returncode == 0, f"rouh-grant log: {(r.stdout + r.stderr)[-300:]}")
 
 
+@check("runs.switch-per-run")
+def runs_switch_per_run(s: Stack) -> None:
+    """The switch per run (task 191, rouh/run_access.py, guard/rouh_guard/keyproxy.py): with a runs
+    file in the keys volume, a request carrying the password of the owner's free run reaches a
+    public server on any port and GitHub with the standing token; the same request with a contact's
+    run's password, with no password, or with a guessed one gets the standing rules only, even with
+    a timed `all` grant open; and the owner's standing server is refused to everyone else. (In this
+    stack the core writes no runs file of its own, ROUH_RUN_ACCESS=0 in compose.test.yml, because
+    the checks drive the worker with `docker exec`, which is no run; the file is written by hand.)"""
+    import hashlib
+
+    pub = "public.stack.test"
+    owner_pw, contact_pw = "stack-owner-run-password", "stack-contact-run-password"
+    h = lambda t: hashlib.sha256(t.encode()).hexdigest()  # noqa: E731
+    write = f"""python3 - <<'PY'
+import json, os, time
+runs = {{"{h(owner_pw)}": {{"run": "stack-owner", "kind": "owner", "free": True,
+                            "gets": ["internet", "github", "rouh-land", "relay", "host"]}},
+        "{h(contact_pw)}": {{"run": "stack-contact", "kind": "contact", "free": True,
+                              "gets": ["internet", "github"]}}}}
+for name, data in (("keyproxy_runs.json", {{"until": time.time() + 600, "ack": 0, "canaries": [], "runs": runs}}),
+                   ("github_standing.json", {{"token": "{STACK_TOKEN}", "login": "stack"}})):
+    path = os.path.join("/keys", name)
+    open(path + ".new", "w").write(json.dumps(data)); os.chmod(path + ".new", 0o644); os.replace(path + ".new", path)
+PY"""
+    s.run("core", f"{GRANT} revoke all")
+    s.run("core", write)
+    s.run("core", f"{GRANT} open all 1")
+    try:
+        def via(pw: str) -> bool:
+            r = s.py("worker", f"""
+import base64, socket
+head = "CONNECT {pub}:2224 HTTP/1.1\\r\\nHost: x\\r\\n"
+if {pw!r}:
+    head += "Proxy-Authorization: Basic " + base64.b64encode(b"run-x:" + {pw!r}.encode()).decode() + "\\r\\n"
+c = socket.create_connection(("keyproxy", 8080), timeout=15)
+c.sendall((head + "\\r\\n").encode())
+print(c.recv(100).split(b"\\r\\n")[0].decode())
+""")
+            return " 200 " in r.stdout
+        expect(via(owner_pw), f"the owner's free run did not reach {pub}:2224")
+        expect(not via(contact_pw), f"a contact's run reached {pub}:2224, though the file said free")
+        expect(not via(""), f"a request with no run password reached {pub}:2224 through the timed grant")
+        expect(not via("guessed"), f"a guessed password reached {pub}:2224")
+    finally:
+        s.run("core", "rm -f /keys/keyproxy_runs.json /keys/github_standing.json")
+        s.run("core", f"{GRANT} revoke all")
+
+
 @check("crew.tools")
 def crew_tools(s: Stack) -> None:
     """The person's work goes to a run of the one program with the tool Rouh uses for it on the

@@ -53,6 +53,41 @@ Every address is looked up once, and the connection is made to the address that 
 Each connection a grant let through, rather than the standing rules (ports 80 and 443 to public servers, and `ROUH_KEYPROXY_ALLOW`), is logged by the proxy as `GRANT <grant> <how> host:port address`, with no header and no key.
 `rouh-grant prune` gathers those lines each minute into `/var/log/rouh-grant-connections.log` on the host, which outlives the proxy's container, and `rouh-proxy-grant log` shows it.
 
+## The switch: all five, standing, for the owner's own runs only
+
+Petar, 20 November 2026 (task 191): "okay. so the switch should cover all 5 items in the rouh-open. Build the entire thing now."
+
+The switch on the Permissions page (`rouh/unrestricted.py`) now does what `rouh-open 8` does, for the owner's own runs and for as long as it is Unrestricted, with nothing opened for anybody else.
+It rests on three things.
+
+- **Each run is known by the kernel, not by what it says.** Every run is the worker's one Linux user, so the one program tells runs apart by their place in the process tree (`one/peers.py`), and keeps a proxy password and a token for each in its own memory (`one/rundoor.py`). Every run's `HTTPS_PROXY` and `HTTP_PROXY` is the program's run door, `127.0.0.1:8078` (and gh's socket), which adds that run's password and hands the connection to the key proxy. A run never sees its password; a process that left its run gets none.
+- **Rouh says which runs are free.** Every 15 seconds and at every press, Rouh's core asks the program for the passwords' hashes, decides each run's kind (the owner's, a contact's, a process's, a beat's) and whether it is free (the owner's own live run with their words, while Unrestricted), and writes `keyproxy_runs.json` into the keys volume, each entry lasting 90 seconds (`rouh/run_access.py`).
+- **Standing access on the host**, which the key proxy hands only to free runs: `github_standing.json` (the owner's token, no end time) and `standing_access.json` (the owner's servers whose login is standing, by address and ssh port), written by `rouh-grant standing`; and on each server one line of the jobs' standing key (`~/.ssh/jobs-standing` in the worker, comment `rouh-jobs-standing`), with no end and `from=` the office's two addresses only, written by `rouh-jobs-keys standing` (the relay, the host) or with a far end time (rouh.land, whose own prune keeps only lines with an end).
+
+With a runs file in place the key proxy decides per request:
+
+| Item | Restricted, or any run not the owner's | Unrestricted, the owner's own live runs |
+|---|---|---|
+| Internet | ports 80 and 443 to public servers; the owner's own runs also keep rouh-open's timed grants | any public server, any port (the office network stays `lan`) |
+| GitHub | public reads; the owner's own runs also get rouh-open's timed token | the standing token, added on the way out |
+| rouh.land, the relay, the host | refused, even with a timed grant or a listed pair, unless rouh-open's timed login for that server is open and the run is the owner's | their ssh, with the jobs' standing key |
+
+A run of anybody else's that tries one of the owner's servers trips the tripwire: the key proxy refuses everything past the standing rules until Rouh has seen it, and Rouh drops the switch to Restricted and tells the owner.
+Without a runs file (a Rouh whose core is older) the proxy works as before, but the standing servers are still reached only while rouh-open's timed login for each is open.
+
+```bash
+sudo rouh-grant standing status                    # on the host: what is standing
+sudo rouh-grant standing github --from-grant       # make the open timed GitHub grant's token standing
+sudo rouh-grant standing server NAME ADDRS PORTS ITEM   # a server whose login is standing (ITEM: rouh-land, relay, host)
+sudo rouh-grant standing jobs-key host FROM ssh-ed25519 KEY rouh-jobs-standing   # the host's own line
+sudo rouh-grant standing revoke github|NAME|all    # off at once; a server stays guarded, so its key line reaches nobody
+rouh-github-grant standing [--token | off | status] # from the Mac
+rouh-open standing [off]                           # from the Mac: what is standing, or all of it off
+```
+
+`rouh-open close` still closes the timed parts; on rouh.land its `lock` also takes the standing line out (rouh.land's own command clears every key), so after it run `rouh-open` once with the new commands, or put the line back as above.
+`lan` is unchanged: it stays a Mac command (`rouh-proxy-grant lan`), and the switch never opens it.
+
 ## The owner's own servers: rouh.land, the relay and the host
 
 Petar, 2 November 2026: "lets fix the missing permissions by adding them to the "rouh-open 8" command. also let's add ssh admin@203.0.113.20 sudo rouh-land-admin grant in it too."

@@ -50,6 +50,11 @@ services:
 
   core:
     networks: [db, workers, edge, browser, standins]
+    environment:
+      # The checks drive the worker with `docker exec`, which is no run of the one program, so a
+      # runs file of the core's own would close every timed grant to them (rouh/run_access.py);
+      # runs.switch-per-run writes one by hand.
+      ROUH_RUN_ACCESS: "0"
     depends_on:
       standins:
         condition: service_healthy
