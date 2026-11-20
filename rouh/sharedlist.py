@@ -140,7 +140,8 @@ def _public(row, since=None) -> dict:
         return {"version": 0, "items": [], "answers": {}, "updated_at": None}
     if since is not None and since == row.version:
         return {"version": row.version, "same": True}
-    return {"version": row.version, "items": row.items, "answers": row.answers,
+    return {"version": row.version, "items": row.items,
+            "answers": {k: v for k, v in (row.answers or {}).items() if k != ABSORBED},
             "updated_at": row.updated_at,
             "removed": [{"w": r.get("item", {}).get("w"), "by": r.get("by"), "at": r.get("at")}
                         for r in row.removed[-20:]]}
@@ -179,9 +180,77 @@ def _seed(org_id: str, rel: str, key: str, now: float) -> tuple[list, dict, list
             for name, a in checks.items():
                 if isinstance(a, dict) and name not in dom:
                     dom[str(name)[:80]] = {t: a[t] for t in ("ai", "com") if t in a}
+        answers.setdefault(ABSORBED, {})[str(st.id)] = st.updated_at
         notes.append({"op": "seeded", "from": by["from"], "count": len(kept) if isinstance(kept, list) else 0,
                       "at": now})
     return items[:ITEMS_MOST], answers, notes
+
+
+#: Where the list keeps which person's own copy it has taken in, and up to when (``answers``).
+ABSORBED = "_absorbed"
+
+
+def _absorb(row, org_id: str, rel: str, key: str) -> None:
+    """Take in what a person's own copy (`PageState`) gained since the list last looked.
+
+    A page whose Rouh around it is older than the shared list (a tab open since before the
+    update) cannot reach it and keeps saving to the person's own copy (20 November 2026: Petar's
+    seven words added after the list was made were there, and missing from the list). So each
+    time the list is opened, an entry such a copy has and the list lacks comes in, unless it was
+    taken off the list on purpose (it is in ``removed``); its domain answers come in too. Nothing
+    on the list is ever taken away by this. The held row is saved when anything came in.
+    """
+    from .models import PageState
+
+    answers = dict(row.answers or {})
+    seen = dict(answers.get(ABSORBED) or {})
+    gone = {ident((r.get("item") or {}).get("w")) for r in row.removed or []}
+    items = list(row.items)
+    have = {x.get("id") for x in items}
+    came: list[str] = []
+    looked = False
+    for st in PageState.objects.filter(org_id=org_id, rel=rel).order_by("updated_at", "id"):
+        mark = str(st.id)
+        if float(seen.get(mark) or 0) >= float(st.updated_at or 0):
+            continue
+        looked = True
+        seen[mark] = st.updated_at
+        settings = st.settings if isinstance(st.settings, dict) else {}
+        kept = settings.get(key)
+        for raw in kept if isinstance(kept, list) else []:
+            try:
+                entry = _clean(raw)
+            except Refused:
+                continue
+            i = ident(entry["w"])
+            if i in have or i in gone or len(items) >= ITEMS_MOST:
+                continue
+            entry.update(id=i, by={"user": str(st.user_id), "name": "", "from": f"page_states #{st.id}"},
+                         at=st.updated_at, seeded_from=f"page_states #{st.id}")
+            items.append(entry)
+            have.add(i)
+            came.append(i)
+        checks = settings.get("checks")
+        if isinstance(checks, dict):
+            dom = dict(answers.get("domains") or {})
+            for name, a in checks.items():
+                if isinstance(a, dict) and name not in dom:
+                    dom[str(name)[:80]] = {t: a[t] for t in ("ai", "com") if t in a}
+            answers["domains"] = dom
+    if not looked:
+        return
+    answers[ABSORBED] = seen
+    row.answers = answers
+    fields = ["answers"]
+    if came:
+        now = time.time()
+        row.items = items
+        row.version += 1
+        row.updated_at = now
+        row.log = (list(row.log) + [{"v": row.version, "op": "absorbed", "added": came, "at": now}])[-LOG_MOST:]
+        fields += ["items", "version", "updated_at", "log"]
+        log.info("sharedlist: %s %s took in %d entries kept on a person's own copy", rel, key, len(came))
+    row.save(update_fields=fields)
 
 
 def _row(org_id: str, rel: str, key: str):
@@ -192,6 +261,7 @@ def _row(org_id: str, rel: str, key: str):
 
     row = PageSharedList.objects.select_for_update().filter(org_id=org_id, rel=rel, key=key).first()
     if row is not None:
+        _absorb(row, org_id, rel, key)
         return row
     now = time.time()
     items, answers, notes = _seed(org_id, rel, key, now)
