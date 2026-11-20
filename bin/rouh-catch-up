@@ -30,6 +30,10 @@ the backup part; bin/rouh-catch-up-mac does). Undo: Meta, Changes, Put back on t
 rouh-guard undo N; then, if the database must go back too, rouh-backup restore <the copy>.
 
     --check   say what it would do, and change nothing
+    --fresh   a Rouh whose code should simply be the newest release, as a fresh install has it: the
+              same as --stuck, but nothing of its own code is carried over. Its account, sign-in,
+              connections and settings (the database), keys, rouh.page name (/data/rouh/relay) and
+              workspace are kept; the database is migrated to the release when Rouh starts again.
     --stuck   a Rouh that has Rouh's updates, but whose update cannot move (19 November 2026: a Rouh
               said "0 copied exactly, 0 adapted, 74 waiting", every change behind one its model call
               could not adapt, and the fixes for that behind it too). The same, from the release its
@@ -312,7 +316,7 @@ def own_commits(local: str, head: str) -> list[str]:
     return [("released, not its own: " if UPDATE_STEP.search(l) else "") + l for l in lines]
 
 
-def catch_up(dry: bool, stuck: bool = False) -> int:
+def catch_up(dry: bool, stuck: bool = False, fresh: bool = False) -> int:
     if not (CODE / ".git").exists():
         raise Refused(f"{CODE} is not a Rouh's code (no git repository).")
     if git("cat-file", "-e", "HEAD:rouh/code_update.py", cwd=CODE).returncode == 0 and not stuck:
@@ -381,7 +385,14 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
         git("checkout", "-q", "-B", "catch-up", head, cwd=work, check=True)
         kept, carried, dropped, plain, left_out, misfit = [], [], [], "", [], []
         local_release_commit = ""
-        if head == b["local"]:
+        if fresh:
+            # --fresh: this Rouh's code becomes the release alone, as a fresh install has it; nothing of its
+            # own code is carried (it stays in its history). Its database, keys, rouh.page name and workspace
+            # are not code and are not touched here; Rouh's start migrates the database to the release.
+            say("--fresh: the release alone, as a fresh install has it; this Rouh's own code changes are left out "
+                "(they stay in its history), and its database, keys, rouh.page name and workspace are kept")
+            merged = local_release
+        elif head == b["local"]:
             merged = local_release
         else:
             say("keeping this Rouh's own changes")
@@ -511,7 +522,8 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
                       + failures(answer)[0][:1500])
     n = (answer.get("point") or {}).get("n")
     say(f"done: undo point {n} is Rouh {commit[:12]} of {when}"
-        + (f" with this Rouh's {own} own change{'s' if own != 1 else ''}" if own else "")
+        + (" alone; this Rouh's own code changes are left out (in its history), its database, keys and name kept"
+           if fresh else f" with this Rouh's {own} own change{'s' if own != 1 else ''}" if own else "")
         + f"; {', '.join(answer.get('restarts') or ['core'])} start again on it.")
     if before:
         say(f"to undo: Anatomy, Meta, Changes, Put back on undo point {before}; or rouh-guard undo {before} here.")
@@ -522,11 +534,11 @@ def catch_up(dry: bool, stuck: bool = False) -> int:
 
 
 def main(argv: list[str]) -> int:
-    if any(a not in ("--check", "--stuck") for a in argv):
+    if any(a not in ("--check", "--stuck", "--fresh") for a in argv):
         print(__doc__.strip(), file=sys.stderr)
         return 2
     try:
-        return catch_up("--check" in argv, "--stuck" in argv)
+        return catch_up("--check" in argv, "--stuck" in argv or "--fresh" in argv, fresh="--fresh" in argv)
     except Refused as exc:
         say(str(exc))
         print("ROUH-CATCH-UP " + json.dumps({"ok": False, "said": str(exc)}), flush=True)
