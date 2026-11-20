@@ -68,7 +68,10 @@ UPDATE_STEP = ("rouh/code_evolution.py", "rouh/github_org.py")
 #: A file with a line longer than this, or larger than OPAQUE_SIZE, or binary, is copied whole and
 #: never read as text: a vendored library, a minified file, a picture, a font.
 OPAQUE_LINE = 2000
-OPAQUE_SIZE = 512 * 1024
+#: Past this a file is only ever copied whole, whatever it holds. It was 512 KB until 20 November 2026,
+#: when Rouh's own rouh/static/app/runs.js (hand-written, 18,000 lines of at most 237 characters) grew
+#: to 783 KB and was read as a library: every Rouh whose copy differed waited on 6ceef460 for good.
+OPAQUE_SIZE = 8 * 1024 * 1024
 #: Prose keeps a paragraph on one line (README.md has lines of 3,000 characters): a prose file is
 #: opaque by its lines only past this, so its lines still merge beside this Rouh's own.
 PROSE = (".md", ".markdown", ".txt", ".rst")
@@ -77,7 +80,8 @@ OPAQUE_PROSE_LINE = 50000
 #: 3: a prose file's long paragraphs no longer make it opaque.
 #: 4: a test's own files no longer make a change a database change, and a name in the message
 #:    (updates.security-database-frontier) no longer makes it a security change (125a033e, 19 November 2026).
-CLASSIFIED = 4
+#: 5: a large text file is no longer copy-whole only by its size (OPAQUE_SIZE, 20 November 2026).
+CLASSIFIED = 5
 #: A change's message is read for security words outside names: a check's id, a path or a variable.
 NAME_IN_MESSAGE = re.compile(r"[\w-]+(?:[./_][\w-]+)+")
 #: How often a waiting urgent security change is tried again before it waits a day like the rest.
@@ -476,6 +480,35 @@ def own_schema(row: dict, work: Path) -> bool:
     return migrations(work, "HEAD") != migrations(master_repo(), row["parent"])
 
 
+_RELEASED: dict = {}
+
+
+def _git_ok(*args: str) -> bool:
+    return u._git(*args, cwd=master_repo()).returncode == 0
+
+
+def released_in(file: str, blob: str) -> str:
+    """The commit of shared main that first had this exact version of a file, or "" when shared main
+    never had it: a version this Rouh has without having edited it itself (taken earlier, or older)."""
+    if not blob:
+        return ""
+    key = (file, _git("rev-parse", "refs/heads/main"))
+    if key not in _RELEASED:
+        seen: dict = {}
+        log_ = u._git("log", "--first-parent", "--reverse", "--format=%x1e%H", "--raw", "--no-abbrev", "--no-renames",
+                      "refs/heads/main", "--", file, cwd=master_repo()).stdout
+        for rec in log_.split("\x1e")[1:]:
+            lines = rec.strip().splitlines()
+            if not lines:
+                continue
+            for line in lines[1:]:
+                parts = line.split()
+                if len(parts) >= 5 and parts[3] not in seen and set(parts[3]) != {"0"}:
+                    seen[parts[3]] = lines[0]
+        _RELEASED[key] = seen
+    return _RELEASED[key].get(blob, "")
+
+
 def sort_files(row: dict, work: Path) -> dict:
     """Each file of a change, by how it can be taken here (the master commit already fetched into work):
     exact (this Rouh's file is the one the change started from, or already the one it ends with),
@@ -483,14 +516,24 @@ def sort_files(row: dict, work: Path) -> dict:
     every migration, model or schema file a database change brings: it must fit this Rouh's schema),
     whole (a file only copied whole that this Rouh changed itself: it waits)."""
     master = master_repo()
-    out: dict = {"exact": [], "merged": {}, "clash": [], "whole": [], "already": []}
+    out: dict = {"exact": [], "merged": {}, "clash": [], "whole": [], "already": [], "older": []}
     own = bool(row.get("database")) and own_schema(row, work)
     for f in row["files"]:
         base, here, theirs = (_blob(master, row["parent"], f), _blob(work, "HEAD", f), _blob(master, row["master"], f))
+        came = released_in(f, here.split()[2]) if here and here not in (base, theirs) else ""
         if here and here != theirs and _END and here == _blob(master, _END[0], f):
             # Already the release's own final version (the protected core's update step brings its
             # files so): every change before it is in it.
             out["already"].append(f)
+        elif came and _git_ok("merge-base", "--is-ancestor", row["master"], came):
+            # A later version shared main had (an earlier walk took a later change out of order):
+            # this change is in it already, so the file stays as it is.
+            out["already"].append(f)
+        elif came:
+            # An earlier version shared main had (this Rouh's code is older than its record): not an
+            # edit of its own, so the release's version is copied exactly over it.
+            out["exact"].append(f)
+            out["older"].append(f)
         elif here != theirs and row.get("database") and database_file(f) and not opaque(master, row["master"], f) \
                 and own:
             # A database change's migration must fit this Rouh's own schema (its own tables, its own
@@ -755,10 +798,15 @@ def _taken_said(row: dict, copied: dict, sort: dict) -> str:
         parts.append(f"{len(copied)} file{'s' if len(copied) != 1 else ''} copied exactly from the release, "
                      "each checked against its hash there")
     if sort.get("already"):
-        parts.append(", ".join(sorted(sort["already"])[:4]) + " already the release's own newest version")
+        parts.append(", ".join(sorted(sort["already"])[:4]) + " already in this Rouh, as a later version shared main had")
     if sort["merged"]:
         parts.append("its own lines merged by git into this Rouh's " + ", ".join(sorted(sort["merged"])[:4])
                      + (f" and {len(sort['merged']) - 4} more" if len(sort["merged"]) > 4 else ""))
+    if sort.get("older"):
+        parts.append(", ".join(sorted(sort["older"])[:4]) + " brought up from an earlier version shared main had, "
+                     "not an edit of this Rouh's own")
+    if sort.get("already") and not parts:
+        parts.append("already in this Rouh")
     said = "; ".join(parts)
     return said[:1].upper() + said[1:] + "."
 
@@ -848,8 +896,10 @@ def _propose(doc: dict, row: dict, rel: dict, by: str, work: Path, plan: dict, c
                 "not_applicable": bool(plan.get("not_applicable")),
                 "model": plan.get("model", ""), "reason": plan.get("reason", ""),
                 "exact": taken.get("exact") or {}, "merged": sorted(taken.get("merged") or [])}
-    if len(unit) > 1:
-        # Several changes as they landed together: the core checks each exact copy against one release
+    if len(unit) > 1 or plan.get("older"):
+        # Several changes as they landed together, or one that brings a file up from an earlier
+        # version shared main had (core 1.1 checks a copy only against the version the change started
+        # from): the core checks each exact copy against one release
         # commit only, so none is claimed; a database one among them is still rehearsed in full.
         evidence = ({"master": row["master"], "database": True, "security": False, "proof": EXACT_DB_PROOF,
                      "database_plan": exact_database("")["database_plan"], "not_applicable": False, "model": "",
@@ -1029,6 +1079,8 @@ def advance(rel: dict, by: str, work: Path) -> None:
                     plan = exact_database(said)
                 else:
                     plan = {"reason": said}
+                if sort.get("older"):
+                    plan["older"] = sorted(sort["older"])
                 if any(f in u.LIBRARIES for f in row["files"]):
                     u._libraries(work)
                 _propose(doc, row, rel, by, work, plan, not needs_model and exact_only,
