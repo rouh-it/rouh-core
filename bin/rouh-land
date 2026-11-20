@@ -316,7 +316,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(prog="rouh-land")
     ap.add_argument("--path", default=".")
     ap.add_argument("--target", default="main")
-    ap.add_argument("--run", default="")
+    # A run that calls ./land.sh itself passes no --run, so it is read from the environment its
+    # launcher set: without it the core wrote the landing down as "a run", and which run a commit
+    # came from was lost (job_status, task 182, 20 November 2026).
+    ap.add_argument("--run", default=os.environ.get("ONE_RUN") or os.environ.get("ROUH_JOB") or "")
     ap.add_argument("--title", default="")
     ap.add_argument("--from", dest="base", default="")
     ap.add_argument("--land-dir", default="")

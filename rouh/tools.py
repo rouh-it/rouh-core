@@ -15675,8 +15675,10 @@ class ToolRegistry:
                 facts["landing_notes"].append(f"Its checkout: {changed['gone']}")
             facts["mismatch"] = job_status.crew_mismatch(meta, str(row.get("status") or ""))
             repos.append(str(getattr(mate, "workdir", "") or ""))
+        # Commit ids named in its own final report: a run that pushed its own work with ./land.sh
+        # before 20 November 2026 is in no landing record, and its report names what it landed.
         commits = await asyncio.to_thread(job_status.commit_facts, shas, repos, running_sha,
-                                          code_repo)
+                                          code_repo, job_status.shas_in(facts["report"]))
         for c in commits:
             facts["files"] = list(c.get("files") or []) + facts["files"]
         return job_status.render(row, others=others, commits=commits, running_sha=running_sha,

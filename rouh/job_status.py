@@ -125,20 +125,41 @@ def landings_of(run_id: str, land_dir: str) -> list[tuple[float, list[str]]]:
 
 
 def _on_main(where: str, sha: str) -> bool | None:
-    for ref in ("origin/main", "main"):
+    """Whether the commit is on main: on either `main` or `origin/main`, because in Rouh's own
+    code (`/code`) `main` is the live line and `origin/main` an old leftover, and in a clone of
+    the workspace it can be the other way round. None when neither ref is there."""
+    found = False
+    for ref in ("main", "origin/main"):
         rc, _ = _git(where, "rev-parse", "--verify", "--quiet", ref)
         if rc != 0:
             continue
+        found = True
         rc, _ = _git(where, "merge-base", "--is-ancestor", sha, ref)
-        return rc == 0
-    return None
+        if rc == 0:
+            return True
+    return False if found else None
+
+
+def shas_in(text: str) -> list[str]:
+    """Commit ids a job named in its own words, such as its final report. Only a guess until
+    `commit_facts` finds them, so they are passed to it as `maybe` and dropped when not found."""
+    return list(dict.fromkeys(re.findall(r"(?<![0-9a-zA-Z])[0-9a-f]{7,40}(?![0-9a-zA-Z])",
+                                         str(text or ""))))[:12]
 
 
 def commit_facts(shas: Iterable[str], repos: list[str], running_sha: str = "",
-                 code_repo: str = "") -> list[dict]:
+                 code_repo: str = "", maybe: Iterable[str] = ()) -> list[dict]:
     """Each commit as it is in whichever of `repos` has it: its message, its files, whether it
-    is on main, and - in Rouh's own code, `code_repo` - whether the build running has it."""
+    is on main, and - in Rouh's own code, `code_repo` - whether the build running has it.
+
+    `maybe` are ids read out of a job's own words: kept only when a repository has them.
+    """
     out, seen = [], set()
+    recorded = [str(s or "").strip() for s in shas]
+    guessed = [s for s in maybe if not any(r.startswith(s) or s.startswith(r)
+                                           for r in recorded if r)]
+    shas = recorded + guessed
+    guessed_set = set(guessed)
     for sha in shas:
         sha = str(sha or "").strip()
         if not sha or sha in seen:
@@ -158,6 +179,8 @@ def commit_facts(shas: Iterable[str], repos: list[str], running_sha: str = "",
                 rc, _ = _git(where, "merge-base", "--is-ancestor", sha, running_sha)
                 fact["live"] = rc == 0
             break
+        if sha in guessed_set and not fact.get("subject"):
+            continue
         out.append(fact)
     return out
 
