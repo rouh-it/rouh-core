@@ -53,6 +53,16 @@ started again. So version 3:
 - **Only the page that is showing.** The browser sends only what is drawn now, so an explainer
   of several pages is narrated a page at a time (`rouh/static/askai/listen.js`).
 
+**Hear a word** (20 November 2026, task 149, step 149-02). Petar, on the page where he picks a
+new name for BigBongo: "add a functionality where I can select something and have the option for
+eleven labs to pronounce it so I can hear it". So a page can ask for a short text said aloud, ``do:
+"word"`` with ``text`` and ``lang`` (`say_word`): ``bg`` says it as a Bulgarian would, ``en`` as an
+English speaker would read it, which is what a brand name has to survive. It is said by a model
+that can be told the language (`WORD_MODEL`, ElevenLabs' Flash v2.5, which speaks Bulgarian), in
+Rouh's own voice, and each clip is kept per person by its words, language, voice and model
+(`_word_file`), so the same word is never paid for twice. Only a short text: a word, a name, a
+line (`WORD_CHARS`).
+
 **Its switch** is `page_listen` (`rouh/switches.py`): off, the button is not on the page and this
 answers nothing.
 
@@ -464,5 +474,106 @@ async def speak(who, rel: str, key: str, i, jump: bool = False, cfg=None) -> dic
     return {"rate": rate, "pcm": base64.b64encode(pcm).decode("ascii")}
 
 
+#: The longest text "Hear a word" says, and the languages it says it in.
+WORD_CHARS = 200
+WORD_LANGS = ("bg", "en")
+#: A model that can be told which language to say a word in (`language_code`), and speaks Bulgarian.
+WORD_MODEL = "eleven_flash_v2_5"
+#: The clips kept for one person; the oldest go first.
+WORDS_KEPT = 3000
+
+
+def _word_file(who, text: str, lang: str, rate: int, voice_id: str) -> Path:
+    said = json.dumps([WORD_MODEL, voice_id, lang, rate, text], ensure_ascii=False)
+    return _folder(who) / "words" / f"{hashlib.sha256(said.encode('utf-8')).hexdigest()[:32]}.pcm"
+
+
+def _tidy_words(folder: Path) -> None:
+    try:
+        clips = sorted(folder.glob("*.pcm"), key=lambda p: p.stat().st_mtime)
+        for old in clips[:-WORDS_KEPT]:
+            old.unlink(missing_ok=True)
+    except OSError:
+        log.exception("the kept words could not be tidied")
+
+
+async def _ask_word(text: str, lang: str, path: Path, cfg) -> bytes:
+    import asyncio
+
+    import httpx
+
+    from . import speech
+
+    rate = int(cfg.tts_sample_rate)
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=8.0)) as client:
+            r = await client.post(
+                f"{speech.API}/text-to-speech/{cfg.voice_id}/stream",
+                params={"output_format": f"pcm_{rate}"},
+                headers={"xi-api-key": cfg.elevenlabs_api_key, "accept": "audio/pcm"},
+                json={"text": text, "model_id": WORD_MODEL, "language_code": lang,
+                      "voice_settings": {"stability": 0.5, "similarity_boost": 0.75, "speed": 0.9}})
+    except httpx.HTTPError:
+        log.exception("the voice could not be reached for a word")
+        raise Refused("The voice could not be reached. Try again in a moment.", 502) from None
+    if r.status_code >= 400 or not r.content:
+        log.error("the voice refused a word (%s): %s %s", lang, r.status_code, r.text[:300])
+        raise Refused("The voice could not say that.", 502)
+
+    def keep() -> None:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_name(f".{path.name}.tmp")
+            tmp.write_bytes(r.content)
+            os.replace(tmp, path)
+            _tidy_words(path.parent)
+        except OSError:
+            log.exception("a word's voice could not be kept")
+
+    await asyncio.to_thread(keep)
+    return r.content
+
+
+async def say_word(who, text, lang, cfg=None) -> dict:
+    """A short text said aloud in Rouh's own voice, in Bulgarian (``bg``) or as an English speaker
+    reads it (``en``): ``{rate, pcm, kept}``, PCM16 mono in base64. Each clip is asked for once and
+    kept, and a second ask while it is being said waits for the first."""
+    import asyncio
+
+    from . import evolution
+    from .config import config
+
+    cfg = cfg or config
+    if not on(who):
+        raise Refused("Hearing a word is switched off: the gene page_listen is off in Evolution, "
+                      "Mutations.", 409)
+    lang = str(lang or "")
+    if lang not in WORD_LANGS:
+        raise Refused("Say bg or en.", 400)
+    text = _words(text, WORD_CHARS + 1)
+    if not text:
+        raise Refused("There is nothing to say.", 400)
+    if len(text) > WORD_CHARS:
+        raise Refused(f"Pick a shorter passage: at most {WORD_CHARS} letters are said at once.", 413)
+    rate = int(cfg.tts_sample_rate)
+    if not (cfg.elevenlabs_api_key and cfg.voice_id):
+        raise Refused("Rouh has no voice set up to read with.", 503)
+    path = _word_file(who, text, lang, rate, cfg.voice_id)
+    try:
+        pcm = await asyncio.to_thread(path.read_bytes)
+        kept = True
+    except OSError:
+        pcm, kept = None, False
+    if pcm is None:
+        mine = (str(path), "", 0)
+        task = _saying.get(mine)
+        if task is None:
+            task = _saying[mine] = asyncio.get_running_loop().create_task(_ask_word(text, lang, path, cfg))
+            task.add_done_callback(lambda _t: _saying.pop(mine, None))
+        pcm = await asyncio.shield(task)
+        await asyncio.to_thread(evolution.used, SWITCH, "heard", who=who, detail=f"{lang}: {text[:60]}")
+    return {"rate": rate, "pcm": base64.b64encode(pcm).decode("ascii"), "kept": kept}
+
+
 __all__ = ["SWITCH", "SYSTEM", "USE", "Refused", "clean_outline", "narrate", "on", "parts_of",
-           "question", "ready", "speak"]
+           "question", "ready", "say_word", "speak"]

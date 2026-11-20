@@ -23,7 +23,8 @@
   "signals": {
     "events": {
       "listened": "You pressed Listen in a page's floating control",
-      "jumped": "You pressed a part of a page while listening, to listen from there"
+      "jumped": "You pressed a part of a page while listening, to listen from there",
+      "heard": "You pressed Hear it on a word or a passage, and Rouh's voice said it"
     }
   },
   "nav": {
@@ -34,7 +35,8 @@
     "permissions": [
       "reads the words of the page of your workspace that is showing, as your browser draws it, when you press Listen on it",
       "asks the model the Models page has for Narrating a page to write its narration, once for each page as it is",
-      "sends each part of the narration to ElevenLabs to be said in Rouh's voice, once: the sound is kept"
+      "sends each part of the narration to ElevenLabs to be said in Rouh's voice, once: the sound is kept",
+      "sends a word or short passage you ask to hear (Hear it) to ElevenLabs, in Bulgarian or as English, once: the sound is kept"
     ],
     "accounts": [],
     "tables": [],

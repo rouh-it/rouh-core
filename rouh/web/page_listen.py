@@ -10,6 +10,8 @@ what is wanted with ``do``:
 - ``ready`` with ``key``: what there is so far of that narration, ``{key, parts, done}``.
 - ``say`` with ``key`` and ``i``: part ``i`` of it in Rouh's voice, ``{rate, pcm}``; ``jump`` says
   the part was pressed on the page to listen from there.
+- ``word`` with ``text`` and ``lang`` (``bg`` or ``en``): a short text said aloud, ``{rate, pcm,
+  kept}``, kept so it is never asked for twice (step 149-02, "Hear it" on a selection).
 """
 from __future__ import annotations
 
@@ -46,6 +48,8 @@ async def for_owner(request: HttpRequest):
         elif what == "say":
             said = await page_listen.speak(me, place.rel, str(asked.get("key") or ""),
                                            asked.get("i"), jump=bool(asked.get("jump")))
+        elif what == "word":
+            said = await page_listen.say_word(me, asked.get("text"), asked.get("lang"))
         else:
             return refuse("That is not something Listen does.", 400)
     except page_listen.Refused as exc:
