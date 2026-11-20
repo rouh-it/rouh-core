@@ -152,6 +152,8 @@
     "rouh/picturelinks.py",
     "rouh/pagestate.py",
     "rouh/web/pagestate.py",
+    "rouh/name_checks.py",
+    "rouh/web/name_checks.py",
     "rouh/steps.py",
     "rouh/templates/rouh/index.html",
     "rouh/templates/rouh/reader.html",

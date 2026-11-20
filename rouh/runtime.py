@@ -1218,6 +1218,17 @@ def _pagestate_hooks() -> None:
 _pagestate_hooks()
 
 
+def _name_checks_hooks() -> None:
+    """What a page's Check trademark borrows from here to start its screening run (`rouh/name_checks.py`)."""
+    from . import name_checks, starting
+
+    name_checks.hooks.start = lambda **fields: starting.start(
+        cfg=config, crew=crew, one=one, emit=Hub.broadcast, **fields)
+
+
+_name_checks_hooks()
+
+
 async def _thought_task_made(task_id: str) -> None:
     """A new thought's own task (`rouh/thought_enrich.py`): on every screen, then filed into the
     project it belongs in, waited for so its run is told the folder it stays in."""

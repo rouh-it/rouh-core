@@ -4630,6 +4630,9 @@ function askRoute(path) {
   // Listen to this page: its narration, and each part of it in Rouh's voice
   // (`rouh/web/page_listen.py`), for the owner only.
   if (path === '/api/listen') return '/api/page-listen';
+  // A name's .ai and .com now, and its trade mark screening run, for the
+  // owner only (`rouh/web/name_checks.py`; task 149, step 149-02).
+  if (path === '/api/checks') return '/api/name-checks';
   // The page's history, and the options kept over it (`rouh/pagehistory.py`).
   if (path === '/api/history') return ASK_ROUTE + 'history';
   if (path === '/api/keep') return ASK_ROUTE + 'keep';
