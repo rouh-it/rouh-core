@@ -282,7 +282,8 @@ def sections(contract: dict, gene: str = "", summary: str = "") -> dict:
     c = contract if isinstance(contract, dict) else {}
     t = c.get("touches") if isinstance(c.get("touches"), dict) else {}
     nav = c.get("nav") if isinstance(c.get("nav"), dict) else {}
-    group = c.get("group") if c.get("group") in genes.GROUP_IDS else ""
+    group = genes.MOVED_GROUPS.get(c.get("group"), c.get("group"))
+    group = group if group in genes.GROUP_IDS else ""
     place = nav.get("place") if nav.get("place") in genes.PLACES else ("list" if group else "none")
     name = _text(c.get("name"), 80) or gene.split("/")[-1]
     return {

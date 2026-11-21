@@ -15,7 +15,7 @@
     "at a time",
     "nightly"
   ],
-  "group": "time",
+  "group": "work",
   "route": "/clockwork",
   "icon": "<circle cx=\"12\" cy=\"13\" r=\"7.5\"/><path d=\"M12 9.3V13l2.6 1.7\"/><path d=\"M4.2 6.2l2.6-2.4M19.8 6.2l-2.6-2.4\"/>",
   "attaches_to": [
@@ -25,7 +25,7 @@
   "maturity": "accepted",
   "nav": {
     "place": "list",
-    "order": 10,
+    "order": 35,
     "opens": "own",
     "row": "remindersRow",
     "controls": "remindersView",

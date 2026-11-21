@@ -159,7 +159,7 @@ def bites() -> list[str]:
             if not any("group" in p for p in check(Path(tmp))):
                 out.append(f"the check does not catch {what}")
             one.write_text(good, encoding="utf-8")
-    for what, icons in (("a group with no glyph", {k: v for k, v in GROUP_ICONS.items() if k != "time"}),
+    for what, icons in (("a group with no glyph", {k: v for k, v in GROUP_ICONS.items() if k != "work"}),
                         ("a group glyph that is more than a drawing",
                          {**GROUP_ICONS, "now": '<image href="x.png"/>'})):
         if not group_problems(icons):

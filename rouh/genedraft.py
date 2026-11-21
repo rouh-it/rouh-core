@@ -96,7 +96,7 @@ def prompt_line(who) -> str:
             "something by hand that Rouh could do for them every time, or when an idea of theirs is an "
             "ability Rouh lacks. Offer in one short sentence at the end of your answer, at most once a "
             "conversation, and draft it with gene_draft only when they say yes."
-            + (" Their guidance on what to pick or invent (Evolution, Parameters), which ranks above your "
+            + (" Their guidance on what to pick or invent (Evolution, Tuning), which ranks above your "
                "own sense of what is worth a gene: <guidance>" + " ".join(guided.split()) + "</guidance>. "
                "Offer the genes that serve it." if guided else ""))
 

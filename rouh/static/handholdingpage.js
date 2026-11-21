@@ -1,4 +1,4 @@
-/* Handholding, at /handholding: the guided way into Rouh for someone who has never seen it
+/* The Guide, at /guide (Handholding, at /handholding, until 21 November 2026): the guided way into Rouh for someone who has never seen it
    (`rouh/handholding.py`, `rouh/web/handholding.py`, the words in `rouh/handholding.json`).
 
    Petar, 20 November 2026: "I want to be able to put a person that has never seen rouh and step
@@ -13,7 +13,7 @@
    - Enabling Rouh: every lesson that is a connection, as the same card with its live badge, and
      the real switches.
    - Pro tips.
-   And every lesson's own page, `/handholding/lesson/<id>`: breadcrumbs, Back, the cover, the
+   And every lesson's own page, `/guide/lesson/<id>`: breadcrumbs, Back, the cover, the
    how-to with numbered pictures, Things you can say, Mark done, Previous and Next step.
 
    Back goes to where the person came from: the browser's own back when the lesson was opened by a
@@ -68,10 +68,10 @@
     return s;
   }
   var TICK = '<path d="M6 12.5l4 4 8-9"/>';
-  /** Leaves Handholding for another page of Rouh. */
+  /** Leaves the Guide for another page of Rouh. */
   var OUT = '<path d="M5 12h13M13 7l5 5-5 5"/>';
   /** A link: an address in Rouh opens in Rouh, a web address in a new tab. `mine` marks a press
-      inside Handholding, so Back on the place it opens is the browser's own. */
+      inside the Guide, so Back on the place it opens is the browser's own. */
   function link(href, text, cls, mine) {
     var a = el('a', cls || 'hh-link', text);
     a.href = href;
@@ -164,7 +164,7 @@
     return st[key];
   }
   function stageName(stage) { return 'Stage ' + stage.n + ', ' + stage.title; }
-  function lessonHref(id, from) { return '/handholding/lesson/' + id + (from ? '?from=' + from : ''); }
+  function lessonHref(id, from) { return '/guide/lesson/' + id + (from ? '?from=' + from : ''); }
   /** What the place a lesson was opened from is called, and its address. */
   function origin(from, x) {
     var m = /^lesson-([a-z0-9-]+)$/.exec(from || '');
@@ -173,9 +173,9 @@
       return { words: o.lesson.title, href: lessonHref(o.lesson.id, ''), key: from };
     }
     var p = pages().filter(function (q) { return q.id === from; })[0];
-    if (p) { return { words: p.name, href: '/handholding/' + p.id, key: from }; }
+    if (p) { return { words: p.name, href: '/guide/' + p.id, key: from }; }
     var path = pageWith('path');
-    return { words: x ? stageName(x.stage) : 'Your path', href: '/handholding/' + (path ? path.id : ''),
+    return { words: x ? stageName(x.stage) : 'Your path', href: '/guide/' + (path ? path.id : ''),
              key: 'stage', stage: x ? x.stage.id : '' };
   }
   function pageWith(view) {
@@ -196,10 +196,11 @@
           if (seq !== H.seq) { return; }
           H.loading = false;
           if (!r.ok || !j || !j.content) {
-            H.error = (j && j.error) || 'Handholding could not be read. Try again in a moment.';
+            H.error = (j && j.error) || 'The Guide could not be read. Try again in a moment.';
           } else {
             var first = !H.data;
             H.data = j;
+            startPaint();
             if (!H.page && !H.lesson) { H.page = pageDef().id; place(); }
             if (!H.arrived) { arrive(); }
             if (first) { draw(); settle(); return; }
@@ -210,7 +211,7 @@
       .catch(function () {
         if (seq !== H.seq) { return; }
         H.loading = false;
-        H.error = 'Handholding could not be read. Check the connection and try again.';
+        H.error = 'The Guide could not be read. Check the connection and try again.';
         draw();
       });
   }
@@ -260,7 +261,7 @@
     if (H.loading && !H.data) { page.appendChild(el('p', 'hh-wait', 'Reading your path')); return; }
     if (!H.data) {
       var e = el('div', 'hh-empty');
-      e.appendChild(el('p', 'hh-empty-big', 'Handholding is not here yet'));
+      e.appendChild(el('p', 'hh-empty-big', 'The Guide is not here yet'));
       e.appendChild(el('p', 'hh-empty-small', H.error));
       e.appendChild(button('Try again', 'hh-quiet', function () { load(); }));
       page.appendChild(e);
@@ -298,7 +299,7 @@
     if (!body) { return; }
     // The card of the lesson just come back from; on a lesson's page, its Next step or Previous.
     var card = H.back ? (body.querySelector('[data-k="card-' + H.back + '"]') ||
-                         body.querySelector('a[href^="/handholding/lesson/' + H.back + '?"]')) : null;
+                         body.querySelector('a[href^="/guide/lesson/' + H.back + '?"]')) : null;
     var kept = H.scroll[placeKey()];
     if (card) {
       if (kept !== undefined) { body.scrollTop = kept; }
@@ -464,7 +465,7 @@
       var tips = pageWith('tips');
       if (tips) {
         var row = el('div', 'hh-acts');
-        row.appendChild(k(link('/handholding/' + tips.id, tips.name, 'hh-main', true), 'to-tips'));
+        row.appendChild(k(link('/guide/' + tips.id, tips.name, 'hh-main', true), 'to-tips'));
         sec.appendChild(row);
       }
     }
@@ -788,7 +789,7 @@
       e.appendChild(el('p', 'hh-empty-big', 'There is no such lesson'));
       e.appendChild(el('p', 'hh-empty-small', 'It may have been renamed. Every lesson is on your path.'));
       var p = pageWith('path');
-      if (p) { e.appendChild(k(link('/handholding/' + p.id, 'Open your path', 'hh-quiet'), 'nolesson')); }
+      if (p) { e.appendChild(k(link('/guide/' + p.id, 'Open your path', 'hh-quiet'), 'nolesson')); }
       wrap.appendChild(e);
       return wrap;
     }
@@ -852,18 +853,18 @@
     return wrap;
   }
 
-  /** Handholding > Stage > Lesson. */
+  /** Guide > Stage > Lesson. */
   function crumbs(x) {
     var nav = el('nav', 'hh-crumbs');
     nav.setAttribute('aria-label', 'Breadcrumbs');
     var ol = el('ol');
     var path = pageWith('path');
     var li = el('li');
-    li.appendChild(k(link('/handholding/' + (path ? path.id : ''), 'Handholding', 'hh-crumb', true), 'crumb-root'));
+    li.appendChild(k(link('/guide/' + (path ? path.id : ''), 'Guide', 'hh-crumb', true), 'crumb-root'));
     ol.appendChild(li);
     if (x) {
       var st = el('li');
-      var a = k(link('/handholding/' + (path ? path.id : ''), stageName(x.stage), 'hh-crumb', true), 'crumb-stage');
+      var a = k(link('/guide/' + (path ? path.id : ''), stageName(x.stage), 'hh-crumb', true), 'crumb-stage');
       a.addEventListener('click', function () { H.stages[x.stage.id] = true; H.back = x.lesson.id; }, true);
       st.appendChild(a);
       ol.appendChild(st);
@@ -990,7 +991,7 @@
       end.appendChild(el('p', 'hh-empty-big', 'This is the last lesson on the path'));
       end.appendChild(el('p', 'hh-empty-small', 'Pro tips has the small habits that make Rouh faster.'));
       var tips = pageWith('tips');
-      if (tips) { end.appendChild(k(link('/handholding/' + tips.id, 'Open Pro tips', 'hh-quiet', true), 'next')); }
+      if (tips) { end.appendChild(k(link('/guide/' + tips.id, 'Open Pro tips', 'hh-quiet', true), 'next')); }
       sec.appendChild(end);
     }
     if (pv) {
@@ -1014,9 +1015,9 @@
   /** The section's pages, the one open marked: a way between them without the navigation. */
   function tabs(def) {
     var nav = el('nav', 'hh-tabs');
-    nav.setAttribute('aria-label', 'Handholding');
+    nav.setAttribute('aria-label', 'Guide');
     pages().forEach(function (p) {
-      var a = k(link('/handholding/' + p.id, p.name, 'hh-tab' + (p.id === def.id ? ' on' : ''), true), 'tab-' + p.id);
+      var a = k(link('/guide/' + p.id, p.name, 'hh-tab' + (p.id === def.id ? ' on' : ''), true), 'tab-' + p.id);
       if (p.id === def.id) { a.setAttribute('aria-current', 'page'); }
       nav.appendChild(a);
     });
@@ -1042,7 +1043,7 @@
     H.lesson = lesson || '';
     H.from = from || '';
     if (!H.page && !H.lesson && H.data) { H.page = pageDef().id; }
-    var here = H.lesson ? lessonHref(H.lesson, H.from) : '/handholding/' + H.page;
+    var here = H.lesson ? lessonHref(H.lesson, H.from) : '/guide/' + H.page;
     H.viaPress = !!H.pressed && (H.pressed === here || H.pressed.split('?')[0] === here.split('?')[0]);
     // Arrived by the browser's own Back or Forward: the lesson just left is the one to bring into view.
     if (!H.pressed && !H.back && left && left !== H.lesson) { H.back = left; }
@@ -1074,6 +1075,41 @@
     e.stopImmediatePropagation();
     goBack();
   }, true);
+
+  /* "Don't show this link": whether opening Rouh at its root opens the Guide beside General, kept
+     for the person on the server (`handholding.on_start`), so it holds on every device. The same
+     control turns it back on. Petar, 21 November 2026. */
+  function startPaint(said) {
+    var b = $('guideStartBtn'), out = $('guideStartSaid');
+    if (!b || !H.data) { return; }
+    var on = H.data.on_start !== false;
+    b.hidden = false;
+    b.textContent = on ? 'Don\u2019t show this link' : 'Show the guide on start';
+    b.title = on ? 'Stop opening the Guide when you open Rouh. It stays in the navigation.'
+      : 'Open the Guide beside General again whenever you open Rouh.';
+    if (out) { out.textContent = said || ''; }
+  }
+  function startSave() {
+    if (!H.data || H.startBusy) { return; }
+    var want = H.data.on_start === false;
+    H.startBusy = true;
+    fetch('/api/handholding/start', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ on: want })
+    }).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (j) {
+        if (!r.ok || !j || typeof j.on_start !== 'boolean') { throw new Error(''); }
+        H.data.on_start = j.on_start;
+        startPaint(j.on_start ? 'The Guide opens again when you open Rouh.'
+          : 'The Guide no longer opens when you open Rouh. It stays in the navigation.');
+      });
+    }).catch(function () {
+      startPaint('That could not be saved. Check the connection and try again.');
+    }).then(function () { H.startBusy = false; });
+  }
+  var sb = $('guideStartBtn');
+  if (sb) { sb.addEventListener('click', startSave); }
 
   window.RouhHandholding = { shown: shown, hidden: hidden, reload: load };
 

@@ -1,10 +1,10 @@
-"""Lessons ticked as you do them: Handholding sees the lessons you have already done in a chat.
+"""Lessons ticked as you do them: the Guide sees the lessons you have already done in a chat.
 
 Built by the nightly feature run, night 50 of the ledger (21 November 2026, task 94), for the
 person's guidance that half of what is built makes Rouh easier for somebody using it for the
 first time, technical or not.
 
-Handholding (`rouh/handholding.py`) ticks a lesson by itself only where the database shows it
+The Guide (`rouh/handholding.py`) ticks a lesson by itself only where the database shows it
 done: a connection, a task, a reminder, a rule. Most of its lessons are done by asking Rouh in
 words ("go through my inbox", "what is on my calendar", "look this up"), and those stayed open
 until the person found the lesson and ticked it by hand. Somebody new who already did half the
@@ -14,7 +14,7 @@ So, while its switch is on, a lesson in `TOOLS` counts as done, marked Detected 
 "Rouh saw you do it in a chat", once Rouh's model has called one of its tools for this person:
 read from the event log's daily counts (`analytics.object_daily`, `tool.called`, which
 `brain.py` writes for every call), by `org_id` and `user_id`. One query, no model, nothing
-written. Opening Handholding with such a lesson ticked is its use.
+written. Opening the Guide with such a lesson ticked is its use.
 
 **Its switch** is `lesson_ticks` (`rouh/switches.py`): off, those lessons wait for a tick by hand
 as before.
@@ -26,7 +26,7 @@ import logging
 log = logging.getLogger("rouh.lesson_ticks")
 
 SWITCH = "lesson_ticks"
-TITLE = "Lessons ticked as you do them: Handholding sees what you already did in a chat"
+TITLE = "Lessons ticked as you do them: the Guide sees what you already did in a chat"
 WHY = "Rouh saw you do it in a chat."
 
 #: Handholding's lesson id, and the tools whose call shows it done (`rouh/handholding.json`).
@@ -80,7 +80,7 @@ def done(who) -> dict:
 
 
 def seen(who, ticked: dict) -> None:
-    """Handholding was opened with a lesson this gene ticked: its use."""
+    """The Guide was opened with a lesson this gene ticked: its use."""
     from . import evolution
 
     mine = sorted(k for k, v in (ticked or {}).items() if v == WHY)

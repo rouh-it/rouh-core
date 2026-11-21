@@ -204,8 +204,11 @@ var ADDR_WORK = '/quests';
 var ADDR_DECISIONS = '/decisions';
 // Your part (`rouh/actions.py`), and one action by its number.
 var ADDR_ACTIONS = '/actions';
-// Handholding (`rouh/handholding.py`): its pages, and each lesson's own page at /handholding/lesson/<id>.
-var ADDR_HANDHOLDING = '/handholding';
+// The Guide (`rouh/handholding.py`): its pages, and each lesson's own page at /guide/lesson/<id>.
+// Handholding, at /handholding, until 21 November 2026: an old address is read as the same place,
+// and the bar is written over with its address now.
+var ADDR_HANDHOLDING = '/guide';
+var ADDR_HANDHOLDING_OLD = '/handholding';
 //: Receipts, every receipt and invoice in the mail by month (`addressing.RECEIPTS`).
 var ADDR_RECEIPTS = '/receipts';
 //: Home, the house's lights and devices (`addressing.HOME`).
@@ -353,15 +356,16 @@ function addrReadPlace(path, query) {
   if (parts.length === 2 && '/' + parts[0] === ADDR_ACTIONS && /^\d+$/.test(parts[1])) {
     return { kind: '', id: '', chat: chat, actions: parts[1] };
   }
-  // Handholding's section: its first page, one of its pages, or one lesson.
-  if (parts.length === 1 && '/' + parts[0] === ADDR_HANDHOLDING) {
+  // The Guide's section: its first page, one of its pages, or one lesson.
+  var guide = parts.length && ('/' + parts[0] === ADDR_HANDHOLDING || '/' + parts[0] === ADDR_HANDHOLDING_OLD);
+  if (parts.length === 1 && guide) {
     return { kind: '', id: '', chat: chat, handholding: '' };
   }
-  if (parts.length === 2 && '/' + parts[0] === ADDR_HANDHOLDING && /^[a-z0-9-]+$/.test(parts[1])) {
+  if (parts.length === 2 && guide && /^[a-z0-9-]+$/.test(parts[1])) {
     return { kind: '', id: '', chat: chat, handholding: parts[1] };
   }
   // A lesson's own page, and where it was opened from (`?from=`), which its Back goes to.
-  if (parts.length === 3 && '/' + parts[0] === ADDR_HANDHOLDING && parts[1] === 'lesson' && /^[a-z0-9-]+$/.test(parts[2])) {
+  if (parts.length === 3 && guide && parts[1] === 'lesson' && /^[a-z0-9-]+$/.test(parts[2])) {
     var came = /[?&]from=([a-z0-9-]+)/.exec(String(query || ''));
     return { kind: '', id: '', chat: chat, handholding: '', lesson: parts[2], from: came ? came[1] : '' };
   }
@@ -391,7 +395,8 @@ function addrReadPlace(path, query) {
   }
   if ('/' + parts[0] === ADDR_EVOLUTION) {
     if (parts.length === 1) return { kind: '', id: '', chat: chat, evolution: { page: 'mutations', sub: '' } };
-    if (parts.length === 2 && parts[1] === 'parameters') {
+    // Tuning, called Parameters at /evolution/parameters until 21 November 2026.
+    if (parts.length === 2 && (parts[1] === 'tuning' || parts[1] === 'parameters')) {
       return { kind: '', id: '', chat: chat, evolution: { page: 'parameters', sub: '' } };
     }
     // The Incubator, and one idea in it by its number; and the nightly feature run's own page.
@@ -572,7 +577,7 @@ function addrOnCanvas() {
   if (memoryViewing()) return memoryAddress();
   if (approvalsViewing()) return APPROVALS.key ? ADDR_CASE + '/' + encodeURIComponent(APPROVALS.key) : ADDR_APPROVALS;
   if (sourcesViewing()) return ADDR_SOURCES + '/' + SOURCES.folder.split('/').map(encodeURIComponent).join('/');
-  if (evolutionViewing()) return ADDR_EVOLUTION + '/' + EVO.page + (EVO.page !== 'parameters' && EVO.page !== 'nightly' && EVO.sub ? '/' + EVO.sub : '');
+  if (evolutionViewing()) return ADDR_EVOLUTION + '/' + (EVO.page === 'parameters' ? 'tuning' : EVO.page) + (EVO.page !== 'parameters' && EVO.page !== 'nightly' && EVO.sub ? '/' + EVO.sub : '');
   if (thoughtsViewing()) return ADDR_THOUGHTS + (THOUGHTS.id ? '/' + THOUGHTS.id : '');
   if (boxViewing()) return ADDR_BOX + (BOX.id ? '/' + BOX.id : '');
   if (offlineViewing()) return ADDR_OFFLINE;
@@ -762,7 +767,7 @@ function addrName() {
   if (workViewing()) return WORK.id ? (WORK.title || 'Quest ' + WORK.id) + ' - Quests' : 'Quests';
   if (decisionsViewing()) return 'Decisions';
   if (actionsViewing()) return ACTS.id ? 'Action ' + ACTS.id + ' - Your part' : 'Your part';
-  if (handholdingViewing()) return 'Handholding';
+  if (handholdingViewing()) return 'Guide';
   if (receiptsViewing()) return 'Receipts';
   if (homeViewing()) return 'Home';
   if (memoryViewing()) {
@@ -773,7 +778,7 @@ function addrName() {
   }
   if (approvalsViewing()) return APPROVALS.key ? (APPROVALS.name ? APPROVALS.name + ' - Approvals' : 'Approvals') : 'Approvals';
   if (sourcesViewing()) return SOURCES.title ? 'Sources - ' + SOURCES.title : 'Sources';
-  if (evolutionViewing()) return EVO.page === 'parameters' ? 'Parameters - Evolution'
+  if (evolutionViewing()) return EVO.page === 'parameters' ? 'Tuning - Evolution'
     : EVO.page === 'incubator' ? (EVO.sub ? EVO.sub + (EVO.title ? ' ' + EVO.title : '') + ' - Incubator' : 'Incubator')
     : EVO.page === 'nightly' ? 'Nightly run - Evolution'
     : EVO.page === 'trials' ? trialsTitle(EVO.sub, EVO.title)
@@ -1372,6 +1377,10 @@ function addrSocketGone() {
     }
   }
   if (!want) want = frontDoorShut();
+  // The Guide opened as the page's own address - the root sends a person here until they say
+  // "Don't show this link" - opens beside General, the conversation on the left and the Guide on
+  // the canvas (Petar, 21 November 2026). General's id, written out, as `frontDoorShut` has it.
+  if (want && want.handholding !== undefined && !want.chat) want.chat = 'conversation';
   if (want && /^#./.test(location.hash || '')) want.hash = location.hash;
   ADDR.wanted = want;
   ADDR.front = !want;

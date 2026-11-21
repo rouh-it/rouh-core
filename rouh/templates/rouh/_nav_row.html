@@ -7,13 +7,15 @@ presses the control it names. A lab is marked, and stands last in its group; a
 shared gene from the organisation's lab (`rouh/genelab.py`) is marked Shared.
 A link drawn as others (`nav.as`, Anatomy as its groups) is those links in
 its place, each with its own glyph, and each goes to its route.
-{% endcomment %}{% if f.as_links %}{% for u in f.as_links %}
+A gene's own link that stands inside one of those (`nav.under`, Synapse inside Anatomy's
+Behaviour) is drawn here as itself, indented (`sb-nested`).
+{% endcomment %}{% if f.as_links %}{% for u in f.as_links %}{% if u.row %}{% include "rouh/_nav_row.html" with f=u.row %}{% else %}
             <a id="{{ u.row_id }}" class="sb-row sb-do sb-as-link" data-nav="{{ u.id }}" href="{{ u.route }}" data-inapp data-opens="address"
                title="{{ u.title }}">
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none"
                    stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ u.icon|safe }}</svg>
               <span class="sb-row-name">{{ u.name }}</span>
-            </a>{% endfor %}{% elif f.plus %}
+            </a>{% endif %}{% endfor %}{% elif f.plus %}
             <div class="sb-row sb-pair{% if f.css %} {{ f.css }}-pair{% endif %}">
               <a class="sb-pair-main{% if f.css %} {{ f.css }}{% endif %}" id="{{ f.row_id }}" href="{{ f.route }}" data-inapp data-nav="{{ f.id }}"{% if f.opens != "own" %} data-opens="{{ f.opens }}"{% endif %}
                  title="{{ f.title }}">

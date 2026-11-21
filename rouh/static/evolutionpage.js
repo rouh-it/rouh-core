@@ -258,7 +258,7 @@
     var title = $('evolutionTitle');
     var meta = $('evolutionMeta');
     if (title) {
-      title.textContent = R.page === 'parameters' ? 'Parameters'
+      title.textContent = R.page === 'parameters' ? 'Tuning'
         : R.page === 'incubator' ? 'Incubator' : R.page === 'nightly' ? 'Nightly run' : R.page === 'trials' ? 'Trials'
         : R.page === 'pool' ? poolName()
         : /^log/.test(R.sub) ? 'Gene log' : 'Mutations';
@@ -369,7 +369,7 @@
      under the finger dragging it. */
   function drawParameters(wrap) {
     var j = R.params;
-    if (!j) { wrap.appendChild(el('p', 'evo-loading', 'Reading your Parameters…')); return; }
+    if (!j) { wrap.appendChild(el('p', 'evo-loading', 'Reading your Tuning…')); return; }
     var most = j.most || 20, d = R.draft;
     var ui = R.ui = { kinds: {} };
     wrap.appendChild(el('p', 'evo-lede', 'What Rouh builds for itself: your guidance on what to pick or invent, ' +

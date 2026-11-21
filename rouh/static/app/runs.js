@@ -17881,7 +17881,7 @@ window.RouhReceiptsHost = { close: receiptsClose };
 /* ------------------------------------------------------------------ handholding
 
    The guided way into Rouh for someone who has never seen it (`rouh/handholding.py`), at
-   `/handholding/<page>`, and each lesson's own page at `/handholding/lesson/<id>`, with `?from=`
+   `/guide/<page>`, and each lesson's own page at `/guide/lesson/<id>`, with `?from=`
    saying where it was opened from, drawn by `handholdingpage.js`. This is the layer's side, as
    with the receipts: opening and closing it, its address, and going to an address. Nothing here
    puts words in the message box or opens the chat: Petar, 20 November 2026, on the first
@@ -17923,10 +17923,10 @@ function handholdingClose() {
   addrTouch();
 }
 
-/** The address of what Handholding shows: a page, or a lesson with where it came from. */
+/** The address of what the Guide shows: a page, or a lesson with where it came from. */
 function handholdingAddress() {
-  if (HOLD.lesson) return '/handholding/lesson/' + HOLD.lesson + (HOLD.from ? '?from=' + encodeURIComponent(HOLD.from) : '');
-  return '/handholding' + (HOLD.page ? '/' + HOLD.page : '');
+  if (HOLD.lesson) return '/guide/lesson/' + HOLD.lesson + (HOLD.from ? '?from=' + encodeURIComponent(HOLD.from) : '');
+  return '/guide' + (HOLD.page ? '/' + HOLD.page : '');
 }
 
 // What `handholdingpage.js` is handed.

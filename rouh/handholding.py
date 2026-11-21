@@ -1,4 +1,5 @@
-"""Handholding, at /handholding: the guided way into Rouh for someone who has never seen it.
+"""The Guide, at /guide: the guided way into Rouh for someone who has never seen it.
+Called Handholding, at /handholding, until 21 November 2026.
 
 Petar, 20 November 2026: "I want to be able to put a person that has never seen rouh and step by
 step the guide should lead him to using the absolute maximum of rouh." It is a section of the
@@ -7,7 +8,7 @@ navigation of its own (`rouh/static/handholdingpage.js`).
 **One source: a lesson is a step** (Petar, the same day, reviewing the first version: "for each
 action there is a step ... this way we won't have two sources that go to one place"). A path of eight
 stages, each a list of lessons; every lesson has one id, one entry in the data file, a card form, and a
-full page at `/handholding/lesson/<id>` that ends with the next lesson on the path.
+full page at `/guide/lesson/<id>` that ends with the next lesson on the path.
 
 - **The words** are a data file, `rouh/handholding.json`, so they are edited and translated without
   touching code: every stage and lesson, its pictures (`rouh/static/handholding/`), the things you can
@@ -57,8 +58,13 @@ def content() -> dict:
     return got
 
 
-#: Where the section's pages live: `/handholding/<page>`, and one lesson at `/handholding/lesson/<id>`.
-ROOT = "/handholding"
+#: Where the section's pages live: `/guide/<page>`, and one lesson at `/guide/lesson/<id>`.
+ROOT = "/guide"
+#: Where they lived while the section was called Handholding; every address under it is sent on.
+OLD_ROOT = "/handholding"
+#: Whether the root, `/`, opens the Guide, kept per person in `user_settings`: no row is yes, and
+#: `false` is the person's "Don't show this link" (Petar, 21 November 2026).
+ON_START = "guide_on_start"
 #: The word in a lesson's address, which no page may be called.
 LESSON = "lesson"
 
@@ -76,6 +82,30 @@ def page_route(page: str) -> str:
 
 def lesson_route(lesson: str) -> str:
     return f"{ROOT}/{LESSON}/{lesson}"
+
+
+def on_start(who) -> bool:
+    """Whether `/` opens the Guide for this person: yes until they said "Don't show this link"."""
+    from .models import UserSetting
+
+    value = (UserSetting.objects.filter(user_id=str(who.user_id), org_id=str(who.org_id or ""), name=ON_START)
+             .values_list("value", flat=True).first())
+    try:
+        return json.loads(value) is not False if value else True
+    except (TypeError, ValueError):
+        return True
+
+
+def set_on_start(who, on: bool) -> bool:
+    """Keep whether `/` opens the Guide for this person, on the server, so it holds on every device."""
+    from .models import UserSetting
+
+    UserSetting.objects.bulk_create(
+        [UserSetting(user_id=str(who.user_id), org_id=str(who.org_id or ""), name=ON_START,
+                     value=json.dumps(bool(on)), updated_at=time.time())],
+        update_conflicts=True, unique_fields=["user_id", "name"],
+        update_fields=["org_id", "value", "updated_at"])
+    return on_start(who)
 
 
 def lessons(data: dict | None = None) -> list[dict]:
@@ -390,4 +420,5 @@ def page(who) -> dict:
         lesson_ticks.seen(who, seen)
     except Exception:  # noqa: BLE001 - a use not counted never stops the page
         log.exception("handholding: the use of lesson_ticks could not be counted")
-    return {"content": content(), "progress": progress(who), "detected": seen, "status": conns}
+    return {"content": content(), "progress": progress(who), "detected": seen, "status": conns,
+            "on_start": on_start(who)}

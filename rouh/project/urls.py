@@ -86,6 +86,12 @@ def gene_therapy_old_address(request):
     return HttpResponseRedirect(addressing.GENE_THERAPY + ("?" + query if query else ""))
 
 
+def evolution_tuning_old_address(request):
+    """/evolution/parameters, Tuning's address while it was called Parameters (until 21 November 2026)."""
+    query = request.META.get("QUERY_STRING", "")
+    return HttpResponseRedirect(addressing.EVOLUTION + "/tuning" + ("?" + query if query else ""))
+
+
 def evolution_library_old_address(request, rest=""):
     """/evolution/library, Mutations' address while it was the Gene library, and the Gene Pool's
     while it was one of its views, until 14 October 2026 (fr_a982710d30c7): an old link or bookmark
@@ -658,6 +664,7 @@ urlpatterns = [
     # Handholding: the guided way into Rouh (`rouh/web/handholding.py`).
     path("api/handholding", handholding_web.page),
     path("api/handholding/progress", handholding_web.progress),
+    path("api/handholding/start", handholding_web.start),
     # The quests the heartbeat carries (`rouh/web/quests.py`).
     path("api/quests", quests.listing),
     path("api/quests/<int:number>", quests.page),
@@ -912,11 +919,14 @@ urlpatterns = [
     # Your part, and one action by its number (`rouh/actions.py`).
     path(addressing.ACTIONS.lstrip("/"), views.index),
     re_path(r"^" + addressing.ACTIONS.lstrip("/") + r"/\d+$", views.index),
-    # Handholding, and one of its lessons (`rouh/handholding.py`).
-    path(addressing.HANDHOLDING.lstrip("/"), views.index),
-    re_path(r"^" + addressing.HANDHOLDING.lstrip("/") + r"/(?P<page>[a-z0-9-]+)$", handholding_web.address),
-    re_path(r"^" + addressing.HANDHOLDING.lstrip("/") + r"/(?P<page>[a-z0-9-]+)/(?P<lesson>[a-z0-9-]+)$",
+    # The Guide, and one of its lessons (`rouh/handholding.py`); and every address from while it
+    # was Handholding, sent on to the same place under /guide.
+    path(addressing.GUIDE.lstrip("/"), views.index),
+    re_path(r"^" + addressing.GUIDE.lstrip("/") + r"/(?P<page>[a-z0-9-]+)$", handholding_web.address),
+    re_path(r"^" + addressing.GUIDE.lstrip("/") + r"/(?P<page>[a-z0-9-]+)/(?P<lesson>[a-z0-9-]+)$",
             handholding_web.lesson_address),
+    re_path(r"^" + addressing.HANDHOLDING.lstrip("/") + r"(?P<rest>(?:/[a-z0-9-]+){0,2})/?$",
+            handholding_web.old_address),
     re_path(r"^" + addressing.QUESTS.lstrip("/") + r"/\d+$", views.index),
     path(addressing.RECEIPTS.lstrip("/"), views.index),
     path(addressing.HOME.lstrip("/"), views.index),
@@ -933,7 +943,9 @@ urlpatterns = [
     # of it. And Mutations' address while it was the
     # Gene library, with the Pool one of its views, sent on to where each is now.
     path(addressing.EVOLUTION.lstrip("/"), views.index),
-    re_path(r"^" + addressing.EVOLUTION.lstrip("/") + r"/(?:parameters|mutations|pool|incubator|nightly|trials|trials/problems)$", views.index),
+    re_path(r"^" + addressing.EVOLUTION.lstrip("/") + r"/(?:tuning|mutations|pool|incubator|nightly|trials|trials/problems)$", views.index),
+    # Tuning's address while it was called Parameters, until 21 November 2026.
+    re_path(r"^" + addressing.EVOLUTION.lstrip("/") + r"/parameters/?$", evolution_tuning_old_address),
     re_path(r"^" + addressing.EVOLUTION.lstrip("/") + r"/trials/(?:\d{1,6}|job/\d{1,6}|problem/\d{1,6}|testers|testers/new"
             r"|tester/[a-z0-9]{1,40}(?:/edit)?|how)$", views.index),
     re_path(r"^" + addressing.EVOLUTION.lstrip("/") + r"/incubator/(?:INC-)?\d{1,6}$", views.index),

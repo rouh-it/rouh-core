@@ -471,7 +471,7 @@ with {% asset %}, which gives it its hashed address.
              "I like the sketch you had with the vertically stacked boxes for
              the categories where they have also icons" (card 1462, "Desktop:
              a rail, a panel, the canvas"). Now is what needs him, Work the
-             work, Time what happens at a time, Memory what is kept and Anatomy
+             work, Memory what is kept and Anatomy
              Rouh itself. The order is fixed and never follows use. Each box is
              the group's own glyph (`GROUP_ICONS` in `rouh/genes`) over its
              name. The group of the page that is open is the one picked when
@@ -483,8 +483,8 @@ with {% asset %}, which gives it its hashed address.
                aria-label="Groups of the navigation">
             {% for g in NAV_GROUPS %}<button class="sb-tab" type="button" role="tab" id="navTab-{{ g.id }}"
                     data-group="{{ g.id }}" aria-controls="navGroup-{{ g.id }}"
-                    aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
-                    tabindex="{% if forloop.first %}0{% else %}-1{% endif %}"><svg class="sb-tab-glyph" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none"
+                    aria-selected="{% if g.id == "now" %}true{% else %}false{% endif %}"
+                    tabindex="{% if g.id == "now" %}0{% else %}-1{% endif %}"><svg class="sb-tab-glyph" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none"
                     stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{{ g.icon|safe }}</svg><span class="sb-tab-name">{{ g.label }}</span>{% if g.counted %}<span class="sb-tab-count" id="navNowCount" hidden></span>{% endif %}</button>
             {% endfor %}
           </div>
@@ -496,7 +496,7 @@ with {% asset %}, which gives it its hashed address.
                there and unseen (`data-off`, `inert`). {% endcomment %}
           <div class="sb-groups" id="sbGo">
             {% for g in NAV_GROUPS %}<div class="sb-does sb-group" role="tabpanel" id="navGroup-{{ g.id }}"
-                 data-group="{{ g.id }}" aria-labelledby="navTab-{{ g.id }}"{% if not forloop.first %} data-off inert{% endif %}>{% for f in g.genes %}{% include "rouh/_nav_row.html" %}{% endfor %}
+                 data-group="{{ g.id }}" aria-labelledby="navTab-{{ g.id }}"{% if g.id != "now" %} data-off inert{% endif %}>{% for f in g.genes %}{% include "rouh/_nav_row.html" %}{% endfor %}
             </div>
             {% endfor %}
           </div>
@@ -4094,15 +4094,21 @@ with {% asset %}, which gives it its hashed address.
       </div>
     </article>
 
-    {% comment %} Handholding (`rouh/handholding.py`, `handholdingpage.js`): the guided way
-         into Rouh for someone who has never seen it, at `/handholding`: a path of seven stages
-         of lessons, each lesson a step with its own page at `/handholding/lesson/<id>`.
-         Every word is `rouh/handholding.json`'s. {% endcomment %}
+    {% comment %} The Guide (`rouh/handholding.py`, `handholdingpage.js`), Handholding until 21
+         November 2026: the guided way into Rouh for someone who has never seen it, at `/guide`:
+         a path of seven stages of lessons, each lesson a step with its own page at
+         `/guide/lesson/<id>`. Every word is `rouh/handholding.json`'s. The root opens it beside
+         General until "Don't show this link" is pressed, kept per person on the server
+         (`handholding.on_start`), and the same control turns it back on. {% endcomment %}
     <article id="handholdingView" class="canvas-layer settings-view clock-view hh-view" hidden
-             tabindex="-1" aria-label="Handholding">
+             tabindex="-1" aria-label="Guide">
       <div class="run-head">
         <div class="run-heading">
-          <h3>Handholding</h3>
+          <h3>Guide</h3>
+          <div class="run-meta hh-start-row">
+            <button id="guideStartBtn" class="hh-start" type="button" hidden></button>
+            <span id="guideStartSaid" class="hh-start-said" role="status" aria-live="polite"></span>
+          </div>
         </div>
         <button id="handholdingClose" class="layer-x" type="button"
                 title="Close (Esc)" aria-label="Close and go back to the canvas">&times;</button>

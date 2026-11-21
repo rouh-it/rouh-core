@@ -260,9 +260,13 @@ DECISIONS = "/decisions"
 #: work Rouh is doing, at `/actions`, and one at `/actions/<number>` ("Action 430", from the
 #: decisions' numbers). Since 7 November 2026; `/decisions/<number>` of an action lands here.
 ACTIONS = "/actions"
-#: Handholding (`rouh/handholding.py`): the guided way into Rouh for someone who has never seen it,
-#: a section of its own: its sub-pages at `/handholding/<page>` (the data file's `pages`), and every
-#: lesson's own page at `/handholding/lesson/<id>`. Since 20 November 2026.
+#: The Guide (`rouh/handholding.py`): the guided way into Rouh for someone who has never seen it,
+#: a section of its own: its sub-pages at `/guide/<page>` (the data file's `pages`), and every
+#: lesson's own page at `/guide/lesson/<id>`. Since 20 November 2026, called Handholding at
+#: `/handholding` until 21 November 2026, when Petar renamed it the Guide; every old address is sent
+#: on to the same place under `/guide`. The root, `/`, opens it beside General until the person
+#: says "Don't show this link" on it (`handholding.on_start`).
+GUIDE = "/guide"
 HANDHOLDING = "/handholding"
 #: Receipts (`rouh/receipts.py`): every receipt and invoice in the person's mail, by month,
 #: with one download for the accountant. Since 7 October 2026, behind the switch `receipts`.
@@ -300,7 +304,8 @@ MAIL_CASE = "/mail/case"
 #: behind the switch `source_check`. Reached from the task's page; `/sources` alone, every page,
 #: was taken out the same day (fr_fce8f51c00d6) and opens the task browser.
 SOURCES = "/sources"
-#: Evolution (`rouh/evolution.py`): Parameters at `/evolution/parameters`, how many genes a night the
+#: Evolution (`rouh/evolution.py`): Tuning at `/evolution/tuning` (Parameters at `/evolution/parameters`
+#: until 21 November 2026, and that address is sent on to it), how many genes a night the
 #: nightly run builds and of which kinds, and Mutations at `/evolution/mutations`, with its views
 #: (`/new`, `/trial`, `/passed`, `/rejected`, `/unused`, `/month`) and one gene (`/gene/<id>`); the
 #: older views' and the morning deck's addresses (`/failed`, split into Rejected and Not used on 27

@@ -1021,7 +1021,29 @@ async def index(request: HttpRequest, rest: str = ""):
     user = await request.auser()
     if await asyncio.to_thread(firstrun.unfinished, user):
         return HttpResponseRedirect(await asyncio.to_thread(firstrun.next_path, user), status=303)
+    # The root opens the Guide beside General, at its own address, until the person said
+    # "Don't show this link" on it (Petar, 21 November 2026; `handholding.on_start`). Only the
+    # bare root: `/?chat=...`, `/?open=...` and the rest are addresses of their own.
+    if request.path == "/" and not request.META.get("QUERY_STRING") and await asyncio.to_thread(_guide_on_start, request):
+        from rouh import handholding
+
+        return HttpResponseRedirect(handholding.ROOT)
     return await asyncio.to_thread(_page_for, request)
+
+
+def _guide_on_start(request: HttpRequest) -> bool:
+    from rouh import handholding
+
+    from .clock import _signed_in
+
+    me = _signed_in(request)
+    if me is None:
+        return False
+    try:
+        return handholding.on_start(me)
+    except Exception:  # noqa: BLE001 - the root still opens, without the Guide
+        log.exception("the guide's start setting could not be read")
+        return False
 
 
 # --- files attached in the chat --------------------------------------------------------------

@@ -988,7 +988,7 @@
    ]
   },
   "handholding": {
-   "name": "Handholding",
+   "name": "Guide",
    "what": "The guided way into Rouh for someone who has never seen it: a path of seven stages of lessons, from what Rouh is to Rouh running work for you, where a lesson is a step: a card that opens into its own page at its own address, with pictures of the real screen, the things you can say, Mark done (ticked by itself when Rouh can see it), and the next lesson at its foot; every connection with its live state, the switches, and pro tips.",
    "files": [
     "rouh/handholding.py",
@@ -3665,11 +3665,11 @@
   },
   "n50-lesson-ticks": {
    "name": "Lessons ticked as you do them",
-   "what": "Handholding ticks a lesson by itself, marked Detected, once you have done it by asking Rouh in a chat (your inbox, your calendar, a look-up, a share), so a newcomer is not sent to do again what they already did.",
+   "what": "The Guide ticks a lesson by itself, marked Detected, once you have done it by asking Rouh in a chat (your inbox, your calendar, a look-up, a share), so a newcomer is not sent to do again what they already did.",
    "switch": "lesson_ticks",
    "signals": {
     "events": {
-     "seen": "You opened Handholding and a lesson you had done in a chat was ticked for you"
+     "seen": "You opened the Guide and a lesson you had done in a chat was ticked for you"
     }
    },
    "files": [

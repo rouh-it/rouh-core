@@ -31,13 +31,17 @@ from typing import Callable, Iterable
 #: The groups, in the order their boxes stand in the navigation's rail,
 #: top to bottom. Fixed: nothing reorders them, by use or otherwise.
 GROUPS: tuple[tuple[str, str], ...] = (
+    # The guided way into Rouh, a section of its own (Petar, 20 November 2026: "Actually, don't put
+    # it in NOW. Make it its own section."), called the Guide and first, above Now, since 21 November
+    # 2026. Its links are its sub-pages, drawn from the data file `rouh/handholding.json` (`nav.as`
+    # "handholding"). The id stays `handholding`, as it is in the counts of presses and in the group
+    # each device remembers.
+    ("handholding", "Guide"),
     ("now", "Now"),
-    # The guided way into Rouh, a section of its own right after Now (Petar, 20 November 2026:
-    # "Actually, don't put it in NOW. Make it its own section."). Its links are its sub-pages,
-    # drawn from the data file `rouh/handholding.json` (`nav.as` "handholding").
-    ("handholding", "Handholding"),
+    # Time, which held only Clockwork, went on 21 November 2026 (Petar: "move clockwork to work.
+    # we remove the TIME section of the navigation"); a gene that still says `time` is Work's
+    # (`MOVED_GROUPS`).
     ("work", "Work"),
-    ("time", "Time"),
     ("memory", "Memory"),
     # What the nightly run grows for the person: Parameters and Mutations. Petar, 13 October
     # 2026 (task 94, step 94-08): "an extra tab box in the navigation that is called evolution
@@ -52,9 +56,12 @@ GROUPS: tuple[tuple[str, str], ...] = (
     ("machine", "Anatomy"),
 )
 GROUP_IDS: tuple[str, ...] = tuple(g for g, _ in GROUPS)
+#: A group taken out, and the group its genes are drawn in now: a shared gene signed while it was
+#: there still lands somewhere.
+MOVED_GROUPS: dict[str, str] = {"time": "work"}
 #: Each group's own glyph, over its name in the rail: the inside of a 24 by 24
 #: line drawing, held to the same contract as a gene's icon. Now a dot in a
-#: circle, Work a stack, Time a clock, Memory a few nodes joined into a network,
+#: circle, Work a stack, Memory a few nodes joined into a network,
 #: which is how Rouh's memory is kept, Evolution a fork, one line branching in two as a gene
 #: branches into the version for us (Petar, 13 October 2026, task 94 step 94-08), and Anatomy a
 #: pair of lungs, something alive rather than a cog (Petar, 13 October 2026, fr_d3dbbd554a2a).
@@ -64,7 +71,6 @@ GROUP_ICONS: dict[str, str] = {
                    '<path d="M18.5 12.5h-10l-3 2.5 3 2.5h10z"/>',
     "work": '<path d="M12 3.8 20.5 8 12 12.2 3.5 8z"/><path d="M3.5 12 12 16.2 20.5 12"/>'
             '<path d="M3.5 16 12 20.2 20.5 16"/>',
-    "time": '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.4 2.1"/>',
     "memory": '<path d="M7.1 7.6 10.4 11M13.6 11l3.3-3.9M13.9 13.5l3.7 1.4M10.6 14l-2.7 3.6'
               'M7.6 5.9l9.3-.6M19.1 13.2l-.4-5.7"/><circle cx="12" cy="12.5" r="2.2"/>'
               '<circle cx="5.8" cy="6.2" r="1.9"/><circle cx="18.3" cy="5.4" r="1.9"/>'
@@ -78,8 +84,8 @@ GROUP_ICONS: dict[str, str] = {
                '3.3-3.2 3.3-1.4 0-2.5-1.1-2.5-2.5z"/>',
 }
 #: A group's name as its box in the rail shows it, where the name is too long for the box's
-#: width: a soft hyphen, so it breaks over two lines as "Hand-" and "holding".
-GROUP_LABELS: dict[str, str] = {"handholding": "Hand\u00adholding"}
+#: width (a soft hyphen breaks it over two lines). None needs one since Handholding became Guide.
+GROUP_LABELS: dict[str, str] = {}
 #: The one group whose box may carry a count: what is waiting on the person.
 COUNTED_GROUP = "now"
 
@@ -223,7 +229,10 @@ NEEDS_GUARD = re.compile(r"^(>=|==)?\s*\d{1,3}(\.\d{1,3}){0,2}$")
 #: the heartbeat), reached from that page's own tabs, so its group's menu does not list it twice.
 ANATOMY_KEYS = {"order", "name", "under"}
 NAV_KEYS = {"place", "order", "opens", "row", "press", "controls", "class", "marks", "plus", "while",
-            "counts", "as"}
+            "counts", "as", "under"}
+#: `under`: a link of Anatomy's that stands inside one of Anatomy's groups in the navigation, drawn
+#: indented right after that group's link (Petar, 21 November 2026: "move synapse to anatomy >
+#: behavior"). Only a plain link of the `machine` group may have one, and its value is the group's id.
 #: What a link may be drawn as, in its own place and instead of one link of its own: `anatomy`
 #: is Anatomy's groups (`ANATOMY`), each with its glyph and opening its page. Petar, 14
 #: October 2026 (fr_d9e20791f108): "all the 5 groups under anatomy should be in the navigation
@@ -428,6 +437,9 @@ def problems(m, name: str = "") -> list[str]:
             bad(f"nav.while {nav['while']!r} is not one of {', '.join(WHILE)}")
         if "as" in nav and nav["as"] not in AS:
             bad(f"nav.as {nav['as']!r} is not one of {', '.join(AS)}")
+        if "under" in nav and (nav["under"] not in ANATOMY_IDS or place != "list" or m.get("group") != "machine"
+                               or "as" in nav or nav.get("plus")):
+            bad("nav.under names one of Anatomy's groups, on a plain link of the machine group")
         if "as" in nav and (place != "list" or nav.get("plus") or nav.get("marks")):
             bad("only a plain link in the navigation is drawn as other links (nav.as)")
         if "counts" in nav and not isinstance(nav["counts"], bool):
@@ -471,7 +483,7 @@ def read(folder: Path = MANIFESTS) -> list[dict]:
         ids = [nav.get("row") or (f"nav-{m['id']}" if nav["place"] == "list" else ""),
                *[mk["id"] for mk in nav.get("marks", [])],
                (nav.get("plus") or {}).get("id", ""),
-               *[u["row_id"] for u in as_links(m)]]
+               *[u["row_id"] for u in as_links(m, with_under=False)]]
         for el in filter(None, ids):
             if el in seen_ids:
                 out.append(f"{m['id']}: element id {el!r} is already {seen_ids[el]}'s")
@@ -481,7 +493,7 @@ def read(folder: Path = MANIFESTS) -> list[dict]:
             if key in seen_orders:
                 out.append(f"{m['id']}: order {nav['order']} in {m['group']} is already {seen_orders[key]}'s")
             seen_orders[key] = m["id"]
-        for key in filter(None, [m["id"], (nav.get("plus") or {}).get("nav"), *[u["id"] for u in as_links(m)]]):
+        for key in filter(None, [m["id"], (nav.get("plus") or {}).get("nav"), *[u["id"] for u in as_links(m, with_under=False)]]):
             if key in seen_navs:
                 out.append(f"{m['id']}: the key {key!r} is already {seen_navs[key]}'s")
             seen_navs[key] = m["id"]
@@ -537,7 +549,7 @@ def section_of(m: dict) -> tuple[str, str] | None:
     return (placed.group(1), placed.group(2)) if placed else None
 
 
-def as_links(m: dict) -> list[dict]:
+def as_links(m: dict, with_under: bool = True) -> list[dict]:
     """The links a gene's link is drawn as, in its place (`nav.as`), in the order they stand:
     each with the key its presses are counted under, its name, its glyph, its address and its
     row's id. Empty for a gene drawn as its own one link."""
@@ -550,9 +562,19 @@ def as_links(m: dict) -> list[dict]:
                  "row_id": f"nav-handholding-{p['id']}"} for p in handholding.pages()]
     if drawn != "anatomy":
         return []
-    return [{"id": f"anatomy-{gid}", "name": gname, "title": f"{m['name']}, {gname}",
-             "icon": ANATOMY_ICONS[gid], "route": f"{ANATOMY_ROOT}/{gid}",
-             "row_id": f"nav-anatomy-{gid}"} for gid, gname in ANATOMY]
+    out = []
+    for gid, gname in ANATOMY:
+        out.append({"id": f"anatomy-{gid}", "name": gname, "title": f"{m['name']}, {gname}",
+                    "icon": ANATOMY_ICONS[gid], "route": f"{ANATOMY_ROOT}/{gid}",
+                    "row_id": f"nav-anatomy-{gid}"})
+        # The links that stand inside this group (`nav.under`), each a gene's own link, indented;
+        # `with_under` False is this gene's own links alone, as the manifests' check counts them.
+        if not with_under:
+            continue
+        out += [{"id": g["id"], "name": g["name"], "gene": g}
+                for g in sorted((g for g in globals().get("_ALL", ()) if (g.get("nav") or {}).get("under") == gid),
+                                key=lambda g: (g["nav"]["order"], g["id"]))]
+    return out
 
 
 def links(m: dict) -> list[tuple[str, str]]:
@@ -584,6 +606,8 @@ def claim_problems(found: Iterable[dict]) -> list[str]:
 
 
 GENES: tuple[dict, ...] = tuple(read())
+#: Every gene a link may be drawn from, for the links that stand inside Anatomy's groups.
+_ALL: tuple[dict, ...] = GENES
 BY_ID: dict[str, dict] = {m["id"]: m for m in GENES}
 #: Every section of Anatomy, by its name in an address, and the group whose page it is on.
 #: Switches do not come into it: an old address of a section that is off still lands somewhere.
@@ -607,7 +631,7 @@ def row_id(m: dict) -> str:
 def in_list(group: str, genes: Iterable[dict] = GENES) -> list[dict]:
     """A group's links in the order they stand: accepted ones by their order, then
     the lab ones by theirs, last. Never by use."""
-    rows = [m for m in genes if m["group"] == group and m["nav"]["place"] == "list"]
+    rows = [m for m in genes if m["group"] == group and m["nav"]["place"] == "list" and not m["nav"].get("under")]
     return sorted(rows, key=lambda m: (m["maturity"] == "lab", m["nav"]["order"], m["id"]))
 
 
@@ -616,16 +640,24 @@ def nav_groups(switch_on: Callable[[str], bool] = _always, extra: Iterable[dict]
     shared genes in the organisation's lab (`rouh/genelab.py`), drawn after Rouh's own."""
     out = []
     here = [m for m in (*GENES, *extra) if shown(m, switch_on)]
+    def row(m: dict, sub: bool = False) -> dict:
+        nav = m["nav"]
+        drawn = []
+        for u in as_links(m):
+            if "gene" not in u:
+                drawn.append(u)
+            elif shown(u["gene"], switch_on):
+                drawn.append({**u, "row": row(u["gene"], sub=True)})
+        css = " ".join(c for c in (nav.get("class", ""), "sb-nested" if sub else "") if c)
+        return {**m, "row_id": row_id(m), "lab": m["maturity"] == "lab",
+                "opens": nav["opens"], "press": nav.get("press", ""),
+                "controls": nav.get("controls", ""), "css": css,
+                "marks": nav.get("marks", []), "plus": nav.get("plus"), "as_links": drawn,
+                "hidden": bool(nav.get("while")), "shared": bool(m.get("shared")),
+                "publisher_name": m.get("publisher_name", "")}
+
     for gid, gname in GROUPS:
-        rows = []
-        for m in in_list(gid, here):
-            nav = m["nav"]
-            rows.append({**m, "row_id": row_id(m), "lab": m["maturity"] == "lab",
-                         "opens": nav["opens"], "press": nav.get("press", ""),
-                         "controls": nav.get("controls", ""), "css": nav.get("class", ""),
-                         "marks": nav.get("marks", []), "plus": nav.get("plus"), "as_links": as_links(m),
-                         "hidden": bool(nav.get("while")), "shared": bool(m.get("shared")),
-                         "publisher_name": m.get("publisher_name", "")})
+        rows = [row(m) for m in in_list(gid, here)]
         out.append({"id": gid, "name": gname, "label": GROUP_LABELS.get(gid, gname), "icon": GROUP_ICONS[gid],
                     "counted": gid == COUNTED_GROUP,
                     "genes": rows})

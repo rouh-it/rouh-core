@@ -13,7 +13,7 @@
     "benchmark",
     "lab"
   ],
-  "group": "memory",
+  "group": "machine",
   "route": "/synapse",
   "icon": "<circle cx=\"6\" cy=\"7\" r=\"2.4\"/><circle cx=\"18\" cy=\"6\" r=\"2.4\"/><circle cx=\"12\" cy=\"18\" r=\"2.4\"/><path d=\"M8.2 8.1l2.6 7.6M15.9 7.6l-2.7 8.1M8.4 7l7.2-.8\"/>",
   "attaches_to": [
@@ -24,10 +24,11 @@
   "maturity": "lab",
   "nav": {
     "place": "list",
-    "order": 40,
+    "order": 10,
     "opens": "own",
     "row": "synapseRow",
-    "controls": "synapseView"
+    "controls": "synapseView",
+    "under": "behaviour"
   },
   "touches": {
     "permissions": [],

@@ -1,14 +1,17 @@
-"""Handholding, at /handholding: the guided way into Rouh (`rouh/handholding.py`).
+"""The Guide, at /guide: the guided way into Rouh (`rouh/handholding.py`). Called Handholding, at
+/handholding, until 21 November 2026; every address under /handholding is sent on to /guide.
 
     GET  /api/handholding            the words, the signed-in person's ticks, what Rouh saw for
                                      itself, and each connection's badge
     POST /api/handholding/progress   {step, done, skip?}: tick a step, or take the tick off; skip marks
                                      an optional step not for this person; answers the
                                      ticks as they now are, or 400 with the words to show
-    GET  /handholding/<page>         one of the section's sub-pages (the data file's `pages`); a page's
+    POST /api/handholding/start      {on}: whether `/` opens the Guide for this person ("Don't show
+                                     this link" is off); answers {on_start}
+    GET  /guide/<page>         one of the section's sub-pages (the data file's `pages`); a page's
                                      old id (`old_pages`: next, learn) is sent on to the page it is now
-    GET  /handholding/lesson/<id>    one lesson, its full page; an old id is sent on to the lesson it is now
-    GET  /handholding/learn/<id>     the first version's lesson library: sent on to the lesson holding it
+    GET  /guide/lesson/<id>    one lesson, its full page; an old id is sent on to the lesson it is now
+    GET  /guide/learn/<id>     the first version's lesson library: sent on to the lesson holding it
 
 Only the signed-in person's own ticks are read or written: every query names their user and
 organisation.
@@ -52,6 +55,24 @@ async def progress(request: HttpRequest):
     return answer({"progress": got}, headers=NO_STORE)
 
 
+@only("POST")
+async def start(request: HttpRequest):
+    from rouh import handholding
+
+    me = await asyncio.to_thread(_signed_in, request)
+    if me is None:
+        return refuse("Sign in first.", 401)
+    got = await asyncio.to_thread(handholding.set_on_start, me, bool(body_of(request).get("on")))
+    return answer({"on_start": got}, headers=NO_STORE)
+
+
+def old_address(request: HttpRequest, rest: str = ""):
+    """An address from while the Guide was Handholding, `/handholding/...`: the same place under `/guide`."""
+    from rouh import handholding
+
+    return _moved(request, handholding.ROOT + (rest or ""))
+
+
 def _moved(request: HttpRequest, to: str):
     """Sent on to where a place is now, with the query it came with (`?from=`, `?chat=`)."""
     from django.http import HttpResponseRedirect
@@ -70,15 +91,15 @@ async def address(request: HttpRequest, page: str):
 
     now = handholding.page_now(page)
     if not now:
-        raise Http404("There is no such page in Handholding.")
+        raise Http404("There is no such page in the Guide.")
     if now != page:
         return _moved(request, handholding.page_route(now))
     return await index(request)
 
 
 async def lesson_address(request: HttpRequest, page: str, lesson: str):
-    """One lesson's own page, `/handholding/lesson/<id>`; and the first version's addresses of a lesson
-    (`/handholding/learn/<id>`, a lesson of its library), sent on to the lesson that holds it now."""
+    """One lesson's own page, `/guide/lesson/<id>`; and the first version's addresses of a lesson
+    (`/guide/learn/<id>`, a lesson of its library), sent on to the lesson that holds it now."""
     from django.http import Http404
 
     from rouh import handholding

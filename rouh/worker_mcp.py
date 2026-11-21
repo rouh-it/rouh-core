@@ -229,7 +229,7 @@ NIGHTLY = [
       "words": {"type": "string", "description": "For a fork: how it is made different."}},
      ["do"]),
     ("nightly_progress", "progress",
-     "Where this night stands against what Parameters asks: how many genes of each kind are "
+     "Where this night stands against what Tuning asks: how many genes of each kind are "
      "finished (registered with nightly_gene, their commits live), and how many are still to "
      "finish. A dropped, duplicate, weak or failed idea takes no place: pick the next one.",
      {}, []),

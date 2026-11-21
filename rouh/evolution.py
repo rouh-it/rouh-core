@@ -436,7 +436,7 @@ def guide_block(who, task: str) -> str:
     text = guide_text(who)
     if not text:
         return ""
-    return ("## The person's guidance on what to pick or invent (Evolution, Parameters)\n\n"
+    return ("## The person's guidance on what to pick or invent (Evolution, Tuning)\n\n"
             "The person wrote this to guide what Rouh picks from the Incubator or invents for development. "
             f"It ranks above every default heuristic you are given when you {task}: where they disagree, "
             "follow the guidance.\n\n"
@@ -471,7 +471,7 @@ def nightly_brief(who, night_number: int | None = None) -> str:
     """The part of the night's brief that says what to build: Parameters, and the mutation
     requests to build whatever Parameters says. Marks those requests as taken by this night."""
     p = parameters(who)
-    lines = ["", "## What Parameters asks for tonight (Evolution, Parameters)", ""]
+    lines = ["", "## What Tuning asks for tonight (Evolution, Tuning)", ""]
     if p["total"] == 0:
         lines += ["‹Owner› has set 0 genes a night: **building is paused**. Build no new genes tonight. "
                   "Still do run.md section 1 (‹his› edits, comments and answers) and build every "

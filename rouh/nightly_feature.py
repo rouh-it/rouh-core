@@ -1,4 +1,4 @@
-"""The nightly Rouh feature run: the genes Parameters asks for, built while the owner sleeps.
+"""The nightly Rouh feature run: the genes Tuning asks for, built while the owner sleeps.
 
 Petar, 6 October 2026, by voice: a nightly autonomous run that researches, picks and
 builds one new Rouh feature each night, at 04:30 on his clock. It was Codex on GPT-6.1 Sol,
@@ -81,7 +81,7 @@ log = logging.getLogger("rouh.nightly_feature")
 
 JOB = "nightly_feature"
 #: What the row says on the Reminders page, under its title (`TITLE`).
-WHAT = "Research, pick and build the genes Parameters asks for, each on trial in Mutations"
+WHAT = "Research, pick and build the genes Tuning asks for, each on trial in Mutations"
 #: What the row said until 20 October 2026, made `WHAT` by `ensure` where it is still Rouh's words.
 WHAT_BEFORE = "Research, pick and build one new feature, and ask you about it in the morning"
 AT = "04:30"
@@ -420,10 +420,10 @@ def answers_to_carry(who) -> list:
 
 # --- the night's target -------------------------------------------------------------------------
 #
-# Petar, 20 October 2026, after night 17 built one gene of the four Parameters asked for: "can you
+# Petar, 20 October 2026, after night 17 built one gene of the four Tuning asked for: "can you
 # please make sure I get the right number of genes? if ideas get dropped at the idea stage, that is
 # fine, pick another one on loop. if there aren't any ideas, search online, dig in code and data and
-# find more ideas. this is part of the exercise." So what Parameters asks is a target the night
+# find more ideas. this is part of the exercise." So what Tuning asks is a target the night
 # finishes, kept on its row when it starts, and counted here out of Mutations: a gene counts once,
 # by its key and its switch, when the night registered it as a new gene and its commits are in the
 # code Rouh runs. A run whose turn ends short is sent back to work (`watch`); only an operational
@@ -438,7 +438,7 @@ def _kinds():
 
 
 def target_of(params: dict) -> dict:
-    """What Parameters asks of a night, as the night keeps it: each kind, and their sum."""
+    """What Tuning asks of a night, as the night keeps it: each kind, and their sum."""
     kinds, _ = _kinds()
     out = {k: max(0, int((params or {}).get(k) or 0)) for k in kinds}
     out["total"] = sum(out.values())
@@ -492,8 +492,8 @@ def _kinds_said(counts: dict) -> str:
 def progress_words(row, p: dict) -> str:
     """Where the night stands, in a sentence or three, for the run and for the record."""
     if not p["total"]:
-        return f"Night {row.number} has no genes to build: Parameters asks for 0."
-    line = (f"Night {row.number} has finished {p['done']} of the {p['total']} genes Parameters asks for"
+        return f"Night {row.number} has no genes to build: Tuning asks for 0."
+    line = (f"Night {row.number} has finished {p['done']} of the {p['total']} genes Tuning asks for"
             + (f" ({_kinds_said(p['filled'])})" if p["done"] else "") + ".")
     if p["remaining"]:
         line += f" Still to finish: {_kinds_said(p['remaining'])}."
@@ -748,12 +748,12 @@ def said(who, row) -> None:
     p = progress(who, row) if (row.target or {}).get("total") else None
     if p is not None:
         if not p["left"]:
-            line = (f"night {row.number} built all {p['total']} genes Parameters asked for; they "
+            line = (f"night {row.number} built all {p['total']} genes Tuning asked for; they "
                     "are New in Mutations")
         elif row.state == "running":
             line = f"night {row.number} has built {p['done']} of {p['total']} genes so far and is still building"
         else:
-            line = (f"night {row.number} built {p['done']} of the {p['total']} genes Parameters asked "
+            line = (f"night {row.number} built {p['done']} of the {p['total']} genes Tuning asked "
                     f"for, short because {row.short_why or 'its run ended'}")
     elif row.feature:
         line = (f"night {row.number} built “{row.feature}”; your answer is waiting in "

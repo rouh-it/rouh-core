@@ -56,7 +56,7 @@
     var root = S.root;
     if (!root || !root.isConnected) { return; }
     root.textContent = '';
-    root.appendChild(el('p', 'evo-lede', 'Each night Rouh researches, picks and builds the genes Parameters asks for, from the ideas in the Incubator, and puts each on trial in Mutations.'));
+    root.appendChild(el('p', 'evo-lede', 'Each night Rouh researches, picks and builds the genes Tuning asks for, from the ideas in the Incubator, and puts each on trial in Mutations.'));
     if (S.error) { root.appendChild(el('p', 'evo-error', S.error)); }
     if (S.said) { root.appendChild(el('p', 'evo-said', S.said)); }
     var d = S.data;
@@ -109,9 +109,9 @@
     }
     set.appendChild(ul);
     var links = el('p', 'nr-row');
-    var params = el('a', 'evo-link', 'How many genes a night: Parameters');
-    params.href = '/evolution/parameters';
-    params.addEventListener('click', function (e) { e.preventDefault(); go('/evolution/parameters'); });
+    var params = el('a', 'evo-link', 'How many genes a night: Tuning');
+    params.href = '/evolution/tuning';
+    params.addEventListener('click', function (e) { e.preventDefault(); go('/evolution/tuning'); });
     links.appendChild(params);
     var inc = el('a', 'evo-link', 'Its ideas in the Incubator (' + d.ideas.all + ', ' + d.ideas['new'] + ' new)');
     inc.href = '/evolution/incubator';

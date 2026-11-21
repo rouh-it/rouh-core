@@ -1,6 +1,6 @@
 {
  "version": 2,
- "pages_note": "The sub-pages of Handholding, in the order the navigation lists them. Each draws the views it names: continue, path, connections, features, tips. The first is where the section opens. Every lesson has its own address, /handholding/lesson/<id>.",
+ "pages_note": "The sub-pages of the Guide, in the order the navigation lists them. Each draws the views it names: continue, path, connections, features, tips. The first is where the section opens. Every lesson has its own address, /guide/lesson/<id>.",
  "pages": [
   {
    "id": "path",
@@ -686,7 +686,7 @@
      "how": [
       "Say the reminder: what, and a day or a time.",
       "Rouh puts it in Clockwork and says when it will remind you.",
-      "Open Clockwork (menu, Time, Clockwork) to see everything coming up, and change or remove any of it."
+      "Open Clockwork (menu, Work, Clockwork) to see everything coming up, and change or remove any of it."
      ],
      "says": [
       "Remind me tomorrow at nine to call the dentist.",
@@ -1813,7 +1813,7 @@
       "Synapse is Rouh's memory: what it knows about people, places and your work, each fact with where it came from."
      ],
      "how": [
-      "Open Synapse (menu, Memory).",
+      "Open Synapse (menu, Anatomy, under Behaviour).",
       "Open a dataset to see what is in it.",
       "Ask what Rouh knows about someone, and where it learned it."
      ],

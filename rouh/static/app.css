@@ -2471,6 +2471,9 @@ input[type="range"]::-moz-range-thumb { width: 15px; height: 15px; border: 0; bo
   background: var(--accent-soft); color: var(--text);
 }
 .sb-do { color: var(--dim); }
+/* A link that stands inside the link above it (`nav.under`): Synapse inside Anatomy's Behaviour,
+   indented by a glyph's width so it reads as part of it. */
+.sb-row.sb-nested { padding-left: 33px; }
 /* Rouh's own row, the chat that is always there, is purple, its name and its
    orb both, and stays purple pressed, hovered and open: it is the one row that
    is somebody rather than somewhere. The purple is the one the options on a
