@@ -453,6 +453,23 @@ button { font: inherit; color: inherit; }
    height: a copy icon, Stop or a link, and the control that closes it. */
 .run-head > .ctl, .run-head > .icon-btn, .run-head > .layer-x { height: 28px; }
 
+/* The leftmost thing on the page starts on the window's own edge: the
+   conversation, its rail while it is folded away, or the projects laid over
+   both columns. The gutter is between two panels and at the other three
+   edges, never at the left one, and the corners against the edge are square,
+   because a frame round a column already against the screen is space to say
+   nothing (the phone has had none since it had one pane). The orb floats
+   over that edge, fixed to the bottom left corner of the window. Petar,
+   21 November 2026: "content should be flushed all the way left". */
+@media (min-width: 900px) {
+  .col-chat, .app.no-chat .rail-chat, .projects { margin-left: 0; }
+  .col-chat .panel-transcript, .col-chat .panel-ask, .col-chat:not(.welcome) .composer-box,
+  .col-chat > .chat-tabs, .app.no-chat .rail-chat {
+    border-left: 0;
+    border-top-left-radius: 0; border-bottom-left-radius: 0;
+  }
+}
+
 /* ---------- the projects, across both columns ---------- */
 
 /* Not a `.canvas-layer`. Every other thing that opens over something opens
@@ -11027,10 +11044,15 @@ button.tc-fold[aria-expanded="true"]::before { transform: rotate(45deg); top: 7p
   visibility: hidden; pointer-events: none;
   width: var(--orb-btn); height: var(--orb-btn);
 }
-/* Where the page has a strip down its left - a tablet lying down, a
-   narrow window - the strip is as wide as the circle and its air, so the
-   circle stands in it rather than on the conversation beside it. */
-.app[data-sb="shut"], .app[data-sb="over"] { --sb-track: calc(var(--orb-btn) + var(--sb-pad) * 2); }
+/* No strip down the left at any width: the navigation is a drawer over the
+   page everywhere, so its track is nothing while it is shut or lying over the
+   page, and whatever is leftmost - the conversation, its folded rail, or the
+   canvas - starts on the window's own edge. The circle floats over it, fixed
+   to the bottom left corner, as it always has on a phone. Petar,
+   21 November 2026: "content should be flushed all the way left and orb
+   should be floating above it just like on the mobile." Until then a desk
+   kept a strip as wide as the circle and its air for it to stand in. */
+.app[data-sb="shut"], .app[data-sb="over"] { --sb-track: 0px; }
 /* The conversation keeps room at its end, and every scroller on the
    canvas at its own, to bring its last line out from under the circle. */
 .app.fold-docked .col-chat:not(.welcome) .transcript {
@@ -11270,15 +11292,10 @@ html.demo #notices, html.demo .nt-count { display: none !important; }
 .sb-demo { margin-left: auto; width: auto; min-width: 40px; padding: 0 9px; gap: 6px;
   grid-auto-flow: column; }
 .sb-demo ~ .sb-home { margin-left: 0; }
-/* Where the navigation is folded away, the same switch in the top corner of the left edge. */
-.demo-corner { display: none; position: fixed; z-index: 45; margin: 0;
-  top: calc(env(safe-area-inset-top, 0px) + 12px); left: calc(env(safe-area-inset-left, 0px) + 12px);
-  background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
-.app[data-sb="shut"] ~ .demo-corner { display: grid; }
-/* On a phone the corner is the conversation's own head, so the switch is only beside the house
-   in the navigation, and the purple edge round the screen is what says demo mode is on. */
+/* The eye is in the navigation only, beside the house, at every width (Petar, 21 November 2026:
+   "the eye should be only in the navigation"); the purple edge round the screen is what says demo
+   mode is on while the navigation is shut. */
 @media (max-width: 700px) {
-  .app[data-sb="shut"] ~ .demo-corner { display: none; }
   html.demo body::after { border-width: 3px; }
 }
 .sb-demo .demo-word:empty { display: none; }

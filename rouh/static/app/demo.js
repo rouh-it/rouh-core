@@ -29,8 +29,10 @@ export var DEMO = { on: false, preview: false, dots: true, since: 0, changed: 0,
 
 var root = document.documentElement;
 var btn = document.getElementById('demoBtn');
-var corner = document.getElementById('demoCorner');
-/** The switch the menu was last opened from: beside the house, or in the corner. */
+/** The switch the menu was last opened from: the one beside the house, in the navigation.
+    It had a twin in the top left corner while the navigation was folded away, until
+    21 November 2026, when the strip down the left that it stood in went: the eye is
+    in the navigation only, at every width. */
 var opener = btn;
 var menu = document.getElementById('demoMenu');
 var watcher = null;
@@ -240,7 +242,7 @@ function turn(on) {
 /* ---------- the switch and its menu ------------------------------------------------------ */
 
 function draw() {
-  [btn, corner].forEach(drawOne);
+  drawOne(btn);
 }
 
 function drawOne(btn) {
@@ -357,7 +359,7 @@ function closeMenu() {
   if (!menu) return;
   menu.hidden = true;
   offAsked = 0;
-  [btn, corner].forEach(function (b) { if (b) b.setAttribute('aria-expanded', 'false'); });
+  if (btn) btn.setAttribute('aria-expanded', 'false');
 }
 
 function preview(on) {
@@ -394,7 +396,7 @@ function say(text) {
   saidTimer = setTimeout(function () { t.hidden = true; }, 4000);
 }
 
-[btn, corner].forEach(function (b) {
+[btn].forEach(function (b) {
   if (!b) return;
   b.addEventListener('click', function (e) {
     e.preventDefault();

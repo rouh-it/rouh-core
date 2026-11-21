@@ -4622,18 +4622,6 @@ with {% asset %}, which gives it its hashed address.
   </section>
 
 </main>
-{% comment %} The same switch where the navigation is folded away, so it is always in sight
-     (`rouh/demo.py`, app/demo.js): the left edge's top corner, over the orb's column. {% endcomment %}
-<button id="demoCorner" class="sb-tool sb-demo demo-corner" type="button" aria-pressed="false"
-        aria-haspopup="menu" aria-controls="demoMenu" aria-expanded="false"
-        aria-label="Turn on demo mode" title="Demo mode">
-  <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true" fill="none"
-       stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/>
-    <circle cx="12" cy="12" r="2.8"/><path class="demo-slash" d="M4 20L20 4"/>
-  </svg>
-  <span class="demo-word" aria-hidden="true"></span>
-</button>
 <div class="menu demo-menu" id="demoMenu" role="menu" aria-label="Demo mode" hidden></div>
 <div class="demo-said" id="demoSaid" role="status" aria-live="polite" hidden></div>
 
