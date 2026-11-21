@@ -854,9 +854,9 @@ function makeCore() {
   coreMask = new T.MeshBasicMaterial({ color: 0, depthWrite: true });
 }
 
-/** The colour behind the orb's picture: the canvas's black, or in the corner `--orb-disc`, which is the same
-    opaque black at every width since 21 November 2026 (a phone had it transparent from 19 November); were it
-    ever transparent, this is null, so the scene is cleared to nothing and only the picture is drawn.
+/** The colour behind the orb's picture: the canvas's black, or in the corner `--orb-disc`, which is opaque at
+    every width (a desk's black, a phone's `--panel-2`; a phone had it transparent from 19 to 21 November 2026);
+    were it ever transparent, this is null, so the scene is cleared to nothing and only the picture is drawn.
     @param {string} [name] @returns {any} */
 function voidColour(name) {
   var v = getComputedStyle(document.documentElement).getPropertyValue(name || '--void').trim() || '#000000';

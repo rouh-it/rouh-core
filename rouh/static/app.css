@@ -11915,12 +11915,13 @@ body.cot-open { overflow: hidden; }
 /* The background is the conversation's own, with no black under anything: the orb's disc in the
    corner was the canvas's black (`--void`), and the band the text box sits in was the page's darker
    `--bg-2`. On a phone the disc is the floating circles' colour and the band is the conversation's.
-   The orb draws its own picture over the disc in that colour (`--orb-disc`, app/orb3d.js), which is
-   the canvas's black at every width (see "The orb in the corner" below). And where
+   The orb draws its own picture over the disc in that colour (`--orb-disc`, app/orb3d.js). And where
    the conversation starts under the head's chip, its words fade out over the last few pixels rather
    than being cut off square under it. */
 :root { --orb-disc: var(--void); }
 @media (max-width: 899px) {
+  :root { --orb-disc: var(--panel-2); }
+  .orb-layer[data-orb="corner"] .orb-box { background: var(--orb-disc); box-shadow: inset 0 0 0 1px var(--line); }
   .composer { background: var(--panel); }
   .col-chat:has(#chatTabs[hidden]):has(#readingStrip:not([hidden])) .transcript {
     -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px);
@@ -12058,9 +12059,8 @@ body.cot-open { overflow: hidden; }
   .col-chat.stripped .chat-self:has(> .fork-x) .reading-strip { max-width: calc(100% - 16px); }
 }
 
-/* The orb in the corner has an opaque dark disc at every width: the canvas's black (`--void`, the
-   rule under "The design's circle" near the top), with the load ring as its only edge. From
-   19 November 2026 a phone drew it on nothing, and once the content ran under it on a desk too
-   (21 November 2026) whatever was behind showed through. Petar, 21 November 2026: "Orb became
-   transparent in background ... Return it back to opaque dark background". app/orb3d.js still
-   clears to nothing if `--orb-disc` is ever made transparent again. */
+/* The orb in the corner has an opaque dark disc at every width, the one it had before it was made
+   see-through on a phone on 19 November 2026: the canvas's black (`--void`) on a desk, and on a phone
+   or tablet the floating circles' dark (`--panel-2`) with a hairline, both just above. Petar,
+   21 November 2026: "Orb became transparent in background ... Return it back to opaque dark
+   background". app/orb3d.js still clears to nothing if `--orb-disc` is ever made transparent. */
