@@ -455,6 +455,12 @@ Every gene in `rouh/genes/owners.json` and every page Rouh serves that no row ab
 | `gene.guest-list` | A meeting's guest list hidden | untested | works | guestsCanSeeOtherGuests and guestsCanInviteOthers are asked for and said in plain words | not checked |
 | `gene.bank-copy` | Pay an invoice from the inbox card | untested | works | an invoice's account, amount and reference are offered for Copy; an email with no IBAN offers nothing | not checked |
 | `gene.mail-button` | The button in an email | untested | works | the email's own confirm link to the sender's domain is offered; one to another domain is not | not checked |
+| `gene.google-needed` | Connect Google where it is needed | untested | works | a tool's own words that Google is not set up, not connected, withdrawn or short of access are read as Google missing; the same words in somebody else's email are not | not checked |
+| `gene.lesson-ticks` | Lessons ticked as you do them | untested | works | a lesson whose tool the person's Rouh called is ticked Detected from the event counts; one never called is not | not checked |
+| `gene.try-fit` | Things to try that fit what you have | untested | works | with the switch on the page is told which of Google and Telegram are live; off, nothing | not checked |
+| `gene.fix-context` | What you were looking at goes with a change you ask for | untested | works | a job to change Rouh is told Rouh's own address the person had open and the last messages; an address to another site is dropped | not checked |
+| `gene.run-head` | Live or not live, a run's changed files, and Finish it | untested | works | the one program keeps what land.sh said about deploying on the run; the page is told which of the three are on and what Finish it sends | not checked |
+| `gene.say-plainer` | Say it more simply | untested | works | the page is told the switch and the words the button sends; a press is counted only while it is on | not checked |
 | `core.commands-open-credentials` | A command run in the core beside Rouh (`docker compose exec core python manage.py ...`) opens what Rouh sealed | broken | works | with Google connected, Python in the core opens the sealed refresh token with the key from the keys volume (`ROUH_ENCRYPTION_KEY_FILE`), and Google is still connected after. It was broken: only the core's start put the key in Rouh's environment, so a command beside it made a key of its own in `/data`, could open no credential, and marked the owner's Google to be connected again | not checked |
 
 ## Rouh on Windows

@@ -404,6 +404,12 @@ async def start(request: HttpRequest):
         return refuse("sign in", 401)
     if meter.too_many("start:" + me.user_id):
         return refuse(TOO_MANY, 429)
+    if request.GET.get("from") == "needed":
+        # Connect Google pressed on Settings a tool opened because Google was missing.
+        from .. import google_needed
+
+        if await sync_to_async(google_needed.on)(me):
+            await sync_to_async(google_needed.connected_from_here)(me)
     try:
         # Asked of Google before the person is sent there: a callback address
         # the client does not have registered is a dead end on Google's page.

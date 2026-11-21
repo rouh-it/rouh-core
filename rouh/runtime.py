@@ -6902,10 +6902,15 @@ class Session:
 
             page = await asyncio.to_thread(page_in_chat.take, msg.get("page"))
             beside = page_in_chat.NOW.set(page)
+            # And the screen it was sent from, for a job asked to change Rouh (`rouh/fix_context.py`).
+            from . import fix_context
+
+            screen = fix_context.WHERE.set(fix_context.take(msg.get("where")))
             try:
                 await self.typed((msg.get("text") or "").strip(), msg.get("attachments"),
                                  steer=str(msg.get("steer") or "")[:64])
             finally:
+                fix_context.WHERE.reset(screen)
                 page_in_chat.NOW.reset(beside)
 
         elif kind == "dismiss_question":

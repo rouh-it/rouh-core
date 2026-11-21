@@ -12601,6 +12601,8 @@ class ToolRegistry:
         reminders.noted(name, args, out)
         # And in a beat, what it started and made is its own (`heartbeat.noted`).
         heartbeat.noted(name, args, out)
+        # Google missing, and somebody watching: Settings, Google, opened for them (`rouh/google_needed.py`).
+        await self._google_needed(name, out, emit)
         # Somebody else's words go back in a box of their own, with the
         # standing rule about them in the system prompt (rouh/untrusted.py).
         # Here rather than in each handler on purpose: a handler is a place to
@@ -12608,6 +12610,47 @@ class ToolRegistry:
         # somebody else's is decided in one list, and a tool nobody has thought
         # about is simply not marked rather than quietly trusted.
         return untrusted.wrap_for(name, out)
+
+    async def _fix_context(self, brief: str) -> str:
+        """The brief of a job to change Rouh, with the screen and the last messages added by code."""
+        from . import fix_context
+        from .tenancy import speaker
+
+        try:
+            who = speaker()
+            chat = self.memory.answering_chat() if self.memory is not None else ""
+            more = await asyncio.to_thread(fix_context.added, who, self.memory, chat or "")
+            if not more:
+                return brief
+            await asyncio.to_thread(fix_context.told, who, fix_context.WHERE.get())
+            return brief + "\n" + more
+        except Exception:
+            log.warning("fix_context: the brief is the model's alone", exc_info=True)
+            return brief
+
+    async def _google_needed(self, name: str, out, emit) -> None:
+        """Settings, Google, opened when a tool of a watched turn says Google is missing.
+
+        Once in `google_needed.QUIET` seconds for a person, so a turn that tries three Google tools
+        opens it once. Never raises: it only helps a reply that already says it in words."""
+        from . import google_needed
+
+        try:
+            if reminders.unattended() or not google_needed.missing(name, out):
+                return
+            from .tenancy import speaker
+
+            who = speaker()
+            if who is None or not await asyncio.to_thread(google_needed.on, who):
+                return
+            if not google_needed.due(who):
+                return
+            chat = self.memory.answering_chat() if self.memory is not None else ""
+            await emit({"type": "settings_shown", "group": "email", "why": google_needed.SWITCH,
+                        **({"chat": chat} if chat else {})})
+            await asyncio.to_thread(google_needed.opened, who, name)
+        except Exception:
+            log.warning("google_needed: Settings could not be opened", exc_info=True)
 
     # --- handlers -----------------------------------------------------------
 
@@ -15490,6 +15533,10 @@ class ToolRegistry:
 
             brief = f"{brief}\n\n{brief_lines(handed)}"
         brief = _with_their_words(brief)
+        # A job to change Rouh is told the screen the person had open and what was just said
+        # (night 50, `rouh/fix_context.py`).
+        if preset == "improve_myself" and turn is None:
+            brief = await self._fix_context(brief)
         # Every point accounted for (night 26, `rouh/each_point.py`): a job asked to apply several
         # comments or changes is told to go through each and end with what became of every one.
         brief = await asyncio.to_thread(each_point.with_rule, brief)

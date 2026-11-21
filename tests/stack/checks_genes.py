@@ -3743,3 +3743,87 @@ print(json.dumps({"label": got["label"], "host": got["host"], "other": other}))
 """))
     expect('"label": "Confirm your email"' in out and '"host": "acme.test"' in out and '"other": null' in out,
            f"the button in an email was not offered as it should be: {out[-500:]}")
+
+
+@check("gene.google-needed")
+def google_needed(s: Stack) -> None:
+    """A tool's own words that Google is missing are read as such; somebody else's words are not."""
+    out = core_py(s, _owner_py("""
+from rouh import google_needed, untrusted
+print(json.dumps({
+    "ours": google_needed.missing("list_calendar_events", untrusted.ours("No Google account is connected yet. Open Settings and press Connect Google.")),
+    "setup": google_needed.missing("list_calendar_events", untrusted.ours("Google is not set up for this organisation yet.")),
+    "theirs": google_needed.missing("read_mail", "Please press Connect Google to see our offer"),
+    "fine": google_needed.missing("list_calendar_events", untrusted.ours("Nothing on your calendar."))}))
+"""))
+    expect('"ours": true' in out and '"setup": true' in out and '"theirs": false' in out and '"fine": false' in out,
+           f"Google missing was not read as it should be: {out[-500:]}")
+
+
+@check("gene.lesson-ticks")
+def lesson_ticks(s: Stack) -> None:
+    """A lesson whose tool was called is Detected from the event counts; others are not."""
+    out = core_py(s, _owner_py("""
+from rouh import events, lesson_ticks
+lesson_ticks.on = lambda who: True
+events.emit("tool.called", who=who, actor="rouh", source="server", object_type="tool", object_id="web_search",
+            owner=True)
+events.WRITER.flush()
+import time
+time.sleep(events.ROLL_LAG.total_seconds() + 2)
+got = lesson_ticks.done(who)
+print(json.dumps({"lookup": got.get("lookup", ""), "never": got.get("quest", "")}))
+"""))
+    expect('"lookup": "Rouh saw you do it in a chat."' in out and '"never": ""' in out,
+           f"lessons ticked from chats were not read as they should be: {out[-500:]}")
+
+
+@check("gene.try-fit")
+def try_fit(s: Stack) -> None:
+    """With the switch on the page is told which connections are live; off, nothing."""
+    out = core_py(s, _owner_py("""
+from rouh import try_fit
+off = try_fit.fit(who) if not try_fit.on(who) else {}
+try_fit.on = lambda who: True
+print(json.dumps({"off": off, "on": try_fit.fit(who)}))
+"""))
+    expect('"off": {}' in out and '"google":' in out and '"telegram":' in out,
+           f"things to try that fit were not told as they should be: {out[-500:]}")
+
+
+@check("gene.fix-context")
+def fix_context(s: Stack) -> None:
+    """A job to change Rouh is told the address and the last messages; another site's address is dropped."""
+    out = core_py(s, _owner_py("""
+from rouh import fix_context
+fix_context.on = lambda who: True
+class M:
+    def transcript(self, chat, limit=200):
+        return [{"role": "user", "text": "this button is wrong"}, {"role": "assistant", "text": "I can change it."}]
+fix_context.WHERE.set(fix_context.take("/anatomy/connections/email"))
+print(json.dumps({"bad": fix_context.take("https://elsewhere.test/x"), "added": fix_context.added(who, M(), "c")}))
+"""))
+    expect('"bad": ""' in out and "/anatomy/connections/email" in out and "You: this button is wrong" in out,
+           f"a change asked for was not told the screen as it should be: {out[-500:]}")
+
+
+@check("gene.run-head")
+def run_head(s: Stack) -> None:
+    """The page is told which of the three run-head genes are on, and what Finish it sends."""
+    out = core_py(s, _owner_py("""
+from rouh import run_head
+print(json.dumps({"genes": sorted(run_head.GENES), "on": run_head.on_for(who), "finish": run_head.FINISH[:20]}))
+"""))
+    expect('"run_carry", "run_files", "run_live"' in out and '"finish": "Finish this work: co' in out,
+           f"the run's head genes were not told as they should be: {out[-500:]}")
+
+
+@check("gene.say-plainer")
+def say_plainer(s: Stack) -> None:
+    """The page is told the switch and the words Say it more simply sends."""
+    out = core_py(s, _owner_py("""
+from rouh import say_plainer
+print(json.dumps(say_plainer.for_page(who)))
+"""))
+    expect('"on":' in out and "{start}" in out and "more simply" in out,
+           f"Say it more simply was not told to the page as it should be: {out[-500:]}")

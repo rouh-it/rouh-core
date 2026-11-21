@@ -80,6 +80,7 @@ var TRY_GLYPH = {
   task: '<path d="M9 4.5H7.5a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V6.5'
     + 'a2 2 0 0 0-2-2H15"/><rect x="9" y="3" width="6" height="3.2" rx="1"/>'
     + '<path d="M9 11h6M9 15h4"/>',
+  calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
   video: '<rect x="3" y="5" width="18" height="14" rx="3"/>'
     + '<path d="M10.2 9.3v5.4l4.6-2.7z"/>',
   mail: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 7l8.5 6 8.5-6"/>',
@@ -344,6 +345,12 @@ function tryCard(item) {
   card.addEventListener('click', function () {
     if (item.settings) settingsOpen(item.settings);
     else tryThis(item.say);
+    // One of the person's own things to try, pressed: that gene's use (`rouh/try_fit.py`).
+    if (item.own) {
+      fetch('/api/try-fit', { method: 'POST', keepalive: true, credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: item.kind }) })
+        .catch(function () {});
+    }
   });
   var row = el('div', 'try-item');
   row.setAttribute('role', 'listitem');
@@ -351,9 +358,36 @@ function tryCard(item) {
   return row;
 }
 
+//: With Google connected, and the switch of `rouh/try_fit.py` on: the person's own things to try.
+var OWN = [
+  { kind: 'calendar', head: 'Your week', own: true,
+    say: 'What is on my calendar this week, and what should I prepare for?' },
+  { kind: 'mail', head: 'Your inbox', own: true,
+    say: 'Go through my inbox: what needs an answer from me today?' }
+];
+
+/* What is connected, when the server says (`data-fit`, `rouh/try_fit.py`): a setting-up step
+   already done is left out, and with Google connected the first two things to try are the
+   person's own. Without it, the cards are as they always were.
+   @param {any[]} items @param {any} fit */
+function fitted(items, fit) {
+  if (!fit) return items;
+  var done = { mail: !!fit.google, chat: !!fit.telegram };
+  var kept = items.filter(function (it) { return !(it.setup && done[it.kind]); });
+  var tries = kept.filter(function (it) { return !it.setup; });
+  var steps = kept.filter(function (it) { return it.setup; });
+  if (fit.google) tries = OWN.concat(tries).slice(0, Math.max(4 - steps.length, 2));
+  return steps.concat(tries);
+}
+
 (function () {
   var section = $('welcomeTry');
-  var items = section && section.dataset.settingUp ? SETUP.map(phoneStep).concat(TRY.slice(0, 2)) : TRY;
+  var setting = !!(section && section.dataset.settingUp);
+  var fit = null;
+  try { fit = section && section.dataset.fit ? JSON.parse(section.dataset.fit) : null; } catch (err) { fit = null; }
+  var steps = setting ? SETUP.map(phoneStep).map(function (it) { return Object.assign({ setup: true }, it); }) : [];
+  var items = fit ? fitted(steps.concat(setting ? TRY.slice(0, 2) : TRY), fit)
+    : setting ? SETUP.map(phoneStep).concat(TRY.slice(0, 2)) : TRY;
   ['tryCanvas', 'tryUnder'].forEach(function (id) {
     var list = $(id);
     if (!list) return;

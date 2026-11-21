@@ -502,6 +502,8 @@ with {% asset %}, which gives it its hashed address.
           </div>
         </div>
         {{ GENES|json_script:"rouhGenes" }}
+        {{ RUN_HEAD|json_script:"rouhRunHead" }}
+        {{ PLAINER|json_script:"rouhPlainer" }}
         <script>
         /* The group to show before anything is painted: the one holding the page
            this address opens, else the one picked last here, else Now. */
@@ -1908,7 +1910,7 @@ with {% asset %}, which gives it its hashed address.
          sending them, because an example is somewhere to start and not what
          the person meant to say. It goes with the welcome, the moment the
          first thing is said (`welcomeShow` in app.js). {% endcomment %}
-    <section class="welcome-try" id="welcomeTry" aria-labelledby="tryTitle"{% if SETTING_UP %} data-setting-up="1"{% endif %}{% if PHONE_ADDRESS %} data-phone="{{ PHONE_ADDRESS }}"{% endif %} hidden>
+    <section class="welcome-try" id="welcomeTry" aria-labelledby="tryTitle"{% if SETTING_UP %} data-setting-up="1"{% endif %}{% if TRY_FIT %} data-fit="{{ TRY_FIT }}"{% endif %}{% if PHONE_ADDRESS %} data-phone="{{ PHONE_ADDRESS }}"{% endif %} hidden>
       <div class="try-inner">
         <h2 class="try-title" id="tryTitle">Things to try</h2>
         <p class="try-sub">Pick one and it goes in the box, where you can change it before you send it.</p>
@@ -1925,6 +1927,8 @@ with {% asset %}, which gives it its hashed address.
           <h3 id="oneTitle"></h3>
           <div id="oneMeta" class="run-meta"></div>
           <div id="oneCodex" class="run-codex" hidden></div>
+          {# The files a landing took, opened from "N files changed" (`rouh/run_head.py`, run_files). #}
+          <ul id="oneFiles" class="run-files" aria-label="Files this run changed" hidden></ul>
         </div>
         {% comment %} The shell command that takes the same run over in a real terminal,
              copied with one click. What it says is written again when a run
@@ -1939,6 +1943,9 @@ with {% asset %}, which gives it its hashed address.
             <path class="ico-copied" d="M5 13l4.5 4.5L19 7"/>
           </svg>
         </button>
+        {# A run that ended with work left, or is not live (`rouh/run_head.py`, run_carry). #}
+        <button id="oneFinish" class="ctl small primary" type="button" hidden
+                title="Send it one message to commit what is left, land it and see it live">Finish it</button>
         <button id="oneStop" class="ctl small" type="button">Stop</button>
         <button id="oneBack" class="layer-x" type="button"
                 title="Close this run (Esc)" aria-label="Close this run and go back to the canvas">&times;</button>

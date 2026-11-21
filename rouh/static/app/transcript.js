@@ -524,6 +524,9 @@ function actIcon(kind) {
   } else if (kind === 'when') {
     svg.appendChild(svgEl('circle', { cx: '12', cy: '12', r: '9' }));
     svg.appendChild(svgEl('path', { d: 'M12 7.5V12l3 2' }));
+  } else if (kind === 'plain') {
+    // Three lines growing shorter: the same said in fewer, plainer words (`rouh/say_plainer.py`).
+    svg.appendChild(svgEl('path', { d: 'M4 7h16M4 12h11M4 17h6' }));
   } else if (kind === 'say') {
     // A speaker with its sound, and while it reads, a square to stop it.
     svg.appendChild(svgEl('path', { class: 'ico-say', d: 'M4 9.5h3.5L12 5.5v13l-4.5-4H4z' }));
@@ -532,6 +535,31 @@ function actIcon(kind) {
                                     rx: '1.5', fill: 'currentColor' }));
   }
   return svg;
+}
+
+/* Say it more simply (`rouh/say_plainer.py`): one press under an answer asks for it again in
+   plain words, as a message of the person's own in the box, sent the way Send sends it. The page
+   is told whether its switch is on, in `#rouhPlainer`. */
+var PLAINER = (function () {
+  try {
+    var node = document.getElementById('rouhPlainer');
+    return node ? JSON.parse(node.textContent || 'null') : null;
+  } catch (err) { return null; }
+}());
+
+function plainerOn() { return !!(PLAINER && PLAINER.on && PLAINER.ask); }
+
+/** @param {HTMLElement} turn */
+function sayPlainer(turn) {
+  var words = turnWords(turn).replace(/\s+/g, ' ').trim();
+  var box = /** @type {HTMLTextAreaElement | null} */ ($('input'));
+  var go = $('sendBtn');
+  if (!words || !box || !go || !PLAINER) return;
+  var start = words.length > 90 ? words.slice(0, 90).replace(/\s+\S*$/, '') + '...' : words;
+  box.value = String(PLAINER.ask).replace('{start}', start);
+  go.click();
+  fetch('/api/say-plainer', { method: 'POST', keepalive: true, credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(function () {});
 }
 
 function actBtn(kind, said) {
@@ -639,6 +667,12 @@ function fitActs(turn) {
       say.setAttribute('aria-pressed', 'false');
       say.addEventListener('click', function () { readAloud(say, turnWords(turn)); });
       row.appendChild(say);
+    }
+    // Say it more simply, on an answer, while its switch is on (`rouh/say_plainer.py`).
+    if (!mine && !askai && !notice && plainerOn()) {
+      var plain = actBtn('plain', 'Say it more simply');
+      plain.addEventListener('click', function () { sayPlainer(turn); });
+      row.appendChild(plain);
     }
     row.__steps = steps;
   }

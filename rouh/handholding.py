@@ -363,6 +363,16 @@ def detected(who, connections: dict | None = None) -> dict:
                 seen[what] = ""
         if seen[what]:
             out[st["id"]] = seen[what]
+    # And the lessons done by asking Rouh in a chat, while that gene is on (`rouh/lesson_ticks.py`).
+    try:
+        from . import lesson_ticks
+
+        known = {st["id"] for st in lessons()}
+        for lesson, why in lesson_ticks.done(who).items():
+            if lesson in known and lesson not in out:
+                out[lesson] = why
+    except Exception:  # noqa: BLE001 - those lessons wait for a tick by hand, as before
+        log.exception("handholding: the lessons done in a chat could not be read")
     return out
 
 
@@ -373,5 +383,11 @@ def page(who) -> dict:
     except Exception:  # noqa: BLE001 - the page draws "Status unknown"
         log.exception("handholding: the connections could not be read")
         conns = None
-    return {"content": content(), "progress": progress(who), "detected": detected(who, conns),
-            "status": conns}
+    seen = detected(who, conns)
+    try:
+        from . import lesson_ticks
+
+        lesson_ticks.seen(who, seen)
+    except Exception:  # noqa: BLE001 - a use not counted never stops the page
+        log.exception("handholding: the use of lesson_ticks could not be counted")
+    return {"content": content(), "progress": progress(who), "detected": seen, "status": conns}

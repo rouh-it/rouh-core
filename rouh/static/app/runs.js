@@ -504,11 +504,41 @@ function copyTheOldWay(text) {
 // has none yet, and "Queued" alone is the truth about it.
 function oneStateWords(run) {
   var word = ONE_WORDS[run.state] || run.state;
+  // What an unfinished run left behind, such as "it left 1 commit" (`rouh/run_head.py`, run_carry).
+  if (run.state === 'unfinished' && run.left && runHeadOn('run_carry')) return word + ' - ' + run.left;
   if (run.state === 'reaped') {
     return word + ' - stopped at the time limit' + (run.left ? ', and ' + run.left : '');
   }
   if (run.state !== 'queued' || !run.queued_because) return word;
   return word + ' - ' + run.queued_because;
+}
+
+/* Three genes on a run's head, each with its own switch (`rouh/run_head.py`): whether its landed
+   work is live (run_live), the files it changed (run_files), and Finish it (run_carry). The page
+   is told which are on, and the message Finish it sends, in `#rouhRunHead`. */
+var RUN_HEAD = (function () {
+  try {
+    var node = document.getElementById('rouhRunHead');
+    var got = node ? JSON.parse(node.textContent || '{}') : {};
+    return { on: Array.isArray(got.on) ? got.on : [], finish: String(got.finish || '') };
+  } catch (err) { return { on: [], finish: '' }; }
+}());
+/** @type {Record<string, boolean>} The runs whose live or not live was seen, once a page. */
+var RUN_LIVE_SEEN = {};
+
+/** @param {string} name */
+function runHeadOn(name) { return RUN_HEAD.on.indexOf(name) >= 0; }
+
+/** One of the three used: counted by the server, nothing else. @param {string} name @param {any} run */
+function runHeadUsed(name, run) {
+  fetch('/api/run-head', { method: 'POST', keepalive: true, credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ switch: name, run: String((run && run.id) || '') }) }).catch(function () {});
+}
+
+/** On main, and land.sh said it is not served (and not "nothing here to deploy"). @param {any} run */
+function runNotLive(run) {
+  return !!(run.landed && run.deploy_reason && !run.deployed && run.deploy !== 'none');
 }
 
 function oneRenderHead() {
@@ -547,7 +577,46 @@ function oneRenderHead() {
   } else if (run.landed && run.pushed) {
     meta.appendChild(el('span', null, 'Pushed on ' + run.pushed));
   } else if (run.landed) {
-    meta.appendChild(el('span', null, 'Saved to ' + (run.target || 'main') + ' at ' + String(run.landed).slice(0, 7)));
+    var target = run.target || 'main';
+    var at = String(run.landed).slice(0, 7);
+    if (runHeadOn('run_live') && run.deploy_reason) {
+      // What land.sh said of it: only the deployed commit counts as done (AGENTS.md). "none" is
+      // nothing here deploying that repository or branch, which is not a deploy that failed.
+      var liveSpan = run.deployed
+        ? el('span', 'run-live', 'Saved to ' + target + ' at ' + at + ', and live')
+        : run.deploy === 'none'
+          ? el('span', null, 'Saved to ' + target + ' at ' + at + '; nothing here deploys it')
+          : el('span', 'run-notlive', 'On ' + target + ' at ' + at + ', NOT live: ' + run.deploy_reason);
+      liveSpan.title = String(run.deploy_reason);
+      meta.appendChild(liveSpan);
+      if (!RUN_LIVE_SEEN[run.id]) { RUN_LIVE_SEEN[run.id] = true; runHeadUsed('run_live', run); }
+    } else {
+      meta.appendChild(el('span', null, 'Saved to ' + target + ' at ' + at));
+    }
+  }
+  // The files its landing took, one press away (run_files).
+  var files = Array.isArray(run.files) ? run.files : [];
+  var fileList = $('oneFiles');
+  if (fileList.dataset.run !== String(run.id)) { fileList.hidden = true; fileList.textContent = ''; }
+  if (runHeadOn('run_files') && files.length) {
+    var shown = !fileList.hidden;
+    var fb = el('button', 'run-files-btn',
+      files.length + (files.length === 1 ? ' file changed' : ' files changed'));
+    fb.type = 'button';
+    fb.setAttribute('aria-controls', 'oneFiles');
+    fb.setAttribute('aria-expanded', String(shown));
+    fb.addEventListener('click', function () {
+      var open = fileList.hidden;
+      fileList.textContent = '';
+      if (open) {
+        files.forEach(function (f) { fileList.appendChild(el('li', null, String(f))); });
+        fileList.dataset.run = String(run.id);
+        runHeadUsed('run_files', run);
+      }
+      fileList.hidden = !open;
+      fb.setAttribute('aria-expanded', String(open));
+    });
+    meta.appendChild(fb);
   }
   if (run.by) meta.appendChild(el('span', null, 'Asked for by ' + oneWho(run.by)));
   // Where the run belongs, and the way to change it. Rouh holds that and
@@ -581,6 +650,9 @@ function oneRenderHead() {
     said.appendChild(document.createTextNode(words));
   }
   $('oneStop').hidden = ended;
+  // Finish it, on a run that ended with work left or landed and is not live (run_carry).
+  $('oneFinish').hidden = !(runHeadOn('run_carry') && RUN_HEAD.finish && run.kind === 'agent' &&
+    (run.state === 'unfinished' || (runNotLive(run) && (ended || run.state === 'idle'))));
   // A run at its prompt stays open until you close it (D49).
   $('oneStop').textContent = run.state === 'idle' ? 'Close' : 'Stop';
   // A run with its terminal on screen is typed into; the message box is for
@@ -1983,6 +2055,22 @@ $('oneSay').addEventListener('submit', function (e) {
     box.value = '';
     oneSayNote(got.how);
   }).catch(function (err) { notify(err.message, { tone: 'error' }); });
+});
+
+$('oneFinish').addEventListener('click', function () {
+  var run = ONE.runs[ONE.selected];
+  if (!run || !RUN_HEAD.finish) return;
+  var btn = $('oneFinish');
+  btn.disabled = true;
+  oneSend('say', { run: ONE.selected, text: RUN_HEAD.finish }).then(function (got) {
+    btn.disabled = false;
+    oneSayNote(got.how);
+    notify('Sent: commit what is left, land it and see it live.', { tone: 'info' });
+    runHeadUsed('run_carry', run);
+  }).catch(function (err) {
+    btn.disabled = false;
+    notify(err.message, { tone: 'error' });
+  });
 });
 
 // Where a message went, for a few seconds under the box: at once, after
@@ -8446,7 +8534,7 @@ drawCrumb();
 // `page` is the group of Anatomy showing, '' for the status board, and `section` the one of its
 // sections the address names, '' for the page itself (`settingsShowGroup`).
 var SETTINGS = { open: false, data: null, editingClient: false, page: '', section: '', from: null, beats: '',
-                 beatsQuery: '', stats: '', gene: '', heartbeat: '' };
+                 beatsQuery: '', stats: '', gene: '', heartbeat: '', googleNeeded: false };
 
 // The Apple Contacts card's own state (GET /api/settings/apple). Declared up
 // here with SETTINGS rather than beside its handlers, because Settings can be
@@ -8824,10 +8912,19 @@ function settingsOpen(where, item, query) {
 function settingsShown(m) {
   if (m.chat && CHATS && m.chat !== CHATS.active) return;
   var group = settingsGroupName(m.group) ? m.group : '';
+  // Opened because a tool found Google missing (`rouh/google_needed.py`): Connect Google, pressed
+  // there, says so, and a note on a phone presses it for them.
+  var needed = m.why === 'google_needed';
+  if (needed) SETTINGS.googleNeeded = true;
   var open = function () { settingsOpen(group); };
   var layer = layerOpen();
   if (!narrow() && (!layer || layer === 'settingsView')) {
     open();
+    return;
+  }
+  if (needed) {
+    notify('Connect Google, so Rouh can read your calendar, mail and files.',
+           { tone: 'info', action: { label: 'Connect Google', run: googleConnectGo }, for: 30000 });
     return;
   }
   notify('Anatomy' + (group ? ', ' + settingsGroupName(group) : '') + '.',
@@ -9273,11 +9370,14 @@ $('googleCalendarForm').addEventListener('submit', function (e) {
   });
 });
 
-$('googleConnect').addEventListener('click', function () {
-  // A full page visit, not a fetch: the consent screen is Google's own page
-  // and the person has to see it, read it and press the button on it.
-  location.href = '/auth/google/start';
-});
+/* A full page visit, not a fetch: the consent screen is Google's own page and the person has to
+   see it, read it and press the button on it. From Settings that a tool opened because Google was
+   missing, the press is that gene's use (`rouh/google_needed.py`). */
+function googleConnectGo() {
+  location.href = '/auth/google/start' + (SETTINGS.googleNeeded ? '?from=needed' : '');
+}
+
+$('googleConnect').addEventListener('click', googleConnectGo);
 
 $('googleDisconnect').addEventListener('click', function () {
   $('googleDisconnect').disabled = true;

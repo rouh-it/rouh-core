@@ -90,7 +90,7 @@ export interface ServerMessages {
   thoughts: { open: number; developed: number; archived: number; kept: number; };
   /** Rouh kept a thought in this conversation (`open` false), or was asked to show them (`open` true): one by its `id`, or the list found by `q` and `tag`. */
   /** Rouh was asked to show one section of Anatomy, by its name in `genes.SECTIONS`. */
-  settings_shown: { group: string; chat?: string; turn_id?: number; };
+  settings_shown: { group: string; chat?: string; turn_id?: number; /** Why it was shown: `google_needed` when a tool found Google missing (`rouh/google_needed.py`). */ why?: string; };
   /** An idea in the Incubator changed in this conversation, or the list was asked to be shown (`rouh/incubator.py`). */
   incubator_changed: { open: boolean; number: number; chat?: any; };
   thoughts_shown: { id?: number; open: boolean; what?: string; q?: string; tag?: string; chat: any; };
@@ -181,6 +181,9 @@ export interface ClientMessages {
     /** The page open on the canvas beside the chat, and what of it was selected or pointed at
      *  (`rouh/page_in_chat.py`). */
     page?: { doc: string; quote?: string; picked?: any; title?: string; };
+    /** The address of the screen it was sent from, such as `/anatomy/connections/email`: only
+     *  Rouh's own path, told to a job asked to change Rouh (`rouh/fix_context.py`). */
+    where?: string;
     /** Sent while an answer is being written: the page's own name for it, said back in `steer_taken`. */
     steer?: string; };
   dismiss_question: { task: any; asked: any; };

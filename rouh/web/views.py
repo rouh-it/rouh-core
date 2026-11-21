@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 import mimetypes
 import os
@@ -862,6 +863,40 @@ def _rouh_self(request: HttpRequest) -> str:
     return row.name if row else ""
 
 
+def _try_fit(request: HttpRequest) -> str:
+    """What is connected, as JSON for the welcome's things to try, or "" while the switch is off."""
+    from rouh import try_fit
+
+    try:
+        got = try_fit.fit(who(request))
+    except Exception:
+        log.warning("try_fit: not read for the page", exc_info=True)
+        return ""
+    return json.dumps(got) if got else ""
+
+
+def _run_head(request: HttpRequest) -> dict:
+    """The switches of the genes on a run's head that are on here, and what Finish it says."""
+    from rouh import run_head
+
+    try:
+        return {"on": run_head.on_for(who(request)), "finish": run_head.FINISH}
+    except Exception:
+        log.warning("run_head: not read for the page", exc_info=True)
+        return {"on": [], "finish": ""}
+
+
+def _plainer(request: HttpRequest) -> dict:
+    """Whether Say it more simply is on here, and what it sends."""
+    from rouh import say_plainer
+
+    try:
+        return say_plainer.for_page(who(request))
+    except Exception:
+        log.warning("say_plainer: not read for the page", exc_info=True)
+        return {"on": False, "ask": ""}
+
+
 def _setting_up(request: HttpRequest) -> bool:
     from rouh.web import firstrun
 
@@ -932,6 +967,12 @@ def _page_for(request: HttpRequest) -> HttpResponse:
         # A few days after the first run the welcome's things to try are the rest of setting
         # up, which the chat takes the owner through (`firstrun.guiding`, the rule new-rouh).
         "SETTING_UP": _setting_up(request),
+        # And, while its switch is on, what is connected, so the things to try fit it (`rouh/try_fit.py`).
+        "TRY_FIT": _try_fit(request),
+        # Which of the three genes on a run's head are on (`rouh/run_head.py`).
+        "RUN_HEAD": _run_head(request),
+        # Say it more simply, under an answer (`rouh/say_plainer.py`).
+        "PLAINER": _plainer(request),
         "PHONE_ADDRESS": _phone_address(),
         # The open orb's music: Rouh's own, or the Cornfield Chase arrangement where its switch is on.
         "ORB_CORNFIELD": _orb_cornfield(request),

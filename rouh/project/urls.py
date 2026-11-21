@@ -65,7 +65,7 @@ from rouh.web import (apple, assets, auth, boxes, brief, changes as changes_web,
                       page_gdoc as page_gdoc_web, page_listen as page_listen_web, name_checks as name_checks_web, read_aloud as read_aloud_web, page_pdf as page_pdf_web,
                       pagestate as pagestate_web, sharedlist as sharedlist_web,
                       since_read as since_read_web,
-                      doc_on_page as doc_on_page_web, meeting_attach as meeting_attach_web, task_docs as task_docs_web, to_send as to_send_web, open_items as open_items_web, task_time as task_time_web, not_arrived as not_arrived_web, away_after as away_after_web, new_number as new_number_web, new_address as new_address_web, new_company as new_company_web, told_address as told_address_web, card_call as card_call_web, card_directions as card_directions_web, new_title as new_title_web, sig_address as sig_address_web, rouh_invited as rouh_invited_web, access_asked as access_asked_web, comment_asks as comment_asks_web, card_share as card_share_web, their_files as their_files_web, renewal as renewal_web, payment_failed as payment_failed_web, bank_changed as bank_changed_web, sign_request as sign_request_web, objecttreeapi, taskapi, telegram_account, service_keys as service_keys_web, trusted, views)
+                      doc_on_page as doc_on_page_web, meeting_attach as meeting_attach_web, task_docs as task_docs_web, to_send as to_send_web, open_items as open_items_web, task_time as task_time_web, not_arrived as not_arrived_web, away_after as away_after_web, new_number as new_number_web, new_address as new_address_web, new_company as new_company_web, told_address as told_address_web, card_call as card_call_web, card_directions as card_directions_web, new_title as new_title_web, sig_address as sig_address_web, rouh_invited as rouh_invited_web, access_asked as access_asked_web, comment_asks as comment_asks_web, card_share as card_share_web, their_files as their_files_web, renewal as renewal_web, payment_failed as payment_failed_web, bank_changed as bank_changed_web, try_fit as try_fit_web, run_head as run_head_web, say_plainer as say_plainer_web, sign_request as sign_request_web, objecttreeapi, taskapi, telegram_account, service_keys as service_keys_web, trusted, views)
 
 
 def _admin_sign_in(request, extra_context=None):
@@ -585,6 +585,9 @@ urlpatterns = [
     path("mail/renewal/<str:key>", renewal_web.open_it),
     path("mail/payment-failed/<str:key>", payment_failed_web.open_it),
     path("mail/bank-changed/<str:key>", bank_changed_web.open_it),
+    path("api/try-fit", try_fit_web.pressed),
+    path("api/run-head", run_head_web.used),
+    path("api/say-plainer", say_plainer_web.pressed),
     path("mail/sign-request/<str:key>", sign_request_web.open_it),
     path("mail/case/<str:key>", trusted.case),
     path("mail/case/<str:key>/trace", trusted.case_trace),

@@ -769,6 +769,11 @@ class Views:
                        # Its work is on main, so whatever it was stuck on is over.
                        conflict=None, conflict_question=None,
                        conflict_needs_person=False)
+            if "deploy_reason" in b:
+                # What land.sh's own last step said, so the run's head can say live or not live
+                # (`rouh/run_head.py`, run_live): on main and not served is not done.
+                run.update(deployed=bool(b.get("deployed")), deploy=b.get("deploy") or "",
+                           deploy_reason=b.get("deploy_reason"))
             if b.get("branch"):
                 # Pushed on its own branch, for a pull request (D42).
                 run.update(pushed=b["branch"], compare=b.get("compare"))

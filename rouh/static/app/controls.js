@@ -2011,6 +2011,8 @@ function sendTyped(asFork) {
   if (!asFork) {
     var beside = askPageNow();
     if (beside) /** @type {import('./protocol').ToServer<'text'>} */ (msg).page = beside;
+    // And the screen it was sent from, Rouh's own address only (`rouh/fix_context.py`).
+    /** @type {import('./protocol').ToServer<'text'>} */ (msg).where = (location.pathname + location.search).slice(0, 300);
   }
   if (!send(msg)) {
     notify('Not connected, so that message was not sent. It will not be queued.', { tone: 'error' });

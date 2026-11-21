@@ -185,7 +185,9 @@
     "rouh/templatetags/rouh_assets.py",
     "rouh/web/assets.py",
     "rouh/web/views.py",
-    "rouh/worklabel.py"
+    "rouh/worklabel.py",
+    "rouh/sharedlist.py",
+    "rouh/web/sharedlist.py"
    ],
    "needed_by": [
     "brief",
@@ -3643,6 +3645,112 @@
     "rouh/selfcheck/undo_191.py",
     "rouh/selfcheck/tools_191.py",
     "rouh/selfcheck/protections_191.py"
+   ]
+  },
+  "n50-google-needed": {
+   "name": "Connect Google where it is needed",
+   "what": "When a tool of a turn you are watching finds Google not connected, withdrawn or short of access, Settings opens at Google by itself (a note with Connect Google on a phone), so the button is the one thing to press.",
+   "switch": "google_needed",
+   "signals": {
+    "events": {
+     "connect": "You pressed Connect Google on Settings that Rouh opened because Google was missing"
+    },
+    "runs": {
+     "opened": "A tool found Google missing and Rouh opened Settings at Google for you"
+    }
+   },
+   "files": [
+    "rouh/google_needed.py"
+   ]
+  },
+  "n50-lesson-ticks": {
+   "name": "Lessons ticked as you do them",
+   "what": "Handholding ticks a lesson by itself, marked Detected, once you have done it by asking Rouh in a chat (your inbox, your calendar, a look-up, a share), so a newcomer is not sent to do again what they already did.",
+   "switch": "lesson_ticks",
+   "signals": {
+    "events": {
+     "seen": "You opened Handholding and a lesson you had done in a chat was ticked for you"
+    }
+   },
+   "files": [
+    "rouh/lesson_ticks.py"
+   ]
+  },
+  "n50-try-fit": {
+   "name": "Things to try that fit what you have",
+   "what": "An empty conversation's things to try leave out a setting-up step already done, and with Google connected start with your own week and your own inbox.",
+   "switch": "try_fit",
+   "signals": {
+    "events": {
+     "pressed": "You pressed Your week or Your inbox among the things to try on an empty conversation"
+    }
+   },
+   "files": [
+    "rouh/try_fit.py",
+    "rouh/web/try_fit.py"
+   ]
+  },
+  "n50-fix-context": {
+   "name": "What you were looking at goes with a change you ask for",
+   "what": "A job you ask Rouh to start to change itself is told, by code, the screen you had open and the conversation's last few messages, so it does not have to guess what \"this\" is.",
+   "switch": "fix_context",
+   "signals": {
+    "events": {
+     "told": "You asked Rouh to change itself, and the job was told the screen you had open and what you had just said"
+    }
+   },
+   "files": [
+    "rouh/fix_context.py"
+   ]
+  },
+  "n50-run-live": {
+   "name": "Live or not live, on a run's head",
+   "what": "A run's head says whether the work it landed is live, or on main and NOT live with the reason land.sh gave, instead of only \"Saved to main\".",
+   "switch": "run_live",
+   "signals": {
+    "events": {
+     "seen": "You opened a run whose head said whether its landed work is live"
+    }
+   },
+   "files": [
+    "rouh/run_head.py",
+    "rouh/web/run_head.py"
+   ]
+  },
+  "n50-run-files": {
+   "name": "A run's changed files",
+   "what": "A run that landed has \"N files changed\" on its head, which opens the list of the files its landing took.",
+   "switch": "run_files",
+   "signals": {
+    "events": {
+     "opened": "You pressed \"files changed\" on a run's head and read the list"
+    }
+   },
+   "files": []
+  },
+  "n50-run-carry": {
+   "name": "Finish it",
+   "what": "A run that ended with work left, or landed and is not live, says what it left on its head and has Finish it, which sends it one message to commit, land and see it live.",
+   "switch": "run_carry",
+   "signals": {
+    "events": {
+     "pressed": "You pressed Finish it on a run that ended with work left or is not live"
+    }
+   },
+   "files": []
+  },
+  "n50-say-plainer": {
+   "name": "Say it more simply",
+   "what": "Every answer has a Say it more simply button beside Read this aloud, which asks for that answer again, shorter and in plain words, as a message of your own.",
+   "switch": "say_plainer",
+   "signals": {
+    "events": {
+     "pressed": "You pressed Say it more simply under an answer"
+    }
+   },
+   "files": [
+    "rouh/say_plainer.py",
+    "rouh/web/say_plainer.py"
    ]
   }
  }
