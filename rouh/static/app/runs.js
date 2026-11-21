@@ -8855,7 +8855,7 @@ function anatomyBoardLoad() {
 }
 
 window.RouhAnatomy = { repaint: function () { if (SETTINGS.open && !SETTINGS.page) anatomyBoardDraw(); },
-                      /* A section opened from outside Anatomy, such as the mode chip (`permissionspage.js`). */
+                      /* A section opened from outside Anatomy, by its name. */
                       open: function (/** @type {string} */ section) { settingsOpen(section); } };
 
 function anatomyBoardDraw() {

@@ -29,7 +29,8 @@
   "touches": {
     "permissions": [
       "Unrestricted lets the owner's own chats and runs do what they ask without a decision (Cloudflare, commands, self-change and deploy, mail, Slack, Drive, unclassified tools); money above the caps, deleting for good and access for outsiders still ask",
-      "only the owner's own press in the web page changes it; no tool, model turn, schedule or mail can"
+      "only the owner's own press on the Permissions page changes it, and nothing in the conversation's header shows or changes it; no tool, model turn, schedule or mail can",
+      "with nothing saved it is Unrestricted, permanently; a row taken away after a flip trips back to Restricted"
     ],
     "accounts": [],
     "tables": [
@@ -38,6 +39,6 @@
       "unrestricted_action"
     ],
     "jobs": [],
-    "remove": "rouh/unrestricted.py and its calls in rouh/job_gateway.py (_unrestricted), rouh/tools.py (_unrestricted_passes, CALLING), rouh/brain.py (Permissions mode) and rouh/cloudflare.py (_undo, put_back); rouh/web/permissions.py and its addresses in rouh/project/urls.py; permissionspage.js and permissionspage.css, the permissions section and the mode chip in rouh/templates/rouh/index.html and its entry in settingsPages (app/runs.js); rouh/models/mode.py and this manifest; drop the three tables with a migration."
+    "remove": "rouh/unrestricted.py and its calls in rouh/job_gateway.py (_unrestricted), rouh/tools.py (_unrestricted_passes, CALLING), rouh/brain.py (Permissions mode) and rouh/cloudflare.py (_undo, put_back); rouh/web/permissions.py and its addresses in rouh/project/urls.py; permissionspage.js and permissionspage.css, the permissions section in rouh/templates/rouh/index.html and its entry in settingsPages (app/runs.js); rouh/models/mode.py and this manifest; drop the three tables with a migration."
   }
 }

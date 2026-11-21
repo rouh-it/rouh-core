@@ -1,7 +1,8 @@
 """The owner's mode switch, Restricted or Unrestricted, and what was done under it
 (`rouh/unrestricted.py`, Anatomy, Behaviour, Permissions).
 
-`PermissionMode` is one row per person: the mode now and how long it lasts. No row is Restricted.
+`PermissionMode` is one row per person: the mode now and how long it lasts. No row is Unrestricted,
+permanently, the default (21 November 2026).
 `PermissionModeFlip` is every flip, written in the same transaction as the row, never changed.
 `UnrestrictedAction` is one row for each call that ran because the mode was Unrestricted - what
 would otherwise have waited for a yes - with how to undo it where the service allows one: the
@@ -13,7 +14,8 @@ class PermissionMode(models.Model):
     pk = models.CompositePrimaryKey("org_id", "user_id")
     org_id = models.TextField()
     user_id = models.TextField()
-    #: "restricted" or "unrestricted".
+    #: "restricted" or "unrestricted". A row is written by a press, so its default is never read
+    #: as the person's choice; no row at all is Unrestricted (`unrestricted.current`).
     mode = models.TextField(default="restricted")
     #: "hours", "until_back" (until switched back) or "permanent".
     how = models.TextField(blank=True, default="")

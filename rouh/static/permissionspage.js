@@ -1,39 +1,27 @@
 /* Anatomy, Behaviour, Permissions, at /anatomy/behaviour/permissions (`rouh/unrestricted.py`,
-   `rouh/web/permissions.py`), and the mode chip in the conversation's top row.
+   `rouh/web/permissions.py`): the one place the mode is seen and switched.
 
-   Petar, 20 November 2026 (task 191): "I want to see toggle for unrestricted mode." One switch,
-   Restricted or Unrestricted, for what his own chats and runs may do without asking; for some hours,
-   until he switches it back, or permanently; while it is on, its length is changed in place, which
-   is one more flip and never a switch off first. Under it, what still asks him in every mode, What
-   Rouh did while it was on (each with Undo where the service allows), what the switch opens for his
-   runs (the five rouh-open items, `rouh/run_access.py`), and every flip. Only his own press here
-   changes it: the server refuses anything else.
-
-   The chip: "Restricted" quietly, or Unrestricted in the warning colour with its end ("Unrestricted
-   until 18:30"); pressing it opens this page. It reads the mode on load, every minute, when the page comes back
-   into view, and after every flip. Drawn into `#permissionsBody` from `/api/permissions`; Anatomy
-   says when it shows and when it is left (`settingsPages` in app/runs.js). */
+   Petar, 20 November 2026 (task 191): "I want to see toggle for unrestricted mode." And on
+   21 November 2026: "the restricted button should be removed from the top of the chat. it should
+   remain in anatomy > behavior > permissions ... by default it should be unrestricted. I can pick
+   restricted. or while restricted I can pick unrestricted options: time x, time z, time y or
+   permanently." So while Unrestricted the card says so plainly, with what is left when it is timed,
+   and has one press, Switch to Restricted; while Restricted it has a short row of presses, one per
+   length (`offered_hours`) and Permanently, each switching at once. Under it, what still asks him
+   in every mode, What Rouh did while it was on (each with Undo where the service allows), what the
+   switch opens for his runs (the five rouh-open items, `rouh/run_access.py`), and every flip. Only
+   his own press here changes it: the server refuses anything else. Nothing in the conversation's
+   header shows or changes the mode. Drawn into `#permissionsBody` from `/api/permissions`;
+   Anatomy says when it shows and when it is left (`settingsPages` in app/runs.js). */
 (function () {
   'use strict';
 
   var ROUTE = '/anatomy/behaviour/permissions';
-  /* data: the last answer. hours: the hours picked. how: the length picked. busy: a press waiting,
-     pressing: which. said: what the last press did. fail: the page could not be read. undoing: the
-     row being undone. lenFor: the switch whose length the choice was last set from. */
-  var S = { open: false, data: null, seq: 0, hours: 4, how: 'hours', busy: false, pressing: '', said: '',
-            bad: '', fail: '', undoing: 0, undoSaid: {}, most: 100, lenFor: -1 };
-  /* The length last picked, kept on this device so the next switch is the chip and one press. */
-  var KEEP = 'rouh.permissions.length';
-  try {
-    var kept = JSON.parse(localStorage.getItem(KEEP) || 'null');
-    if (kept && ['hours', 'until_back', 'permanent'].indexOf(kept.how) >= 0) {
-      S.how = kept.how;
-      if (kept.hours > 0 && kept.hours <= 72) S.hours = kept.hours;
-    }
-  } catch (err) {}
-  function keepLength() {
-    try { localStorage.setItem(KEEP, JSON.stringify({ how: S.how, hours: S.hours })); } catch (err) {}
-  }
+  /* data: the last answer. busy: a press waiting, pressing: which ("restricted", "permanent" or
+     the hours). said: what the last press did. fail: the page could not be read. undoing: the row
+     being undone. tick: the timer that keeps "left" true while the page is open. */
+  var S = { open: false, data: null, seq: 0, busy: false, pressing: '', said: '',
+            bad: '', fail: '', undoing: 0, undoSaid: {}, most: 100, tick: 0 };
 
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) {
@@ -78,7 +66,7 @@
       if (r.status === 401) { location.href = '/login'; return null; }
       return r.json().catch(function () { return {}; }).then(function (j) {
         if (method === 'GET' && seq !== S.seq) return null;
-        if (j && j.mode) { S.data = j; S.fail = ''; chip(j.mode); }
+        if (j && j.mode) { S.data = j; S.fail = ''; }
         if (!r.ok && method === 'GET') S.fail = (j && j.error) || 'The server said ' + r.status + '.';
         return { ok: r.ok, body: j || {} };
       });
@@ -113,63 +101,37 @@
     return 'Unrestricted until ' + clockOf(m.until);
   }
 
-  /* ---- the chip in the conversation's top row ---- */
-
-  /* The end, short enough for the chip, with its day whenever it is not today. */
-  function chipWhen(at) {
-    var d = new Date(at * 1000), now = new Date();
-    var hm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-    if (d.toDateString() === now.toDateString()) return hm;
-    if (d.toDateString() === new Date(now.getTime() + 86400000).toDateString()) return 'tomorrow ' + hm;
-    return d.toLocaleDateString([], { weekday: 'short' }) + ' ' + hm;
+  /* What is left of an Unrestricted of some hours: "3 h 59 min left", "12 min left". */
+  function leftOf(at) {
+    var mins = Math.max(0, Math.ceil((at - Date.now() / 1000) / 60));
+    if (mins < 60) return (mins <= 1 ? 'Less than a minute' : mins + ' min') + ' left';
+    var h = Math.floor(mins / 60), m = mins % 60;
+    return h + ' h' + (m ? ' ' + m + ' min' : '') + ' left';
   }
-
-  function chip(m) {
-    var c = $('modeChip');
-    if (!c) return;
-    var on = !!(m && m.mode === 'unrestricted');
-    c.hidden = false;
-    c.classList.toggle('on', on);
-    c.classList.toggle('for-good', on && m.how === 'permanent');
-    var shackle = $('modeChipShackle');
-    if (shackle) shackle.setAttribute('d', on ? OPEN[1] : SHUT[1]);
-    var words = $('modeChipWords');
-    var short = !on ? 'Restricted' : m.how === 'permanent' ? 'Unrestricted permanently'
-      : (m.how === 'until_back' || !m.until) ? 'Unrestricted, no end set'
-      : 'Unrestricted until ' + chipWhen(m.until);
-    if (words) words.textContent = short;
-    c.title = modeWords(m) + '. Press to see or change it.';
-    c.setAttribute('aria-label', modeWords(m) + '. Open Permissions.');
-  }
-  function chipLoad() {
-    var fetcher = window.RouhPermissionsFetch || fetch;
-    fetcher('/api/permissions?only=mode', { credentials: 'same-origin', cache: 'no-store' })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (j) { if (j && j.mode) chip(j.mode); })
-      .catch(function () {});
-  }
+  function timed(m) { return !!(m && m.mode === 'unrestricted' && m.how === 'hours' && m.until); }
 
   /* ---- pressing ---- */
 
-  /* which: "length" when the length is changed while it is on, which is one more switch to
-     Unrestricted and keeps it on. */
-  function press(mode, which) {
+  /* to: "restricted", "permanent", or a number of hours of Unrestricted. One press, no second step. */
+  function press(to) {
     if (S.busy || !(S.data && S.data.can_change)) return;
-    var body = { mode: mode };
-    if (mode === 'unrestricted') { body.how = S.how; if (S.how === 'hours') body.hours = S.hours; }
-    S.busy = true; S.said = ''; S.bad = ''; S.pressing = which || mode;
+    var body = to === 'restricted' ? { mode: 'restricted' }
+      : to === 'permanent' ? { mode: 'unrestricted', how: 'permanent' }
+      : { mode: 'unrestricted', how: 'hours', hours: to };
+    S.busy = true; S.said = ''; S.bad = ''; S.pressing = String(to);
     draw();
     call('POST', '/api/permissions', body).then(function (got) {
       S.busy = false;
       if (got && got.ok) {
-        S.said = which === 'length' ? 'Changed. ' + modeWords(got.body.mode) + '.'
-          : mode === 'unrestricted' ? 'Switched. ' + modeWords(got.body.mode) + '.'
-          : 'Switched back. Rouh asks you again where it used to.';
+        S.said = to === 'restricted' ? 'Switched to Restricted. Rouh asks you again where it used to.'
+          : 'Switched. ' + modeWords(got.body.mode) + '.';
       } else {
         S.bad = (got && got.body && got.body.error) || 'That could not be saved.';
       }
       draw();
-      var back = document.querySelector('#permissionsBody ' + (which === 'length' ? '.pm-length' : '.pm-main'));
+      // The press is gone with the state it belonged to: focus goes to the card's heading, so the
+      // next state is read out and no choice looks picked.
+      var back = document.querySelector('#pmSwitchH');
       if (back) back.focus({ preventScroll: true });
     });
   }
@@ -207,76 +169,64 @@
     return p;
   }
 
-  /* For how long: picked before switching on, and changed while it is on (`flip` again). */
-  function lengths(d, on) {
-    var how = el('fieldset', 'pm-how');
-    how.appendChild(el('legend', 'pm-legend', on ? 'Change how long, without switching it off' : 'For how long'));
-    [['hours', 'For some hours'], ['until_back', 'Until I switch it back'], ['permanent', 'Permanently']].forEach(function (o) {
-      var row = el('div', 'pm-opt' + (S.how === o[0] ? ' picked' : ''));
-      var lab = el('label', 'pm-opt-label');
-      var r = el('input');
-      r.type = 'radio'; r.name = 'pmHow'; r.value = o[0]; r.checked = S.how === o[0];
-      r.disabled = !d.can_change || S.busy;
-      r.addEventListener('change', function () { S.how = o[0]; keepLength(); draw(); focusSoon('input[name="pmHow"][value="' + o[0] + '"]'); });
-      lab.appendChild(r);
-      lab.appendChild(el('span', '', o[1] + (on && d.mode.how === o[0] ? ' (now)' : '')));
-      row.appendChild(lab);
-      if (o[0] === 'hours') {
-        var hl = el('label', 'pm-hide', 'Hours');
-        hl.setAttribute('for', 'pmHours');
-        var n = el('select', 'pm-hours');
-        n.id = 'pmHours';
-        [1, 2, 4, 8, 12, 24, 48, 72].filter(function (x) { return x <= (d.most_hours || 72); }).forEach(function (x) {
-          var opt = el('option', '', x + (x === 1 ? ' hour' : ' hours'));
-          opt.value = String(x);
-          if (x === S.hours) opt.selected = true;
-          n.appendChild(opt);
-        });
-        n.disabled = !d.can_change || S.busy || S.how !== 'hours';
-        n.addEventListener('change', function () { S.hours = parseInt(n.value, 10) || 4; keepLength(); draw(); focusSoon('#pmHours'); });
-        row.appendChild(hl);
-        row.appendChild(n);
-      }
-      how.appendChild(row);
-    });
-    return how;
-  }
+  function hoursWords(x) { return x + (x === 1 ? ' hour' : ' hours'); }
 
+  /* The card that switches: Unrestricted says what it is and offers Restricted; Restricted offers
+     each length of Unrestricted as its own press. */
   function switchCard(d) {
-    var on = d.mode.mode === 'unrestricted';
+    var m = d.mode, on = m.mode === 'unrestricted';
     var sec = el('section', 'hb-sec pm-switch' + (on ? ' on' : ''));
     sec.setAttribute('aria-labelledby', 'pmSwitchH');
-    var h = el('h3', 'hb-h', on ? 'How long, or switch back' : 'Switch to Unrestricted');
+    var h = el('h3', 'hb-h', on ? 'Change the mode' : 'Switch to Unrestricted');
     h.id = 'pmSwitchH';
+    h.tabIndex = -1;
     sec.appendChild(h);
+    if (on) {
+      var now = el('p', 'pm-now');
+      now.appendChild(el('strong', '', m.how === 'permanent' ? 'Unrestricted, permanently.'
+        : timed(m) ? 'Unrestricted until ' + clockOf(m.until) + '.' : 'Unrestricted until you switch it back.'));
+      if (timed(m)) {
+        now.appendChild(document.createTextNode(' '));
+        now.appendChild(el('span', 'pm-left', leftOf(m.until)));
+        now.appendChild(document.createTextNode(', then it goes back to Restricted by itself.'));
+      } else if (m.set_by === 'the default') {
+        now.appendChild(document.createTextNode(' This is the default: nobody has switched it yet.'));
+      } else {
+        now.appendChild(document.createTextNode(' It stays this way until you switch to Restricted.'));
+      }
+      sec.appendChild(now);
+    } else {
+      sec.appendChild(el('p', 'pm-now', 'Pick how long. It switches as soon as you press.'));
+    }
     if (!d.can_change) {
       sec.appendChild(el('p', 'pm-note', 'Only the owner of this Rouh can switch its mode, so this cannot be pressed here.'));
     }
-    if (on && S.lenFor !== d.mode.set_at) {
-      // While it is on, the length starts at the one it has, once after each switch.
-      S.lenFor = d.mode.set_at;
-      if (['hours', 'until_back', 'permanent'].indexOf(d.mode.how) >= 0) S.how = d.mode.how;
-    }
-    sec.appendChild(lengths(d, on));
-    var row = el('div', 'pm-acts');
+    var row = el('div', 'pm-acts' + (on ? '' : ' pm-picks'));
     if (on) {
-      // A second switch to Unrestricted with the new length: one more flip, and it stays on.
-      var same = S.how === d.mode.how && S.how !== 'hours';
-      var len = el('button', 'ctl pm-main pm-length', S.busy && S.pressing === 'length' ? 'Saving…'
-        : same ? (S.how === 'permanent' ? 'It is permanent already' : 'It is until you switch it back already')
-        : S.how === 'hours' ? 'Make it ' + S.hours + (S.hours === 1 ? ' hour' : ' hours') + ' from now'
-        : S.how === 'permanent' ? 'Make it permanent' : 'Make it until I switch it back');
-      len.type = 'button';
-      len.disabled = !d.can_change || S.busy || same;
-      len.addEventListener('click', function () { press('unrestricted', 'length'); });
-      row.appendChild(len);
+      var b = el('button', 'ctl pm-main primary', S.busy ? 'Saving…' : 'Switch to Restricted');
+      b.type = 'button';
+      b.disabled = !d.can_change || S.busy;
+      b.addEventListener('click', function () { press('restricted'); });
+      row.appendChild(b);
+    } else {
+      row.setAttribute('role', 'group');
+      row.setAttribute('aria-label', 'Unrestricted for how long');
+      var most = d.most_hours || 72;
+      (d.offered_hours || [1, 4, 24]).filter(function (x) { return x <= most; }).forEach(function (x) {
+        var hb = el('button', 'ctl pm-pick', S.busy && S.pressing === String(x) ? 'Saving…' : hoursWords(x));
+        hb.type = 'button';
+        hb.disabled = !d.can_change || S.busy;
+        hb.setAttribute('aria-label', 'Unrestricted for ' + hoursWords(x));
+        hb.addEventListener('click', function () { press(x); });
+        row.appendChild(hb);
+      });
+      var pb = el('button', 'ctl pm-pick pm-for-ever', S.busy && S.pressing === 'permanent' ? 'Saving…' : 'Permanently');
+      pb.type = 'button';
+      pb.disabled = !d.can_change || S.busy;
+      pb.setAttribute('aria-label', 'Unrestricted permanently');
+      pb.addEventListener('click', function () { press('permanent'); });
+      row.appendChild(pb);
     }
-    var b = el('button', 'ctl pm-main' + (on ? ' pm-back' : ' primary'),
-      S.busy && S.pressing !== 'length' ? 'Saving…' : on ? 'Switch back to Restricted' : 'Switch to Unrestricted');
-    b.type = 'button';
-    b.disabled = !d.can_change || S.busy;
-    b.addEventListener('click', function () { press(on ? 'restricted' : 'unrestricted'); });
-    row.appendChild(b);
     sec.appendChild(row);
     if (S.said) sec.appendChild(el('p', 'pm-say good', S.said));
     if (S.bad) sec.appendChild(el('p', 'pm-say bad', S.bad));
@@ -369,7 +319,7 @@
     if (m.mode === 'unrestricted' && m.how === 'hours' && m.until) {
       return Math.min(72, Math.max(1, Math.ceil((m.until - Date.now() / 1000) / 3600)));
     }
-    return m.mode !== 'unrestricted' && S.how === 'hours' ? S.hours : 8;
+    return 8;
   }
 
   function grants(d) {
@@ -455,7 +405,7 @@
     var sum = el('summary', '', 'Every switch (' + (d.flips || []).length + ')');
     det.appendChild(sum);
     var body = el('div', 'pm-flips-body');
-    if (!(d.flips || []).length) body.appendChild(el('p', 'pm-note', 'It has never been switched: Rouh has been Restricted all along.'));
+    if (!(d.flips || []).length) body.appendChild(el('p', 'pm-note', 'It has never been switched: Rouh has been Unrestricted, the default, all along.'));
     var ul = el('ul', 'pm-flip-list');
     (d.flips || []).forEach(function (f) {
       ul.appendChild(el('li', '', when(f.at) + ': ' + (f.now === 'unrestricted'
@@ -465,11 +415,6 @@
     body.appendChild(ul);
     det.appendChild(body);
     return det;
-  }
-
-  function focusSoon(sel) {
-    var n = document.querySelector('#permissionsBody ' + sel);
-    if (n) n.focus({ preventScroll: true });
   }
 
   function draw() {
@@ -517,23 +462,25 @@
 
   window.RouhPermissions = {
     // A message is about the press that made it: never carried to the next visit.
-    shown: function () { S.open = true; S.said = ''; S.bad = ''; S.undoSaid = {}; draw(); load(); },
-    hidden: function () { S.open = false; },
+    shown: function () {
+      S.open = true; S.said = ''; S.bad = ''; S.undoSaid = {}; draw(); load();
+      clearInterval(S.tick);
+      S.tick = setInterval(tick, 20000);
+    },
+    hidden: function () { S.open = false; clearInterval(S.tick); S.tick = 0; },
     route: ROUTE
   };
 
-  function start() {
-    var c = $('modeChip');
-    if (c) c.addEventListener('click', function (e) {
-      // Cmd, Ctrl, Shift or the middle button: the browser's new tab, as every link here.
-      if (e.button || e.metaKey || e.ctrlKey || e.shiftKey || !window.RouhAnatomy || !window.RouhAnatomy.open) return;
-      e.preventDefault();
-      window.RouhAnatomy.open('permissions');
+  /* While the page is open: what is left is kept true, and when the hours end the mode is read
+     again, so the card shows Restricted without anybody pressing anything. */
+  function tick() {
+    if (!S.open || document.hidden || !S.data) return;
+    var m = S.data.mode;
+    if (!timed(m)) return;
+    if (m.until <= Date.now() / 1000) { load(); return; }
+    Array.prototype.forEach.call(document.querySelectorAll('#permissionsBody .pm-left'), function (n) {
+      n.textContent = leftOf(m.until);
     });
-    chipLoad();
-    setInterval(chipLoad, 60000);
-    document.addEventListener('visibilitychange', function () { if (!document.hidden) chipLoad(); });
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
-  else start();
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && S.open && S.data) { if (timed(S.data.mode) && S.data.mode.until <= Date.now() / 1000) load(); else tick(); } });
 })();

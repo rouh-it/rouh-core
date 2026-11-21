@@ -930,12 +930,9 @@ with {% asset %}, which gives it its hashed address.
              row and on a phone just inside the corner the canvas glyph is
              fixed in. {% endcomment %}
         <div class="crumb-acts">
-          {% comment %} The owner's mode: Restricted quietly, Unrestricted in the warning colour with when it ends; pressing it
-               opens Permissions (permissionspage.js, `rouh/unrestricted.py`). {% endcomment %}
-          <a id="modeChip" class="mode-chip" href="/anatomy/behaviour/permissions" hidden>
-            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M6 11h12v9H6z"/><path id="modeChipShackle" d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/></svg>
-            <span id="modeChipWords" class="mode-chip-words">Restricted</span>
-          </a>
+          {% comment %} No permissions mode here. Petar, 21 November 2026: "the restricted button should be
+               removed from the top of the chat. it should remain in anatomy > behavior > permissions."
+               The mode is seen and switched on that page only (permissionspage.js). {% endcomment %}
           {% comment %} No New chat here. Petar, 4 November 2026 (fr_ad19bb8be13e):
                "new chat icon should be deleted with its functionality. that
                should be present only in the tasks." A new chat is started

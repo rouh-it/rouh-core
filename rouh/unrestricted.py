@@ -6,14 +6,18 @@ modes. restricted and unrestricted ... in unrestricted mode we should remove the
 something and keep the protections that don't cost my time and usability... I want to see toggle
 for unrestricted mode."
 
-**The switch.** One row per person (`models.PermissionMode`), Restricted when there is none. It is
+**The switch.** One row per person (`models.PermissionMode`). With none it is Unrestricted,
+permanently (Petar, 21 November 2026: "by default it should be unrestricted"); a saved row is never
+changed by that, and a row that went missing after a flip trips back to Restricted. It is
 written in one place, `flip`, and `flip` takes an `OwnerPress`, which only `OwnerPress.of` makes,
 from a signed-in web request of the installation's owner that is a POST through Django's CSRF check
 (`rouh/web/permissions.py`). No tool, model turn, scheduled turn, heartbeat beat, mail turn or job
 can make one: `of` refuses inside any of them (`_why_not_here`), there is no tool for it in the
 registry, and every job gateway name for it is `NEVER` (`job_policy.NEVERS`). Every flip is a row
 of `models.PermissionModeFlip`, in the same transaction. It lasts some hours (it ends by itself and
-Restricted is back), until switched back, or permanently.
+Restricted is back) or permanently; "until switched back" is still read from rows that have it, and
+is no longer offered, because permanently is the same thing. The page is the only place it is
+switched: nothing in the conversation's header shows or changes it since 21 November 2026.
 
 **What Unrestricted does, for the owner's own chats and runs only** (`for_job`, `for_chat`):
 
@@ -81,6 +85,10 @@ HOURS, UNTIL_BACK, PERMANENT = "hours", "until_back", "permanent"
 HOWS = (HOURS, UNTIL_BACK, PERMANENT)
 #: Hours an Unrestricted of some hours may last.
 MOST_HOURS = 72
+#: The lengths the Permissions page offers, one press each; "permanent" is offered beside them.
+OFFERED_HOURS = (1, 4, 24)
+#: Who set the mode when nobody has: the default, Unrestricted permanently.
+DEFAULT_BY = "the default"
 
 #: Set around every tool call of a turn (`tools.ToolRegistry.call`): no flip happens inside one.
 CALLING: contextvars.ContextVar[str] = contextvars.ContextVar("rouh_unrestricted_calling",
@@ -204,8 +212,9 @@ def _whose(who) -> dict:
 
 
 def current(who, now: float | None = None) -> Mode:
-    """The mode now for this person. Restricted when nothing is set, when an Unrestricted of some
-    hours has ended, and when it cannot be read: fails closed. Never raises."""
+    """The mode now for this person. Unrestricted, permanently, when nothing was ever set (the
+    default since 21 November 2026); Restricted when an Unrestricted of some hours has ended, when
+    the row is forged or gone after a flip, and when it cannot be read: fails closed. Never raises."""
     if who is None:
         return Mode()
     try:
@@ -215,9 +224,26 @@ def current(who, now: float | None = None) -> Mode:
     except Exception:  # noqa: BLE001
         log.exception("the mode could not be read")
         return Mode()
-    if row is None or row.mode != UNRESTRICTED:
-        return Mode(set_at=getattr(row, "set_at", 0.0) or 0.0, set_by=getattr(row, "set_by", "") or "")
     from . import run_access
+
+    if row is None:
+        # Nothing saved is Unrestricted, permanently (Petar, 21 November 2026). A person whose
+        # mode was once switched has a row for good, so a row gone missing after a flip was taken
+        # away by something other than a press, and trips the tripwire back to Restricted.
+        try:
+            from .models import PermissionModeFlip
+
+            flipped = PermissionModeFlip.objects.filter(**_whose(who)).exists()
+        except Exception:  # noqa: BLE001
+            log.exception("whether the mode was ever switched could not be read")
+            return Mode()
+        if flipped:
+            run_access.trip("the mode's row was gone after it had been switched",
+                            by="the mode's row", who=who)
+            return Mode(set_at=time.time(), set_by="the tripwire")
+        return Mode(UNRESTRICTED, PERMANENT, None, 0.0, DEFAULT_BY)
+    if row.mode != UNRESTRICTED:
+        return Mode(set_at=row.set_at or 0.0, set_by=row.set_by or "")
 
     if not run_access.seal_ok(row):
         # Unrestricted with no seal of the owner's press: something else wrote it (task 191).
@@ -517,7 +543,9 @@ def told(who) -> str:
     if not mode.unrestricted:
         return ("Permissions mode: Restricted. A call that sends, shares, publishes, pays, deletes "
                 "or changes something outside your own work may wait for the owner's yes.")
-    return (f"Permissions mode: {mode.said()}, switched on by the owner. Do what they ask: "
+    whose = "the default, which the owner has not changed" if mode.set_by == DEFAULT_BY \
+        else "switched on by the owner"
+    return (f"Permissions mode: {mode.said()}, {whose}. Do what they ask: "
             "Cloudflare, commands on the server, changes to Rouh itself and deploys, mail, Slack "
             "and Drive actions run at once, with no decision and nobody asked, and each is written "
             "into What Rouh did with its undo. Do not say you cannot or need their permission for "

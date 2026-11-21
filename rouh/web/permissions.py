@@ -3,7 +3,8 @@
     GET  /api/permissions        the mode now and when it ends, the flips, What Rouh did, what is
                                  still asked in every mode, what rouh-open has open, and what the
                                  switch opens for the runs (`rouh/run_access.py`)
-    POST /api/permissions        {mode, how, hours}: the owner's own press of the switch
+    POST /api/permissions        {mode, how, hours}: the owner's own press of the switch; how is
+                                 "hours" or "permanent" ("until_back" is still taken)
     POST /api/permissions/undo   {id}: one row of What Rouh did put back, where its service allows
 
 Reading needs a sign-in. The switch is the owner's alone: `unrestricted.OwnerPress.of` takes this
@@ -45,7 +46,7 @@ def _page(me, most: int = 100) -> dict:
             "did": unrestricted.feed(me, most), "did_total": unrestricted.feed_total(me),
             "still_asks": list(unrestricted.STILL_ASKS.values()),
             "grants": unrestricted.grants_open(), "access": _access(me),
-            "most_hours": unrestricted.MOST_HOURS,
+            "most_hours": unrestricted.MOST_HOURS, "offered_hours": list(unrestricted.OFFERED_HOURS),
             "can_change": bool(getattr(me, "is_admin", False)) and unrestricted._is_owner(me)}
 
 
@@ -58,10 +59,6 @@ async def page(request: HttpRequest):
     if me is None:
         return refuse("Sign in first.", 401)
     if request.method == "GET":
-        if request.GET.get("only") == "mode":
-            # The top row's chip asks this every minute: the mode alone, nothing else read.
-            got = await asyncio.to_thread(lambda: unrestricted.current(me).as_dict())
-            return answer({"ok": True, "mode": got}, headers=NO_STORE)
         try:
             most = max(1, min(2000, int(request.GET.get("most") or 100)))
         except ValueError:

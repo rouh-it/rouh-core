@@ -1,4 +1,4 @@
-/* Anatomy, Behaviour, Permissions (`permissionspage.js`, `rouh/unrestricted.py`), and the mode chip.
+/* Anatomy, Behaviour, Permissions (`permissionspage.js`, `rouh/unrestricted.py`).
 
    The Heartbeat and Gates pages' cards and Rouh's own tokens, nothing new. The one loud thing is
    the switch card: its primary button, and, while Unrestricted, the word itself in the headline.
@@ -12,7 +12,7 @@
   border-radius: 999px; border: 1px solid var(--line); font-size: 13px; font-weight: 600;
   color: var(--dim); vertical-align: 1px;
 }
-.pm-state svg, .pm-list svg, .pm-empty svg, .pm-undo svg, .mode-chip svg {
+.pm-state svg, .pm-list svg, .pm-empty svg, .pm-undo svg {
   width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8;
   stroke-linecap: round; stroke-linejoin: round; flex: none;
 }
@@ -22,30 +22,27 @@
 .pm-top { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 12px; align-items: start; }
 .pm-top > .hb-sec { margin: 0; }
 .pm-switch.on { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
-.pm-how { margin: 0; padding: 0; border: 0; display: grid; gap: 6px; min-width: 0; }
-.pm-legend { padding: 0; margin-bottom: 4px; font-size: 13px; color: var(--dim); }
-.pm-opt {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-height: 44px; padding: 4px 12px;
-  border-radius: var(--radius-s, 8px); border: 1px solid var(--line); background: var(--panel-2);
-  color: var(--text); font-size: 13.5px; cursor: pointer;
-}
-.pm-opt-label { flex: 1 1 auto; display: inline-flex; align-items: center; gap: 10px; min-height: 36px; cursor: pointer; }
-.pm-opt.picked { border-color: var(--accent); background: var(--accent-soft); }
-.pm-opt input[type="radio"] { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
-.pm-opt:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
-.pm-hours {
-  margin-left: auto; min-height: 36px; padding: 4px 8px; border-radius: var(--radius-s, 8px);
-  border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 13px;
-}
-.pm-hours:disabled { opacity: 0.5; }
-.pm-hide { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* What the mode is now, in words, above its press. */
+.pm-now { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--text); text-wrap: pretty; }
+.pm-left { font-variant-numeric: tabular-nums; color: var(--warn); font-weight: 600; }
 .pm-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .pm-main { width: auto; min-height: 44px; padding: 0 20px; font-size: 14px; font-weight: 600; }
 /* The one primary press of the page: Rouh's own accent fill, as `.ctl.small.primary`. */
 .pm-main.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .pm-main.primary:hover:not(:disabled) { filter: brightness(1.08); }
 .pm-main:disabled { opacity: 0.55; cursor: not-allowed; }
-.pm-main:focus-visible, .pm-undo:focus-visible, .mode-chip:focus-visible, .pm-flips summary:focus-visible {
+/* Restricted: each length of Unrestricted is its own press, equal, in one row that wraps. */
+.pm-switch { container-type: inline-size; }
+.pm-picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container (min-width: 440px) { .pm-picks { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.pm-switch .hb-h:focus { outline: none; }
+.pm-switch .hb-h:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pm-pick { min-height: 44px; padding: 0 14px; font-size: 14px; font-weight: 600; color: var(--text);
+  border: 1px solid var(--line); background: var(--panel-2); border-radius: var(--radius-s, 8px); }
+.pm-pick:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+.pm-pick:active:not(:disabled) { filter: brightness(0.95); }
+.pm-pick:disabled { opacity: 0.55; cursor: not-allowed; }
+.pm-main:focus-visible, .pm-pick:focus-visible, .pm-undo:focus-visible, .pm-flips summary:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
 .pm-say { margin: 8px 0 0; font-size: 13px; }
@@ -74,9 +71,6 @@
 .pm-empty { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; align-items: start; }
 .pm-empty svg { margin-top: 2px; color: var(--dimmer); }
 .pm-empty p { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--dim); }
-
-/* While Unrestricted: the length's own press beside Switch back, both plain, neither primary. */
-.pm-length:disabled { opacity: 0.55; }
 
 /* What the switch opens for your runs: one row per rouh-open item, ready said in words with its
    sign, the mode in force marked "now" in words and by the stronger ink, never colour alone. */
@@ -116,17 +110,3 @@
 .pm-flip-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; color: var(--text); }
 .pm-fail { margin: 0; font-size: 13px; color: var(--bad); }
 .pm-fail .ctl.small { margin-left: 8px; min-height: 44px; }
-
-/* The chip in the conversation's top row, only while Unrestricted. */
-.mode-chip {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; margin-right: 4px;
-  border-radius: 999px; border: 1px solid var(--line); color: var(--dim); background: transparent;
-  font-size: 12.5px; font-weight: 500; text-decoration: none; white-space: nowrap;
-}
-.mode-chip:hover { color: var(--text); border-color: var(--dim); }
-/* Unrestricted: the warning colour with the open padlock and the words, never colour alone. */
-.mode-chip.on { color: var(--warn); font-weight: 600; border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
-.mode-chip.on:hover { background: color-mix(in srgb, var(--warn) 12%, transparent); }
-.mode-chip.for-good { border-width: 2px; font-weight: 700; }
-.mode-chip[hidden] { display: none; }
-@media (max-width: 520px) { .mode-chip { padding: 0 8px; } }

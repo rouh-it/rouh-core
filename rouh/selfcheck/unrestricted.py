@@ -146,6 +146,10 @@ def switch_is_the_owners() -> None:
             writes = re.findall(r"PermissionMode\.objects\.filter\([^)]*\)\.update\(\s*([^,]+),", text)
             expect(writes and all(w.strip() == "mode=unrestricted.RESTRICTED" for w in writes),
                    f"the tripwire writes the mode to something other than Restricted: {writes}")
+            # With no row (the default, Unrestricted) it makes one, and only a Restricted one.
+            made = re.findall(r"PermissionMode\.objects\.create\(\s*\*\*whose,\s*([^,]+),", text)
+            expect(all(w.strip() == "mode=unrestricted.RESTRICTED" for w in made),
+                   f"the tripwire makes a mode other than Restricted: {made}")
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         if re.search(r"unrestricted\.flip\(|OwnerPress\.of\(|PermissionMode\.objects\.(update|create|"
@@ -533,6 +537,36 @@ def forged_mode_trips() -> None:
     expect(row.mode == unrestricted.RESTRICTED, "the tripwire did not write Restricted back")
     expect(PermissionModeFlip.objects.filter(user_id=str(who.user_id), by="the tripwire").exists(),
            "the tripwire left no flip")
+
+
+@check("unrestricted", "nothing saved is Unrestricted, and a row taken away trips back",
+       "a person with no mode row and no flip reads as Unrestricted, permanently, and the model is "
+       "told so; a row deleted after a flip reads as Restricted and is written back as Restricted",
+       needs_db=True)
+def default_is_unrestricted() -> None:
+    from rouh import unrestricted
+    from rouh.models import PermissionMode, PermissionModeFlip
+
+    who = _owner()
+    whose = {"user_id": str(who.user_id), "org_id": str(who.org_id or "")}
+    PermissionMode.objects.filter(**whose).delete()
+    PermissionModeFlip.objects.filter(**whose).delete()
+    now = unrestricted.current(who)
+    expect(now.unrestricted and now.how == unrestricted.PERMANENT and not now.until,
+           f"nothing saved did not read as Unrestricted, permanently: {now.as_dict()}")
+    expect("Permissions mode: Unrestricted, permanently, the default" in unrestricted.told(who),
+           f"the model is not told the default: {unrestricted.told(who)[:200]}")
+    expect(not PermissionMode.objects.filter(**whose).exists(), "reading the default saved a row")
+    # A flip, then the row taken away behind the press: Restricted, and written back.
+    _set_mode(who, "restricted")
+    PermissionModeFlip.objects.create(**whose, was="unrestricted", now="restricted", how="",
+                                      until=None, at=time.time(), by="a check")
+    PermissionMode.objects.filter(**whose).delete()
+    expect(not unrestricted.current(who).unrestricted, "a row taken away after a flip read as Unrestricted")
+    row = PermissionMode.objects.filter(**whose).first()
+    expect(row is not None and row.mode == unrestricted.RESTRICTED,
+           "the tripwire did not write Restricted back for a row taken away")
+    expect(not unrestricted.current(who).unrestricted, "the written-back Restricted does not hold")
 
 
 @check("unrestricted", "a run cannot name another run",

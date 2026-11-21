@@ -482,15 +482,22 @@ def trip(reason: str, *, by: str, run: str = "", who=None) -> None:
         whose = {"user_id": str(who.user_id), "org_id": str(getattr(who, "org_id", "") or "")}
         row = PermissionMode.objects.filter(**whose).first()
         log.warning("tripwire: %s (%s%s)", reason, by, f", run {run}" if run else "")
-        if row is None or row.mode != unrestricted.UNRESTRICTED:
+        if row is not None and row.mode != unrestricted.UNRESTRICTED:
             return
         moment = time.time()
+        sealed = seal(whose["org_id"], whose["user_id"], unrestricted.RESTRICTED, "", None, moment)
         with transaction.atomic():
-            PermissionMode.objects.filter(**whose).update(
-                mode=unrestricted.RESTRICTED, how="", until=None, set_at=moment,
-                set_by=f"the tripwire: {reason}"[:500],
-                seal=seal(whose["org_id"], whose["user_id"], unrestricted.RESTRICTED, "", None, moment))
-            PermissionModeFlip.objects.create(**whose, was=row.mode, now=unrestricted.RESTRICTED,
+            if row is None:
+                # No row is the default, Unrestricted, so going back to Restricted writes one.
+                PermissionMode.objects.create(
+                    **whose, mode=unrestricted.RESTRICTED, how="", until=None, set_at=moment,
+                    set_by=f"the tripwire: {reason}"[:500], seal=sealed)
+            else:
+                PermissionMode.objects.filter(**whose).update(
+                    mode=unrestricted.RESTRICTED, how="", until=None, set_at=moment,
+                    set_by=f"the tripwire: {reason}"[:500], seal=sealed)
+            PermissionModeFlip.objects.create(**whose, was=unrestricted.UNRESTRICTED,
+                                              now=unrestricted.RESTRICTED,
                                               how="", until=None, at=moment, by="the tripwire",
                                               agent=str(reason)[:200])
         notices.post(who, title="Rouh switched back to Restricted",
